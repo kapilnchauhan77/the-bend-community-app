@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary */
+  --color-primary: hsl(142, 76%, 36%);
+  --color-primary-foreground: hsl(0, 0%, 100%);
+  --color-primary-dark: hsl(142, 76%, 29%);
+
+  /* Urgency */
+  --color-urgent: hsl(38, 92%, 50%);
+  --color-urgent-foreground: hsl(0, 0%, 100%);
+  --color-critical: hsl(0, 84%, 60%);
+  --color-critical-foreground: hsl(0, 0%, 100%);
+
+  /* Base */
+  --color-background: hsl(0, 0%, 100%);
+  --color-foreground: hsl(222, 47%, 11%);
+
+  /* Card */
+  --color-card: hsl(0, 0%, 100%);
+  --color-card-foreground: hsl(222, 47%, 11%);
+
+  /* Popover / Dropdown */
+  --color-popover: hsl(0, 0%, 100%);
+  --color-popover-foreground: hsl(222, 47%, 11%);
+
+  /* Muted */
+  --color-muted: hsl(210, 40%, 96%);
+  --color-muted-foreground: hsl(215, 16%, 47%);
+
+  /* Accent (hover states) */
+  --color-accent: hsl(210, 40%, 96%);
+  --color-accent-foreground: hsl(222, 47%, 11%);
+
+  /* Destructive */
+  --color-destructive: hsl(0, 84%, 60%);
+  --color-destructive-foreground: hsl(0, 0%, 100%);
+
+  /* Secondary */
+  --color-secondary: hsl(210, 40%, 96%);
+  --color-secondary-foreground: hsl(222, 47%, 11%);
+
+  /* Border / Input / Ring */
+  --color-border: hsl(214, 32%, 91%);
+  --color-input: hsl(214, 32%, 91%);
+  --color-ring: hsl(142, 76%, 36%);
+
+  /* Font & Radius */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --radius: 0.5rem;
+}

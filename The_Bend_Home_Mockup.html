@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Bend — Community Home Page Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; color: #111827; background: #f9fafb; padding-bottom: 0; }
+  body.mobile-nav-visible { padding-bottom: 68px; }
+
+  /* ── SVG Icon Base ── */
+  .icon-svg {
+    width: 20px; height: 20px; display: inline-block; vertical-align: middle;
+    stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+  }
+  .icon-svg-sm { width: 16px; height: 16px; }
+  .icon-svg-lg { width: 24px; height: 24px; }
+  .icon-svg-xl { width: 28px; height: 28px; }
+
+  /* ── Skip Link ── */
+  .skip-link {
+    position: absolute; top: -100%; left: 16px; z-index: 999;
+    background: #16a34a; color: #fff; padding: 12px 24px;
+    border-radius: 0 0 8px 8px; font-size: 14px; font-weight: 600;
+    text-decoration: none; transition: top 0.2s;
+  }
+  .skip-link:focus { top: 0; }
+
+  /* ── Focus States ── */
+  *:focus-visible {
+    outline: 2px solid #16a34a;
+    outline-offset: 2px;
+  }
+  button:focus-visible, a:focus-visible, input:focus-visible {
+    outline: 2px solid #16a34a;
+    outline-offset: 2px;
+  }
+
+  /* Navbar */
+  .navbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 80px; height: 72px;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .nav-logo { display: flex; align-items: center; gap: 10px; }
+  .nav-logo span { font-size: 22px; font-weight: 700; color: #16a34a; display: flex; align-items: center; gap: 8px; }
+  .nav-links { display: flex; gap: 32px; }
+  .nav-links a { text-decoration: none; font-size: 15px; color: #6b7280; font-weight: 500; transition: color 0.2s; }
+  .nav-links a.active, .nav-links a:hover { color: #16a34a; }
+  .nav-right { display: flex; align-items: center; gap: 16px; }
+  .btn-register {
+    padding: 8px 20px; background: #16a34a; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-register:hover { background: #15803d; }
+  .btn-login {
+    padding: 8px 20px; background: transparent; color: #16a34a; border: 2px solid #16a34a;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-login:hover { background: #f0fdf4; }
+  .nav-bell {
+    background: none; border: none; cursor: pointer; position: relative;
+    color: #374151; padding: 6px; border-radius: 8px; transition: color 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-bell:hover { color: #16a34a; }
+  .nav-bell .bell-dot {
+    position: absolute; top: 2px; right: 2px; width: 8px; height: 8px;
+    background: #ef4444; border-radius: 50%; border: 2px solid #fff;
+  }
+
+  /* Hamburger Button (mobile only) */
+  .hamburger {
+    display: none; background: none; border: none; cursor: pointer;
+    width: 36px; height: 36px; position: relative;
+    flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  }
+  .hamburger span {
+    display: block; width: 22px; height: 2px; background: #374151;
+    border-radius: 2px; transition: all 0.3s;
+  }
+  .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+  .hamburger.open span:nth-child(2) { opacity: 0; }
+  .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+  /* Mobile Slide-out Drawer */
+  .mobile-drawer-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 200; opacity: 0; transition: opacity 0.3s;
+  }
+  .mobile-drawer-overlay.visible { display: block; opacity: 1; }
+  .mobile-drawer {
+    position: fixed; top: 0; right: -300px; width: 280px; height: 100%;
+    background: #fff; z-index: 201; transition: right 0.3s ease;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.1); padding: 24px;
+    display: flex; flex-direction: column;
+  }
+  .mobile-drawer.open { right: 0; }
+  .drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;
+  }
+  .drawer-header span { font-size: 18px; font-weight: 700; color: #16a34a; display: flex; align-items: center; gap: 8px; }
+  .drawer-close {
+    background: none; border: none; font-size: 24px; cursor: pointer;
+    color: #6b7280; width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; transition: background 0.2s;
+  }
+  .drawer-close:hover { background: #f3f4f6; }
+  .drawer-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .drawer-nav a {
+    text-decoration: none; font-size: 16px; color: #374151; font-weight: 500;
+    padding: 14px 16px; border-radius: 10px; transition: all 0.2s;
+    display: flex; align-items: center; gap: 12px; cursor: pointer;
+  }
+  .drawer-nav a:hover, .drawer-nav a.active { background: #f0fdf4; color: #16a34a; }
+  .drawer-nav a .drawer-icon { width: 24px; display: flex; align-items: center; justify-content: center; }
+  .drawer-actions {
+    display: flex; flex-direction: column; gap: 10px;
+    margin-top: auto; padding-top: 24px; border-top: 1px solid #e5e7eb;
+  }
+  .drawer-actions .btn-login, .drawer-actions .btn-register {
+    width: 100%; text-align: center; padding: 12px; font-size: 15px;
+  }
+
+  /* Hero — Montross, Virginia main street photo */
+  .hero {
+    position: relative; height: 520px;
+    background: linear-gradient(135deg, rgba(15,60,30,0.78), rgba(22,101,52,0.72)),
+                url('https://images.unsplash.com/photo-1703244549208-c0671f988376?w=1920&q=80');
+    background-size: cover; background-position: center 40%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; color: #fff;
+  }
+  .hero-welcome { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; color: #bbf7d0; margin-bottom: 8px; font-weight: 600; }
+  .hero-title { font-size: 52px; font-weight: 800; margin-bottom: 12px; line-height: 1.1; }
+  .hero-sub { font-size: 18px; color: #d1fae5; margin-bottom: 32px; font-weight: 400; }
+  .hero-search {
+    display: flex; align-items: center;
+    width: 600px; max-width: 90%; height: 52px;
+    background: #fff; border-radius: 26px; padding: 0 8px 0 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+  .hero-search input {
+    flex: 1; border: none; outline: none; font-size: 15px; font-family: 'Inter', sans-serif; color: #374151;
+  }
+  .hero-search input::placeholder { color: #9ca3af; }
+  .hero-search .search-icon { color: #9ca3af; margin-right: 12px; display: flex; align-items: center; }
+  .hero-search .search-btn {
+    background: #16a34a; border: none; color: #fff; padding: 8px 16px;
+    border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; transition: background 0.2s;
+  }
+  .hero-search .search-btn:hover { background: #15803d; }
+  .hero-cta { display: flex; gap: 16px; margin-top: 28px; }
+  .hero-cta .btn-primary {
+    padding: 14px 32px; background: #fff; color: #16a34a;
+    border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .hero-cta .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+  .hero-cta .btn-outline {
+    padding: 14px 32px; background: transparent; color: #fff;
+    border: 2px solid rgba(255,255,255,0.7); border-radius: 10px;
+    font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .hero-cta .btn-outline:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
+
+  /* Stats Ribbon */
+  .stats-ribbon {
+    display: flex; justify-content: center; gap: 80px;
+    background: rgba(10,50,25,0.95); padding: 16px 0;
+  }
+  .stats-ribbon .stat { text-align: center; }
+  .stats-ribbon .stat-num { font-size: 22px; font-weight: 700; color: #fff; }
+  .stats-ribbon .stat-label { font-size: 12px; color: #a7f3d0; margin-top: 2px; }
+
+  /* Quick Links — subtle Virginia countryside bg */
+  .quick-links {
+    display: flex; justify-content: center; gap: 28px;
+    padding: 48px 80px;
+    background: linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
+                url('https://cdn.pixabay.com/photo/2015/07/05/10/18/tree-832079_1280.jpg');
+    background-size: cover; background-position: center;
+  }
+  .ql-card {
+    width: 160px; padding: 24px 16px; text-align: center;
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px;
+    cursor: pointer; transition: all 0.2s; text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .ql-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); border-color: #16a34a; }
+  .ql-icon {
+    width: 52px; height: 52px; margin: 0 auto 12px;
+    background: #dcfce7; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #16a34a;
+  }
+  .ql-label { font-size: 13px; font-weight: 600; color: #111827; line-height: 1.3; }
+
+  /* Urgent Section */
+  .urgent-section { padding: 40px 80px; background: #fef2f2; }
+  .urgent-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .urgent-header h3 { display: flex; align-items: center; gap: 10px; font-size: 18px; color: #ef4444; font-weight: 600; }
+  .urgent-header h3 .dot { width: 12px; height: 12px; background: #ef4444; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .urgent-header a { color: #ef4444; font-weight: 600; text-decoration: none; font-size: 14px; cursor: pointer; }
+  .urgent-header a:hover { text-decoration: underline; }
+  .urgent-cards { display: flex; gap: 24px; }
+  .urgent-card {
+    flex: 1; min-width: 280px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .urgent-card .card-badges { display: flex; gap: 8px; margin-bottom: 12px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-critical { background: #fee2e2; color: #ef4444; }
+  .badge-urgent { background: #fef3c7; color: #f59e0b; }
+  .badge-free { background: #dcfce7; color: #16a34a; }
+  .badge-paid { background: #eff6ff; color: #3b82f6; }
+  .badge-offer { background: #dcfce7; color: #16a34a; }
+  .badge-request { background: #eff6ff; color: #3b82f6; }
+  .badge .badge-indicator {
+    width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0;
+  }
+  .urgent-card h4 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .urgent-card p { font-size: 13px; color: #6b7280; line-height: 1.5; margin-bottom: 16px; }
+  .urgent-card .card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 12px; border-top: 1px solid #f3f4f6;
+    font-size: 12px; color: #6b7280;
+  }
+  .urgent-card .card-footer span { display: flex; align-items: center; gap: 4px; }
+  /* Auto-refresh indicator */
+  .refresh-indicator {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9ca3af;
+    margin-top: 16px;
+  }
+  .refresh-indicator .refresh-dot {
+    width: 6px; height: 6px; background: #16a34a; border-radius: 50%;
+    animation: blink 3s infinite;
+  }
+  @keyframes blink { 0%, 90% { opacity: 1; } 95% { opacity: 0; } 100% { opacity: 1; } }
+
+  /* What's Happening */
+  .whats-happening { padding: 48px 80px; background: #fff; }
+  .whats-happening h2 { font-size: 28px; font-weight: 700; margin-bottom: 28px; }
+  .wh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .wh-card {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 24px; overflow: hidden;
+  }
+  .wh-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .wh-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid #e5e7eb;
+  }
+  .wh-item:last-of-type { border-bottom: none; }
+  .wh-item .icon { margin-top: 2px; color: #6b7280; display: flex; align-items: center; }
+  .wh-item .content { flex: 1; }
+  .wh-item .content .title { font-size: 14px; color: #111827; font-weight: 500; }
+  .wh-item .content .meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .wh-item .time { font-size: 11px; color: #9ca3af; white-space: nowrap; margin-top: 2px; }
+  .wh-card .view-all { display: inline-block; margin-top: 16px; font-size: 13px; color: #16a34a; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .wh-card .view-all:hover { text-decoration: underline; }
+
+  /* Community Stats — Virginia barn/countryside accent */
+  .community-stats {
+    padding: 48px 80px;
+    background: linear-gradient(rgba(249,250,251,0.92), rgba(249,250,251,0.92)),
+                url('https://cdn.pixabay.com/photo/2017/08/14/01/26/barn-2639076_1280.jpg');
+    background-size: cover; background-position: center;
+  }
+  .community-stats h2 { font-size: 28px; font-weight: 700; margin-bottom: 28px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .stat-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .stat-card .stat-number { font-size: 36px; font-weight: 800; margin-bottom: 4px; }
+  .stat-card .stat-desc { font-size: 14px; color: #6b7280; }
+  .stat-green { color: #16a34a; }
+  .stat-blue { color: #3b82f6; }
+  .stat-amber { color: #f59e0b; }
+
+  /* PWA Install Banner */
+  .pwa-banner {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #fff; padding: 20px 80px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .pwa-banner-content { display: flex; align-items: center; gap: 16px; }
+  .pwa-banner-icon {
+    width: 48px; height: 48px; background: rgba(255,255,255,0.2);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  }
+  .pwa-banner-text h4 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+  .pwa-banner-text p { font-size: 13px; color: #d1fae5; }
+  .pwa-banner-actions { display: flex; gap: 12px; align-items: center; }
+  .pwa-install-btn {
+    background: #fff; color: #16a34a; border: none; padding: 10px 24px;
+    border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .pwa-install-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .pwa-dismiss {
+    background: none; border: none; color: rgba(255,255,255,0.7);
+    font-size: 13px; cursor: pointer; padding: 8px; transition: color 0.2s;
+  }
+  .pwa-dismiss:hover { color: #fff; }
+
+  /* Photo Strip — Montross area imagery */
+  .photo-strip {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; height: 220px; overflow: hidden;
+  }
+  .photo-strip .strip-img {
+    position: relative; overflow: hidden;
+  }
+  .photo-strip .strip-img img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform 0.4s;
+  }
+  .photo-strip .strip-img:hover img { transform: scale(1.05); }
+  .photo-strip .strip-img .strip-caption {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    color: #fff; padding: 24px 16px 12px; font-size: 12px; font-weight: 500;
+  }
+
+  /* Footer */
+  .footer {
+    background: #14532d; color: #fff; padding: 48px 80px 24px;
+  }
+  .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 32px; }
+  .footer-logo span { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .footer-logo p { font-size: 13px; color: #a7f3d0; margin-top: 8px; line-height: 1.6; }
+  .footer h4 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .footer ul { list-style: none; }
+  .footer ul li { margin-bottom: 10px; }
+  .footer ul li a { color: #a7f3d0; text-decoration: none; font-size: 13px; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+  .footer ul li a:hover { color: #fff; }
+  .footer-bottom {
+    border-top: 1px solid #166534; padding-top: 20px;
+    font-size: 12px; color: #6ee7b7;
+  }
+
+  /* Mobile Bottom Navigation */
+  .bottom-nav {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0;
+    height: 68px; background: #fff; z-index: 100;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    border-top: 1px solid #e5e7eb;
+  }
+  .bottom-nav-inner {
+    display: flex; align-items: center; justify-content: space-around;
+    height: 100%; padding: 0 8px;
+  }
+  .bottom-nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    text-decoration: none; color: #6b7280; font-size: 10px; font-weight: 500;
+    padding: 6px 12px; border-radius: 8px; transition: all 0.2s;
+    position: relative; cursor: pointer; background: none; border: none;
+    font-family: 'Inter', sans-serif;
+  }
+  .bottom-nav-item:hover, .bottom-nav-item.active { color: #16a34a; }
+  .bottom-nav-item .nav-icon { line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .bottom-nav-item .nav-label { line-height: 1; }
+  .bottom-nav-item.create-btn {
+    background: #16a34a; color: #fff; border-radius: 50%;
+    width: 48px; height: 48px; padding: 0; margin-top: -16px;
+    box-shadow: 0 4px 12px rgba(22,163,74,0.4);
+    justify-content: center; gap: 0;
+  }
+  .bottom-nav-item.create-btn:hover { background: #15803d; }
+  .bottom-nav-item.create-btn .nav-icon .icon-svg { stroke-width: 2.5; }
+  .bottom-nav-item.create-btn .nav-label { display: none; }
+  .bottom-nav-item .badge-dot {
+    position: absolute; top: 2px; right: 8px;
+    width: 8px; height: 8px; background: #ef4444; border-radius: 50%;
+    border: 2px solid #fff;
+  }
+
+  /* Search Results Toast */
+  .search-toast {
+    display: none; position: fixed; top: 84px; left: 50%; transform: translateX(-50%);
+    background: #111827; color: #fff; padding: 12px 24px; border-radius: 10px;
+    font-size: 14px; font-weight: 500; z-index: 150;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    animation: toastIn 0.3s ease;
+  }
+  .search-toast.visible { display: block; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+  /* ── Reduced Motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    body { padding-bottom: 68px; }
+    .navbar { padding: 0 20px; }
+    .nav-links { display: none; }
+    .hamburger { display: flex; }
+    .nav-right .btn-login, .nav-right .btn-register { display: none; }
+    .hero { height: 420px; padding: 0 20px; }
+    .hero-title { font-size: 32px; }
+    .hero-sub { font-size: 15px; margin-bottom: 24px; }
+    .hero-search { width: 100%; }
+    .hero-search .search-btn { display: none; }
+    .hero-cta { flex-direction: column; gap: 10px; width: 100%; max-width: 320px; }
+    .hero-cta .btn-primary, .hero-cta .btn-outline { width: 100%; text-align: center; padding: 12px; }
+    .stats-ribbon { gap: 16px; padding: 12px 20px; flex-wrap: wrap; justify-content: space-around; }
+    .stats-ribbon .stat-num { font-size: 18px; }
+    .quick-links { flex-wrap: wrap; padding: 32px 20px; gap: 12px; justify-content: center; }
+    .ql-card { width: calc(33.333% - 8px); padding: 16px 8px; }
+    .ql-icon { width: 44px; height: 44px; }
+    .ql-label { font-size: 11px; }
+    .urgent-section { padding: 32px 20px; }
+    .urgent-cards {
+      flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch; padding-bottom: 8px;
+      scrollbar-width: none;
+    }
+    .urgent-cards::-webkit-scrollbar { display: none; }
+    .urgent-card { flex: 0 0 85%; scroll-snap-align: start; min-width: 260px; }
+    .urgent-scroll-hint {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 12px; font-size: 12px; color: #9ca3af;
+    }
+    .urgent-scroll-dots { display: flex; gap: 6px; }
+    .urgent-scroll-dots .scroll-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #fca5a5; transition: all 0.3s;
+    }
+    .urgent-scroll-dots .scroll-dot.active { width: 20px; border-radius: 4px; background: #ef4444; }
+    .whats-happening { padding: 32px 20px; }
+    .wh-grid { grid-template-columns: 1fr; }
+    .community-stats { padding: 32px 20px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .photo-strip { grid-template-columns: 1fr; height: auto; }
+    .photo-strip .strip-img { height: 180px; }
+    .photo-strip .strip-img:nth-child(2), .photo-strip .strip-img:nth-child(3) { display: none; }
+    .pwa-banner { padding: 16px 20px; flex-direction: column; gap: 16px; text-align: center; }
+    .pwa-banner-content { flex-direction: column; }
+    .footer { padding: 32px 20px; }
+    .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+    .bottom-nav { display: block; }
+  }
+
+  /* Desktop: hide mobile-only elements */
+  @media (min-width: 769px) {
+    .urgent-scroll-hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SVG Icon Sprite (hidden) -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+  </symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+  </symbol>
+  <symbol id="i-package" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16.5 9.4l-9-5.19"/><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+  </symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+  </symbol>
+  <symbol id="i-store" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 9l1-4h16l1 4"/><path d="M3 9v11a1 1 0 001 1h16a1 1 0 001-1V9"/><path d="M9 21V9"/><path d="M15 21V9"/>
+  </symbol>
+  <symbol id="i-message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+  </symbol>
+  <symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+  </symbol>
+  <symbol id="i-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+  </symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+  </symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+  </symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+  </symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/>
+  </symbol>
+  <symbol id="i-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+  </symbol>
+  <symbol id="i-smartphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><path d="M12 18h.01"/>
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </symbol>
+</svg>
+
+<!-- Skip to Content -->
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<!-- NAVBAR -->
+<nav class="navbar" aria-label="Main navigation">
+  <div class="nav-logo">
+    <span><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-building"/></svg> The Bend</span>
+  </div>
+  <div class="nav-links">
+    <a href="#" class="active" aria-current="page">Home</a>
+    <a href="#">Browse</a>
+    <a href="#">About</a>
+  </div>
+  <div class="nav-right">
+    <button class="nav-bell" aria-label="Notifications — 1 new">
+      <svg class="icon-svg" aria-hidden="true"><use href="#i-bell"/></svg>
+      <span class="bell-dot" aria-hidden="true"></span>
+    </button>
+    <button class="btn-login">Log In</button>
+    <button class="btn-register">Register</button>
+    <button class="hamburger" id="hamburgerBtn" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- MOBILE SLIDE-OUT DRAWER -->
+<div class="mobile-drawer-overlay" id="drawerOverlay"></div>
+<div class="mobile-drawer" id="mobileDrawer" role="dialog" aria-label="Navigation menu">
+  <div class="drawer-header">
+    <span><svg class="icon-svg" aria-hidden="true"><use href="#i-building"/></svg> The Bend</span>
+    <button class="drawer-close" id="drawerClose" aria-label="Close menu">
+      <svg class="icon-svg" aria-hidden="true"><use href="#i-x"/></svg>
+    </button>
+  </div>
+  <nav class="drawer-nav" aria-label="Mobile navigation">
+    <a href="#" class="active" aria-current="page"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-home"/></svg></span> Home</a>
+    <a href="#"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-search"/></svg></span> Browse</a>
+    <a href="#"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-store"/></svg></span> Shop Directory</a>
+    <a href="#"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-message"/></svg></span> Messages</a>
+    <a href="#"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-bell"/></svg></span> Notifications</a>
+    <a href="#"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-file-text"/></svg></span> Community Guidelines</a>
+    <a href="#"><span class="drawer-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-info"/></svg></span> About</a>
+  </nav>
+  <div class="drawer-actions">
+    <button class="btn-login">Log In</button>
+    <button class="btn-register">Register</button>
+  </div>
+</div>
+
+<!-- HERO BANNER -->
+<main id="main-content">
+<section class="hero">
+  <div class="hero-welcome">WELCOME TO</div>
+  <h1 class="hero-title">The Bend Community</h1>
+  <p class="hero-sub">Montross, Virginia &mdash; Share staff, materials &amp; equipment with your neighbors</p>
+  <form class="hero-search" id="heroSearchForm" onsubmit="handleSearch(event)" role="search">
+    <span class="search-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-search"/></svg></span>
+    <label for="heroSearchInput" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Search listings</label>
+    <input type="text" id="heroSearchInput" placeholder="Search listings, shops, or resources..." autocomplete="off">
+    <button type="submit" class="search-btn">Search</button>
+  </form>
+  <div class="hero-cta">
+    <button class="btn-primary" onclick="showToast('Navigating to /browse...')">Browse Listings</button>
+    <button class="btn-outline" onclick="showToast('Navigating to /register...')">Register Your Shop</button>
+  </div>
+</section>
+
+<!-- STATS RIBBON -->
+<div class="stats-ribbon" aria-label="Community statistics">
+  <div class="stat"><div class="stat-num">28</div><div class="stat-label">Active Shops</div></div>
+  <div class="stat"><div class="stat-num">142</div><div class="stat-label">Active Listings</div></div>
+  <div class="stat"><div class="stat-num">89</div><div class="stat-label">Items Shared</div></div>
+  <div class="stat"><div class="stat-num">$4.2K</div><div class="stat-label">Waste Saved</div></div>
+</div>
+
+<!-- QUICK LINKS -->
+<section class="quick-links" aria-label="Quick links">
+  <a href="#" class="ql-card" role="link" onclick="showToast('Navigating to /browse?category=staff')">
+    <div class="ql-icon"><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-user"/></svg></div>
+    <div class="ql-label">Share Staff</div>
+  </a>
+  <a href="#" class="ql-card" role="link" onclick="showToast('Navigating to /browse?category=materials')">
+    <div class="ql-icon"><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-package"/></svg></div>
+    <div class="ql-label">Raw Materials</div>
+  </a>
+  <a href="#" class="ql-card" role="link" onclick="showToast('Navigating to /browse?category=equipment')">
+    <div class="ql-icon"><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-wrench"/></svg></div>
+    <div class="ql-label">Equipment</div>
+  </a>
+  <a href="#" class="ql-card" role="link" onclick="showToast('Navigating to /shops')">
+    <div class="ql-icon"><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-store"/></svg></div>
+    <div class="ql-label">Shop Directory</div>
+  </a>
+  <a href="#" class="ql-card" role="link" onclick="showToast('Navigating to /create (requires login)')">
+    <div class="ql-icon"><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-clipboard"/></svg></div>
+    <div class="ql-label">Post a Request</div>
+  </a>
+  <a href="#" class="ql-card" role="link" onclick="showToast('Navigating to /guidelines')">
+    <div class="ql-icon"><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-file-text"/></svg></div>
+    <div class="ql-label">Community Guidelines</div>
+  </a>
+</section>
+
+<!-- URGENT & CRITICAL -->
+<section class="urgent-section" aria-label="Urgent items">
+  <div class="urgent-header">
+    <h3><span class="dot" aria-hidden="true"></span> 3 critical items need attention right now</h3>
+    <a href="#">View All &rarr;</a>
+  </div>
+  <div class="urgent-cards" id="urgentCards">
+    <div class="urgent-card">
+      <div class="card-badges">
+        <span class="badge badge-critical"><span class="badge-indicator" aria-hidden="true"></span> Critical</span>
+        <span class="badge badge-offer">Offer</span>
+        <span class="badge badge-free">FREE</span>
+      </div>
+      <h4>Tomatoes &mdash; 5kg</h4>
+      <p>Ripe Roma tomatoes, expiring tomorrow. Pick up anytime today or tomorrow morning.</p>
+      <div class="card-footer">
+        <span><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-store"/></svg> Fresh Bites Caf&eacute;</span>
+        <span><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-package"/></svg> Materials &middot; 2h ago</span>
+      </div>
+    </div>
+    <div class="urgent-card">
+      <div class="card-badges">
+        <span class="badge badge-critical"><span class="badge-indicator" aria-hidden="true"></span> Critical</span>
+        <span class="badge badge-request">Request</span>
+        <span class="badge badge-paid">PAID</span>
+      </div>
+      <h4>Need baker for tomorrow</h4>
+      <p>Early morning shift 5am&ndash;11am. Experience with artisan bread required. Competitive pay.</p>
+      <div class="card-footer">
+        <span><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-store"/></svg> Corner Bakery</span>
+        <span><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-user"/></svg> Staff &middot; 1h ago</span>
+      </div>
+    </div>
+    <div class="urgent-card">
+      <div class="card-badges">
+        <span class="badge badge-urgent"><span class="badge-indicator" aria-hidden="true"></span> Urgent</span>
+        <span class="badge badge-request">Request</span>
+        <span class="badge badge-paid">PAID</span>
+      </div>
+      <h4>Need olive oil &mdash; 5L</h4>
+      <p>Regular supplier delayed. Need extra virgin olive oil by tomorrow morning.</p>
+      <div class="card-footer">
+        <span><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-store"/></svg> Bella Pasta</span>
+        <span><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-package"/></svg> Materials &middot; 30m ago</span>
+      </div>
+    </div>
+  </div>
+  <div class="urgent-scroll-hint">
+    <div class="urgent-scroll-dots">
+      <span class="scroll-dot active"></span>
+      <span class="scroll-dot"></span>
+      <span class="scroll-dot"></span>
+    </div>
+  </div>
+  <div class="refresh-indicator">
+    <span class="refresh-dot" aria-hidden="true"></span>
+    <span>Auto-refreshes every 60s &middot; Last updated <span id="lastRefresh">just now</span></span>
+  </div>
+</section>
+
+<!-- WHAT'S HAPPENING -->
+<section class="whats-happening">
+  <h2>What's Happening</h2>
+  <div class="wh-grid">
+    <div class="wh-card">
+      <h3><svg class="icon-svg" aria-hidden="true"><use href="#i-clipboard"/></svg> Community Board</h3>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-wrench"/></svg></span>
+        <div class="content">
+          <div class="title">Commercial blender available</div>
+          <div class="meta">Mama's Kitchen</div>
+        </div>
+        <span class="time">3h ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-user"/></svg></span>
+        <div class="content">
+          <div class="title">Need part-time cashier this weekend</div>
+          <div class="meta">Deli Plus</div>
+        </div>
+        <span class="time">5h ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-wrench"/></svg></span>
+        <div class="content">
+          <div class="title">Extra dining chairs (6) available</div>
+          <div class="meta">Tool Hub</div>
+        </div>
+        <span class="time">1d ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-package"/></svg></span>
+        <div class="content">
+          <div class="title">Fresh herbs &mdash; basil &amp; rosemary</div>
+          <div class="meta">Green Garden Caf&eacute;</div>
+        </div>
+        <span class="time">1d ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-wrench"/></svg></span>
+        <div class="content">
+          <div class="title">Need large mixing bowls for 2 days</div>
+          <div class="meta">Corner Bakery</div>
+        </div>
+        <span class="time">2d ago</span>
+      </div>
+      <a href="#" class="view-all">View All Listings &rarr;</a>
+    </div>
+    <div class="wh-card">
+      <h3><svg class="icon-svg" aria-hidden="true"><use href="#i-check-circle"/></svg> Recently Fulfilled</h3>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true" style="color:#16a34a"><use href="#i-check-circle"/></svg></span>
+        <div class="content">
+          <div class="title">10kg flour shared</div>
+          <div class="meta">Fresh Bites &rarr; Corner Grill</div>
+        </div>
+        <span class="time">2h ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true" style="color:#16a34a"><use href="#i-check-circle"/></svg></span>
+        <div class="content">
+          <div class="title">Mixer lent for weekend</div>
+          <div class="meta">Mama's Kitchen &rarr; Bella Pasta</div>
+        </div>
+        <span class="time">5h ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true" style="color:#16a34a"><use href="#i-check-circle"/></svg></span>
+        <div class="content">
+          <div class="title">2 waitstaff shared Saturday</div>
+          <div class="meta">Deli Plus &rarr; Corner Grill</div>
+        </div>
+        <span class="time">1d ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true" style="color:#16a34a"><use href="#i-check-circle"/></svg></span>
+        <div class="content">
+          <div class="title">5L cooking oil exchanged</div>
+          <div class="meta">Green Garden &rarr; Deli Plus</div>
+        </div>
+        <span class="time">2d ago</span>
+      </div>
+      <div class="wh-item">
+        <span class="icon"><svg class="icon-svg-sm" aria-hidden="true" style="color:#16a34a"><use href="#i-check-circle"/></svg></span>
+        <div class="content">
+          <div class="title">Industrial blender returned</div>
+          <div class="meta">Bella Pasta &rarr; Mama's Kitchen</div>
+        </div>
+        <span class="time">3d ago</span>
+      </div>
+      <a href="#" class="view-all">View All &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- PHOTO STRIP — Montross / Northern Neck Area -->
+<section class="photo-strip" aria-label="Community photos">
+  <div class="strip-img">
+    <img src="https://cdn.pixabay.com/photo/2023/05/06/13/49/wachapreague-7974344_1280.jpg" alt="Virginia Eastern Shore waterfront with boats and calm water" loading="lazy">
+    <div class="strip-caption">Virginia's Northern Neck Waterfront</div>
+  </div>
+  <div class="strip-img">
+    <img src="https://cdn.pixabay.com/photo/2023/04/25/15/08/church-7950418_1280.jpg" alt="Historic Virginia church with white steeple surrounded by trees" loading="lazy">
+    <div class="strip-caption">Historic Westmoreland County</div>
+  </div>
+  <div class="strip-img">
+    <img src="https://cdn.pixabay.com/photo/2023/03/19/18/05/pier-7863077_1280.jpg" alt="Wooden pier extending into the Chesapeake Bay at sunset" loading="lazy">
+    <div class="strip-caption">Chesapeake Bay &amp; Rappahannock River</div>
+  </div>
+</section>
+
+<!-- COMMUNITY STATS (with count-up animation) -->
+<section class="community-stats">
+  <h2>Our Community Impact</h2>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-number stat-green" data-target="28" data-prefix="">0</div>
+      <div class="stat-desc">Active Shops</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number stat-blue" data-target="142" data-prefix="">0</div>
+      <div class="stat-desc">Active Listings</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number stat-green" data-target="89" data-prefix="">0</div>
+      <div class="stat-desc">Items Shared This Month</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number stat-amber" data-target="4200" data-prefix="$">$0</div>
+      <div class="stat-desc">Waste Saved This Quarter</div>
+    </div>
+  </div>
+</section>
+
+<!-- PWA INSTALL BANNER -->
+<section class="pwa-banner" id="pwaBanner" role="banner">
+  <div class="pwa-banner-content">
+    <div class="pwa-banner-icon">
+      <svg class="icon-svg-lg" aria-hidden="true" style="color:#fff"><use href="#i-smartphone"/></svg>
+    </div>
+    <div class="pwa-banner-text">
+      <h4>Install The Bend App</h4>
+      <p>Get instant notifications and quick access from your home screen</p>
+    </div>
+  </div>
+  <div class="pwa-banner-actions">
+    <button class="pwa-install-btn" onclick="showToast('PWA install prompt triggered')">Install App</button>
+    <button class="pwa-dismiss" onclick="document.getElementById('pwaBanner').style.display='none'" aria-label="Dismiss install banner">Not now</button>
+  </div>
+</section>
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-logo">
+      <span><svg class="icon-svg-lg" aria-hidden="true"><use href="#i-building"/></svg> The Bend</span>
+      <p>A community resource sharing platform<br>for local businesses in Montross, Virginia &mdash;<br>the heart of the Northern Neck.</p>
+    </div>
+    <div>
+      <h4>About</h4>
+      <ul>
+        <li><a href="#">Our Story</a></li>
+        <li><a href="#">Community Guidelines</a></li>
+        <li><a href="#">Register Your Shop</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Quick Links</h4>
+      <ul>
+        <li><a href="#">Browse Staff</a></li>
+        <li><a href="#">Browse Materials</a></li>
+        <li><a href="#">Browse Equipment</a></li>
+        <li><a href="#">Shop Directory</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Connect</h4>
+      <ul>
+        <li><a href="#"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-map-pin"/></svg> Montross, VA 22520</a></li>
+        <li><a href="#"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-phone"/></svg> (804) 493-XXXX</a></li>
+        <li><a href="#"><svg class="icon-svg-sm" aria-hidden="true"><use href="#i-mail"/></svg> hello@thebend.app</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    &copy; 2026 The Bend Community &middot; Montross, Virginia &middot; Serving the Northern Neck
+  </div>
+</footer>
+
+<!-- MOBILE BOTTOM NAVIGATION -->
+<nav class="bottom-nav" aria-label="Mobile navigation">
+  <div class="bottom-nav-inner">
+    <button class="bottom-nav-item active" onclick="showToast('Navigating to /')" aria-label="Home" aria-current="page">
+      <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-home"/></svg></span>
+      <span class="nav-label">Home</span>
+    </button>
+    <button class="bottom-nav-item" onclick="showToast('Navigating to /browse')" aria-label="Search">
+      <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-search"/></svg></span>
+      <span class="nav-label">Search</span>
+    </button>
+    <button class="bottom-nav-item create-btn" onclick="showToast('Opening create listing sheet...')" aria-label="Create new listing">
+      <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-plus"/></svg></span>
+    </button>
+    <button class="bottom-nav-item" onclick="showToast('Navigating to /messages (requires login)')" aria-label="Messages — 1 new">
+      <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-message"/></svg></span>
+      <span class="nav-label">Messages</span>
+      <span class="badge-dot" aria-hidden="true"></span>
+    </button>
+    <button class="bottom-nav-item" onclick="showToast('Navigating to /my-shop')" aria-label="My shop">
+      <span class="nav-icon"><svg class="icon-svg" aria-hidden="true"><use href="#i-store"/></svg></span>
+      <span class="nav-label">Me</span>
+    </button>
+  </div>
+</nav>
+
+<!-- SEARCH TOAST -->
+<div class="search-toast" id="searchToast" role="alert" aria-live="polite"></div>
+
+<script>
+  // ── Hamburger / Drawer ──
+  const hamburger = document.getElementById('hamburgerBtn');
+  const drawer = document.getElementById('mobileDrawer');
+  const overlay = document.getElementById('drawerOverlay');
+  const drawerClose = document.getElementById('drawerClose');
+
+  function openDrawer() {
+    drawer.classList.add('open');
+    overlay.classList.add('visible');
+    hamburger.classList.add('open');
+    hamburger.setAttribute('aria-label', 'Close menu');
+    document.body.style.overflow = 'hidden';
+    // Trap focus inside drawer
+    drawerClose.focus();
+  }
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    overlay.classList.remove('visible');
+    hamburger.classList.remove('open');
+    hamburger.setAttribute('aria-label', 'Open menu');
+    document.body.style.overflow = '';
+    hamburger.focus();
+  }
+  hamburger.addEventListener('click', () => {
+    drawer.classList.contains('open') ? closeDrawer() : openDrawer();
+  });
+  overlay.addEventListener('click', closeDrawer);
+  drawerClose.addEventListener('click', closeDrawer);
+  // Close drawer on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawer.classList.contains('open')) {
+      closeDrawer();
+    }
+  });
+
+  // ── Search Bar ──
+  function handleSearch(e) {
+    e.preventDefault();
+    const q = document.getElementById('heroSearchInput').value.trim();
+    if (q) {
+      showToast('Navigating to /browse?search=' + encodeURIComponent(q));
+    }
+  }
+
+  // ── Toast Notifications ──
+  let toastTimer;
+  function showToast(msg) {
+    const toast = document.getElementById('searchToast');
+    toast.textContent = msg;
+    toast.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('visible'), 2500);
+  }
+
+  // ── Count-Up Animation (Intersection Observer) ──
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function animateCountUp(el) {
+    const target = parseInt(el.dataset.target);
+    const prefix = el.dataset.prefix || '';
+
+    // Skip animation if user prefers reduced motion
+    if (prefersReducedMotion) {
+      if (prefix === '$' && target >= 1000) {
+        el.textContent = '$' + (target / 1000).toFixed(1) + 'K';
+      } else {
+        el.textContent = prefix + target.toLocaleString();
+      }
+      return;
+    }
+
+    const duration = 1500;
+    const start = performance.now();
+
+    function update(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(eased * target);
+
+      if (prefix === '$') {
+        el.textContent = '$' + current.toLocaleString();
+      } else {
+        el.textContent = prefix + current.toLocaleString();
+      }
+
+      if (progress < 1) {
+        requestAnimationFrame(update);
+      } else {
+        // Final value with proper formatting
+        if (prefix === '$') {
+          if (target >= 1000) {
+            el.textContent = '$' + (target / 1000).toFixed(1) + 'K';
+          } else {
+            el.textContent = '$' + target.toLocaleString();
+          }
+        } else {
+          el.textContent = prefix + target.toLocaleString();
+        }
+      }
+    }
+    requestAnimationFrame(update);
+  }
+
+  const statNumbers = document.querySelectorAll('.stat-card .stat-number[data-target]');
+  const statsObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        animateCountUp(entry.target);
+        statsObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  statNumbers.forEach(el => statsObserver.observe(el));
+
+  // ── Urgent Cards Scroll Dots (mobile) ──
+  const urgentCardsContainer = document.getElementById('urgentCards');
+  const scrollDots = document.querySelectorAll('.urgent-scroll-dots .scroll-dot');
+
+  if (urgentCardsContainer && scrollDots.length) {
+    urgentCardsContainer.addEventListener('scroll', () => {
+      const scrollLeft = urgentCardsContainer.scrollLeft;
+      const cardWidth = urgentCardsContainer.querySelector('.urgent-card').offsetWidth + 24;
+      const activeIndex = Math.round(scrollLeft / cardWidth);
+      scrollDots.forEach((dot, i) => {
+        dot.classList.toggle('active', i === activeIndex);
+      });
+    });
+  }
+
+  // ── Auto-Refresh Timer (simulated) ──
+  let refreshSeconds = 0;
+  setInterval(() => {
+    refreshSeconds++;
+    const el = document.getElementById('lastRefresh');
+    if (refreshSeconds >= 60) {
+      refreshSeconds = 0;
+      el.textContent = 'just now';
+    } else if (refreshSeconds < 5) {
+      el.textContent = 'just now';
+    } else {
+      el.textContent = refreshSeconds + 's ago';
+    }
+  }, 1000);
+</script>
+
+</body>
+</html>
