@@ -87,7 +87,7 @@ export default function ShopsPage() {
       const params: Record<string, string> = {};
       if (q) params.search = q;
       const res = await adminApi.getShops(params);
-      setShops(res.data?.shops ?? res.data ?? []);
+      setShops(res.data?.items ?? res.data?.shops ?? res.data ?? []);
     } catch {
       setShops([]);
     } finally {

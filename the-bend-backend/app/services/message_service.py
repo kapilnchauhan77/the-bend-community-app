@@ -70,6 +70,23 @@ class MessageService:
 
         return {"items": enriched, "next_cursor": result.next_cursor, "has_more": result.has_more}
 
+    async def start_thread_with_shop(self, current_user_id: UUID, shop_id: UUID, listing_id: UUID | None = None):
+        """Get or create a thread between current user and a shop's admin."""
+        from app.core.exceptions import NotFoundError
+
+        shop_result = await self.db.execute(select(Shop).where(Shop.id == shop_id))
+        shop = shop_result.scalar_one_or_none()
+        if not shop or not shop.admin_user_id:
+            raise NotFoundError("Shop not found")
+
+        if current_user_id == shop.admin_user_id:
+            raise ForbiddenError("Cannot start a thread with your own shop")
+
+        thread, created = await self.message_repo.get_or_create_thread(
+            current_user_id, shop.admin_user_id, listing_id
+        )
+        return {"id": str(thread.id), "created": created}
+
     async def get_thread_messages(self, thread_id: UUID, user_id: UUID, cursor=None, limit=50):
         if not await self.message_repo.is_participant(thread_id, user_id):
             raise ForbiddenError("Not a participant of this thread")

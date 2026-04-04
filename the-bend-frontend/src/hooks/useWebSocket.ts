@@ -12,8 +12,8 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const reconnectTimeoutRef = useRef<number>();
-  const { isAuthenticated } = useAuthStore();
-  const { addMessage } = useMessageStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const addMessage = useMessageStore((s) => s.addMessage);
 
   const connect = useCallback(() => {
     const token = sessionStorage.getItem('access_token');

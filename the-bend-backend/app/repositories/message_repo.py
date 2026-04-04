@@ -127,6 +127,39 @@ class MessageRepository:
         )
         return result.scalar_one()
 
+    async def get_or_create_thread(
+        self, participant_a: UUID, participant_b: UUID, listing_id: UUID | None = None
+    ) -> tuple[MessageThread, bool]:
+        """Get existing thread or create a new one. Returns (thread, created)."""
+        from uuid import uuid4
+        from sqlalchemy import and_
+
+        # Normalize order so we can find existing threads regardless of who initiated
+        a, b = sorted([participant_a, participant_b], key=str)
+
+        query = select(MessageThread).where(
+            and_(
+                MessageThread.participant_a == a,
+                MessageThread.participant_b == b,
+                MessageThread.listing_id == listing_id if listing_id else MessageThread.listing_id.is_(None),
+            )
+        )
+        result = await self.session.execute(query)
+        thread = result.scalar_one_or_none()
+        if thread:
+            return thread, False
+
+        thread = MessageThread(
+            id=uuid4(),
+            participant_a=a,
+            participant_b=b,
+            listing_id=listing_id,
+        )
+        self.session.add(thread)
+        await self.session.flush()
+        await self.session.refresh(thread)
+        return thread, True
+
     async def get_thread_by_id(self, thread_id: UUID) -> MessageThread | None:
         result = await self.session.execute(
             select(MessageThread).where(MessageThread.id == thread_id)

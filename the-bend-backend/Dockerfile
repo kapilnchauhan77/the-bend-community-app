@@ -7,12 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency file and install
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir . && pip install "bcrypt==4.0.1"
-
-# Copy application
+# Copy application and install dependencies
 COPY . .
+RUN pip install --no-cache-dir . && pip install "bcrypt==4.0.1"
 
 # Create uploads directory
 RUN mkdir -p uploads/images uploads/guidelines

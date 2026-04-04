@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { listingApi } from '@/services/listingApi';
+import { messageApi } from '@/services/messageApi';
 import { useAuthStore } from '@/stores/authStore';
 import type { ListingDetail } from '@/types';
 
@@ -473,7 +474,15 @@ export default function ListingDetailPage() {
             <Button
               variant="outline"
               className="flex-1 gap-2"
-              onClick={() => navigate('/messages')}
+              onClick={async () => {
+                if (!listing) return;
+                try {
+                  const { data } = await messageApi.startThread(listing.shop.id, listing.id);
+                  navigate(`/messages/${data.id}`);
+                } catch (err) {
+                  console.error('Failed to start thread:', err);
+                }
+              }}
             >
               <MessageCircle size={16} />
               Message Shop

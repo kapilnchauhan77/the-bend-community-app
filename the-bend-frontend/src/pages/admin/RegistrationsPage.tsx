@@ -86,7 +86,7 @@ export default function RegistrationsPage() {
     setLoading(true);
     try {
       const res = await adminApi.getRegistrations({ status });
-      setRegistrations(res.data?.registrations ?? res.data ?? []);
+      setRegistrations(res.data?.items ?? res.data?.registrations ?? res.data ?? []);
     } catch {
       setRegistrations([]);
     } finally {

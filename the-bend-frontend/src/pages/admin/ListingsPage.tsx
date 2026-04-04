@@ -36,7 +36,6 @@ interface Listing {
   created_at: string;
 }
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -129,7 +128,7 @@ export default function ListingsPage() {
       if (filterCategory && filterCategory !== 'All') params.category = filterCategory;
       if (filterUrgency) params.urgency = filterUrgency;
       const res = await adminApi.getListings(params);
-      setListings(res.data?.listings ?? res.data ?? []);
+      setListings(res.data?.items ?? res.data?.listings ?? res.data ?? []);
     } catch {
       setListings([]);
     } finally {

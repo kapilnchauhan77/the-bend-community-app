@@ -6,13 +6,23 @@ from app.api.deps import get_db
 from app.core.permissions import get_current_user
 from app.models.user import User
 from app.services.message_service import MessageService
-from app.schemas.message import SendMessageRequest
+from app.schemas.message import SendMessageRequest, StartThreadRequest
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
 
 def get_message_service(db: AsyncSession = Depends(get_db)):
     return MessageService(db)
+
+
+@router.post("/threads")
+async def start_thread(
+    data: StartThreadRequest,
+    service: MessageService = Depends(get_message_service),
+    current_user: User = Depends(get_current_user),
+):
+    listing_id = UUID(data.listing_id) if data.listing_id else None
+    return await service.start_thread_with_shop(current_user.id, UUID(data.shop_id), listing_id)
 
 
 @router.get("/threads")
@@ -44,7 +54,13 @@ async def send_message(
     current_user: User = Depends(get_current_user),
 ):
     msg = await service.send_message(thread_id, current_user.id, data.content)
-    return {"id": str(msg.id), "created_at": str(msg.created_at)}
+    return {
+        "id": str(msg.id),
+        "thread_id": str(msg.thread_id),
+        "sender_id": str(msg.sender_id),
+        "content": msg.content,
+        "created_at": str(msg.created_at),
+    }
 
 
 @router.get("/unread-count")

@@ -9,4 +9,9 @@ export const messageApi = {
     api.post(`/messages/threads/${threadId}`, { content }),
   getUnreadCount: () =>
     api.get<{ unread_count: number }>('/messages/unread-count'),
+  startThread: (shopId: string, listingId?: string) =>
+    api.post<{ id: string; created: boolean }>('/messages/threads', {
+      shop_id: shopId,
+      listing_id: listingId,
+    }),
 };

@@ -42,3 +42,8 @@ class MessageListResponse(BaseModel):
 
 class SendMessageRequest(BaseModel):
     content: str
+
+
+class StartThreadRequest(BaseModel):
+    shop_id: str
+    listing_id: str | None = None

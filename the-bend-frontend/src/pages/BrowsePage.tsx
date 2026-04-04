@@ -44,7 +44,7 @@ export default function BrowsePage() {
       if (urgency) params.urgency = urgency;
       if (cursor) params.cursor = cursor;
       const { data } = await listingApi.browse(params);
-      setListings(cursor ? (prev => [...prev, ...data.items]) as unknown as Listing[] : data.items);
+      setListings(cursor ? ((prev: Listing[]) => [...prev, ...data.items]) as unknown as Listing[] : data.items);
       setNextCursor(data.next_cursor || null);
       setHasMore(data.has_more);
     } catch (err) {

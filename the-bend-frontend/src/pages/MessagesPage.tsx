@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, MessageCircle, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { messageApi } from '@/services/messageApi';
@@ -546,16 +546,18 @@ export default function MessagesPage() {
       try {
         const { data } = await messageApi.sendMessage(activeThread.id, content);
         const real = data as Message;
-        // Replace optimistic with real
+        // Replace optimistic with real using current store state (not stale closure)
+        const current = useMessageStore.getState().messages;
         setMessages(
-          messages
+          current
             .filter((m) => m.id !== optimistic.id)
             .concat(real)
         );
       } catch (err) {
         console.error('Failed to send message:', err);
-        // Revert on failure
-        setMessages(messages.filter((m) => m.id !== optimistic.id));
+        // Revert on failure using current store state
+        const current = useMessageStore.getState().messages;
+        setMessages(current.filter((m) => m.id !== optimistic.id));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
