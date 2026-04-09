@@ -52,7 +52,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
             variant={listing.type === 'offer' ? 'default' : 'outline'}
             className={
               listing.type === 'offer'
-                ? 'bg-green-100 text-green-700'
+                ? 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]'
                 : 'bg-blue-100 text-blue-700'
             }
           >
@@ -66,7 +66,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
       </CardContent>
       <CardFooter className="px-4 pb-3 pt-2 border-t flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
-          <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center text-[10px] font-bold text-green-700">
+          <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[10px] font-bold text-[hsl(160,25%,24%)]">
             {listing.shop.name.charAt(0)}
           </div>
           <span className="truncate max-w-[100px]">{listing.shop.name}</span>
@@ -75,7 +75,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
         <div className="flex items-center gap-1">
           <Badge
             variant="secondary"
-            className={listing.is_free ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}
+            className={listing.is_free ? 'bg-[hsl(35,15%,94%)] text-[hsl(160,25%,28%)]' : 'bg-blue-50 text-blue-600'}
           >
             {listing.is_free ? 'FREE' : `$${listing.price}`}
           </Badge>

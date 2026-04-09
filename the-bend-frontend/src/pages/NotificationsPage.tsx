@@ -15,7 +15,7 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { notificationApi } from '@/services/notificationApi';
 import type { Notification } from '@/types';
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
 
 // ─── Icon map by notification type ───────────────────────────────────────────
 function getNotificationIcon(type: string) {
@@ -28,7 +28,7 @@ function getNotificationIcon(type: string) {
 
 function getIconStyle(type: string): { bg: string; color: string } {
   if (type.includes('message')) return { bg: 'bg-blue-100', color: 'text-blue-600' };
-  if (type.includes('fulfilled')) return { bg: 'bg-green-100', color: 'text-green-600' };
+  if (type.includes('fulfilled')) return { bg: 'bg-[hsl(35,15%,90%)]', color: 'text-[hsl(160,25%,28%)]' };
   if (type.includes('urgent') || type.includes('critical'))
     return { bg: 'bg-red-100', color: 'text-red-600' };
   if (type.includes('interest')) return { bg: 'bg-amber-100', color: 'text-amber-600' };
@@ -143,7 +143,7 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div
         className="w-20 h-20 rounded-full flex items-center justify-center mb-5"
-        style={{ backgroundColor: 'hsl(142, 76%, 95%)' }}
+        style={{ backgroundColor: 'hsl(35, 15%, 92%)' }}
       >
         <Bell size={36} style={{ color: PRIMARY }} />
       </div>

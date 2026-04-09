@@ -2,9 +2,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export function ShopAvatar({
   name,
+  avatarUrl,
   size = 'default',
 }: {
   name: string;
+  avatarUrl?: string;
   size?: 'sm' | 'default' | 'lg';
 }) {
   const sizes = {
@@ -18,9 +20,14 @@ export function ShopAvatar({
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt={name} className={`${sizes[size]} rounded-full object-cover`} />;
+  }
+
   return (
     <Avatar className={sizes[size]}>
-      <AvatarFallback className="bg-green-100 text-green-700 font-semibold">
+      <AvatarFallback className="bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)] font-semibold">
         {initials}
       </AvatarFallback>
     </Avatar>

@@ -7,49 +7,46 @@ import {
   Wrench,
   Store,
   ClipboardList,
-  BookOpen,
+  Heart,
+  Star,
   ChevronRight,
   TrendingUp,
   AlertTriangle,
+  Music,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
 import { listingApi } from '@/services/listingApi';
-import type { Listing } from '@/types';
+import { eventApi } from '@/services/eventApi';
+import type { Listing, CommunityEvent } from '@/types';
+import { SponsorBanner } from '@/components/shared/SponsorBanner';
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
+const BRONZE = 'hsl(35, 45%, 42%)';
 
-// ─── Hero background image via unsplash (craft/community workshop feel) ───────
-const HERO_BG =
-  'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&q=80&auto=format&fit=crop';
-
-// ─── Quick links ──────────────────────────────────────────────────────────────
-const quickLinks = [
-  { icon: Users, label: 'Share Staff', href: '/browse?category=staff', color: 'bg-emerald-100 text-emerald-700' },
-  { icon: Package, label: 'Raw Materials', href: '/browse?category=materials', color: 'bg-teal-100 text-teal-700' },
-  { icon: Wrench, label: 'Equipment', href: '/browse?category=equipment', color: 'bg-green-100 text-green-700' },
-  { icon: Store, label: 'Shop Directory', href: '/browse', color: 'bg-lime-100 text-lime-700' },
-  { icon: ClipboardList, label: 'Post a Request', href: '/create', color: 'bg-emerald-100 text-emerald-700' },
-  { icon: BookOpen, label: 'Community Guide', href: '/about', color: 'bg-teal-100 text-teal-700' },
+const services = [
+  { icon: Users, label: 'Share Staff', desc: 'Find or offer temporary help', href: '/browse?category=staff' },
+  { icon: Package, label: 'Raw Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
+  { icon: Wrench, label: 'Equipment', desc: 'Borrow or lend tools', href: '/browse?category=equipment' },
+  { icon: Store, label: 'All Listings', desc: 'Browse the full directory', href: '/browse' },
+  { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
+  { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
 ];
 
-// ─── Community stats ──────────────────────────────────────────────────────────
 const stats = [
-  { value: '28', label: 'Active Shops', suffix: '' },
-  { value: '142', label: 'Active Listings', suffix: '' },
-  { value: '89', label: 'Items Shared', suffix: '' },
-  { value: '$4.2K', label: 'Saved in Waste', suffix: '' },
+  { value: '28', label: 'Active Businesses' },
+  { value: '142', label: 'Active Listings' },
+  { value: '89', label: 'Items Shared' },
 ];
 
-// ─── Placeholder fulfilled items ──────────────────────────────────────────────
 const fulfilledPlaceholder = [
   { title: 'Commercial Mixer — 20qt', shop: 'Grain & Glory Bakery', category: 'Equipment', when: '2h ago' },
   { title: '3 Bags Bread Flour', shop: 'The Daily Loaf', category: 'Materials', when: '5h ago' },
   { title: 'Saturday Prep Cook', shop: 'Bent Fork Kitchen', category: 'Staff', when: 'Yesterday' },
-  { title: 'Proofing Racks (×4)', shop: 'Rise & Shine', category: 'Equipment', when: 'Yesterday' },
+  { title: 'Proofing Racks (x4)', shop: 'Rise & Shine', category: 'Equipment', when: 'Yesterday' },
   { title: 'Pastry Chef — 2 days', shop: 'Sweet Nothings', category: 'Staff', when: '2 days ago' },
 ];
 
@@ -60,6 +57,7 @@ export default function HomePage() {
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
   const [loadingUrgent, setLoadingUrgent] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [upcomingEvents, setUpcomingEvents] = useState<CommunityEvent[]>([]);
 
   useEffect(() => {
     listingApi
@@ -73,134 +71,97 @@ export default function HomePage() {
       .then((res) => setRecentListings(res.data.items))
       .catch(() => setRecentListings([]))
       .finally(() => setLoadingRecent(false));
+
+    eventApi
+      .getUpcoming(3)
+      .then((res) => setUpcomingEvents(res.data.items ?? []))
+      .catch(() => setUpcomingEvents([]));
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/browse?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate('/browse');
-    }
+    navigate(searchQuery.trim() ? `/browse?q=${encodeURIComponent(searchQuery.trim())}` : '/browse');
   };
 
   return (
     <PageLayout>
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section
-        className="relative h-[50vh] md:h-[70vh] flex items-center justify-center overflow-hidden"
-        aria-label="Hero banner"
-      >
-        {/* Background image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${HERO_BG})` }}
-        />
-        {/* Gradient overlay */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(15,60,30,0.78), rgba(22,101,52,0.72))',
-          }}
-        />
+      {/* Hero — Museum entrance feel */}
+      <section className="relative h-[380px] md:h-[460px] flex items-center overflow-hidden">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/the-bend-hero.jpg')" }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, hsl(30,12%,12%,0.88), hsl(30,12%,12%,0.6))' }} />
+        {/* Subtle grain overlay */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")" }} />
 
-        {/* Content */}
-        <div className="relative z-10 text-center text-white px-4 max-w-3xl mx-auto w-full">
-          <p
-            className="text-xs md:text-sm font-semibold tracking-[0.25em] uppercase mb-2 opacity-90"
-            style={{ letterSpacing: '0.25em' }}
-          >
-            Welcome to
-          </p>
-          <h1 className="text-3xl md:text-5xl font-extrabold leading-tight mb-3 drop-shadow-lg">
-            The Bend Community
-          </h1>
-          <p className="text-sm md:text-lg font-light opacity-85 mb-8 max-w-xl mx-auto leading-relaxed">
-            Share staff, materials &amp; equipment with your neighbors
-          </p>
-
-          {/* Search bar */}
-          <form onSubmit={handleSearch} className="relative max-w-lg mx-auto mb-6">
-            <div className="relative flex items-center">
-              <Search className="absolute left-4 w-4 h-4 text-gray-400 pointer-events-none" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search listings, shops, materials…"
-                className="w-full pl-11 pr-4 py-3 h-12 rounded-full bg-white text-gray-900 placeholder:text-gray-400 border-0 shadow-xl focus-visible:ring-2 focus-visible:ring-white/50 text-sm"
-              />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 w-full">
+          <div className="max-w-2xl">
+            <div className="w-12 h-[2px] mb-4" style={{ backgroundColor: BRONZE }} />
+            <p className="text-xs tracking-[0.35em] uppercase text-[hsl(35,45%,65%)] mb-2 font-medium">
+              Welcome to
+            </p>
+            <h1 className="text-4xl md:text-6xl font-bold font-serif text-[hsl(40,20%,95%)] leading-[1.1] mb-4" style={{ letterSpacing: '-0.01em' }}>
+              The Bend<br />Community
+            </h1>
+            <p className="text-base md:text-lg text-[hsl(40,15%,75%)] mb-8 max-w-md leading-relaxed">
+              Share staff, materials &amp; equipment with your neighbors
+            </p>
+            <form onSubmit={handleSearch} className="flex max-w-md">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search listings, shops..."
+                  className="pl-10 pr-4 h-11 rounded-none rounded-l bg-[hsl(40,20%,98%)] border-[hsl(35,18%,84%)] text-sm"
+                />
+              </div>
               <button
                 type="submit"
-                className="absolute right-2 px-4 py-1.5 rounded-full text-white text-sm font-semibold transition-all hover:opacity-90"
-                style={{ backgroundColor: PRIMARY }}
+                className="px-5 h-11 rounded-none rounded-r text-white text-sm font-medium tracking-wider uppercase cursor-pointer transition-colors hover:opacity-90"
+                style={{ backgroundColor: BRONZE }}
               >
                 Search
               </button>
-            </div>
-          </form>
-
-          {/* CTA buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              onClick={() => navigate('/browse')}
-              className="font-semibold px-6 py-2.5 h-auto rounded-full shadow-lg transition-all hover:scale-105"
-              style={{ backgroundColor: 'white', color: PRIMARY }}
-            >
-              Browse Listings
-            </Button>
-            <Button
-              onClick={() => navigate('/register')}
-              variant="outline"
-              className="font-semibold px-6 py-2.5 h-auto rounded-full border-2 border-white text-white bg-transparent hover:bg-white/10 transition-all hover:scale-105"
-            >
-              Register Your Shop
-            </Button>
+            </form>
           </div>
         </div>
       </section>
 
-      {/* ── Quick Links ──────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 -mt-6 relative z-20">
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-          {quickLinks.map(({ icon: Icon, label, href, color }) => (
+      {/* Services — Museum exhibit cards */}
+      <section className="max-w-7xl mx-auto px-4 md:px-8 -mt-8 relative z-20">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {services.map(({ icon: Icon, label, desc, href }) => (
             <Link
               key={label}
               to={href}
-              className="group flex flex-col items-center gap-2.5 p-4 bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-200 hover:-translate-y-1 border border-gray-100"
+              className="group bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,84%)] p-4 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md"
             >
-              <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center ${color} transition-transform group-hover:scale-110`}
-              >
-                <Icon className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700 text-center leading-tight">
-                {label}
-              </span>
+              <Icon className="w-5 h-5 mx-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
+              <h3 className="text-sm font-semibold text-[hsl(30,15%,20%)] mb-0.5 font-serif">{label}</h3>
+              <p className="text-[11px] text-[hsl(30,10%,50%)] leading-tight">{desc}</p>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* ── Urgent Section ───────────────────────────────────────────────── */}
+      <SponsorBanner placement="homepage" />
+
+      {/* Urgent Needs */}
       {!loadingUrgent && urgentListings.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 md:px-8 mt-10">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 md:p-6">
+          <div className="border border-[hsl(0,40%,75%)] bg-[hsl(0,30%,97%)] p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                </div>
+                <AlertTriangle className="w-5 h-5 text-[hsl(0,55%,45%)]" />
                 <div>
-                  <h2 className="text-base font-bold text-red-800">
-                    {urgentListings.length} critical item{urgentListings.length !== 1 ? 's' : ''} need attention
+                  <h2 className="text-base font-bold font-serif text-[hsl(0,40%,30%)]">
+                    {urgentListings.length} Critical Need{urgentListings.length !== 1 ? 's' : ''}
                   </h2>
-                  <p className="text-xs text-red-600">These listings need an immediate response</p>
+                  <p className="text-xs text-[hsl(0,30%,50%)]">These listings need an immediate response</p>
                 </div>
               </div>
               <Link
                 to="/browse?urgency=critical"
-                className="text-xs font-semibold text-red-600 hover:text-red-800 flex items-center gap-1 transition-colors"
+                className="text-xs font-medium text-[hsl(0,55%,45%)] hover:text-[hsl(0,55%,35%)] flex items-center gap-1 tracking-wider uppercase transition-colors"
               >
                 View All <ChevronRight className="w-3.5 h-3.5" />
               </Link>
@@ -214,17 +175,21 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ── What's Happening ─────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-4 md:px-8 mt-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Main Content — Two Column */}
+      <section className="max-w-7xl mx-auto px-4 md:px-8 mt-12 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+
           {/* Community Board */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Community Board</h2>
+          <div className="lg:col-span-2">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-[2px]" style={{ backgroundColor: BRONZE }} />
+                <h2 className="text-xl font-bold font-serif text-[hsl(30,15%,18%)] tracking-wide">Community Board</h2>
+              </div>
               <Link
                 to="/browse"
-                className="text-xs font-semibold flex items-center gap-1 transition-colors hover:opacity-80"
-                style={{ color: PRIMARY }}
+                className="text-xs font-medium tracking-wider uppercase flex items-center gap-1 transition-colors"
+                style={{ color: BRONZE }}
               >
                 View All <ChevronRight className="w-3.5 h-3.5" />
               </Link>
@@ -232,8 +197,8 @@ export default function HomePage() {
 
             {loadingRecent ? (
               <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-28 bg-gray-100 rounded-xl animate-pulse" />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-28 bg-[hsl(35,15%,92%)] animate-pulse" />
                 ))}
               </div>
             ) : recentListings.length > 0 ? (
@@ -243,14 +208,14 @@ export default function HomePage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                <ClipboardList className="w-8 h-8 text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No listings yet</p>
+              <div className="flex flex-col items-center justify-center py-14 border border-dashed border-[hsl(35,18%,82%)] bg-[hsl(40,20%,98%)]">
+                <ClipboardList className="w-8 h-8 text-[hsl(35,15%,75%)] mb-2" />
+                <p className="text-sm text-[hsl(30,10%,50%)] mb-3 italic">No listings yet</p>
                 <Button
                   onClick={() => navigate('/create')}
                   size="sm"
-                  className="mt-3 text-white"
-                  style={{ backgroundColor: PRIMARY }}
+                  className="text-white text-xs tracking-wider uppercase cursor-pointer"
+                  style={{ backgroundColor: BRONZE }}
                 >
                   Post the First One
                 </Button>
@@ -258,112 +223,164 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Recently Fulfilled */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Recently Fulfilled</h2>
-              <Link
-                to="/browse?status=fulfilled"
-                className="text-xs font-semibold flex items-center gap-1 transition-colors hover:opacity-80"
-                style={{ color: PRIMARY }}
-              >
-                View All <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-            <div className="space-y-2.5">
-              {fulfilledPlaceholder.map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3.5 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-                  onClick={() => navigate('/browse?status=fulfilled')}
-                >
+          {/* Sidebar */}
+          <div className="space-y-8">
+            {/* Recently Fulfilled */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-[2px]" style={{ backgroundColor: BRONZE }} />
+                <h2 className="text-lg font-bold font-serif text-[hsl(30,15%,18%)]">Recently Fulfilled</h2>
+              </div>
+              <div className="space-y-2">
+                {fulfilledPlaceholder.map((item, i) => (
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: 'hsl(142, 76%, 95%)', color: PRIMARY }}
+                    key={i}
+                    className="flex items-center gap-3 p-3 bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,87%)] hover:border-[hsl(35,45%,42%,0.4)] transition-all cursor-pointer group"
+                    onClick={() => navigate('/browse?status=fulfilled')}
                   >
-                    <TrendingUp className="w-4 h-4" />
+                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 border border-[hsl(35,18%,84%)]">
+                      <TrendingUp className="w-3.5 h-3.5" style={{ color: BRONZE }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[hsl(30,15%,20%)] truncate group-hover:text-[hsl(35,45%,35%)] transition-colors">{item.title}</p>
+                      <p className="text-xs text-[hsl(30,10%,50%)] truncate">{item.shop}</p>
+                    </div>
+                    <span className="text-[10px] text-[hsl(30,10%,60%)] shrink-0">{item.when}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-green-700 transition-colors">
-                      {item.title}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">{item.shop}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 mb-1">
-                      {item.category}
-                    </span>
-                    <p className="text-[10px] text-gray-400">{item.when}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+
+            {/* Quick Actions */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-6 h-[2px]" style={{ backgroundColor: BRONZE }} />
+                <h2 className="text-lg font-bold font-serif text-[hsl(30,15%,18%)]">Quick Actions</h2>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => navigate('/create')}
+                  className="w-full justify-start gap-2 h-10 text-white text-xs tracking-wider uppercase cursor-pointer"
+                  style={{ backgroundColor: BRONZE }}
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Post a Listing
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/register')}
+                  className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+                >
+                  <Store className="w-4 h-4" />
+                  Register Your Business
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/volunteers')}
+                  className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+                >
+                  <Heart className="w-4 h-4" />
+                  Volunteer Board
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/talent')}
+                  className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+                >
+                  <Star className="w-4 h-4" />
+                  Talent Marketplace
+                </Button>
+              </div>
+            </div>
+
+            <SponsorBanner placement="homepage" variant="card" />
           </div>
         </div>
       </section>
 
-      {/* ── Community Stats ──────────────────────────────────────────────── */}
-      <section className="mt-14 py-14" style={{ backgroundColor: 'hsl(142, 30%, 97%)' }}>
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Our Community in Numbers</h2>
-            <p className="text-sm text-gray-500 mt-1">Real impact, real neighbors</p>
+      {/* Upcoming Events */}
+      {upcomingEvents.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 md:px-8 mb-8">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-[2px]" style={{ backgroundColor: BRONZE }} />
+              <h2 className="text-xl font-bold font-serif text-[hsl(30,15%,18%)] tracking-wide">Upcoming Events</h2>
+            </div>
+            <Link
+              to="/events"
+              className="text-xs font-medium tracking-wider uppercase flex items-center gap-1 transition-colors"
+              style={{ color: BRONZE }}
+            >
+              View All <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {stats.map(({ value, label }) => (
-              <Card
-                key={label}
-                className="text-center border-0 shadow-md bg-white rounded-2xl"
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {upcomingEvents.map((event) => (
+              <Link
+                key={event.id}
+                to="/events"
+                className="group border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] p-4 transition-all hover:border-[hsl(35,45%,42%,0.4)] hover:shadow-md cursor-pointer"
               >
-                <CardContent className="pt-7 pb-6">
-                  <div
-                    className="text-4xl font-extrabold mb-1 tabular-nums"
-                    style={{ color: PRIMARY }}
-                  >
-                    {value}
-                  </div>
-                  <p className="text-sm font-medium text-gray-600">{label}</p>
-                </CardContent>
-              </Card>
+                <Badge className="text-[10px] rounded-sm mb-2 border-0 px-2 py-0.5 bg-[hsl(35,15%,88%)] text-[hsl(30,15%,35%)]">
+                  {event.category}
+                </Badge>
+                <h3 className="font-serif font-semibold text-[hsl(30,15%,18%)] text-sm mb-1 group-hover:text-[hsl(35,45%,35%)] transition-colors">
+                  {event.title}
+                </h3>
+                <p className="text-xs text-[hsl(30,10%,50%)]">
+                  {new Date(event.start_date.replace(' ', 'T')).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {event.location && ` · ${event.location}`}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Stats — Museum plaque style */}
+      <section className="relative py-12 overflow-hidden" style={{ backgroundColor: PRIMARY }}>
+        <div className="absolute inset-0 bg-cover bg-center opacity-10" style={{ backgroundImage: "url('/images/courthouse.jpg')" }} />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8">
+          <div className="text-center mb-8">
+            <div className="w-12 h-[2px] mx-auto mb-3" style={{ backgroundColor: 'hsl(35,45%,55%)' }} />
+            <h2 className="text-lg font-bold font-serif text-[hsl(40,20%,90%)] tracking-wide">Our Community in Numbers</h2>
+          </div>
+          <div className="grid grid-cols-3 gap-6 max-w-xl mx-auto">
+            {stats.map(({ value, label }) => (
+              <div key={label} className="text-center">
+                <div className="text-3xl md:text-4xl font-bold font-serif text-[hsl(40,20%,95%)] tabular-nums">{value}</div>
+                <p className="text-xs text-[hsl(40,15%,70%)] mt-1 tracking-wider uppercase">{label}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Bottom CTA ───────────────────────────────────────────────────── */}
+      {/* CTA */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 py-14">
-        <div
-          className="rounded-3xl p-8 md:p-12 text-center text-white relative overflow-hidden"
-          style={{
-            background: 'linear-gradient(135deg, hsl(142, 76%, 28%), hsl(142, 76%, 40%))',
-          }}
-        >
-          {/* Decorative circles */}
-          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
-          <div className="absolute -bottom-12 -left-12 w-56 h-56 rounded-full bg-white/5" />
-          <div className="relative z-10">
-            <h2 className="text-2xl md:text-3xl font-bold mb-3">
-              Ready to support your neighbors?
-            </h2>
-            <p className="text-sm md:text-base opacity-85 mb-6 max-w-md mx-auto">
-              Post a listing, share what you have, or find what you need — it only takes a minute.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button
-                onClick={() => navigate('/create')}
-                className="font-semibold px-8 py-2.5 h-auto rounded-full shadow-lg bg-white transition-all hover:scale-105"
-                style={{ color: PRIMARY }}
-              >
-                Post a Listing
-              </Button>
-              <Button
-                onClick={() => navigate('/browse')}
-                variant="outline"
-                className="font-semibold px-8 py-2.5 h-auto rounded-full border-2 border-white text-white bg-transparent hover:bg-white/10 transition-all hover:scale-105"
-              >
-                Browse Listings
-              </Button>
-            </div>
+        <div className="border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] p-8 md:p-10 text-center">
+          <div className="w-12 h-[2px] mx-auto mb-4" style={{ backgroundColor: BRONZE }} />
+          <h2 className="text-xl md:text-2xl font-bold font-serif text-[hsl(30,15%,18%)] mb-2">
+            Ready to support your neighbors?
+          </h2>
+          <p className="text-sm text-[hsl(30,10%,48%)] mb-6 max-w-md mx-auto">
+            Post a listing, share what you have, or find what you need — it only takes a minute.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              onClick={() => navigate('/create')}
+              className="font-medium px-6 h-10 text-white text-xs tracking-wider uppercase cursor-pointer"
+              style={{ backgroundColor: BRONZE }}
+            >
+              Post a Listing
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/browse')}
+              className="font-medium px-6 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,82%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+            >
+              Browse Listings
+            </Button>
           </div>
         </div>
       </section>

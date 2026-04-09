@@ -7,7 +7,7 @@ const tabs = [
   { icon: Search, label: 'Browse', path: '/browse' },
   { icon: Plus, label: 'Post', path: '/create', isCenter: true },
   { icon: MessageCircle, label: 'Messages', path: '/messages' },
-  { icon: Store, label: 'My Shop', path: '/my-shop' },
+  { icon: Store, label: 'My Business', path: '/my-shop' },
 ];
 
 export function BottomNav() {
@@ -26,7 +26,7 @@ export function BottomNav() {
                 key={tab.path}
                 onClick={() => (isAuthenticated ? navigate(tab.path) : navigate('/login'))}
                 className="w-12 h-12 -mt-4 rounded-full flex items-center justify-center text-white shadow-lg"
-                style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
               >
                 <Plus size={24} strokeWidth={2.5} />
               </button>
@@ -37,7 +37,7 @@ export function BottomNav() {
               key={tab.path}
               onClick={() => navigate(tab.path)}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs ${
-                isActive ? 'text-green-600' : 'text-gray-500'
+                isActive ? 'text-[hsl(160,25%,28%)]' : 'text-gray-500'
               }`}
             >
               <tab.icon size={20} />

@@ -1,3 +1,4 @@
+import { resolveAssetUrl } from '@/lib/constants';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -87,7 +88,7 @@ function ListingRow({
           </Badge>
           <Badge
             variant="secondary"
-            className={listing.type === 'offer' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}
+            className={listing.type === 'offer' ? 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]' : 'bg-blue-100 text-blue-700'}
           >
             {listing.type === 'offer' ? 'Offer' : 'Request'}
           </Badge>
@@ -116,7 +117,7 @@ function ListingRow({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                className="h-8 w-8 p-0 text-[hsl(160,25%,28%)] hover:text-[hsl(160,25%,24%)] hover:bg-[hsl(35,15%,94%)]"
                 title="Mark Fulfilled"
               >
                 <CheckCircle size={15} />
@@ -133,7 +134,7 @@ function ListingRow({
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => onFulfill(listing.id)}
-                  style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                  style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
                 >
                   Confirm
                 </AlertDialogAction>
@@ -271,8 +272,8 @@ export default function MyShopPage() {
       <PageLayout>
         <div className="max-w-3xl mx-auto px-4 py-16 text-center">
           <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No shop found</h2>
-          <p className="text-muted-foreground">You don't have a shop associated with your account.</p>
+          <h2 className="text-xl font-semibold mb-2">No business found</h2>
+          <p className="text-muted-foreground">You don't have a business associated with your account.</p>
         </div>
       </PageLayout>
     );
@@ -283,20 +284,24 @@ export default function MyShopPage() {
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-6">
         {/* Shop profile header */}
         <Card className="mb-6 border-gray-200 overflow-hidden">
-          <div className="h-2" style={{ backgroundColor: 'hsl(142, 76%, 36%)' }} />
+          <div className="h-2" style={{ backgroundColor: 'hsl(160, 25%, 24%)' }} />
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-2xl font-bold text-green-700 flex-shrink-0">
-                  {shop.name.charAt(0).toUpperCase()}
-                </div>
+                {shop.avatar_url ? (
+                  <img src={resolveAssetUrl(shop.avatar_url)} alt={shop.name} className="w-14 h-14 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-14 h-14 rounded-xl bg-[hsl(35,15%,90%)] flex items-center justify-center text-2xl font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
+                    {shop.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h1 className="text-xl font-bold text-gray-900">{shop.name}</h1>
                     <Badge
                       className={
                         shop.status === 'active'
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]'
                           : shop.status === 'pending'
                           ? 'bg-amber-100 text-amber-700'
                           : 'bg-red-100 text-red-600'
@@ -322,7 +327,7 @@ export default function MyShopPage() {
                     )}
                     {shop.whatsapp && (
                       <span className="flex items-center gap-1">
-                        <MessageCircle size={13} className="text-green-600" />
+                        <MessageCircle size={13} className="text-[hsl(160,25%,28%)]" />
                         {shop.whatsapp}
                       </span>
                     )}
@@ -337,12 +342,12 @@ export default function MyShopPage() {
                   onClick={() => navigate('/settings')}
                 >
                   <Edit size={14} />
-                  Edit Shop
+                  Edit Business
                 </Button>
                 <Button
                   size="sm"
                   className="gap-1.5"
-                  style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                  style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
                   onClick={() => navigate('/create')}
                 >
                   <Plus size={14} />
@@ -354,7 +359,7 @@ export default function MyShopPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t">
               <div className="text-center">
-                <div className="text-2xl font-bold" style={{ color: 'hsl(142, 76%, 36%)' }}>
+                <div className="text-2xl font-bold" style={{ color: 'hsl(160, 25%, 24%)' }}>
                   {shop.active_listings_count ?? activeListings.length}
                 </div>
                 <div className="text-xs text-muted-foreground">Active Listings</div>
@@ -383,7 +388,7 @@ export default function MyShopPage() {
             <TabsTrigger value="active" className="flex-1 sm:flex-none">
               Active
               {activeListings.length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)] text-xs font-semibold">
                   {activeListings.length}
                 </span>
               )}
@@ -417,7 +422,7 @@ export default function MyShopPage() {
                   Post something to share or request resources with the community.
                 </p>
                 <Button
-                  style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                  style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
                   onClick={() => navigate('/create')}
                 >
                   Post a Listing
@@ -463,7 +468,7 @@ export default function MyShopPage() {
                           variant="secondary"
                           className={
                             listing.status === 'fulfilled'
-                              ? 'bg-green-100 text-green-700'
+                              ? 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]'
                               : 'bg-gray-100 text-gray-500'
                           }
                         >
@@ -491,7 +496,7 @@ export default function MyShopPage() {
               <Button
                 size="sm"
                 className="gap-1.5"
-                style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
                 onClick={() => {
                   // Navigate to employee add page or open a dialog
                   // Placeholder: shows alert for now
@@ -592,7 +597,7 @@ export default function MyShopPage() {
       {actionLoading && (
         <div className="fixed inset-0 bg-black/10 flex items-center justify-center z-50 pointer-events-none">
           <div className="bg-white rounded-lg p-4 shadow-lg flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-green-600" />
+            <Loader2 className="w-5 h-5 animate-spin text-[hsl(160,25%,28%)]" />
             <span className="text-sm font-medium">Processing...</span>
           </div>
         </div>

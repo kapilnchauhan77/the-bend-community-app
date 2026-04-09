@@ -20,4 +20,12 @@ export const uploadApi = {
   },
 
   getCurrentGuidelines: () => api.get('/upload/guidelines/current'),
+
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ avatar_url: string }>('/upload/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };

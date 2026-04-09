@@ -12,7 +12,7 @@ interface GuidelinesInfo {
   size_bytes?: number;
 }
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString('en-AU', {
@@ -105,7 +105,7 @@ export default function GuidelinesPage() {
                 <div className="flex items-center gap-3">
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: 'hsl(142, 76%, 93%)' }}
+                    style={{ backgroundColor: 'hsl(35, 15%, 88%)' }}
                   >
                     <FileText size={20} style={{ color: PRIMARY }} />
                   </div>
@@ -157,9 +157,9 @@ export default function GuidelinesPage() {
               onClick={() => fileInputRef.current?.click()}
               className={`relative border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ${
                 dragOver
-                  ? 'border-green-400 bg-green-50'
+                  ? 'border-[hsl(35,18%,72%)] bg-[hsl(35,15%,94%)]'
                   : selectedFile
-                  ? 'border-green-300 bg-green-50/50'
+                  ? 'border-[hsl(35,18%,78%)] bg-[hsl(35,15%,94%)]/50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50'
               }`}
             >
@@ -177,7 +177,7 @@ export default function GuidelinesPage() {
                 <div className="space-y-1">
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center mx-auto"
-                    style={{ backgroundColor: 'hsl(142, 76%, 93%)' }}
+                    style={{ backgroundColor: 'hsl(35, 15%, 88%)' }}
                   >
                     <FileText size={22} style={{ color: PRIMARY }} />
                   </div>
@@ -199,7 +199,7 @@ export default function GuidelinesPage() {
 
             {/* Status messages */}
             {uploadSuccess && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-[hsl(35,15%,94%)] border border-[hsl(35,18%,84%)] text-[hsl(160,25%,24%)] text-sm">
                 <CheckCircle size={16} />
                 Guidelines uploaded successfully.
               </div>

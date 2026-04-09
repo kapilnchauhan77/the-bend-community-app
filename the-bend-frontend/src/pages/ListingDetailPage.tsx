@@ -176,7 +176,7 @@ export default function ListingDetailPage() {
           </div>
           <h2 className="text-xl font-semibold mb-2">Listing not found</h2>
           <p className="text-muted-foreground mb-6">{error || 'This listing does not exist.'}</p>
-          <Button onClick={() => navigate('/browse')} style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}>
+          <Button onClick={() => navigate('/browse')} style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}>
             Back to Browse
           </Button>
         </div>
@@ -259,7 +259,7 @@ export default function ListingDetailPage() {
               variant="secondary"
               className={
                 listing.type === 'offer'
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]'
                   : 'bg-blue-100 text-blue-700'
               }
             >
@@ -276,7 +276,7 @@ export default function ListingDetailPage() {
           {/* Price */}
           <div className="flex items-center gap-4 mb-3">
             <span
-              className={`text-xl font-bold ${listing.is_free ? 'text-green-600' : 'text-gray-900'}`}
+              className={`text-xl font-bold ${listing.is_free ? 'text-[hsl(160,25%,28%)]' : 'text-gray-900'}`}
             >
               {listing.is_free ? 'FREE' : `$${listing.price}`}
             </span>
@@ -322,7 +322,7 @@ export default function ListingDetailPage() {
             <h2 className="font-semibold text-gray-900 mb-3">Posted by</h2>
             <div className="flex items-start gap-3">
               {/* Avatar */}
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-lg font-bold text-green-700 flex-shrink-0">
+              <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
                 {listing.shop.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
@@ -340,7 +340,7 @@ export default function ListingDetailPage() {
                   {listing.shop.contact_phone && (
                     <a
                       href={`tel:${listing.shop.contact_phone}`}
-                      className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors"
+                      className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-[hsl(160,25%,24%)] transition-colors"
                     >
                       <Phone size={14} />
                       {listing.shop.contact_phone}
@@ -351,7 +351,7 @@ export default function ListingDetailPage() {
                       href={`https://wa.me/${listing.shop.whatsapp.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
+                      className="flex items-center gap-1.5 text-sm font-medium text-[hsl(160,25%,24%)] hover:text-[hsl(160,25%,20%)] transition-colors"
                     >
                       <MessageCircle size={14} />
                       WhatsApp
@@ -365,9 +365,9 @@ export default function ListingDetailPage() {
 
         {/* Success alert */}
         {interestSuccess && (
-          <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+          <div className="mb-4 p-3 rounded-lg bg-[hsl(35,15%,94%)] border border-[hsl(35,18%,84%)] text-[hsl(160,25%,24%)] text-sm flex items-center gap-2">
             <CheckCircle size={16} />
-            Interest expressed! The shop will be notified.
+            Interest expressed! The business will be notified.
           </div>
         )}
 
@@ -386,7 +386,7 @@ export default function ListingDetailPage() {
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
-                  className="flex-1 gap-2 border-green-300 text-green-700 hover:bg-green-50"
+                  className="flex-1 gap-2 border-[hsl(35,18%,78%)] text-[hsl(160,25%,24%)] hover:bg-[hsl(35,15%,94%)]"
                   disabled={actionLoading}
                 >
                   <CheckCircle size={16} />
@@ -404,7 +404,7 @@ export default function ListingDetailPage() {
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleFulfill}
-                    style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                    style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
                   >
                     Yes, Mark Fulfilled
                   </AlertDialogAction>
@@ -450,7 +450,7 @@ export default function ListingDetailPage() {
               </Button>
               <Button
                 onClick={() => navigate('/register')}
-                style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
               >
                 Register
               </Button>
@@ -464,8 +464,8 @@ export default function ListingDetailPage() {
               onClick={handleInterest}
               style={
                 hasInterest
-                  ? { backgroundColor: 'hsl(142, 76%, 28%)' }
-                  : { backgroundColor: 'hsl(142, 76%, 36%)' }
+                  ? { backgroundColor: 'hsl(160, 25%, 14%)' }
+                  : { backgroundColor: 'hsl(160, 25%, 24%)' }
               }
             >
               <Star size={16} fill={hasInterest ? 'currentColor' : 'none'} />
@@ -485,7 +485,7 @@ export default function ListingDetailPage() {
               }}
             >
               <MessageCircle size={16} />
-              Message Shop
+              Message Business
             </Button>
           </div>
         )}

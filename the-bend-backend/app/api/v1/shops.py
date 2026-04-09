@@ -34,6 +34,7 @@ async def get_shop(shop_id: UUID, service: ShopService = Depends(get_shop_servic
         "id": str(shop.id), "name": shop.name, "business_type": shop.business_type,
         "address": shop.address, "contact_phone": shop.contact_phone,
         "whatsapp": shop.whatsapp, "status": shop.status.value,
+        "avatar_url": shop.avatar_url,
         "active_listings_count": result["active_listings_count"],
         "total_fulfilled": result["total_fulfilled"],
         "member_since": str(shop.created_at),

@@ -1,0 +1,28 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - img [ref=e8]
+    - generic [ref=e11]:
+      - text: The Bend
+      - paragraph [ref=e12]: Community
+    - generic [ref=e13]:
+      - heading "Welcome back" [level=3] [ref=e14]
+      - paragraph [ref=e15]: Sign in to your shop account
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - text: Email address
+      - textbox "Email address" [ref=e19]:
+        - /placeholder: you@example.com
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: Password
+        - button "Forgot password?" [ref=e23]
+      - generic [ref=e24]:
+        - textbox "Password" [ref=e25]:
+          - /placeholder: Enter your password
+        - button "Show password" [ref=e26]:
+          - img [ref=e27]
+    - button "Log In" [ref=e30]
+    - paragraph [ref=e31]:
+      - text: Don't have an account?
+      - link "Register your shop" [ref=e32] [cursor=pointer]:
+        - /url: /register

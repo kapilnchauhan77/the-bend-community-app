@@ -1,10 +1,16 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import HomePage from '@/pages/HomePage';
+import AboutPage from '@/pages/AboutPage';
+import VolunteerPage from '@/pages/VolunteerPage';
+import TalentPage from '@/pages/TalentPage';
+import EventsPage from '@/pages/EventsPage';
 import BrowsePage from '@/pages/BrowsePage';
 import ListingDetailPage from '@/pages/ListingDetailPage';
 import CreateListingPage from '@/pages/CreateListingPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import MyShopPage from '@/pages/MyShopPage';
 import MessagesPage from '@/pages/MessagesPage';
 import NotificationsPage from '@/pages/NotificationsPage';
@@ -15,6 +21,13 @@ import ShopsPage from '@/pages/admin/ShopsPage';
 import ListingsPage from '@/pages/admin/ListingsPage';
 import GuidelinesPage from '@/pages/admin/GuidelinesPage';
 import ReportsPage from '@/pages/admin/ReportsPage';
+import EventsAdminPage from '@/pages/admin/EventsAdminPage';
+import ConnectorsPage from '@/pages/admin/ConnectorsPage';
+import SponsorsPage from '@/pages/admin/SponsorsPage';
+import PricingPage from '@/pages/admin/PricingPage';
+import PlatformSettingsPage from '@/pages/admin/PlatformSettingsPage';
+import AdvertisePage from '@/pages/AdvertisePage';
+import GuidelinesViewPage from '@/pages/GuidelinesViewPage';
 import { ProtectedRoute } from '@/components/shared/ProtectedRoute';
 import { RoleGuard } from '@/components/shared/RoleGuard';
 
@@ -28,7 +41,15 @@ function App() {
         <Route path="/listing/:id" element={<ListingDetailPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/about" element={<HomePage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/volunteers" element={<VolunteerPage />} />
+        <Route path="/talent" element={<TalentPage />} />
+        <Route path="/events" element={<EventsPage />} />
+        <Route path="/advertise" element={<AdvertisePage />} />
+        <Route path="/advertise/success" element={<AdvertisePage />} />
+        <Route path="/guidelines" element={<GuidelinesViewPage />} />
 
         {/* Protected routes */}
         <Route path="/create" element={<ProtectedRoute><CreateListingPage /></ProtectedRoute>} />
@@ -45,6 +66,11 @@ function App() {
         <Route path="/admin/listings" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><ListingsPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/guidelines" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><GuidelinesPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/reports" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><ReportsPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/events" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><EventsAdminPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/connectors" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><ConnectorsPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/sponsors" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><SponsorsPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/pricing" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><PricingPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/settings" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin']}><PlatformSettingsPage /></RoleGuard></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

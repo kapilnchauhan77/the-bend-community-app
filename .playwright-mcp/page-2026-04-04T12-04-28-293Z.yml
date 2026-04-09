@@ -1,0 +1,321 @@
+- generic [ref=e33]:
+  - banner [ref=e34]:
+    - generic [ref=e35]:
+      - link "🏘️ The Bend" [ref=e36] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e37]: 🏘️ The Bend
+      - navigation [ref=e38]:
+        - link "Home" [ref=e39] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e40] [cursor=pointer]:
+          - /url: /browse
+        - link "Messages" [ref=e41] [cursor=pointer]:
+          - /url: /messages
+        - link "My Shop" [ref=e42] [cursor=pointer]:
+          - /url: /my-shop
+      - generic [ref=e43]:
+        - button [ref=e44]:
+          - img [ref=e45]
+        - button "Log Out" [ref=e49]
+  - main [ref=e50]:
+    - region "Hero banner" [ref=e51]:
+      - generic [ref=e54]:
+        - paragraph [ref=e55]: Welcome to
+        - heading "The Bend Community" [level=1] [ref=e56]
+        - paragraph [ref=e57]: Share staff, materials & equipment with your neighbors
+        - generic [ref=e59]:
+          - img
+          - textbox "Search listings, shops, materials…" [ref=e60]
+          - button "Search" [ref=e61]
+        - generic [ref=e62]:
+          - button "Browse Listings" [ref=e63]
+          - button "Register Your Shop" [ref=e64]
+    - generic [ref=e66]:
+      - link "Share Staff" [ref=e67] [cursor=pointer]:
+        - /url: /browse?category=staff
+        - img [ref=e69]
+        - generic [ref=e74]: Share Staff
+      - link "Raw Materials" [ref=e75] [cursor=pointer]:
+        - /url: /browse?category=materials
+        - img [ref=e77]
+        - generic [ref=e81]: Raw Materials
+      - link "Equipment" [ref=e82] [cursor=pointer]:
+        - /url: /browse?category=equipment
+        - img [ref=e84]
+        - generic [ref=e86]: Equipment
+      - link "Shop Directory" [ref=e87] [cursor=pointer]:
+        - /url: /browse
+        - img [ref=e89]
+        - generic [ref=e93]: Shop Directory
+      - link "Post a Request" [ref=e94] [cursor=pointer]:
+        - /url: /create
+        - img [ref=e96]
+        - generic [ref=e99]: Post a Request
+      - link "Community Guide" [ref=e100] [cursor=pointer]:
+        - /url: /about
+        - img [ref=e102]
+        - generic [ref=e104]: Community Guide
+    - generic [ref=e106]:
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - img [ref=e110]
+          - generic [ref=e112]:
+            - heading "3 critical items need attention" [level=2] [ref=e113]
+            - paragraph [ref=e114]: These listings need an immediate response
+        - link "View All" [ref=e115] [cursor=pointer]:
+          - /url: /browse?urgency=critical
+          - text: View All
+          - img [ref=e116]
+      - generic [ref=e118]:
+        - generic [ref=e119] [cursor=pointer]:
+          - generic [ref=e121]:
+            - generic [ref=e122]: Critical
+            - generic [ref=e124]: Request
+          - generic [ref=e125]:
+            - heading "Need Stand Mixer Urgently" [level=3] [ref=e126]
+            - paragraph [ref=e127]: Our KitchenAid died right before a wedding cake order. Need a stand mixer for the next 48 hours!
+          - generic [ref=e128]:
+            - generic [ref=e129]:
+              - generic [ref=e130]: S
+              - generic [ref=e131]: Seaside Sweets
+            - img [ref=e132]
+            - generic [ref=e134]:
+              - generic [ref=e135]: $null
+              - generic [ref=e136]:
+                - img [ref=e137]
+                - text: 6h ago
+        - generic [ref=e140] [cursor=pointer]:
+          - generic [ref=e142]:
+            - generic [ref=e143]: Critical
+            - generic [ref=e145]: Offer
+          - generic [ref=e146]:
+            - heading "Excess Salmon Fillets" [level=3] [ref=e147]
+            - paragraph [ref=e148]: We received double our salmon order. 15kg of fresh Atlantic salmon, needs to be used within 3 days.
+          - generic [ref=e149]:
+            - generic [ref=e150]:
+              - generic [ref=e151]: C
+              - generic [ref=e152]: Coastal Kitchen
+            - img [ref=e153]
+            - generic [ref=e157]:
+              - generic [ref=e158]: $120
+              - generic [ref=e159]:
+                - img [ref=e160]
+                - text: 6h ago
+        - generic [ref=e163] [cursor=pointer]:
+          - generic [ref=e165]:
+            - generic [ref=e166]: Critical
+            - generic [ref=e168]: Request
+          - generic [ref=e169]:
+            - heading "Need Commercial Blender ASAP" [level=3] [ref=e170]
+            - paragraph [ref=e171]: Our Vitamix broke mid-service. Looking to borrow or buy a commercial blender while ours is being repaired.
+          - generic [ref=e172]:
+            - generic [ref=e173]:
+              - generic [ref=e174]: S
+              - generic [ref=e175]: Surfside Cafe
+            - img [ref=e176]
+            - generic [ref=e178]:
+              - generic [ref=e179]: $150
+              - generic [ref=e180]:
+                - img [ref=e181]
+                - text: 6h ago
+    - generic [ref=e185]:
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - heading "Community Board" [level=2] [ref=e188]
+          - link "View All" [ref=e189] [cursor=pointer]:
+            - /url: /browse
+            - text: View All
+            - img [ref=e190]
+        - generic [ref=e192]:
+          - generic [ref=e193] [cursor=pointer]:
+            - generic [ref=e195]:
+              - generic [ref=e196]: Critical
+              - generic [ref=e198]: Request
+            - generic [ref=e199]:
+              - heading "Need Stand Mixer Urgently" [level=3] [ref=e200]
+              - paragraph [ref=e201]: Our KitchenAid died right before a wedding cake order. Need a stand mixer for the next 48 hours!
+            - generic [ref=e202]:
+              - generic [ref=e203]:
+                - generic [ref=e204]: S
+                - generic [ref=e205]: Seaside Sweets
+              - img [ref=e206]
+              - generic [ref=e208]:
+                - generic [ref=e209]: $null
+                - generic [ref=e210]:
+                  - img [ref=e211]
+                  - text: 6h ago
+          - generic [ref=e214] [cursor=pointer]:
+            - generic [ref=e216]:
+              - generic [ref=e217]: Critical
+              - generic [ref=e219]: Offer
+            - generic [ref=e220]:
+              - heading "Excess Salmon Fillets" [level=3] [ref=e221]
+              - paragraph [ref=e222]: We received double our salmon order. 15kg of fresh Atlantic salmon, needs to be used within 3 days.
+            - generic [ref=e223]:
+              - generic [ref=e224]:
+                - generic [ref=e225]: C
+                - generic [ref=e226]: Coastal Kitchen
+              - img [ref=e227]
+              - generic [ref=e231]:
+                - generic [ref=e232]: $120
+                - generic [ref=e233]:
+                  - img [ref=e234]
+                  - text: 6h ago
+          - generic [ref=e237] [cursor=pointer]:
+            - generic [ref=e239]:
+              - generic [ref=e240]: Critical
+              - generic [ref=e242]: Request
+            - generic [ref=e243]:
+              - heading "Need Commercial Blender ASAP" [level=3] [ref=e244]
+              - paragraph [ref=e245]: Our Vitamix broke mid-service. Looking to borrow or buy a commercial blender while ours is being repaired.
+            - generic [ref=e246]:
+              - generic [ref=e247]:
+                - generic [ref=e248]: S
+                - generic [ref=e249]: Surfside Cafe
+              - img [ref=e250]
+              - generic [ref=e252]:
+                - generic [ref=e253]: $150
+                - generic [ref=e254]:
+                  - img [ref=e255]
+                  - text: 6h ago
+          - generic [ref=e258] [cursor=pointer]:
+            - generic [ref=e260]:
+              - generic [ref=e261]: Urgent
+              - generic [ref=e263]: Offer
+            - generic [ref=e264]:
+              - heading "Burger Buns - 200 Units" [level=3] [ref=e265]
+              - paragraph [ref=e266]: Bakery delivered double our order. 200 sesame burger buns, baked fresh today. First come, first served!
+            - generic [ref=e267]:
+              - generic [ref=e268]:
+                - generic [ref=e269]: B
+                - generic [ref=e270]: Bend Burgers
+              - img [ref=e271]
+              - generic [ref=e275]:
+                - generic [ref=e276]: FREE
+                - generic [ref=e277]:
+                  - img [ref=e278]
+                  - text: 6h ago
+          - generic [ref=e281] [cursor=pointer]:
+            - generic [ref=e283]:
+              - generic [ref=e284]: Urgent
+              - generic [ref=e286]: Request
+            - generic [ref=e287]:
+              - heading "Looking for Deep Fryer Rental" [level=3] [ref=e288]
+              - paragraph [ref=e289]: Our second deep fryer is out for service. Need a commercial fryer for about 2 weeks.
+            - generic [ref=e290]:
+              - generic [ref=e291]:
+                - generic [ref=e292]: B
+                - generic [ref=e293]: Bend Burgers
+              - img [ref=e294]
+              - generic [ref=e296]:
+                - generic [ref=e297]: $200
+                - generic [ref=e298]:
+                  - img [ref=e299]
+                  - text: 6h ago
+      - generic [ref=e302]:
+        - generic [ref=e303]:
+          - heading "Recently Fulfilled" [level=2] [ref=e304]
+          - link "View All" [ref=e305] [cursor=pointer]:
+            - /url: /browse?status=fulfilled
+            - text: View All
+            - img [ref=e306]
+        - generic [ref=e308]:
+          - generic [ref=e309] [cursor=pointer]:
+            - img [ref=e311]
+            - generic [ref=e314]:
+              - paragraph [ref=e315]: Commercial Mixer — 20qt
+              - paragraph [ref=e316]: Grain & Glory Bakery
+            - generic [ref=e317]:
+              - generic [ref=e318]: Equipment
+              - paragraph [ref=e319]: 2h ago
+          - generic [ref=e320] [cursor=pointer]:
+            - img [ref=e322]
+            - generic [ref=e325]:
+              - paragraph [ref=e326]: 3 Bags Bread Flour
+              - paragraph [ref=e327]: The Daily Loaf
+            - generic [ref=e328]:
+              - generic [ref=e329]: Materials
+              - paragraph [ref=e330]: 5h ago
+          - generic [ref=e331] [cursor=pointer]:
+            - img [ref=e333]
+            - generic [ref=e336]:
+              - paragraph [ref=e337]: Saturday Prep Cook
+              - paragraph [ref=e338]: Bent Fork Kitchen
+            - generic [ref=e339]:
+              - generic [ref=e340]: Staff
+              - paragraph [ref=e341]: Yesterday
+          - generic [ref=e342] [cursor=pointer]:
+            - img [ref=e344]
+            - generic [ref=e347]:
+              - paragraph [ref=e348]: Proofing Racks (×4)
+              - paragraph [ref=e349]: Rise & Shine
+            - generic [ref=e350]:
+              - generic [ref=e351]: Equipment
+              - paragraph [ref=e352]: Yesterday
+          - generic [ref=e353] [cursor=pointer]:
+            - img [ref=e355]
+            - generic [ref=e358]:
+              - paragraph [ref=e359]: Pastry Chef — 2 days
+              - paragraph [ref=e360]: Sweet Nothings
+            - generic [ref=e361]:
+              - generic [ref=e362]: Staff
+              - paragraph [ref=e363]: 2 days ago
+    - generic [ref=e365]:
+      - generic [ref=e366]:
+        - heading "Our Community in Numbers" [level=2] [ref=e367]
+        - paragraph [ref=e368]: Real impact, real neighbors
+      - generic [ref=e369]:
+        - generic [ref=e371]:
+          - generic [ref=e372]: "28"
+          - paragraph [ref=e373]: Active Shops
+        - generic [ref=e375]:
+          - generic [ref=e376]: "142"
+          - paragraph [ref=e377]: Active Listings
+        - generic [ref=e379]:
+          - generic [ref=e380]: "89"
+          - paragraph [ref=e381]: Items Shared
+        - generic [ref=e383]:
+          - generic [ref=e384]: $4.2K
+          - paragraph [ref=e385]: Saved in Waste
+    - generic [ref=e390]:
+      - heading "Ready to support your neighbors?" [level=2] [ref=e391]
+      - paragraph [ref=e392]: Post a listing, share what you have, or find what you need — it only takes a minute.
+      - generic [ref=e393]:
+        - button "Post a Listing" [ref=e394]
+        - button "Browse Listings" [ref=e395]
+  - contentinfo [ref=e396]:
+    - generic [ref=e397]:
+      - generic [ref=e398]:
+        - generic [ref=e399]:
+          - text: 🏘️ The Bend
+          - paragraph [ref=e400]: A community platform connecting local shops to share staff, materials, and equipment.
+        - generic [ref=e401]:
+          - heading "About" [level=4] [ref=e402]
+          - list [ref=e403]:
+            - listitem [ref=e404]:
+              - link "Our Story" [ref=e405] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e406]:
+              - link "Community Guidelines" [ref=e407] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e408]:
+              - link "Register" [ref=e409] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e410]:
+          - heading "Quick Links" [level=4] [ref=e411]
+          - list [ref=e412]:
+            - listitem [ref=e413]:
+              - link "Browse Staff" [ref=e414] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e415]:
+              - link "Browse Materials" [ref=e416] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e417]:
+              - link "Browse Equipment" [ref=e418] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e419]:
+          - heading "Connect" [level=4] [ref=e420]
+          - list [ref=e421]:
+            - listitem [ref=e422]: 📞 Contact Us
+            - listitem [ref=e423]: 💬 WhatsApp
+      - generic [ref=e424]: © 2026 The Bend Community

@@ -20,7 +20,7 @@ interface ReportData {
   period_label?: string;
 }
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
 
 const PERIODS: Array<{ value: Period; label: string }> = [
   { value: 'week', label: 'This Week' },
@@ -52,13 +52,13 @@ export default function ReportsPage() {
           icon: Users,
           label: 'New Registrations',
           value: data.new_registrations,
-          color: 'text-green-600',
-          bg: 'bg-green-50',
+          color: 'text-[hsl(160,25%,28%)]',
+          bg: 'bg-[hsl(35,15%,94%)]',
           iconColor: PRIMARY,
         },
         {
           icon: Store,
-          label: 'New Shops',
+          label: 'New Businesses',
           value: data.new_shops,
           color: 'text-blue-600',
           bg: 'bg-blue-50',

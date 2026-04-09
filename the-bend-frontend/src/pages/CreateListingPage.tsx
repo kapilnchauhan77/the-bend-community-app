@@ -103,8 +103,8 @@ export default function CreateListingPage() {
     return (
       <PageLayout>
         <div className="max-w-lg mx-auto px-4 py-24 text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+          <div className="w-16 h-16 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-[hsl(160,25%,28%)]" />
           </div>
           <h2 className="text-xl font-bold mb-2">Listing Posted!</h2>
           <p className="text-muted-foreground">Redirecting you to browse...</p>
@@ -134,7 +134,7 @@ export default function CreateListingPage() {
                     className={`py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
                       watchedType === t
                         ? t === 'offer'
-                          ? 'border-green-500 bg-green-50 text-green-700'
+                          ? 'border-[hsl(35,45%,42%)] bg-[hsl(35,15%,94%)] text-[hsl(160,25%,24%)]'
                           : 'border-blue-500 bg-blue-50 text-blue-700'
                         : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
@@ -256,7 +256,7 @@ export default function CreateListingPage() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="is_free" className="flex items-center gap-2 cursor-pointer">
-                  <Tag size={16} className="text-green-600" />
+                  <Tag size={16} className="text-[hsl(160,25%,28%)]" />
                   <span>Offering for free</span>
                 </Label>
                 <Switch
@@ -316,7 +316,7 @@ export default function CreateListingPage() {
               type="submit"
               className="flex-1 gap-2"
               disabled={submitting}
-              style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+              style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
             >
               {submitting ? (
                 <>

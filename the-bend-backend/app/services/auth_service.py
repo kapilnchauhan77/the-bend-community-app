@@ -93,8 +93,8 @@ class AuthService:
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
-            user=UserResponse(id=str(user.id), name=user.name, email=user.email, role=user.role.value),
-            shop=ShopResponse(id=str(shop.id), name=shop.name, status=shop.status.value) if shop else None,
+            user=UserResponse(id=str(user.id), name=user.name, email=user.email, role=user.role.value, avatar_url=user.avatar_url),
+            shop=ShopResponse(id=str(shop.id), name=shop.name, status=shop.status.value, avatar_url=shop.avatar_url) if shop else None,
         )
 
     async def refresh_token(self, refresh_token: str) -> dict:

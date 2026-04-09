@@ -14,6 +14,7 @@ export interface User {
   phone?: string;
   role: UserRole;
   shop_id?: string;
+  avatar_url?: string;
 }
 
 export interface Shop {
@@ -27,6 +28,7 @@ export interface Shop {
   active_listings_count?: number;
   total_fulfilled?: number;
   member_since?: string;
+  avatar_url?: string;
 }
 
 export interface ListingImage {
@@ -122,4 +124,77 @@ export interface AuthTokens {
   token_type: string;
   user: User;
   shop?: Shop;
+}
+
+export interface Volunteer {
+  id: string;
+  name: string;
+  phone: string;
+  skills: string;
+  available_time: string;
+  created_at: string;
+}
+
+export interface Talent {
+  id: string;
+  name: string;
+  phone: string;
+  category: 'freelancer' | 'musician' | 'artist';
+  skills: string;
+  available_time: string;
+  rate: number;
+  rate_unit: 'hr' | 'gig' | 'day';
+  created_at: string;
+}
+
+export type EventCategory = 'community' | 'music' | 'art' | 'food' | 'market' | 'historic' | 'outdoor' | 'education';
+export type ConnectorType = 'ics' | 'rss' | 'html';
+
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date?: string;
+  location?: string;
+  category: EventCategory;
+  image_url?: string;
+  source: string;
+  source_url?: string;
+  is_featured: boolean;
+  status: string;
+  created_at: string;
+}
+
+export interface EventConnector {
+  id: string;
+  name: string;
+  type: ConnectorType;
+  url: string;
+  category: EventCategory;
+  is_active: boolean;
+  config?: Record<string, string>;
+  last_synced_at?: string;
+  last_sync_count?: number;
+  last_sync_error?: string;
+  created_at: string;
+}
+
+export interface Sponsor {
+  id: string;
+  name: string;
+  description?: string;
+  logo_url?: string;
+  banner_url?: string;
+  website_url?: string;
+  placement: string;
+}
+
+export interface AdPricing {
+  id: string;
+  name: string;
+  description?: string;
+  placement: string;
+  duration_days: number;
+  price_cents: number;
 }

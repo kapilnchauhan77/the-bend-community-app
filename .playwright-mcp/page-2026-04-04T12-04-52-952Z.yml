@@ -1,0 +1,108 @@
+- generic [ref=e489]:
+  - banner [ref=e490]:
+    - generic [ref=e491]:
+      - link "🏘️ The Bend" [ref=e492] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e493]: 🏘️ The Bend
+      - navigation [ref=e494]:
+        - link "Home" [ref=e495] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e496] [cursor=pointer]:
+          - /url: /browse
+        - link "Messages" [ref=e497] [cursor=pointer]:
+          - /url: /messages
+        - link "My Shop" [ref=e498] [cursor=pointer]:
+          - /url: /my-shop
+      - generic [ref=e499]:
+        - button [ref=e500]:
+          - img [ref=e501]
+        - button "Log Out" [ref=e505]
+  - main [ref=e506]:
+    - generic [ref=e507]:
+      - button "Back" [ref=e508]:
+        - img [ref=e509]
+        - text: Back
+      - generic [ref=e512]:
+        - img [ref=e513]
+        - generic [ref=e520]: No photos available
+      - generic [ref=e521]:
+        - generic [ref=e522]:
+          - generic [ref=e523]: Critical Priority
+          - generic [ref=e525]: Requesting
+          - generic [ref=e526]:
+            - img [ref=e527]
+            - text: Equipment
+        - heading "Need Stand Mixer Urgently" [level=1] [ref=e529]
+        - generic [ref=e530]:
+          - generic [ref=e531]: $null
+          - generic [ref=e532]: 1 unit
+        - generic [ref=e533]:
+          - generic [ref=e534]:
+            - img [ref=e535]
+            - text: Posted 6h ago
+          - generic [ref=e538]:
+            - img [ref=e539]
+            - text: Expires Apr 18, 2026
+          - generic [ref=e541]:
+            - img [ref=e542]
+            - text: 0 interested
+      - generic [ref=e547]:
+        - heading "Description" [level=2] [ref=e548]
+        - paragraph [ref=e549]: Our KitchenAid died right before a wedding cake order. Need a stand mixer for the next 48 hours!
+      - generic [ref=e551]:
+        - heading "Posted by" [level=2] [ref=e552]
+        - generic [ref=e553]:
+          - generic [ref=e554]: S
+          - generic [ref=e555]:
+            - heading "Seaside Sweets" [level=3] [ref=e556]
+            - paragraph [ref=e557]: bakery
+            - paragraph [ref=e558]:
+              - img [ref=e559]
+              - text: 9 Pier Ave, The Bend
+            - link "0456789012" [ref=e563] [cursor=pointer]:
+              - /url: tel:0456789012
+              - img [ref=e564]
+              - text: "0456789012"
+      - generic [ref=e566]:
+        - button "I'm Interested" [ref=e567]:
+          - img [ref=e568]
+          - text: I'm Interested
+        - button "Message Shop" [ref=e570]:
+          - img [ref=e571]
+          - text: Message Shop
+  - contentinfo [ref=e573]:
+    - generic [ref=e574]:
+      - generic [ref=e575]:
+        - generic [ref=e576]:
+          - text: 🏘️ The Bend
+          - paragraph [ref=e577]: A community platform connecting local shops to share staff, materials, and equipment.
+        - generic [ref=e578]:
+          - heading "About" [level=4] [ref=e579]
+          - list [ref=e580]:
+            - listitem [ref=e581]:
+              - link "Our Story" [ref=e582] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e583]:
+              - link "Community Guidelines" [ref=e584] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e585]:
+              - link "Register" [ref=e586] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e587]:
+          - heading "Quick Links" [level=4] [ref=e588]
+          - list [ref=e589]:
+            - listitem [ref=e590]:
+              - link "Browse Staff" [ref=e591] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e592]:
+              - link "Browse Materials" [ref=e593] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e594]:
+              - link "Browse Equipment" [ref=e595] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e596]:
+          - heading "Connect" [level=4] [ref=e597]
+          - list [ref=e598]:
+            - listitem [ref=e599]: 📞 Contact Us
+            - listitem [ref=e600]: 💬 WhatsApp
+      - generic [ref=e601]: © 2026 The Bend Community

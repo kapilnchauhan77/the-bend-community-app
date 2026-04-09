@@ -39,7 +39,7 @@ interface Shop {
   description?: string;
 }
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -48,7 +48,7 @@ const statusBadge = (status: ShopStatus) => {
   switch (status) {
     case 'active':
       return (
-        <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
+        <Badge variant="outline" className="text-[hsl(160,25%,24%)] border-[hsl(35,18%,84%)] bg-[hsl(35,15%,94%)]">
           Active
         </Badge>
       );
@@ -144,9 +144,9 @@ export default function ShopsPage() {
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Shops</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Businesses</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Browse and manage all registered shops
+            Browse and manage all registered businesses
           </p>
         </div>
 
@@ -158,7 +158,7 @@ export default function ShopsPage() {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              placeholder="Search shops..."
+              placeholder="Search businesses..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -178,14 +178,14 @@ export default function ShopsPage() {
         ) : shops.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <Store size={40} className="mx-auto mb-3 opacity-30" />
-            No shops found.
+            No businesses found.
           </div>
         ) : (
           <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/60">
-                  <TableHead className="pl-4">Shop Name</TableHead>
+                  <TableHead className="pl-4">Business Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Admin</TableHead>
                   <TableHead>Status</TableHead>
@@ -267,7 +267,7 @@ export default function ShopsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{viewShop?.name}</DialogTitle>
-            <DialogDescription>Shop details</DialogDescription>
+            <DialogDescription>Business details</DialogDescription>
           </DialogHeader>
           {viewShop && (
             <div className="space-y-3 text-sm">
@@ -339,10 +339,10 @@ export default function ShopsPage() {
       <Dialog open={!!suspendTarget} onOpenChange={() => setSuspendTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Suspend Shop</DialogTitle>
+            <DialogTitle>Suspend Business</DialogTitle>
             <DialogDescription>
               Provide a reason for suspending{' '}
-              <span className="font-semibold text-foreground">{suspendTarget?.name}</span>. The shop
+              <span className="font-semibold text-foreground">{suspendTarget?.name}</span>. The business
               admin will be notified.
             </DialogDescription>
           </DialogHeader>

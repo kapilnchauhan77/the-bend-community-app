@@ -17,7 +17,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       <h3 className="font-semibold text-lg mb-1">{title}</h3>
       <p className="text-muted-foreground text-sm max-w-md mb-4">{description}</p>
       {action && (
-        <Button onClick={action.onClick} style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}>
+        <Button onClick={action.onClick} style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}>
           {action.label}
         </Button>
       )}

@@ -10,6 +10,7 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
 import { ListingGridSkeleton } from '@/components/shared/LoadingSkeletons';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { SponsorBanner } from '@/components/shared/SponsorBanner';
 
 const categories = [
   { value: '', label: 'All' },
@@ -85,7 +86,7 @@ export default function BrowsePage() {
               variant={category === cat.value ? 'default' : 'outline'}
               size="sm"
               onClick={() => updateFilter('category', cat.value)}
-              style={category === cat.value ? { backgroundColor: 'hsl(142, 76%, 36%)' } : {}}
+              style={category === cat.value ? { backgroundColor: 'hsl(160, 25%, 24%)' } : {}}
             >
               {cat.label}
             </Button>
@@ -133,6 +134,7 @@ export default function BrowsePage() {
           </>
         )}
       </div>
+      <SponsorBanner placement="browse" />
     </PageLayout>
   );
 }

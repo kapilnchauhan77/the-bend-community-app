@@ -67,7 +67,7 @@ const statusBadge = (status: ListingStatus) => {
   switch (status) {
     case 'active':
       return (
-        <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
+        <Badge variant="outline" className="text-[hsl(160,25%,24%)] border-[hsl(35,18%,84%)] bg-[hsl(35,15%,94%)]">
           Active
         </Badge>
       );
@@ -180,7 +180,7 @@ export default function ListingsPage() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-200"
+            className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[hsl(35,18%,84%)]"
           >
             {STATUSES.map((s) => (
               <option key={s.value} value={s.value}>
@@ -191,7 +191,7 @@ export default function ListingsPage() {
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-200 capitalize"
+            className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[hsl(35,18%,84%)] capitalize"
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c === 'All' ? '' : c} className="capitalize">
@@ -202,7 +202,7 @@ export default function ListingsPage() {
           <select
             value={filterUrgency}
             onChange={(e) => setFilterUrgency(e.target.value)}
-            className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-200"
+            className="text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[hsl(35,18%,84%)]"
           >
             {URGENCIES.map((u) => (
               <option key={u.value} value={u.value}>
@@ -229,7 +229,7 @@ export default function ListingsPage() {
               <TableHeader>
                 <TableRow className="bg-gray-50/60">
                   <TableHead className="pl-4">Title</TableHead>
-                  <TableHead>Shop</TableHead>
+                  <TableHead>Business</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Urgency</TableHead>
                   <TableHead>Status</TableHead>
@@ -288,7 +288,7 @@ export default function ListingsPage() {
             <DialogDescription>
               Provide a reason for removing{' '}
               <span className="font-semibold text-foreground">"{removeTarget?.title}"</span>. The
-              shop owner will be notified.
+              business owner will be notified.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

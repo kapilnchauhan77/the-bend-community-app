@@ -1,51 +1,91 @@
 @import "tailwindcss";
 
 @theme {
-  /* Primary */
-  --color-primary: hsl(142, 76%, 36%);
-  --color-primary-foreground: hsl(0, 0%, 100%);
-  --color-primary-dark: hsl(142, 76%, 29%);
+  /* Primary — Museum Charcoal Green */
+  --color-primary: hsl(160, 25%, 24%);
+  --color-primary-foreground: hsl(40, 20%, 95%);
+  --color-primary-dark: hsl(160, 25%, 18%);
+
+  /* Bronze / Gold Accent */
+  --color-gold: hsl(35, 45%, 42%);
+  --color-gold-light: hsl(38, 35%, 88%);
 
   /* Urgency */
-  --color-urgent: hsl(38, 92%, 50%);
+  --color-urgent: hsl(30, 70%, 45%);
   --color-urgent-foreground: hsl(0, 0%, 100%);
-  --color-critical: hsl(0, 84%, 60%);
+  --color-critical: hsl(0, 55%, 45%);
   --color-critical-foreground: hsl(0, 0%, 100%);
 
-  /* Base */
-  --color-background: hsl(0, 0%, 100%);
-  --color-foreground: hsl(222, 47%, 11%);
+  /* Base — Warm Ivory Parchment */
+  --color-background: hsl(40, 25%, 96%);
+  --color-foreground: hsl(30, 15%, 18%);
 
-  /* Card */
-  --color-card: hsl(0, 0%, 100%);
-  --color-card-foreground: hsl(222, 47%, 11%);
+  /* Card — Warm White */
+  --color-card: hsl(40, 20%, 98%);
+  --color-card-foreground: hsl(30, 15%, 18%);
 
-  /* Popover / Dropdown */
-  --color-popover: hsl(0, 0%, 100%);
-  --color-popover-foreground: hsl(222, 47%, 11%);
+  /* Popover */
+  --color-popover: hsl(40, 20%, 98%);
+  --color-popover-foreground: hsl(30, 15%, 18%);
 
-  /* Muted */
-  --color-muted: hsl(210, 40%, 96%);
-  --color-muted-foreground: hsl(215, 16%, 47%);
+  /* Muted — Aged Linen */
+  --color-muted: hsl(35, 15%, 92%);
+  --color-muted-foreground: hsl(30, 10%, 48%);
 
-  /* Accent (hover states) */
-  --color-accent: hsl(210, 40%, 96%);
-  --color-accent-foreground: hsl(222, 47%, 11%);
+  /* Accent */
+  --color-accent: hsl(35, 15%, 92%);
+  --color-accent-foreground: hsl(30, 15%, 18%);
 
   /* Destructive */
-  --color-destructive: hsl(0, 84%, 60%);
+  --color-destructive: hsl(0, 55%, 45%);
   --color-destructive-foreground: hsl(0, 0%, 100%);
 
   /* Secondary */
-  --color-secondary: hsl(210, 40%, 96%);
-  --color-secondary-foreground: hsl(222, 47%, 11%);
+  --color-secondary: hsl(35, 15%, 92%);
+  --color-secondary-foreground: hsl(30, 15%, 18%);
 
-  /* Border / Input / Ring */
-  --color-border: hsl(214, 32%, 91%);
-  --color-input: hsl(214, 32%, 91%);
-  --color-ring: hsl(142, 76%, 36%);
+  /* Border / Input / Ring — warm antique */
+  --color-border: hsl(35, 18%, 84%);
+  --color-input: hsl(35, 18%, 84%);
+  --color-ring: hsl(35, 45%, 42%);
 
-  /* Font & Radius */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --radius: 0.5rem;
+  /* Typography — Museum Heritage */
+  --font-sans: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
+  --font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+
+  /* Radius — minimal for classic feel */
+  --radius: 0.25rem;
+}
+
+/* Museum serif headings */
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  letter-spacing: 0.01em;
+}
+
+/* Subtle parchment texture via noise */
+body {
+  background-color: hsl(40, 25%, 96%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23f5f0e8'/%3E%3Crect width='1' height='1' x='1' y='1' fill='%23ede8de' fill-opacity='0.4'/%3E%3C/svg%3E");
+}
+
+/* Elegant thin rule for separators */
+hr, [data-slot="separator"] {
+  border-color: hsl(35, 25%, 82%);
+}
+
+/* Museum plaque card style */
+.museum-card {
+  border: 1px solid hsl(35, 20%, 85%);
+  box-shadow: 0 1px 3px hsl(30, 15%, 18%, 0.06), 0 4px 12px hsl(30, 15%, 18%, 0.03);
+}
+
+/* Bronze link hover effect */
+a:not([class]) {
+  color: hsl(35, 45%, 38%);
+  text-decoration-color: hsl(35, 45%, 42%, 0.3);
+}
+a:not([class]):hover {
+  color: hsl(35, 45%, 32%);
+  text-decoration-color: hsl(35, 45%, 42%);
 }

@@ -9,6 +9,11 @@ from app.api.v1.messages import router as messages_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.upload import router as upload_router
+from app.api.v1.volunteers import router as volunteers_router
+from app.api.v1.talent import router as talent_router
+from app.api.v1.events import router as events_router
+from app.api.v1.sponsors import router as sponsors_router
+from app.api.v1.advertising import router as advertising_router
 
 api_router = APIRouter()
 
@@ -20,6 +25,11 @@ api_router.include_router(messages_router)
 api_router.include_router(notifications_router)
 api_router.include_router(admin_router)
 api_router.include_router(upload_router)
+api_router.include_router(volunteers_router)
+api_router.include_router(talent_router)
+api_router.include_router(events_router)
+api_router.include_router(sponsors_router)
+api_router.include_router(advertising_router)
 
 
 @api_router.get("/health")

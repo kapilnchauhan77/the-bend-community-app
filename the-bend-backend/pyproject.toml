@@ -24,6 +24,12 @@ email-validator = ">=2.0.0"
 boto3 = ">=1.34.0"
 httpx = ">=0.27.0"
 Pillow = ">=10.0.0"
+icalendar = ">=5.0.0"
+feedparser = ">=6.0.0"
+beautifulsoup4 = ">=4.12.0"
+python-dateutil = ">=2.8.0"
+lxml = ">=4.9.0"
+stripe = ">=8.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0"

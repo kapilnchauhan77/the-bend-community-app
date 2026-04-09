@@ -18,6 +18,7 @@ class Shop(Base):
     address: Mapped[str | None] = mapped_column(String(255))
     contact_phone: Mapped[str] = mapped_column(String(20), nullable=False)
     whatsapp: Mapped[str | None] = mapped_column(String(20))
+    avatar_url: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[ShopStatus] = mapped_column(ENUM(ShopStatus, name="shop_status", create_type=False), nullable=False, default=ShopStatus.PENDING)
     admin_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     rejection_reason: Mapped[str | None] = mapped_column(Text)

@@ -26,3 +26,16 @@ export const BUSINESS_TYPES = [
 ] as const;
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+// Backend root URL for serving uploads/static files
+export const BACKEND_URL = API_BASE_URL.replace('/api/v1', '');
+
+/**
+ * Resolve an asset URL — if it starts with /uploads/, prepend the backend URL.
+ * Otherwise return as-is (external URLs, data URIs, etc.)
+ */
+export function resolveAssetUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('/uploads/')) return `${BACKEND_URL}${url}`;
+  return url;
+}

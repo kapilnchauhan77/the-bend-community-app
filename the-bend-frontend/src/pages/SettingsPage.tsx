@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { resolveAssetUrl } from '@/lib/constants';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
@@ -9,6 +10,7 @@ import {
   Info,
   Save,
   Phone,
+  Camera,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,8 +38,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { useAuthStore } from '@/stores/authStore';
+import { uploadApi } from '@/services/uploadApi';
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 function SettingsSection({
@@ -55,7 +58,7 @@ function SettingsSection({
         <CardTitle className="flex items-center gap-2.5 text-base font-bold text-gray-800">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: 'hsl(142, 76%, 95%)', color: PRIMARY }}
+            style={{ backgroundColor: 'hsl(35, 15%, 92%)', color: PRIMARY }}
           >
             <Icon size={14} />
           </div>
@@ -124,12 +127,32 @@ function AppLinkRow({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, shop, setAuth, logout } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile state
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const { data } = await uploadApi.uploadAvatar(file);
+      const updatedUser = { ...user!, avatar_url: data.avatar_url };
+      const updatedShop = shop ? { ...shop, avatar_url: data.avatar_url } : null;
+      const token = sessionStorage.getItem('access_token') || '';
+      const refreshToken = sessionStorage.getItem('refresh_token') || '';
+      setAuth(updatedUser, updatedShop, token, refreshToken);
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   // Notification preferences
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -165,6 +188,44 @@ export default function SettingsPage() {
         <div className="space-y-5">
           {/* ── Profile Section ──────────────────────────────────────────── */}
           <SettingsSection icon={User} title="Profile">
+            {/* Avatar upload */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[hsl(35,18%,84%)] bg-[hsl(35,15%,90%)]">
+                  {user?.avatar_url ? (
+                    <img src={resolveAssetUrl(user.avatar_url)} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-2xl font-bold font-serif text-[hsl(160,25%,24%)]">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[hsl(35,45%,42%)] flex items-center justify-center cursor-pointer shadow-md hover:bg-[hsl(35,45%,36%)] transition-colors"
+                  aria-label="Change profile picture"
+                >
+                  <Camera className="w-3.5 h-3.5 text-white" />
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              </div>
+              <div>
+                <p className="font-serif font-semibold text-[hsl(30,15%,18%)]">{user?.name}</p>
+                <p className="text-xs text-[hsl(30,10%,48%)]">{user?.email}</p>
+                {avatarUploading ? (
+                  <p className="text-xs text-[hsl(35,45%,42%)] mt-1">Uploading...</p>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs font-medium mt-1 cursor-pointer hover:underline"
+                    style={{ color: 'hsl(35, 45%, 42%)' }}
+                  >
+                    Change photo
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Name — read-only */}
             <div className="space-y-1.5">
               <Label htmlFor="name" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">

@@ -1,0 +1,71 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "🏘️ The Bend" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: 🏘️ The Bend
+      - navigation [ref=e8]:
+        - link "Home" [ref=e9] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e10] [cursor=pointer]:
+          - /url: /browse
+        - link "Messages" [ref=e11] [cursor=pointer]:
+          - /url: /messages
+        - link "My Shop" [ref=e12] [cursor=pointer]:
+          - /url: /my-shop
+      - generic [ref=e13]:
+        - button [ref=e14]:
+          - img [ref=e15]
+        - button "Log Out" [ref=e19]
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - heading "Browse Listings" [level=1] [ref=e22]
+      - generic [ref=e23]:
+        - img [ref=e24]
+        - textbox "Search staff, materials, equipment..." [ref=e27]
+      - generic [ref=e28]:
+        - button "All" [ref=e29]
+        - button "Staff" [ref=e30]
+        - button "Materials" [ref=e31]
+        - button "Equipment" [ref=e32]
+      - generic [ref=e33]:
+        - generic [ref=e34]: 0 results
+        - combobox [ref=e35]:
+          - generic: Urgency
+          - img [ref=e36]
+  - contentinfo [ref=e117]:
+    - generic [ref=e118]:
+      - generic [ref=e119]:
+        - generic [ref=e120]:
+          - text: 🏘️ The Bend
+          - paragraph [ref=e121]: A community platform connecting local shops to share staff, materials, and equipment.
+        - generic [ref=e122]:
+          - heading "About" [level=4] [ref=e123]
+          - list [ref=e124]:
+            - listitem [ref=e125]:
+              - link "Our Story" [ref=e126] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e127]:
+              - link "Community Guidelines" [ref=e128] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e129]:
+              - link "Register" [ref=e130] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e131]:
+          - heading "Quick Links" [level=4] [ref=e132]
+          - list [ref=e133]:
+            - listitem [ref=e134]:
+              - link "Browse Staff" [ref=e135] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e136]:
+              - link "Browse Materials" [ref=e137] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e138]:
+              - link "Browse Equipment" [ref=e139] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e140]:
+          - heading "Connect" [level=4] [ref=e141]
+          - list [ref=e142]:
+            - listitem [ref=e143]: 📞 Contact Us
+            - listitem [ref=e144]: 💬 WhatsApp
+      - generic [ref=e145]: © 2026 The Bend Community

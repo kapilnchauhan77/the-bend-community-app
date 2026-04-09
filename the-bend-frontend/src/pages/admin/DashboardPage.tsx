@@ -86,14 +86,14 @@ export default function DashboardPage() {
             <CardContent className="pt-6 pb-5">
               <div
                 className="text-3xl font-bold tabular-nums"
-                style={{ color: 'hsl(142, 76%, 36%)' }}
+                style={{ color: 'hsl(160, 25%, 24%)' }}
               >
                 {data.pending_registrations}
               </div>
               <p className="text-sm text-muted-foreground mt-1">Pending Registrations</p>
               <div
                 className="mt-3 h-1 w-12 rounded-full"
-                style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
               />
             </CardContent>
           </Card>
@@ -103,7 +103,7 @@ export default function DashboardPage() {
               <div className="text-3xl font-bold tabular-nums text-blue-600">
                 {data.active_shops}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Active Shops</p>
+              <p className="text-sm text-muted-foreground mt-1">Active Businesses</p>
               <div className="mt-3 h-1 w-12 rounded-full bg-blue-500" />
             </CardContent>
           </Card>

@@ -40,7 +40,7 @@ interface Registration {
   rejection_reason?: string;
 }
 
-const PRIMARY = 'hsl(142, 76%, 36%)';
+const PRIMARY = 'hsl(160, 25%, 24%)';
 
 const statusBadge = (status: RegistrationStatus) => {
   switch (status) {
@@ -52,7 +52,7 @@ const statusBadge = (status: RegistrationStatus) => {
       );
     case 'approved':
       return (
-        <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
+        <Badge variant="outline" className="text-[hsl(160,25%,24%)] border-[hsl(35,18%,84%)] bg-[hsl(35,15%,94%)]">
           Approved
         </Badge>
       );
@@ -140,7 +140,7 @@ export default function RegistrationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Registrations</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Review and manage shop registration requests
+            Review and manage business registration requests
           </p>
         </div>
 
@@ -167,7 +167,7 @@ export default function RegistrationsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50/60">
-                        <TableHead className="pl-4">Shop Name</TableHead>
+                        <TableHead className="pl-4">Business Name</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Contact</TableHead>
                         <TableHead>Date</TableHead>

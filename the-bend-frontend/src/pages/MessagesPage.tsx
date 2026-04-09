@@ -92,7 +92,7 @@ function ThreadListItem({
     <button
       onClick={onClick}
       className={`w-full flex items-start gap-3 px-4 py-3.5 text-left transition-all border-b border-gray-100 hover:bg-gray-50 focus:outline-none ${
-        isActive ? 'bg-green-50 border-l-[3px] border-l-[hsl(142,76%,36%)]' : ''
+        isActive ? 'bg-[hsl(35,15%,94%)] border-l-[3px] border-l-[hsl(35,45%,42%)]' : ''
       }`}
     >
       {/* Avatar */}
@@ -100,7 +100,7 @@ function ThreadListItem({
         <Avatar className="w-11 h-11">
           <AvatarFallback
             className="text-sm font-semibold text-white"
-            style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+            style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
           >
             {initials}
           </AvatarFallback>
@@ -170,12 +170,12 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
             ? 'text-white rounded-br-sm'
             : 'bg-white text-gray-800 border border-gray-100 rounded-bl-sm'
         }`}
-        style={isOwn ? { backgroundColor: 'hsl(142, 76%, 36%)' } : {}}
+        style={isOwn ? { backgroundColor: 'hsl(160, 25%, 24%)' } : {}}
       >
         <p className="text-sm leading-relaxed break-words">{message.content}</p>
         <p
           className={`text-[10px] mt-1 ${
-            isOwn ? 'text-green-100 text-right' : 'text-gray-400'
+            isOwn ? 'text-[hsl(35,15%,90%)] text-right' : 'text-gray-400'
           }`}
         >
           {time}
@@ -251,7 +251,7 @@ function ChatView({
         <Avatar className="w-9 h-9 flex-shrink-0">
           <AvatarFallback
             className="text-xs font-semibold text-white"
-            style={{ backgroundColor: 'hsl(142, 76%, 36%)' }}
+            style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
           >
             {getInitials(thread.other_party.shop_name || thread.other_party.name)}
           </AvatarFallback>
@@ -276,11 +276,11 @@ function ChatView({
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
             style={{
-              backgroundColor: 'hsl(142, 76%, 96%)',
-              borderColor: 'hsl(142, 76%, 80%)',
+              backgroundColor: 'hsl(35, 15%, 93%)',
+              borderColor: 'hsl(35, 25%, 70%)',
             }}
           >
-            <Tag size={12} style={{ color: 'hsl(142, 76%, 36%)' }} />
+            <Tag size={12} style={{ color: 'hsl(160, 25%, 24%)' }} />
             <span className="text-gray-600">Re:</span>
             <span className="font-medium text-gray-800 truncate">{thread.listing.title}</span>
             {thread.listing.urgency !== 'normal' && (
@@ -316,9 +316,9 @@ function ChatView({
           <div className="flex flex-col items-center justify-center h-full py-10 text-center">
             <div
               className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
-              style={{ backgroundColor: 'hsl(142, 76%, 96%)' }}
+              style={{ backgroundColor: 'hsl(35, 15%, 93%)' }}
             >
-              <MessageCircle size={22} style={{ color: 'hsl(142, 76%, 36%)' }} />
+              <MessageCircle size={22} style={{ color: 'hsl(160, 25%, 24%)' }} />
             </div>
             <p className="text-sm font-medium text-gray-700">Start the conversation</p>
             <p className="text-xs text-gray-400 mt-1 max-w-[200px]">
@@ -357,7 +357,7 @@ function ChatView({
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
-            className="flex-1 rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-green-500 text-sm"
+            className="flex-1 rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-[hsl(35,45%,42%)] text-sm"
             disabled={sending}
           />
           <Button
@@ -367,7 +367,7 @@ function ChatView({
             className="rounded-full w-10 h-10 flex-shrink-0 transition-all"
             style={{
               backgroundColor:
-                inputValue.trim() ? 'hsl(142, 76%, 36%)' : 'hsl(142, 76%, 80%)',
+                inputValue.trim() ? 'hsl(160, 25%, 24%)' : 'hsl(35, 25%, 70%)',
             }}
           >
             <Send size={16} />
@@ -419,7 +419,7 @@ function ThreadListPanel({
           <EmptyState
             icon={<MessageCircle size={28} />}
             title="No conversations yet"
-            description="When you or a shop contacts you about a listing, conversations will appear here."
+            description="When you or a business contacts you about a listing, conversations will appear here."
           />
         ) : (
           threads.map((thread) => (
@@ -602,9 +602,9 @@ export default function MessagesPage() {
               <div className="flex flex-col items-center justify-center h-full bg-gray-50">
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-                  style={{ backgroundColor: 'hsl(142, 76%, 96%)' }}
+                  style={{ backgroundColor: 'hsl(35, 15%, 93%)' }}
                 >
-                  <MessageCircle size={30} style={{ color: 'hsl(142, 76%, 36%)' }} />
+                  <MessageCircle size={30} style={{ color: 'hsl(160, 25%, 24%)' }} />
                 </div>
                 <p className="text-base font-semibold text-gray-700">Select a conversation</p>
                 <p className="text-sm text-gray-400 mt-1">

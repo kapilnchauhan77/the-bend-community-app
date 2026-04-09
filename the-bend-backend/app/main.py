@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.core.exceptions import AppException
@@ -45,6 +46,12 @@ def create_app() -> FastAPI:
     # Include routers
     from app.api.v1.router import api_router
     app.include_router(api_router, prefix=settings.API_PREFIX)
+
+    # Serve uploaded files
+    import os
+    os.makedirs("uploads/images", exist_ok=True)
+    os.makedirs("uploads/guidelines", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     # WebSocket chat
     from app.api.ws.chat import websocket_chat

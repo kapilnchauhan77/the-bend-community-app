@@ -47,3 +47,26 @@ class NotificationType(str, enum.Enum):
     NEW_CRITICAL_LISTING = "new_critical_listing"
     NEW_URGENT_LISTING = "new_urgent_listing"
     SHOP_SUSPENDED = "shop_suspended"
+
+
+class EventCategory(str, enum.Enum):
+    COMMUNITY = "community"
+    MUSIC = "music"
+    ART = "art"
+    FOOD = "food"
+    MARKET = "market"
+    HISTORIC = "historic"
+    OUTDOOR = "outdoor"
+    EDUCATION = "education"
+
+
+class EventStatus(str, enum.Enum):
+    ACTIVE = "active"
+    CANCELLED = "cancelled"
+    PAST = "past"
+
+
+class ConnectorType(str, enum.Enum):
+    ICS = "ics"
+    RSS = "rss"
+    HTML = "html"

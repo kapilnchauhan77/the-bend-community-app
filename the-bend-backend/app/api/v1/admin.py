@@ -1,5 +1,6 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -8,6 +9,9 @@ from app.models.user import User
 from app.models.enums import UserRole
 from app.services.admin_service import AdminService
 from app.schemas.admin import RejectRequest, SuspendRequest, AdminListingDeleteRequest
+from app.services.event_service import EventService
+from app.schemas.event import EventCreate, EventUpdate, ConnectorCreate, ConnectorUpdate
+from app.services.connector_service import ConnectorService
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -119,3 +123,319 @@ async def get_reports(
     current_user: User = Depends(Permission.require_community_admin()),
 ):
     return await service.get_reports(period)
+
+
+def get_event_service(db: AsyncSession = Depends(get_db)):
+    return EventService(db)
+
+
+# --- Event Admin Routes ---
+
+@router.get("/events")
+async def admin_list_events(
+    cursor: str | None = Query(None),
+    limit: int = Query(20, le=50),
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await event_service.list_all_events(cursor, limit)
+    from app.api.v1.events import _serialize_event
+    items = [_serialize_event(e) for e in result.items]
+    return {"items": items, "next_cursor": result.next_cursor, "has_more": result.has_more}
+
+
+@router.post("/events")
+async def admin_create_event(
+    data: EventCreate,
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    event = await event_service.create_event(data)
+    return {"id": str(event.id), "title": event.title}
+
+
+@router.put("/events/{event_id}")
+async def admin_update_event(
+    event_id: UUID,
+    data: EventUpdate,
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    event = await event_service.update_event(event_id, data)
+    return {"id": str(event.id), "status": "updated"}
+
+
+@router.delete("/events/{event_id}")
+async def admin_delete_event(
+    event_id: UUID,
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    await event_service.delete_event(event_id)
+    return {"status": "deleted"}
+
+
+# --- Connector Admin Routes ---
+
+def _serialize_connector(c):
+    return {
+        "id": str(c.id),
+        "name": c.name,
+        "type": c.type.value if hasattr(c.type, "value") else c.type,
+        "url": c.url,
+        "category": c.category.value if hasattr(c.category, "value") else c.category,
+        "is_active": c.is_active,
+        "config": c.config,
+        "last_synced_at": str(c.last_synced_at) if c.last_synced_at else None,
+        "last_sync_count": c.last_sync_count,
+        "last_sync_error": c.last_sync_error,
+        "created_at": str(c.created_at),
+    }
+
+
+@router.get("/connectors")
+async def admin_list_connectors(
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    connectors = await event_service.list_connectors()
+    return {"items": [_serialize_connector(c) for c in connectors]}
+
+
+@router.post("/connectors")
+async def admin_create_connector(
+    data: ConnectorCreate,
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    connector = await event_service.create_connector(data)
+    return {"id": str(connector.id), "name": connector.name}
+
+
+@router.put("/connectors/{connector_id}")
+async def admin_update_connector(
+    connector_id: UUID,
+    data: ConnectorUpdate,
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    connector = await event_service.update_connector(connector_id, data)
+    return {"id": str(connector.id), "status": "updated"}
+
+
+@router.delete("/connectors/{connector_id}")
+async def admin_delete_connector(
+    connector_id: UUID,
+    event_service: EventService = Depends(get_event_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    await event_service.delete_connector(connector_id)
+    return {"status": "deleted"}
+
+
+def get_connector_service(db: AsyncSession = Depends(get_db)):
+    return ConnectorService(db)
+
+
+@router.post("/connectors/{connector_id}/sync")
+async def admin_sync_connector(
+    connector_id: UUID,
+    connector_service: ConnectorService = Depends(get_connector_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await connector_service.sync_connector(connector_id)
+    return result
+
+
+@router.post("/connectors/{connector_id}/test")
+async def admin_test_connector(
+    connector_id: UUID,
+    event_service: EventService = Depends(get_event_service),
+    connector_service: ConnectorService = Depends(get_connector_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    connector = await event_service.get_connector(connector_id)
+    result = await connector_service.test_connector(
+        connector.type.value if hasattr(connector.type, "value") else connector.type,
+        connector.url,
+        connector.config,
+    )
+    return result
+
+
+@router.post("/connectors/sync-all")
+async def admin_sync_all(
+    connector_service: ConnectorService = Depends(get_connector_service),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    return await connector_service.sync_all()
+
+
+# --- Sponsor Admin Routes ---
+
+from app.models.sponsor import Sponsor
+from app.schemas.sponsor import SponsorCreate, SponsorUpdate
+
+
+@router.get("/sponsors")
+async def admin_list_sponsors(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(Sponsor).order_by(Sponsor.sort_order, Sponsor.name))
+    sponsors = result.scalars().all()
+    return {"items": [{
+        "id": str(s.id), "name": s.name, "description": s.description,
+        "logo_url": s.logo_url, "banner_url": s.banner_url,
+        "website_url": s.website_url, "placement": s.placement,
+        "is_active": s.is_active, "sort_order": s.sort_order,
+        "created_at": str(s.created_at),
+    } for s in sponsors]}
+
+
+@router.post("/sponsors")
+async def admin_create_sponsor(
+    data: SponsorCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    sponsor = Sponsor(id=uuid4(), **data.model_dump())
+    db.add(sponsor)
+    await db.flush()
+    return {"id": str(sponsor.id), "name": sponsor.name}
+
+
+@router.put("/sponsors/{sponsor_id}")
+async def admin_update_sponsor(
+    sponsor_id: UUID,
+    data: SponsorUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    sponsor = result.scalar_one_or_none()
+    if not sponsor:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Sponsor not found")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(sponsor, k, v)
+    await db.flush()
+    return {"id": str(sponsor.id), "status": "updated"}
+
+
+@router.delete("/sponsors/{sponsor_id}")
+async def admin_delete_sponsor(
+    sponsor_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    sponsor = result.scalar_one_or_none()
+    if not sponsor:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Sponsor not found")
+    await db.delete(sponsor)
+    await db.flush()
+    return {"status": "deleted"}
+
+
+@router.post("/sponsors/{sponsor_id}/approve")
+async def admin_approve_sponsor(
+    sponsor_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    sponsor = result.scalar_one_or_none()
+    if not sponsor:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Sponsor not found")
+    sponsor.approved = True
+    sponsor.is_active = True
+    await db.flush()
+    return {"id": str(sponsor.id), "status": "approved"}
+
+
+# --- Ad Pricing Admin Routes ---
+
+from app.models.ad_pricing import AdPricing
+
+
+@router.get("/pricing")
+async def admin_list_pricing(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(AdPricing).order_by(AdPricing.sort_order))
+    items = result.scalars().all()
+    return {"items": [{
+        "id": str(p.id), "name": p.name, "description": p.description,
+        "placement": p.placement, "duration_days": p.duration_days,
+        "price_cents": p.price_cents, "is_active": p.is_active,
+        "sort_order": p.sort_order, "created_at": str(p.created_at),
+    } for p in items]}
+
+
+@router.post("/pricing")
+async def admin_create_pricing(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    pricing = AdPricing(id=uuid4(), **{k: v for k, v in data.items() if hasattr(AdPricing, k)})
+    db.add(pricing)
+    await db.flush()
+    return {"id": str(pricing.id)}
+
+
+@router.put("/pricing/{pricing_id}")
+async def admin_update_pricing(
+    pricing_id: UUID,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_id))
+    pricing = result.scalar_one_or_none()
+    if not pricing:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Pricing not found")
+    for k, v in data.items():
+        if hasattr(pricing, k) and k != 'id':
+            setattr(pricing, k, v)
+    await db.flush()
+    return {"id": str(pricing.id), "status": "updated"}
+
+
+@router.delete("/pricing/{pricing_id}")
+async def admin_delete_pricing(
+    pricing_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_id))
+    pricing = result.scalar_one_or_none()
+    if not pricing:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Pricing not found")
+    await db.delete(pricing)
+    await db.flush()
+    return {"status": "deleted"}
+
+
+# --- Platform Settings Route ---
+
+@router.get("/settings")
+async def admin_get_settings(
+    _: User = Depends(Permission.require_community_admin()),
+):
+    from app.config import get_settings
+    settings = get_settings()
+    return {
+        "stripe_configured": bool(settings.STRIPE_SECRET_KEY),
+        "stripe_publishable_key": settings.STRIPE_PUBLISHABLE_KEY[:12] + "..." if settings.STRIPE_PUBLISHABLE_KEY else "",
+        "stripe_secret_key_masked": settings.STRIPE_SECRET_KEY[:12] + "..." if settings.STRIPE_SECRET_KEY else "",
+        "stripe_webhook_configured": bool(settings.STRIPE_WEBHOOK_SECRET),
+        "frontend_url": settings.FRONTEND_URL,
+        "app_name": settings.APP_NAME,
+    }
