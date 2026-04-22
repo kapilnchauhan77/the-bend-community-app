@@ -36,10 +36,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-6 py-12"
-      style={{ backgroundColor: 'hsl(40, 25%, 97%)' }}
-    >
+    <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex justify-center mb-8">
@@ -72,9 +69,16 @@ export default function ForgotPasswordPage() {
             <h1 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-2">
               Check your email
             </h1>
-            <p className="text-sm text-[hsl(30,10%,48%)] mb-6 leading-relaxed">
+            <p className="text-sm text-[hsl(30,10%,48%)] mb-4 leading-relaxed">
               If an account exists for <strong>{email}</strong>, we've sent a password reset link.
               Check your inbox and spam folder.
+            </p>
+            <p className="text-xs text-[hsl(30,10%,55%)] mb-6 leading-relaxed">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-semibold hover:underline" style={{ color: BRONZE }}>
+                Register your business
+              </Link>{' '}
+              to get started.
             </p>
             <Link
               to="/login"
@@ -165,7 +169,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <p className="text-center text-[10px] text-[hsl(30,10%,60%)] mt-10 tracking-wide">
-          &copy; 2026 The Bend Community
+          &copy; {new Date().getFullYear()} Community Platform
         </p>
       </div>
     </div>

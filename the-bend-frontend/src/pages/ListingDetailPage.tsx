@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { resolveAssetUrl } from '@/lib/constants';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   MapPin,
@@ -7,6 +8,7 @@ import {
   MessageCircle,
   Clock,
   Package,
+  Briefcase,
   Users,
   Wrench,
   Star,
@@ -16,6 +18,8 @@ import {
   CheckCircle,
   Trash2,
   ImageOff,
+  Bookmark,
+  Flag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/PageLayout';
+import { ShareButton } from '@/components/shared/ShareButton';
 import { listingApi } from '@/services/listingApi';
 import { messageApi } from '@/services/messageApi';
 import { useAuthStore } from '@/stores/authStore';
@@ -41,17 +46,16 @@ import type { ListingDetail } from '@/types';
 const urgencyStyles = {
   normal: { badge: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400', label: 'Normal' },
   urgent: { badge: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Urgent' },
-  critical: { badge: 'bg-red-100 text-red-600 border-red-200', dot: 'bg-red-500', label: 'Critical' },
 };
 
 const categoryIcons = {
-  staff: Users,
+  staff: Briefcase,
   materials: Package,
   equipment: Wrench,
 };
 
 const categoryLabels = {
-  staff: 'Staff',
+  staff: 'Gigs',
   materials: 'Raw Materials',
   equipment: 'Equipment',
 };
@@ -83,9 +87,15 @@ export default function ListingDetailPage() {
   const [imageIndex, setImageIndex] = useState(0);
   const [interestLoading, setInterestLoading] = useState(false);
   const [hasInterest, setHasInterest] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
   const [interestSuccess, setInterestSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState('inappropriate');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reported, setReported] = useState(false);
 
   const isOwner = listing && shop && listing.shop.id === shop.id;
 
@@ -101,6 +111,7 @@ export default function ListingDetailPage() {
       const { data } = await listingApi.getDetail(id!);
       setListing(data);
       setHasInterest(data.viewer_has_interest);
+      setHasSaved(data.viewer_has_saved);
     } catch {
       setError('Could not load this listing. It may have been removed.');
     } finally {
@@ -129,6 +140,19 @@ export default function ListingDetailPage() {
     } finally {
       setInterestLoading(false);
     }
+  }
+
+  async function handleSave() {
+    if (!isAuthenticated) { navigate('/login'); return; }
+    try {
+      if (hasSaved) {
+        await listingApi.unsaveListing(id!);
+        setHasSaved(false);
+      } else {
+        await listingApi.saveListing(id!);
+        setHasSaved(true);
+      }
+    } catch { }
   }
 
   async function handleFulfill() {
@@ -205,7 +229,7 @@ export default function ListingDetailPage() {
           {images.length > 0 ? (
             <>
               <img
-                src={images[imageIndex].url}
+                src={resolveAssetUrl(images[imageIndex].url)}
                 alt={listing.title}
                 className="w-full h-full object-cover"
               />
@@ -263,7 +287,9 @@ export default function ListingDetailPage() {
                   : 'bg-blue-100 text-blue-700'
               }
             >
-              {listing.type === 'offer' ? 'Offering' : 'Requesting'}
+              {listing.category === 'staff'
+                ? (listing.type === 'offer' ? 'Hiring' : 'Available')
+                : (listing.type === 'offer' ? 'Offering' : 'Requesting')}
             </Badge>
             <Badge variant="outline" className="flex items-center gap-1">
               <CategoryIcon size={12} />
@@ -271,7 +297,14 @@ export default function ListingDetailPage() {
             </Badge>
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">{listing.title}</h1>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h1 className="text-2xl font-bold text-gray-900">{listing.title}</h1>
+            <ShareButton
+              url={`/listing/${id}`}
+              title={listing.title}
+              description={`${listing.category === 'staff' ? (listing.type === 'offer' ? 'Hiring' : 'Available') : (listing.type === 'offer' ? 'Offering' : 'Requesting')}: ${listing.title} - Community Marketplace`}
+            />
+          </div>
 
           {/* Price */}
           <div className="flex items-center gap-4 mb-3">
@@ -297,6 +330,16 @@ export default function ListingDetailPage() {
               <span className="flex items-center gap-1">
                 <Star size={14} />
                 Expires {formatDate(listing.expiry_date)}
+                {(() => {
+                  const expiry = new Date(listing.expiry_date.replace(' ', 'T'));
+                  const diff = expiry.getTime() - Date.now();
+                  if (diff <= 0) return <span className="font-semibold text-red-500">(Expired)</span>;
+                  const days = Math.floor(diff / 86400000);
+                  if (days > 7) return null;
+                  const hours = Math.floor(diff / 3600000);
+                  const label = days > 0 ? `${days}d left` : hours > 0 ? `${hours}h left` : 'Expiring soon';
+                  return <span className="font-semibold text-amber-600">({label})</span>;
+                })()}
               </span>
             )}
             <span className="flex items-center gap-1">
@@ -322,11 +365,18 @@ export default function ListingDetailPage() {
             <h2 className="font-semibold text-gray-900 mb-3">Posted by</h2>
             <div className="flex items-start gap-3">
               {/* Avatar */}
-              <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
-                {listing.shop.name.charAt(0).toUpperCase()}
-              </div>
+              <Link to={`/business/${listing.shop.id}`} className="flex-shrink-0">
+                <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] hover:opacity-80 transition-opacity">
+                  {listing.shop.name.charAt(0).toUpperCase()}
+                </div>
+              </Link>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900">{listing.shop.name}</h3>
+                <Link
+                  to={`/business/${listing.shop.id}`}
+                  className="font-semibold text-gray-900 hover:text-[hsl(35,45%,35%)] hover:underline transition-colors"
+                >
+                  {listing.shop.name}
+                </Link>
                 <p className="text-sm text-muted-foreground capitalize mb-2">
                   {listing.shop.business_type}
                 </p>
@@ -487,9 +537,89 @@ export default function ListingDetailPage() {
               <MessageCircle size={16} />
               Message Business
             </Button>
+            <Button
+              variant="outline"
+              className="gap-2 cursor-pointer"
+              onClick={handleSave}
+            >
+              <Bookmark size={16} fill={hasSaved ? 'currentColor' : 'none'} />
+              {hasSaved ? 'Saved' : 'Save'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-gray-500 hover:text-red-500 cursor-pointer"
+              onClick={() => {
+                if (!isAuthenticated) { navigate('/login'); return; }
+                setShowReport(true);
+              }}
+            >
+              <Flag size={14} />
+              Report
+            </Button>
           </div>
         )}
       </div>
+
+      {/* Report Modal */}
+      {showReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowReport(false); }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-[hsl(40,20%,98%)] rounded-lg shadow-2xl w-full max-w-sm p-6">
+            <h3 className="font-serif font-bold text-lg text-[hsl(30,15%,18%)] mb-1">Report Listing</h3>
+            <p className="text-xs text-[hsl(30,10%,50%)] mb-4">Why are you reporting this?</p>
+
+            {reported ? (
+              <div className="text-center py-4">
+                <CheckCircle className="w-10 h-10 mx-auto mb-2" style={{ color: 'hsl(160, 25%, 24%)' }} />
+                <p className="text-sm font-medium text-[hsl(30,15%,18%)]">Report submitted. Our team will review it.</p>
+                <Button variant="outline" className="mt-4 cursor-pointer" onClick={() => { setShowReport(false); setReported(false); }}>Close</Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2 mb-4">
+                  {['inappropriate', 'spam', 'misleading', 'other'].map(r => (
+                    <label key={r} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="reason" value={r} checked={reportReason === r}
+                        onChange={() => setReportReason(r)} className="accent-[hsl(160,25%,24%)]" />
+                      <span className="text-sm capitalize text-[hsl(30,15%,25%)]">{r}</span>
+                    </label>
+                  ))}
+                </div>
+                <textarea
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Additional details (optional)"
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-[hsl(35,18%,84%)] rounded resize-none mb-4"
+                />
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 cursor-pointer" onClick={() => setShowReport(false)}>Cancel</Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                    disabled={reportSubmitting}
+                    onClick={async () => {
+                      setReportSubmitting(true);
+                      try {
+                        await listingApi.reportListing(id!, { reason: reportReason, details: reportDetails || undefined });
+                        setReported(true);
+                      } catch {}
+                      setReportSubmitting(false);
+                    }}
+                  >
+                    {reportSubmitting ? 'Submitting...' : 'Submit Report'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

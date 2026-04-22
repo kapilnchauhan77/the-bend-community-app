@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Info,
   CheckCheck,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,14 +23,14 @@ function getNotificationIcon(type: string) {
   if (type.includes('message')) return MessageSquare;
   if (type.includes('interest') || type.includes('listing')) return Package;
   if (type.includes('fulfilled')) return CheckCircle;
-  if (type.includes('urgent') || type.includes('critical')) return AlertTriangle;
+  if (type.includes('urgent')) return AlertTriangle;
   return Info;
 }
 
 function getIconStyle(type: string): { bg: string; color: string } {
   if (type.includes('message')) return { bg: 'bg-blue-100', color: 'text-blue-600' };
   if (type.includes('fulfilled')) return { bg: 'bg-[hsl(35,15%,90%)]', color: 'text-[hsl(160,25%,28%)]' };
-  if (type.includes('urgent') || type.includes('critical'))
+  if (type.includes('urgent'))
     return { bg: 'bg-red-100', color: 'text-red-600' };
   if (type.includes('interest')) return { bg: 'bg-amber-100', color: 'text-amber-600' };
   return { bg: 'bg-gray-100', color: 'text-gray-600' };
@@ -38,9 +39,13 @@ function getIconStyle(type: string): { bg: string; color: string } {
 // ─── Navigate target from notification data ───────────────────────────────────
 function getTargetRoute(n: Notification): string {
   const data = n.data ?? {};
+  if (n.type.includes('registration_submitted')) return '/admin/registrations';
+  if (n.type.includes('registration_approved') || n.type.includes('registration_rejected')) return '/my-shop';
+  if (n.type.includes('suspended')) return '/my-shop';
   if (data.thread_id) return `/messages/${data.thread_id}`;
   if (data.listing_id) return `/listing/${data.listing_id}`;
   if (n.type.includes('message')) return '/messages';
+  if (n.type.includes('interest')) return data.listing_id ? `/listing/${data.listing_id}` : '/my-shop';
   return '/browse';
 }
 
@@ -85,10 +90,12 @@ function NotificationItem({
   notification,
   onRead,
   onClick,
+  onDismiss,
 }: {
   notification: Notification;
   onRead: (id: string) => void;
   onClick: (n: Notification) => void;
+  onDismiss: (id: string) => void;
 }) {
   const Icon = getNotificationIcon(notification.type);
   const iconStyle = getIconStyle(notification.type);
@@ -120,19 +127,31 @@ function NotificationItem({
         <p className="text-[11px] text-gray-400 mt-1.5">{timeAgo(notification.created_at)}</p>
       </div>
 
-      {/* Mark read button on hover */}
-      {!notification.is_read && (
-        <button
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-blue-100 text-blue-500"
-          title="Mark as read"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRead(notification.id);
-          }}
-        >
+      {/* Action buttons on hover */}
+      <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!notification.is_read && (
+          <button
+            className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-500"
+            title="Mark as read"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRead(notification.id);
+            }}
+          >
           <CheckCheck size={14} />
         </button>
-      )}
+        )}
+        <button
+          className="p-1.5 rounded-lg hover:bg-red-100 text-gray-400 hover:text-red-500"
+          title="Dismiss"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss(notification.id);
+          }}
+        >
+          <X size={14} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -190,6 +209,11 @@ export default function NotificationsPage() {
     await notificationApi.markAllRead().catch(() => {});
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setMarkingAll(false);
+  };
+
+  const handleDismiss = async (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    await notificationApi.dismiss(id).catch(() => {});
   };
 
   const handleClick = async (n: Notification) => {
@@ -260,6 +284,7 @@ export default function NotificationsPage() {
                           notification={n}
                           onRead={handleMarkRead}
                           onClick={handleClick}
+                          onDismiss={handleDismiss}
                         />
                         {idx < grouped[group].length - 1 && (
                           <div className="mx-4 border-t border-gray-100" />

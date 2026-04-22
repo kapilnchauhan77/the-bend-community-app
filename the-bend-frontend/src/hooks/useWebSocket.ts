@@ -16,7 +16,7 @@ export function useWebSocket() {
   const addMessage = useMessageStore((s) => s.addMessage);
 
   const connect = useCallback(() => {
-    const token = sessionStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token');
     if (!token) return;
 
     const wsUrl = API_BASE_URL.replace(/^http/, 'ws').replace('/api/v1', '') + '/api/v1/ws/chat?token=' + token;

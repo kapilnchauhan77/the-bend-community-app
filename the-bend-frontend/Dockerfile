@@ -8,7 +8,9 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 
 ARG VITE_API_URL
+ARG VITE_BASE_DOMAIN=bend.community
 ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_BASE_DOMAIN=${VITE_BASE_DOMAIN}
 
 RUN npm run build
 

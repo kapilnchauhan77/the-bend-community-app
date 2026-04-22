@@ -37,7 +37,7 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
                 className="group text-center max-w-[160px] cursor-pointer"
               >
                 {s.logo_url ? (
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="h-8 mx-auto opacity-60 group-hover:opacity-100 transition-opacity" />
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="h-8 mx-auto opacity-60 group-hover:opacity-100 transition-opacity mix-blend-multiply dark:mix-blend-normal dark:bg-white/90 dark:rounded dark:px-2 dark:py-1" />
                 ) : (
                   <span className="text-sm font-serif font-semibold text-[hsl(30,10%,45%)] group-hover:text-[hsl(35,45%,42%)] transition-colors">
                     {s.name}
@@ -69,12 +69,13 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 my-8">
       <p className="text-[10px] tracking-[0.2em] uppercase text-[hsl(30,10%,55%)] font-medium mb-3">
-        Community Partners
+        Community Partners{' '}
+        <a href="/advertise" target="_blank" rel="noopener noreferrer" className="normal-case tracking-normal hover:underline" style={{ color: 'hsl(35, 45%, 42%)' }}>(Partner with us)</a>
       </p>
       <div className="overflow-hidden relative">
-        {/* Fade edges */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+        {/* Fade edges — uses CSS var for dark mode compat */}
+        <div className="absolute left-0 top-0 bottom-0 w-8 z-10 pointer-events-none" style={{ background: 'linear-gradient(to right, var(--fade-bg, hsl(40,25%,96%)), transparent)' }} />
+        <div className="absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none" style={{ background: 'linear-gradient(to left, var(--fade-bg, hsl(40,25%,96%)), transparent)' }} />
 
         <div
           className="flex gap-4 animate-marquee hover:[animation-play-state:paused]"
@@ -92,7 +93,7 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
             >
               {s.logo_url && (
                 <div className="mb-2.5 h-8 flex items-center">
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="max-h-8 max-w-[140px] object-contain" />
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="max-h-8 max-w-[140px] object-contain mix-blend-multiply dark:mix-blend-normal dark:bg-white/90 dark:rounded dark:px-2 dark:py-1" />
                 </div>
               )}
               <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
@@ -147,7 +148,7 @@ function SponsorCardCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         </p>
         {sponsor.logo_url && (
           <div className="mb-2 h-6 flex items-center">
-            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className="max-h-6 max-w-[100px] object-contain" />
+            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className="max-h-6 max-w-[100px] object-contain mix-blend-multiply dark:mix-blend-normal dark:bg-white/90 dark:rounded dark:px-2 dark:py-1" />
           </div>
         )}
         <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors mb-1">

@@ -1,0 +1,33 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "B THE BEND Community" [ref=e8] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e10]: B
+      - generic [ref=e11]:
+        - generic [ref=e12]: THE BEND
+        - text: Community
+    - generic [ref=e13]:
+      - blockquote [ref=e15]: Connecting neighbors, preserving traditions, building together.
+      - paragraph [ref=e16]: Since the founding of Montross
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - heading "Welcome back" [level=1] [ref=e20]
+      - paragraph [ref=e21]: Sign in to your business account
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - text: Email
+        - textbox "Email" [ref=e24]:
+          - /placeholder: you@example.com
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]: Password
+          - button "Forgot password?" [ref=e28] [cursor=pointer]
+        - generic [ref=e29]:
+          - textbox "Password" [ref=e30]:
+            - /placeholder: Enter your password
+          - button "Show password" [ref=e31] [cursor=pointer]:
+            - img [ref=e32]
+      - button "Log In" [ref=e35] [cursor=pointer]
+      - generic [ref=e38]: or
+      - button "Register Your Business" [ref=e40] [cursor=pointer]
+    - paragraph [ref=e41]: © 2026 The Bend Community

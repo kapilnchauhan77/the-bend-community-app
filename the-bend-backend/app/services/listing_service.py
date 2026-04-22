@@ -15,8 +15,8 @@ class ListingService:
         self.db = db
         self.listing_repo = ListingRepository(db)
 
-    async def browse_listings(self, **kwargs):
-        return await self.listing_repo.browse(**kwargs)
+    async def browse_listings(self, status: str | None = None, tenant_id=None, **kwargs):
+        return await self.listing_repo.browse(status=status, tenant_id=tenant_id, **kwargs)
 
     async def get_listing(self, listing_id: UUID, current_user=None):
         listing = await self.listing_repo.get_detail(listing_id)
@@ -45,15 +45,16 @@ class ListingService:
         if not current_user.shop_id:
             raise ForbiddenError("No shop associated")
 
-        # Check critical listing rate limit
-        if data.urgency == "critical":
-            critical_count = await self.listing_repo.count_active_critical(current_user.shop_id)
-            if critical_count >= 2:
-                raise BusinessRuleViolation("Maximum 2 active critical listings per shop")
+        # Check urgent listing rate limit
+        if data.urgency == "urgent":
+            urgent_count = await self.listing_repo.count_active_urgent(current_user.shop_id)
+            if urgent_count >= 3:
+                raise BusinessRuleViolation("Maximum 3 active urgent listings per business")
 
         listing = await self.listing_repo.create({
             "id": uuid4(),
             "shop_id": current_user.shop_id,
+            "tenant_id": current_user.tenant_id,
             "type": data.type,
             "category": data.category,
             "title": data.title,
@@ -66,7 +67,21 @@ class ListingService:
             "urgency": data.urgency,
         })
 
-        # TODO: Broadcast notification for urgent/critical (Phase 6)
+        # Handle images
+        if data.image_ids:
+            from app.models.listing import ListingImage
+            for i, img_url in enumerate(data.image_ids):
+                image = ListingImage(
+                    id=uuid4(),
+                    listing_id=listing.id,
+                    url=img_url,
+                    thumbnail_url=img_url,
+                    sort_order=i,
+                )
+                self.db.add(image)
+            await self.db.flush()
+
+        # TODO: Broadcast notification for urgent (Phase 6)
         return listing
 
     async def update_listing(self, listing_id: UUID, data: ListingUpdate, current_user: User):

@@ -1,17 +1,18 @@
 import axios from 'axios';
-import { API_BASE_URL } from '@/lib/constants';
+import { API_BASE_URL, getTenantSlug } from '@/lib/constants';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor - attach JWT
+// Request interceptor - attach JWT and tenant slug
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('access_token');
+  const token = localStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers['X-Tenant-Slug'] = getTenantSlug();
   return config;
 });
 
@@ -23,18 +24,18 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        const refreshToken = sessionStorage.getItem('refresh_token');
+        const refreshToken = localStorage.getItem('refresh_token');
         if (refreshToken) {
           const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, {
             refresh_token: refreshToken,
           });
-          sessionStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('access_token', data.access_token);
           originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
           return api(originalRequest);
         }
       } catch {
-        sessionStorage.removeItem('access_token');
-        sessionStorage.removeItem('refresh_token');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
         window.location.href = '/login';
       }
     }

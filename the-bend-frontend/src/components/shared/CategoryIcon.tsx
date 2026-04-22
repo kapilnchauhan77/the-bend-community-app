@@ -1,14 +1,14 @@
-import { Users, Package, Wrench } from 'lucide-react';
+import { Briefcase, Package, Wrench } from 'lucide-react';
 import type { ListingCategory } from '@/types';
 
 const icons: Record<ListingCategory, React.ElementType> = {
-  staff: Users,
+  staff: Briefcase,
   materials: Package,
   equipment: Wrench,
 };
 
 const labels: Record<ListingCategory, string> = {
-  staff: 'Staff',
+  staff: 'Gigs',
   materials: 'Materials',
   equipment: 'Equipment',
 };

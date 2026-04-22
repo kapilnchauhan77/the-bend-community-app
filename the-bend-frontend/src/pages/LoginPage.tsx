@@ -9,11 +9,13 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/authApi';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
+import { useTenant } from '@/context/TenantContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
 
 export default function LoginPage() {
+  const tenant = useTenant();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +88,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right — Login form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12" style={{ backgroundColor: 'hsl(40, 25%, 97%)' }}>
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">

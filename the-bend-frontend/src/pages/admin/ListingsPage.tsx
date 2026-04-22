@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Trash2, Loader2, FileText, Filter } from 'lucide-react';
 
 type ListingStatus = 'active' | 'expired' | 'removed' | 'draft';
-type ListingUrgency = 'critical' | 'urgent' | 'normal';
+type ListingUrgency = 'urgent' | 'normal';
 
 interface Listing {
   id: string;
@@ -42,12 +42,6 @@ const formatDate = (iso: string) =>
 
 const urgencyBadge = (urgency: ListingUrgency) => {
   switch (urgency) {
-    case 'critical':
-      return (
-        <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
-          Critical
-        </Badge>
-      );
     case 'urgent':
       return (
         <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
@@ -102,7 +96,6 @@ const STATUSES: Array<{ value: string; label: string }> = [
 ];
 const URGENCIES: Array<{ value: string; label: string }> = [
   { value: '', label: 'All Urgency' },
-  { value: 'critical', label: 'Critical' },
   { value: 'urgent', label: 'Urgent' },
   { value: 'normal', label: 'Normal' },
 ];

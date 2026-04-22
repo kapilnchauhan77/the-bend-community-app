@@ -42,11 +42,6 @@ def push_listing_interest(self, subscription_info: dict, shop_name: str, listing
 
 
 @celery_app.task
-def push_critical_listing(subscription_info: dict, title: str, shop_name: str):
-    _send_push(subscription_info, f"🔴 {title}", f"Critical listing by {shop_name}")
-
-
-@celery_app.task
 def push_urgent_listing(subscription_info: dict, title: str, shop_name: str):
     _send_push(subscription_info, f"🟡 {title}", f"Urgent listing by {shop_name}")
 

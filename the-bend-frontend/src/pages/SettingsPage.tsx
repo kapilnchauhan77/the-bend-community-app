@@ -39,6 +39,7 @@ import {
 import { PageLayout } from '@/components/layout/PageLayout';
 import { useAuthStore } from '@/stores/authStore';
 import { uploadApi } from '@/services/uploadApi';
+import { useDarkMode } from '@/hooks/useDarkMode';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -129,6 +130,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, shop, setAuth, logout } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isDark, toggle: toggleDark } = useDarkMode();
 
   // Profile state
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -144,8 +146,8 @@ export default function SettingsPage() {
       const { data } = await uploadApi.uploadAvatar(file);
       const updatedUser = { ...user!, avatar_url: data.avatar_url };
       const updatedShop = shop ? { ...shop, avatar_url: data.avatar_url } : null;
-      const token = sessionStorage.getItem('access_token') || '';
-      const refreshToken = sessionStorage.getItem('refresh_token') || '';
+      const token = localStorage.getItem('access_token') || '';
+      const refreshToken = localStorage.getItem('refresh_token') || '';
       setAuth(updatedUser, updatedShop, token, refreshToken);
     } catch (err) {
       console.error('Avatar upload failed:', err);
@@ -157,7 +159,7 @@ export default function SettingsPage() {
   // Notification preferences
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
-  const [staffAlerts, setStaffAlerts] = useState(true);
+  const [gigAlerts, setGigAlerts] = useState(true);
   const [materialsAlerts, setMaterialsAlerts] = useState(true);
   const [equipmentAlerts, setEquipmentAlerts] = useState(false);
   const [urgencyThreshold, setUrgencyThreshold] = useState<string>('normal');
@@ -326,10 +328,10 @@ export default function SettingsPage() {
               </p>
               <div className="space-y-3">
                 <SwitchRow
-                  label="Staff Sharing"
-                  description="New offers and requests for staff"
-                  checked={staffAlerts}
-                  onCheckedChange={setStaffAlerts}
+                  label="Gig Alerts"
+                  description="New gig postings and availability"
+                  checked={gigAlerts}
+                  onCheckedChange={setGigAlerts}
                 />
                 <SwitchRow
                   label="Raw Materials"
@@ -359,8 +361,7 @@ export default function SettingsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="normal">All listings (Normal+)</SelectItem>
-                  <SelectItem value="urgent">Urgent and Critical only</SelectItem>
-                  <SelectItem value="critical">Critical only</SelectItem>
+                  <SelectItem value="urgent">Urgent only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -368,10 +369,17 @@ export default function SettingsPage() {
 
           {/* ── App Section ───────────────────────────────────────────────── */}
           <SettingsSection icon={Smartphone} title="App">
+            <SwitchRow
+              label="Dark Mode"
+              description="Use a darker color theme"
+              checked={isDark}
+              onCheckedChange={toggleDark}
+            />
+            <Separator />
             <AppLinkRow
               icon={Smartphone}
               label="Install App"
-              description="Add The Bend to your home screen"
+              description="Add app to your home screen"
               onClick={() => {
                 alert('To install: tap the Share button in your browser and select "Add to Home Screen".');
               }}
@@ -379,7 +387,7 @@ export default function SettingsPage() {
             <Separator />
             <AppLinkRow
               icon={Info}
-              label="About The Bend"
+              label="About"
               description="Version 1.0 · Community Edition"
               onClick={() => navigate('/about')}
             />
@@ -395,7 +403,7 @@ export default function SettingsPage() {
             </AlertDialogTrigger>
             <AlertDialogContent className="rounded-2xl">
               <AlertDialogHeader>
-                <AlertDialogTitle>Log out of The Bend?</AlertDialogTitle>
+                <AlertDialogTitle>Log out?</AlertDialogTitle>
                 <AlertDialogDescription>
                   You will need to sign in again to access your account and manage listings.
                 </AlertDialogDescription>

@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.core.permissions import get_current_tenant
+from app.models.tenant import Tenant
 from app.services.talent_service import TalentService
 from app.schemas.talent import TalentCreate, TalentInquiryCreate
 
@@ -14,7 +16,12 @@ def get_service(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("")
-async def register_talent(data: TalentCreate, service: TalentService = Depends(get_service)):
+async def register_talent(
+    data: TalentCreate,
+    service: TalentService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    service.tenant_id = tenant.id if tenant else None
     t = await service.register(data)
     return {"id": str(t.id), "name": t.name}
 
@@ -25,17 +32,21 @@ async def list_talent(
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     service: TalentService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
+    service.tenant_id = tenant.id if tenant else None
     result = await service.list_talent(category, cursor, limit)
     items = [{
         "id": str(t.id),
         "name": t.name,
         "phone": t.phone,
+        "email": t.email,
         "category": t.category,
         "skills": t.skills,
         "available_time": t.available_time,
         "rate": float(t.rate),
         "rate_unit": t.rate_unit,
+        "photo_url": t.photo_url,
         "created_at": str(t.created_at),
     } for t in result.items]
     return {"items": items, "next_cursor": result.next_cursor, "has_more": result.has_more}

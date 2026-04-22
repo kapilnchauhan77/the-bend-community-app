@@ -1,7 +1,7 @@
 from __future__ import annotations
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Boolean, Integer, Index, Numeric
+from sqlalchemy import String, Text, Boolean, Integer, Index, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -32,8 +32,10 @@ class Sponsor(Base):
     starts_at: Mapped[datetime | None] = mapped_column()
     expires_at: Mapped[datetime | None] = mapped_column()
     pricing_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
 
     __table_args__ = (
         Index("idx_sponsors_active", "is_active"),
         Index("idx_sponsors_placement", "placement"),
+        Index("idx_sponsors_tenant_id", "tenant_id"),
     )

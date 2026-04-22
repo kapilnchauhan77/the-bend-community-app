@@ -26,12 +26,22 @@ class ListingRepository(BaseRepository[Listing]):
         sort: str = "urgency_desc",
         cursor: str | None = None,
         limit: int = 20,
+        status: str | None = None,
+        tenant_id=None,
     ) -> PaginatedResult:
+        if status:
+            status_filter = ListingStatus(status.lower())
+        else:
+            status_filter = ListingStatus.ACTIVE
+
         query = (
             select(Listing)
             .options(selectinload(Listing.shop), selectinload(Listing.images))
-            .where(Listing.status == ListingStatus.ACTIVE)
+            .where(Listing.status == status_filter)
         )
+
+        if tenant_id:
+            query = query.where(Listing.tenant_id == tenant_id)
 
         # Filters
         if category:
@@ -53,12 +63,13 @@ class ListingRepository(BaseRepository[Listing]):
 
         # Sort
         urgency_order = case(
-            (Listing.urgency == UrgencyLevel.CRITICAL, 1),
-            (Listing.urgency == UrgencyLevel.URGENT, 2),
-            (Listing.urgency == UrgencyLevel.NORMAL, 3),
+            (Listing.urgency == UrgencyLevel.URGENT, 1),
+            (Listing.urgency == UrgencyLevel.NORMAL, 2),
         )
 
-        if sort == "urgency_desc":
+        if status and status.upper() == "FULFILLED":
+            query = query.order_by(Listing.fulfilled_at.desc().nullslast())
+        elif sort == "urgency_desc":
             query = query.order_by(urgency_order, Listing.created_at.desc())
         elif sort == "created_desc":
             query = query.order_by(Listing.created_at.desc())
@@ -96,10 +107,24 @@ class ListingRepository(BaseRepository[Listing]):
     async def get_by_shop(
         self, shop_id: UUID, status: str | None = None, cursor: str | None = None, limit: int = 20
     ) -> PaginatedResult:
-        filters = [Listing.shop_id == shop_id]
+        query = (
+            select(Listing)
+            .options(selectinload(Listing.shop), selectinload(Listing.images))
+            .where(Listing.shop_id == shop_id)
+        )
         if status:
-            filters.append(Listing.status == status)
-        return await self.get_all(filters=filters, limit=limit, cursor=cursor)
+            query = query.where(Listing.status == status)
+        query = query.order_by(Listing.created_at.desc()).limit(limit + 1)
+        result = await self.session.execute(query)
+        items = list(result.scalars().unique().all())
+        has_more = len(items) > limit
+        if has_more:
+            items = items[:limit]
+        next_cursor = None
+        if has_more and items:
+            last = items[-1]
+            next_cursor = encode_cursor({"created_at": last.created_at, "id": last.id})
+        return PaginatedResult(items=items, next_cursor=next_cursor, has_more=has_more)
 
     async def get_detail(self, listing_id: UUID) -> Listing | None:
         result = await self.session.execute(
@@ -109,12 +134,12 @@ class ListingRepository(BaseRepository[Listing]):
         )
         return result.scalar_one_or_none()
 
-    async def count_active_critical(self, shop_id: UUID) -> int:
+    async def count_active_urgent(self, shop_id: UUID) -> int:
         result = await self.session.execute(
             select(func.count()).select_from(Listing).where(
                 Listing.shop_id == shop_id,
                 Listing.status == ListingStatus.ACTIVE,
-                Listing.urgency == UrgencyLevel.CRITICAL,
+                Listing.urgency == UrgencyLevel.URGENT,
             )
         )
         return result.scalar_one()

@@ -1,0 +1,98 @@
+- generic [ref=e3]:
+  - generic [ref=e7]:
+    - link "B THE BEND Community" [ref=e8] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e10]: B
+      - generic [ref=e11]:
+        - generic [ref=e12]: THE BEND
+        - text: Community
+    - generic [ref=e13]:
+      - heading "Why join The Bend?" [level=2] [ref=e15]
+      - list [ref=e16]:
+        - listitem [ref=e17]: Share staff, materials & equipment with neighbors
+        - listitem [ref=e19]: Reduce waste and save costs together
+        - listitem [ref=e21]: Connect with the local business community
+        - listitem [ref=e23]: List your needs and find help fast
+      - paragraph [ref=e25]: Free to join · Admin-approved
+  - generic [ref=e27]:
+    - generic [ref=e28]:
+      - heading "Register Your Business" [level=1] [ref=e29]
+      - paragraph [ref=e30]: Join the community and start sharing resources with your neighbors
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - paragraph [ref=e33]: Business Information
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]: Business Name *
+            - textbox "Business Name *" [ref=e37]:
+              - /placeholder: e.g. Corner Bakehouse
+          - generic [ref=e38]:
+            - generic [ref=e39]: Business Type *
+            - combobox "Business Type *" [ref=e40]:
+              - generic: Select your business type
+              - img [ref=e41]
+            - combobox [ref=e43]
+          - generic [ref=e44]:
+            - generic [ref=e45]: Address (optional)
+            - textbox "Address (optional)" [ref=e46]:
+              - /placeholder: 123 High Street, Montross
+      - generic [ref=e48]:
+        - paragraph [ref=e49]: Owner Details
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - generic [ref=e52]: Your Name *
+            - textbox "Your Name *" [ref=e53]:
+              - /placeholder: Jane Smith
+          - generic [ref=e54]:
+            - generic [ref=e55]: Email Address *
+            - textbox "Email Address *" [ref=e56]:
+              - /placeholder: jane@yourbusiness.com
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e59]: Phone *
+              - textbox "Phone *" [ref=e60]:
+                - /placeholder: +1 555 0100
+            - generic [ref=e61]:
+              - generic [ref=e62]: WhatsApp (opt.)
+              - textbox "WhatsApp (opt.)" [ref=e63]:
+                - /placeholder: +1 555 0100
+      - generic [ref=e65]:
+        - paragraph [ref=e66]: Create Password
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - generic [ref=e69]: Password *
+            - generic [ref=e70]:
+              - textbox "Password *" [ref=e71]:
+                - /placeholder: Min. 8 characters
+              - button "Show password" [ref=e72] [cursor=pointer]:
+                - img [ref=e73]
+          - generic [ref=e76]:
+            - generic [ref=e77]: Confirm Password *
+            - generic [ref=e78]:
+              - textbox "Confirm Password *" [ref=e79]:
+                - /placeholder: Repeat your password
+              - button "Show password" [ref=e80] [cursor=pointer]:
+                - img [ref=e81]
+      - generic [ref=e85]:
+        - paragraph [ref=e86]: Community Guidelines
+        - generic [ref=e87]:
+          - img [ref=e89]
+          - generic [ref=e92]:
+            - paragraph [ref=e93]: The Bend Community Guidelines
+            - paragraph [ref=e94]: Rules for respectful resource sharing
+          - link "View" [ref=e95] [cursor=pointer]:
+            - /url: /guidelines
+        - generic [ref=e96]:
+          - checkbox "I have read and agree to the community guidelines" [ref=e97]
+          - checkbox
+          - generic [ref=e98] [cursor=pointer]:
+            - text: I have read and agree to the
+            - link "community guidelines" [ref=e99]:
+              - /url: /guidelines
+      - button "Submit Registration" [ref=e100] [cursor=pointer]
+      - generic [ref=e103]: or
+      - paragraph [ref=e105]:
+        - text: Already have an account?
+        - link "Log in" [ref=e106] [cursor=pointer]:
+          - /url: /login
+    - paragraph [ref=e107]: © 2026 The Bend Community

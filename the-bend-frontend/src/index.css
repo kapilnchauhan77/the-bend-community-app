@@ -89,3 +89,740 @@ a:not([class]):hover {
   color: hsl(35, 45%, 32%);
   text-decoration-color: hsl(35, 45%, 42%);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — Museum at Night
+   Warm dark browns, preserved gold/bronze accents, soft ivory text
+   ═══════════════════════════════════════════════════════════════ */
+
+html.dark {
+  color-scheme: dark;
+  --fade-bg: hsl(25, 12%, 8%);
+}
+
+/* Body */
+html.dark body {
+  background-color: hsl(25, 12%, 8%) !important;
+  background-image: none !important;
+  color: hsl(40, 15%, 82%);
+}
+
+/* ── Global white/light backgrounds ── */
+html.dark .bg-white,
+html.dark .bg-\[hsl\(40\,20\%\,98\%\)\],
+html.dark .bg-\[hsl\(40\,25\%\,97\%\)\] {
+  background-color: hsl(25, 10%, 12%) !important;
+}
+
+html.dark .bg-gray-50,
+html.dark .bg-\[hsl\(35\,15\%\,94\%\)\],
+html.dark .bg-\[hsl\(35\,15\%\,92\%\)\],
+html.dark .bg-\[hsl\(35\,15\%\,93\%\)\],
+html.dark .bg-\[hsl\(35\,15\%\,90\%\)\] {
+  background-color: hsl(25, 10%, 15%) !important;
+}
+
+html.dark .bg-gray-100 {
+  background-color: hsl(25, 8%, 18%) !important;
+}
+
+/* ── Cards & containers ── */
+html.dark [class*="shadow-md"],
+html.dark [class*="shadow-sm"],
+html.dark [class*="shadow-lg"] {
+  box-shadow: 0 1px 3px hsl(0, 0%, 0%, 0.3), 0 4px 12px hsl(0, 0%, 0%, 0.15) !important;
+}
+
+/* ── Text colors ── */
+html.dark .text-gray-900,
+html.dark .text-\[hsl\(30\,15\%\,18\%\)\],
+html.dark .text-\[hsl\(30\,15\%\,20\%\)\],
+html.dark .text-\[hsl\(30\,15\%\,25\%\)\] {
+  color: hsl(40, 15%, 88%) !important;
+}
+
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-\[hsl\(30\,10\%\,35\%\)\],
+html.dark .text-\[hsl\(30\,10\%\,40\%\)\] {
+  color: hsl(40, 12%, 72%) !important;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-\[hsl\(30\,10\%\,48\%\)\],
+html.dark .text-\[hsl\(30\,10\%\,45\%\)\],
+html.dark .text-\[hsl\(30\,10\%\,50\%\)\],
+html.dark .text-\[hsl\(30\,10\%\,55\%\)\],
+html.dark .text-\[hsl\(30\,10\%\,60\%\)\] {
+  color: hsl(40, 8%, 55%) !important;
+}
+
+html.dark .text-gray-400,
+html.dark .text-\[hsl\(30\,10\%\,65\%\)\] {
+  color: hsl(40, 6%, 42%) !important;
+}
+
+/* ── Borders ── */
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-\[hsl\(35\,18\%\,84\%\)\],
+html.dark .border-\[hsl\(35\,18\%\,87\%\)\],
+html.dark .border-\[hsl\(35\,18\%\,88\%\)\],
+html.dark .border-\[hsl\(35\,18\%\,90\%\)\] {
+  border-color: hsl(25, 10%, 20%) !important;
+}
+
+html.dark .border-\[hsl\(35\,18\%\,82\%\)\] {
+  border-color: hsl(25, 10%, 22%) !important;
+}
+
+/* ── Navbar & Footer ── */
+html.dark header {
+  background-color: hsl(25, 10%, 10%) !important;
+  border-bottom-color: hsl(25, 10%, 18%) !important;
+}
+
+html.dark footer,
+html.dark .bg-\[hsl\(30\,12\%\,14\%\)\] {
+  background-color: hsl(25, 10%, 6%) !important;
+}
+
+/* Navbar dropdown */
+html.dark nav[class*="md:hidden"] {
+  background-color: hsl(25, 10%, 10%) !important;
+}
+
+/* ── Inputs & Forms ── */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 15%, 85%) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: hsl(40, 8%, 40%) !important;
+}
+
+/* ── Buttons ── */
+html.dark button[class*="outline"] {
+  border-color: hsl(25, 10%, 25%) !important;
+  color: hsl(40, 12%, 72%) !important;
+}
+
+html.dark button[class*="outline"]:hover {
+  background-color: hsl(25, 10%, 18%) !important;
+}
+
+/* ── Green page headers stay dark green ── */
+html.dark .bg-\[hsl\(160\,25\%\,24\%\)\] {
+  background-color: hsl(160, 25%, 16%) !important;
+}
+
+/* ── Bottom Nav ── */
+html.dark nav[class*="fixed"][class*="bottom-0"] {
+  background-color: hsl(25, 10%, 10%) !important;
+  border-top-color: hsl(25, 10%, 18%) !important;
+}
+
+/* ── Sponsor banners ── */
+html.dark .border-y {
+  border-color: hsl(25, 10%, 18%) !important;
+}
+
+/* ── Fulfilled items green tint ── */
+html.dark [style*="hsl(160, 20%, 97%)"] {
+  background-color: hsl(160, 15%, 12%) !important;
+}
+
+/* ── Dialogs/Modals ── */
+html.dark [role="dialog"] > div:not([class*="inset"]) {
+  background-color: hsl(25, 10%, 12%) !important;
+}
+
+/* ── Skeleton loading ── */
+html.dark .animate-pulse > * {
+  background-color: hsl(25, 8%, 18%) !important;
+}
+
+/* ── Bronze accent stays warm in dark ── */
+html.dark .text-\[hsl\(35\,45\%\,42\%\)\] {
+  color: hsl(35, 50%, 55%) !important;
+}
+
+/* ── Inline style color overrides (PRIMARY used in style={}) ── */
+html.dark [style*="color: hsl(160, 25%, 24%)"],
+html.dark [style*="color:hsl(160, 25%, 24%)"] {
+  color: hsl(160, 35%, 55%) !important;
+}
+html.dark [style*="color: hsl(35, 45%, 42%)"],
+html.dark [style*="color:hsl(35, 45%, 42%)"] {
+  color: hsl(35, 55%, 60%) !important;
+}
+
+/* ── Scrollbar ── */
+html.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: hsl(25, 10%, 10%);
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: hsl(25, 10%, 22%);
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(25, 10%, 28%);
+}
+
+/* ── Tables ── */
+html.dark th, html.dark td {
+  border-color: hsl(25, 10%, 18%) !important;
+}
+html.dark thead {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+html.dark tr:hover {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+
+/* ── Links in dark mode ── */
+html.dark a:not([class]) {
+  color: hsl(35, 55%, 60%);
+}
+html.dark a:not([class]):hover {
+  color: hsl(35, 55%, 70%);
+}
+
+/* ── PageLayout bg ── */
+html.dark .min-h-screen {
+  background-color: hsl(25, 12%, 8%) !important;
+}
+
+/* ── Sponsor carousel cards (inline styles) ── */
+html.dark [class*="flex-shrink-0"][class*="border"] {
+  background-color: hsl(25, 10%, 12%) !important;
+}
+
+/* ── Urgent needs section ── */
+html.dark .bg-\[hsl\(0\,30\%\,97\%\)\] {
+  background-color: hsl(0, 15%, 14%) !important;
+}
+html.dark .border-\[hsl\(0\,40\%\,75\%\)\] {
+  border-color: hsl(0, 25%, 25%) !important;
+}
+html.dark .text-\[hsl\(0\,55\%\,45\%\)\] {
+  color: hsl(0, 50%, 60%) !important;
+}
+html.dark .text-\[hsl\(0\,40\%\,30\%\)\] {
+  color: hsl(0, 35%, 70%) !important;
+}
+html.dark .text-\[hsl\(0\,30\%\,50\%\)\] {
+  color: hsl(0, 30%, 55%) !important;
+}
+
+/* ── Calendar ── */
+html.dark .bg-\[hsl\(160\,25\%\,97\%\)\] {
+  background-color: hsl(160, 10%, 14%) !important;
+}
+html.dark .bg-\[hsl\(160\,25\%\,95\%\)\] {
+  background-color: hsl(160, 10%, 16%) !important;
+}
+html.dark .border-gray-50 {
+  border-color: hsl(25, 10%, 16%) !important;
+}
+html.dark .rounded-2xl {
+  background-color: hsl(25, 10%, 12%);
+}
+
+/* ── Filter pills & toggle backgrounds ── */
+html.dark .bg-gray-100.rounded-full,
+html.dark [class*="rounded-full"][class*="bg-gray-100"] {
+  background-color: hsl(25, 8%, 16%) !important;
+}
+html.dark .bg-\[hsl\(35\,15\%\,88\%\)\] {
+  background-color: hsl(25, 10%, 18%) !important;
+}
+
+/* ── Badges / Tags ── */
+html.dark .bg-amber-100 { background-color: hsl(35, 40%, 18%) !important; color: hsl(35, 70%, 65%) !important; }
+html.dark .bg-blue-100 { background-color: hsl(220, 40%, 18%) !important; color: hsl(220, 70%, 70%) !important; }
+html.dark .bg-red-100 { background-color: hsl(0, 40%, 18%) !important; color: hsl(0, 70%, 70%) !important; }
+html.dark .bg-amber-50 { background-color: hsl(35, 30%, 15%) !important; color: hsl(35, 65%, 65%) !important; }
+html.dark .bg-blue-50 { background-color: hsl(220, 30%, 15%) !important; color: hsl(220, 65%, 70%) !important; }
+html.dark .bg-red-50 { background-color: hsl(0, 30%, 15%) !important; color: hsl(0, 65%, 70%) !important; }
+html.dark .bg-violet-50 { background-color: hsl(270, 30%, 15%) !important; color: hsl(270, 65%, 70%) !important; }
+html.dark .bg-pink-50 { background-color: hsl(330, 30%, 15%) !important; color: hsl(330, 65%, 70%) !important; }
+html.dark .bg-emerald-50 { background-color: hsl(160, 30%, 15%) !important; color: hsl(160, 50%, 60%) !important; }
+html.dark .bg-teal-50 { background-color: hsl(180, 30%, 15%) !important; color: hsl(180, 50%, 60%) !important; }
+html.dark .bg-stone-50 { background-color: hsl(30, 15%, 15%) !important; color: hsl(30, 30%, 65%) !important; }
+html.dark .bg-indigo-50 { background-color: hsl(240, 30%, 15%) !important; color: hsl(240, 65%, 70%) !important; }
+html.dark .bg-orange-50 { background-color: hsl(25, 35%, 15%) !important; color: hsl(25, 65%, 65%) !important; }
+html.dark .bg-yellow-50 { background-color: hsl(45, 35%, 15%) !important; color: hsl(45, 65%, 65%) !important; }
+html.dark .bg-purple-50 { background-color: hsl(270, 30%, 15%) !important; color: hsl(270, 65%, 70%) !important; }
+html.dark .bg-rose-50 { background-color: hsl(350, 30%, 15%) !important; color: hsl(350, 65%, 70%) !important; }
+
+/* ── Quick Actions buttons ── */
+html.dark button[class*="justify-start"][class*="outline"] {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 12%, 75%) !important;
+}
+html.dark button[class*="justify-start"][class*="outline"]:hover {
+  background-color: hsl(25, 10%, 18%) !important;
+  border-color: hsl(35, 45%, 42%) !important;
+}
+
+/* ── Category filter pills (active state stays visible) ── */
+html.dark button[class*="rounded-full"][class*="border-gray-200"] {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 10%, 65%) !important;
+}
+html.dark button[class*="rounded-full"][class*="border-gray-200"]:hover {
+  border-color: hsl(25, 10%, 30%) !important;
+}
+
+/* ── Fulfilled items ── */
+html.dark .fulfilled-item {
+  background-color: hsl(160, 12%, 12%) !important;
+  border-color: hsl(160, 12%, 20%) !important;
+}
+html.dark .fulfilled-icon {
+  background-color: hsl(160, 15%, 18%) !important;
+  color: hsl(160, 25%, 50%) !important;
+}
+html.dark .bg-\[hsl\(160\,20\%\,97\%\)\] {
+  background-color: hsl(160, 12%, 12%) !important;
+}
+html.dark .border-\[hsl\(160\,18\%\,88\%\)\] {
+  border-color: hsl(160, 12%, 20%) !important;
+}
+html.dark .bg-\[hsl\(160\,20\%\,90\%\)\] {
+  background-color: hsl(160, 15%, 18%) !important;
+}
+html.dark .text-\[hsl\(160\,25\%\,32\%\)\] {
+  color: hsl(160, 25%, 50%) !important;
+}
+html.dark .text-\[hsl\(160\,20\%\,22\%\)\] {
+  color: hsl(160, 20%, 75%) !important;
+}
+html.dark .text-\[hsl\(160\,10\%\,45\%\)\] {
+  color: hsl(160, 12%, 55%) !important;
+}
+html.dark .text-\[hsl\(160\,10\%\,55\%\)\] {
+  color: hsl(160, 10%, 45%) !important;
+}
+
+/* ── Community stories quote color ── */
+html.dark .text-\[hsl\(35\,45\%\,75\%\)\] {
+  color: hsl(35, 40%, 40%) !important;
+}
+
+/* ── Listing card type labels ── */
+html.dark .text-\[hsl\(160\,25\%\,28\%\)\] {
+  color: hsl(160, 30%, 55%) !important;
+}
+html.dark .text-\[hsl\(220\,50\%\,45\%\)\] {
+  color: hsl(220, 50%, 60%) !important;
+}
+
+/* ── Empty state dashed borders ── */
+html.dark .border-dashed {
+  border-color: hsl(25, 10%, 22%) !important;
+}
+
+/* ── Sponsor strip ── */
+html.dark .border-y[class*="bg-"] {
+  background-color: hsl(25, 10%, 10%) !important;
+}
+
+/* ── Calendar specific overrides ── */
+html.dark [class*="min-h-\[60px\]"],
+html.dark [class*="min-h-\[80px\]"] {
+  background-color: hsl(25, 10%, 11%) !important;
+  border-color: hsl(25, 10%, 16%) !important;
+}
+html.dark [class*="min-h-\[60px\]"].bg-\[hsl\(160\,25\%\,95\%\)\],
+html.dark [class*="min-h-\[80px\]"].bg-\[hsl\(160\,25\%\,95\%\)\] {
+  background-color: hsl(160, 10%, 14%) !important;
+}
+html.dark .text-gray-300 {
+  color: hsl(40, 6%, 35%) !important;
+}
+
+/* ── Sticky controls bar ── */
+html.dark .sticky[class*="bg-white"] {
+  background-color: hsl(25, 10%, 10%) !important;
+}
+
+/* ── Login / Register pages ── */
+html.dark .bg-\[hsl\(40\,25\%\,97\%\)\] {
+  background-color: hsl(25, 12%, 8%) !important;
+}
+
+/* ── Outline buttons (Browse Listings, Log In, etc.) ── */
+html.dark button[class*="border-\[hsl\(35\,18\%\,82\%\)\]"],
+html.dark button[class*="border-\[hsl\(35\,18\%\,84\%\)\]"],
+html.dark a[class*="border-\[hsl\(35\,18\%\,82\%\)\]"] {
+  border-color: hsl(25, 10%, 28%) !important;
+  color: hsl(40, 12%, 75%) !important;
+  background-color: transparent !important;
+}
+html.dark button[class*="border-\[hsl\(35\,18\%\,82\%\)\]"]:hover,
+html.dark button[class*="border-\[hsl\(35\,18\%\,84\%\)\]"]:hover {
+  background-color: hsl(25, 10%, 16%) !important;
+  border-color: hsl(35, 45%, 42%) !important;
+}
+
+/* ── Browse page filter buttons ── */
+html.dark .bg-\[hsl\(35\,15\%\,94\%\)\] {
+  background-color: hsl(25, 10%, 15%) !important;
+}
+html.dark [class*="border-gray-300"] {
+  border-color: hsl(25, 10%, 22%) !important;
+}
+
+/* ── Login page split layout ── */
+html.dark .flex-1.flex.items-center.justify-center {
+  background-color: hsl(25, 12%, 8%) !important;
+}
+
+/* ── Card components (shadcn) ── */
+html.dark [data-slot="card"],
+html.dark .rounded-2xl[class*="shadow"],
+html.dark .rounded-lg[class*="shadow"],
+html.dark [class*="border-gray-200"][class*="mb-6"] {
+  background-color: hsl(25, 10%, 12%) !important;
+  border-color: hsl(25, 10%, 20%) !important;
+  color: hsl(40, 15%, 82%) !important;
+}
+
+/* ── Label text ── */
+html.dark label {
+  color: hsl(40, 12%, 70%) !important;
+}
+
+/* ── Form card backgrounds on login/register ── */
+html.dark .max-w-sm,
+html.dark .max-w-md,
+html.dark .max-w-lg {
+  color: hsl(40, 15%, 82%);
+}
+
+/* ── Hero CTA section ── */
+html.dark .bg-\[hsl\(40\,20\%\,98\%\)\] {
+  background-color: hsl(25, 10%, 12%) !important;
+}
+
+/* ── Browse page category pills ── */
+html.dark select {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 15%, 80%) !important;
+}
+
+/* ── Listing detail urgency badge ── */
+html.dark .bg-amber-100.text-amber-700 {
+  background-color: hsl(35, 40%, 18%) !important;
+  color: hsl(35, 60%, 65%) !important;
+}
+
+/* ── Card hover on dark ── */
+html.dark [class*="hover\:shadow-lg"]:hover {
+  box-shadow: 0 4px 20px hsl(0, 0%, 0%, 0.4) !important;
+}
+
+/* ── Admin panel — comprehensive dark mode ── */
+html.dark aside[class*="bg-white"] {
+  background-color: hsl(25, 10%, 8%) !important;
+  border-right-color: hsl(25, 10%, 16%) !important;
+}
+html.dark aside .border-b {
+  border-color: hsl(25, 10%, 16%) !important;
+}
+html.dark aside a[class*="rounded-lg"] {
+  color: hsl(40, 10%, 60%) !important;
+}
+html.dark aside a[class*="bg-\[hsl\(35\,15\%\,94\%\)\]"] {
+  background-color: hsl(25, 12%, 16%) !important;
+  color: hsl(40, 15%, 85%) !important;
+}
+html.dark aside a:hover {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+
+/* Admin main content area */
+html.dark .bg-gray-50.flex-1,
+html.dark main.flex-1 {
+  background-color: hsl(25, 12%, 8%) !important;
+}
+
+/* Admin stat cards */
+html.dark [class*="border"][class*="rounded"][class*="shadow"] {
+  background-color: hsl(25, 10%, 12%) !important;
+  border-color: hsl(25, 10%, 20%) !important;
+}
+
+/* Admin tables */
+html.dark table {
+  background-color: hsl(25, 10%, 12%) !important;
+}
+html.dark th {
+  background-color: hsl(25, 10%, 14%) !important;
+  color: hsl(40, 10%, 65%) !important;
+  border-color: hsl(25, 10%, 18%) !important;
+}
+html.dark td {
+  color: hsl(40, 12%, 75%) !important;
+  border-color: hsl(25, 10%, 18%) !important;
+}
+html.dark tbody tr:hover {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+html.dark .bg-gray-50\/60 {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+
+/* Admin page titles */
+html.dark .text-2xl.font-bold,
+html.dark .text-xl.font-bold,
+html.dark .text-lg.font-bold,
+html.dark .text-base.font-semibold,
+html.dark h1, html.dark h2, html.dark h3 {
+  color: hsl(40, 15%, 88%) !important;
+}
+html.dark .text-sm.text-muted-foreground,
+html.dark p.text-sm {
+  color: hsl(40, 10%, 55%) !important;
+}
+
+/* Admin tabs */
+html.dark [role="tablist"] {
+  background-color: hsl(25, 10%, 12%) !important;
+  border-color: hsl(25, 10%, 20%) !important;
+}
+html.dark [role="tab"] {
+  color: hsl(40, 10%, 55%) !important;
+}
+html.dark [role="tab"][data-state="active"] {
+  background-color: hsl(25, 10%, 16%) !important;
+  color: hsl(40, 15%, 88%) !important;
+}
+
+/* Admin dialogs */
+html.dark [role="dialog"] [data-slot="dialog-content"],
+html.dark [role="dialog"] > div > div {
+  background-color: hsl(25, 10%, 12%) !important;
+  border-color: hsl(25, 10%, 20%) !important;
+  color: hsl(40, 15%, 82%) !important;
+}
+html.dark [role="dialog"] h2,
+html.dark [role="dialog"] [data-slot="dialog-title"] {
+  color: hsl(40, 15%, 88%) !important;
+}
+html.dark [role="dialog"] p {
+  color: hsl(40, 10%, 60%) !important;
+}
+
+/* Admin alert dialogs */
+html.dark [role="alertdialog"] > div {
+  background-color: hsl(25, 10%, 12%) !important;
+  border-color: hsl(25, 10%, 20%) !important;
+}
+
+/* Admin badge colors */
+html.dark .text-\[hsl\(160\,25\%\,24\%\)\] {
+  color: hsl(160, 30%, 50%) !important;
+}
+
+/* Admin select triggers */
+html.dark [data-slot="select-trigger"],
+html.dark button[role="combobox"] {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 15%, 80%) !important;
+}
+
+/* Admin textarea */
+html.dark textarea {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 15%, 85%) !important;
+}
+
+/* Dashboard stat numbers */
+html.dark .text-3xl,
+html.dark .text-4xl {
+  color: hsl(40, 15%, 88%) !important;
+}
+
+/* Admin dashboard recent lists */
+html.dark .font-medium.text-sm {
+  color: hsl(40, 15%, 82%) !important;
+}
+html.dark .text-muted-foreground {
+  color: hsl(40, 10%, 50%) !important;
+}
+html.dark .last\:border-0 {
+  border-color: hsl(25, 10%, 18%) !important;
+}
+html.dark [data-slot="card-header"],
+html.dark [data-slot="card-content"] {
+  color: hsl(40, 15%, 82%) !important;
+}
+html.dark [data-slot="card-title"] {
+  color: hsl(40, 15%, 88%) !important;
+}
+
+/* Admin cards with border-0 */
+html.dark .border-0.shadow-sm {
+  background-color: hsl(25, 10%, 12%) !important;
+  box-shadow: 0 1px 3px hsl(0, 0%, 0%, 0.3) !important;
+}
+
+/* Badge text readability */
+html.dark .text-amber-700 {
+  color: hsl(35, 65%, 60%) !important;
+}
+html.dark .text-amber-600 {
+  color: hsl(35, 65%, 58%) !important;
+}
+html.dark .border-amber-200 {
+  border-color: hsl(35, 40%, 25%) !important;
+}
+
+/* Admin separator/dividers */
+html.dark .border-t {
+  border-color: hsl(25, 10%, 18%) !important;
+}
+html.dark .border-b {
+  border-color: hsl(25, 10%, 18%) !important;
+}
+
+/* ── Settings / general sections ── */
+html.dark [class*="divide-gray"] > * {
+  border-color: hsl(25, 10%, 18%) !important;
+}
+
+/* ── Guidelines card on register ── */
+html.dark .guidelines-card {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+}
+html.dark .guidelines-icon {
+  background-color: hsl(160, 20%, 15%) !important;
+}
+html.dark .bg-\[hsl\(35\,15\%\,93\%\)\] {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+
+/* ── Select / Dropdown popovers ── */
+html.dark [data-radix-popper-content-wrapper] *,
+html.dark [role="listbox"],
+html.dark [data-slot="select-content"] {
+  background-color: hsl(25, 10%, 14%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 15%, 82%) !important;
+}
+html.dark [role="option"]:hover,
+html.dark [data-highlighted] {
+  background-color: hsl(25, 10%, 20%) !important;
+}
+html.dark [role="option"][data-state="checked"] {
+  background-color: hsl(160, 20%, 18%) !important;
+}
+
+/* ── Event cards & general text readability ── */
+html.dark .text-\[hsl\(160\,25\%\,32\%\)\] {
+  color: hsl(160, 35%, 58%) !important;
+}
+html.dark .text-\[hsl\(160\,25\%\,20\%\)\] {
+  color: hsl(160, 25%, 65%) !important;
+}
+html.dark p.line-clamp-2,
+html.dark p.line-clamp-1 {
+  color: hsl(40, 10%, 62%) !important;
+}
+html.dark .text-gray-500 {
+  color: hsl(40, 8%, 58%) !important;
+}
+html.dark .text-gray-400 {
+  color: hsl(40, 6%, 48%) !important;
+}
+html.dark .text-gray-700 {
+  color: hsl(40, 12%, 75%) !important;
+}
+html.dark .bg-gray-50 {
+  background-color: hsl(25, 10%, 15%) !important;
+}
+
+/* Source badge */
+html.dark span.bg-gray-50 {
+  background-color: hsl(25, 10%, 16%) !important;
+  border-color: hsl(25, 10%, 22%) !important;
+  color: hsl(40, 8%, 55%) !important;
+}
+
+/* Sort/toggle button */
+html.dark .bg-gray-200 {
+  background-color: hsl(25, 8%, 20%) !important;
+}
+html.dark .hover\:bg-gray-200:hover {
+  background-color: hsl(25, 8%, 22%) !important;
+}
+
+/* ── Notifications — unread highlight ── */
+html.dark .bg-blue-50\/60 {
+  background-color: hsl(220, 30%, 14%) !important;
+}
+html.dark .hover\:bg-blue-50:hover {
+  background-color: hsl(220, 25%, 16%) !important;
+}
+html.dark .border-blue-100 {
+  border-color: hsl(220, 30%, 22%) !important;
+}
+html.dark .bg-blue-500 {
+  background-color: hsl(220, 60%, 50%) !important;
+}
+html.dark .border-white {
+  border-color: hsl(25, 10%, 12%) !important;
+}
+html.dark .bg-blue-100 {
+  background-color: hsl(220, 30%, 18%) !important;
+}
+html.dark .text-blue-500 {
+  color: hsl(220, 60%, 60%) !important;
+}
+html.dark .text-blue-600 {
+  color: hsl(220, 60%, 65%) !important;
+}
+html.dark .text-red-600 {
+  color: hsl(0, 60%, 62%) !important;
+}
+html.dark .text-amber-600 {
+  color: hsl(35, 65%, 60%) !important;
+}
+html.dark .text-red-500 {
+  color: hsl(0, 55%, 58%) !important;
+}
+
+/* ── Messages listing banner ── */
+html.dark .bg-\[hsl\(35\,15\%\,93\%\)\] {
+  background-color: hsl(25, 10%, 14%) !important;
+}
+html.dark .border-\[hsl\(35\,25\%\,70\%\)\] {
+  border-color: hsl(25, 10%, 22%) !important;
+}
+
+/* ── Checkbox in dark mode ── */
+html.dark [role="checkbox"] {
+  border-color: hsl(25, 10%, 30%) !important;
+}
+html.dark [role="checkbox"][data-state="checked"] {
+  background-color: hsl(160, 25%, 24%) !important;
+  border-color: hsl(160, 25%, 24%) !important;
+}

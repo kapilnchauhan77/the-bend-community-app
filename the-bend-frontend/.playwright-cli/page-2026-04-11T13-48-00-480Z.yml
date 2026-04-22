@@ -1,0 +1,125 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - link:
+            - /url: /
+            - generic:
+              - generic: B
+            - generic:
+              - generic: THE BEND
+              - text: Community
+          - generic:
+            - heading [level=2]: Why join The Bend?
+            - list:
+              - listitem: Share staff, materials & equipment with neighbors
+              - listitem: Reduce waste and save costs together
+              - listitem: Connect with the local business community
+              - listitem: List your needs and find help fast
+            - paragraph: Free to join · Admin-approved
+      - generic:
+        - generic:
+          - generic:
+            - heading [level=1]: Register Your Business
+            - paragraph: Join the community and start sharing resources with your neighbors
+          - generic:
+            - generic:
+              - paragraph: Business Information
+              - generic:
+                - generic:
+                  - generic: Business Name *
+                  - textbox:
+                    - /placeholder: e.g. Corner Bakehouse
+                - generic:
+                  - generic: Business Type *
+                  - combobox [expanded]:
+                    - generic: Select your business type
+                    - img
+                  - combobox
+                - generic:
+                  - generic: Address (optional)
+                  - textbox:
+                    - /placeholder: 123 High Street, Montross
+            - generic:
+              - paragraph: Owner Details
+              - generic:
+                - generic:
+                  - generic: Your Name *
+                  - textbox:
+                    - /placeholder: Jane Smith
+                - generic:
+                  - generic: Email Address *
+                  - textbox:
+                    - /placeholder: jane@yourbusiness.com
+                - generic:
+                  - generic:
+                    - generic: Phone *
+                    - textbox:
+                      - /placeholder: +1 555 0100
+                  - generic:
+                    - generic: WhatsApp (opt.)
+                    - textbox:
+                      - /placeholder: +1 555 0100
+            - generic:
+              - paragraph: Create Password
+              - generic:
+                - generic:
+                  - generic: Password *
+                  - generic:
+                    - textbox:
+                      - /placeholder: Min. 8 characters
+                    - button:
+                      - img
+                - generic:
+                  - generic: Confirm Password *
+                  - generic:
+                    - textbox:
+                      - /placeholder: Repeat your password
+                    - button:
+                      - img
+            - generic:
+              - paragraph: Community Guidelines
+              - generic:
+                - generic:
+                  - img
+                - generic:
+                  - paragraph: The Bend Community Guidelines
+                  - paragraph: Rules for respectful resource sharing
+                - link:
+                  - /url: /guidelines
+                  - text: View
+              - generic:
+                - checkbox
+                - checkbox
+                - generic:
+                  - text: I have read and agree to the
+                  - link:
+                    - /url: /guidelines
+                    - text: community guidelines
+            - button: Submit Registration
+            - generic:
+              - generic: or
+            - paragraph:
+              - text: Already have an account?
+              - link:
+                - /url: /login
+                - text: Log in
+          - paragraph: © 2026 The Bend Community
+  - listbox [ref=e108]:
+    - option "Restaurant" [active] [ref=e109]:
+      - generic [ref=e111]: Restaurant
+    - option "Cafe" [ref=e112]:
+      - generic [ref=e114]: Cafe
+    - option "Retail" [ref=e115]:
+      - generic [ref=e117]: Retail
+    - option "Service" [ref=e118]:
+      - generic [ref=e120]: Service
+    - option "Hardware" [ref=e121]:
+      - generic [ref=e123]: Hardware
+    - option "Deli" [ref=e124]:
+      - generic [ref=e126]: Deli
+    - option "Bakery" [ref=e127]:
+      - generic [ref=e129]: Bakery
+    - option "Other" [ref=e130]:
+      - generic [ref=e132]: Other

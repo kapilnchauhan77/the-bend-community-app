@@ -52,10 +52,7 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-6 py-12"
-      style={{ backgroundColor: 'hsl(40, 25%, 97%)' }}
-    >
+    <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex justify-center mb-8">
@@ -244,7 +241,7 @@ export default function ResetPasswordPage() {
         )}
 
         <p className="text-center text-[10px] text-[hsl(30,10%,60%)] mt-10 tracking-wide">
-          &copy; 2026 The Bend Community
+          &copy; {new Date().getFullYear()} Community Platform
         </p>
       </div>
     </div>

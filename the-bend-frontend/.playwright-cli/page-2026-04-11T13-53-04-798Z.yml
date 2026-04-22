@@ -1,0 +1,320 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "B THE BEND Community" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e9]: B
+        - generic [ref=e10]:
+          - generic [ref=e11]: THE BEND
+          - text: Community
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e14] [cursor=pointer]:
+          - /url: /browse
+        - link "Events" [ref=e15] [cursor=pointer]:
+          - /url: /events
+        - button "Community" [ref=e17] [cursor=pointer]:
+          - text: Community
+          - img [ref=e18]
+      - generic [ref=e20]:
+        - button "Toggle dark mode" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+        - generic [ref=e24]:
+          - button "Log In" [ref=e25] [cursor=pointer]
+          - button "Register" [ref=e26] [cursor=pointer]
+  - main [ref=e27]:
+    - generic [ref=e33]:
+      - paragraph [ref=e35]: Welcome to
+      - heading "The Bend Community" [level=1] [ref=e36]:
+        - text: The Bend
+        - text: Community
+      - paragraph [ref=e37]: Share staff, materials & equipment with your neighbors
+      - paragraph [ref=e38]: An unexpected bend in the road can cause businesses and community members to work and live inefficiently. The Bend exists to support the many “bends” in Westmoreland County roads that have flipped the script, and serve as community hubs and places of opportunity.
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - img [ref=e41]
+          - textbox "Search listings, shops..." [ref=e44]
+        - button "Search" [ref=e45] [cursor=pointer]
+    - generic [ref=e47]:
+      - link "Share Staff Find or offer temporary help" [ref=e48] [cursor=pointer]:
+        - /url: /browse?category=staff
+        - img [ref=e49]
+        - heading "Share Staff" [level=3] [ref=e54]
+        - paragraph [ref=e55]: Find or offer temporary help
+      - link "Raw Materials Surplus ingredients & supplies" [ref=e56] [cursor=pointer]:
+        - /url: /browse?category=materials
+        - img [ref=e57]
+        - heading "Raw Materials" [level=3] [ref=e61]
+        - paragraph [ref=e62]: Surplus ingredients & supplies
+      - link "Equipment Borrow or lend tools" [ref=e63] [cursor=pointer]:
+        - /url: /browse?category=equipment
+        - img [ref=e64]
+        - heading "Equipment" [level=3] [ref=e66]
+        - paragraph [ref=e67]: Borrow or lend tools
+      - link "All Listings Browse the full directory" [ref=e68] [cursor=pointer]:
+        - /url: /browse
+        - img [ref=e69]
+        - heading "All Listings" [level=3] [ref=e73]
+        - paragraph [ref=e74]: Browse the full directory
+      - link "Volunteer Give your time to the community" [ref=e75] [cursor=pointer]:
+        - /url: /volunteers
+        - img [ref=e76]
+        - heading "Volunteer" [level=3] [ref=e78]
+        - paragraph [ref=e79]: Give your time to the community
+      - link "Talent Book local freelancers & artists" [ref=e80] [cursor=pointer]:
+        - /url: /talent
+        - img [ref=e81]
+        - heading "Talent" [level=3] [ref=e85]
+        - paragraph [ref=e86]: Book local freelancers & artists
+    - generic [ref=e87]:
+      - paragraph [ref=e88]: Community Partners
+      - generic [ref=e90]:
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e91] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - generic [ref=e92]:
+            - img "Inn at Montross"
+          - paragraph [ref=e93]: Inn at Montross
+          - paragraph [ref=e94]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e95]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e96] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e98]
+          - paragraph [ref=e99]: ProLine Group
+          - paragraph [ref=e100]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e101]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e102] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e104]
+          - paragraph [ref=e105]: Provoke
+          - paragraph [ref=e106]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e107]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e108] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e110]
+          - paragraph [ref=e111]: Westmoreland County Museum
+          - paragraph [ref=e112]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e113]: Community Partner
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e114] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - generic [ref=e115]:
+            - img "Inn at Montross"
+          - paragraph [ref=e116]: Inn at Montross
+          - paragraph [ref=e117]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e118]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e119] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e121]
+          - paragraph [ref=e122]: ProLine Group
+          - paragraph [ref=e123]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e124]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e125] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e127]
+          - paragraph [ref=e128]: Provoke
+          - paragraph [ref=e129]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e130]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e131] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e133]
+          - paragraph [ref=e134]: Westmoreland County Museum
+          - paragraph [ref=e135]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e136]: Community Partner
+    - generic [ref=e138]:
+      - generic [ref=e139]:
+        - generic [ref=e140]:
+          - img [ref=e141]
+          - generic [ref=e143]:
+            - heading "3 Urgent Needs" [level=2] [ref=e144]
+            - paragraph [ref=e145]: These listings need an immediate response
+        - link "View All" [ref=e146] [cursor=pointer]:
+          - /url: /browse?urgency=urgent
+          - text: View All
+          - img [ref=e147]
+      - generic [ref=e149]:
+        - generic [ref=e151] [cursor=pointer]:
+          - generic [ref=e152]:
+            - generic [ref=e153]:
+              - generic [ref=e154]: Looking for
+              - generic [ref=e155]: Urgent
+            - generic [ref=e157]:
+              - img [ref=e158]
+              - generic [ref=e163]: Staff
+          - heading "Need baker for tomorrow 6 AM" [level=3] [ref=e164]
+          - paragraph [ref=e165]: Our regular baker is sick. Need someone experienced with bread and pastries for a morning shift.
+          - generic [ref=e166]:
+            - link "T The Corner Grill" [ref=e167]:
+              - /url: /business/18954ce7-028e-4884-b505-b2284e3bb75d
+              - generic [ref=e168]: T
+              - generic [ref=e169]: The Corner Grill
+            - generic [ref=e170]:
+              - generic [ref=e171]: $25
+              - generic [ref=e172]:
+                - img [ref=e173]
+                - text: 8d ago
+              - generic [ref=e176]: Expired
+        - generic [ref=e178] [cursor=pointer]:
+          - generic [ref=e179]:
+            - generic [ref=e180]:
+              - generic [ref=e181]: Looking for
+              - generic [ref=e182]: Urgent
+            - generic [ref=e184]:
+              - img [ref=e185]
+              - generic [ref=e189]: Materials
+          - heading "Need 5L olive oil urgently" [level=3] [ref=e190]
+          - paragraph [ref=e191]: Ran out of olive oil for the weekend rush. Looking for anyone with surplus.
+          - generic [ref=e192]:
+            - link "D Deli Plus" [ref=e193]:
+              - /url: /business/dcf70bda-66e7-4a0e-9411-42b3b0f62fd1
+              - generic [ref=e194]: D
+              - generic [ref=e195]: Deli Plus
+            - generic [ref=e196]:
+              - generic [ref=e197]: $30
+              - generic [ref=e198]:
+                - img [ref=e199]
+                - text: 8d ago
+        - generic [ref=e203] [cursor=pointer]:
+          - generic [ref=e204]:
+            - generic [ref=e205]:
+              - generic [ref=e206]: Offering
+              - generic [ref=e207]: Urgent
+            - generic [ref=e209]:
+              - img [ref=e210]
+              - generic [ref=e214]: Materials
+          - heading "Tomatoes — 5kg" [level=3] [ref=e215]
+          - paragraph [ref=e216]: Ripe Roma tomatoes, bought 2 days ago. Need to move before they go bad.
+          - generic [ref=e217]:
+            - link "F Fresh Bites Café" [ref=e218]:
+              - /url: /business/8664a548-9f68-4769-b042-4b882c01fa4f
+              - generic [ref=e219]: F
+              - generic [ref=e220]: Fresh Bites Café
+            - generic [ref=e221]:
+              - generic [ref=e222]: FREE
+              - generic [ref=e223]:
+                - img [ref=e224]
+                - text: 8d ago
+              - generic [ref=e227]: Expired
+    - generic [ref=e229]:
+      - generic [ref=e231]:
+        - heading "Community Board" [level=2] [ref=e234]
+        - link "View All" [ref=e235] [cursor=pointer]:
+          - /url: /browse
+          - text: View All
+          - img [ref=e236]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - heading "Recently Fulfilled" [level=2] [ref=e246]
+          - paragraph [ref=e249]: No fulfilled items yet — be the first to complete a listing!
+        - generic [ref=e250]:
+          - heading "Quick Actions" [level=2] [ref=e253]
+          - generic [ref=e254]:
+            - button "Post a Listing" [ref=e255] [cursor=pointer]:
+              - img [ref=e256]
+              - text: Post a Listing
+            - button "Register Your Business" [ref=e259] [cursor=pointer]:
+              - img [ref=e260]
+              - text: Register Your Business
+            - button "Volunteer Board" [ref=e264] [cursor=pointer]:
+              - img [ref=e265]
+              - text: Volunteer Board
+            - button "Talent Marketplace" [ref=e267] [cursor=pointer]:
+              - img [ref=e268]
+              - text: Talent Marketplace
+        - generic [ref=e270]:
+          - link "Community Partner Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor." [ref=e271] [cursor=pointer]:
+            - /url: https://www.montrossinn.com
+            - paragraph [ref=e272]: Community Partner
+            - generic [ref=e273]:
+              - img "Inn at Montross"
+            - paragraph [ref=e274]: Inn at Montross
+            - paragraph [ref=e275]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - generic [ref=e276]:
+            - button "Sponsor 1" [ref=e277] [cursor=pointer]
+            - button "Sponsor 2" [ref=e278] [cursor=pointer]
+            - button "Sponsor 3" [ref=e279] [cursor=pointer]
+            - button "Sponsor 4" [ref=e280] [cursor=pointer]
+    - generic [ref=e283]:
+      - heading "Our Community in Numbers" [level=2] [ref=e286]
+      - generic [ref=e287]:
+        - generic [ref=e288]:
+          - generic [ref=e289]: "28"
+          - paragraph [ref=e290]: Active Businesses
+        - generic [ref=e291]:
+          - generic [ref=e292]: "142"
+          - paragraph [ref=e293]: Active Listings
+        - generic [ref=e294]:
+          - generic [ref=e295]: "89"
+          - paragraph [ref=e296]: Items Shared
+    - generic [ref=e298]:
+      - heading "Ready to support your neighbors?" [level=2] [ref=e300]
+      - paragraph [ref=e301]: Post a listing, share what you have, or find what you need — it only takes a minute.
+      - generic [ref=e302]:
+        - button "Post a Listing" [ref=e303] [cursor=pointer]
+        - button "Browse Listings" [ref=e304] [cursor=pointer]
+  - generic [ref=e306]:
+    - paragraph [ref=e307]: Proud Community Partners
+    - generic [ref=e308]:
+      - link "Inn at Montross":
+        - /url: https://www.montrossinn.com
+        - img "Inn at Montross"
+      - link "ProLine Group" [ref=e309] [cursor=pointer]:
+        - /url: https://www.proline-online.com
+        - img "ProLine Group" [ref=e310]
+      - link "Provoke" [ref=e311] [cursor=pointer]:
+        - /url: https://provoke.space
+        - img "Provoke" [ref=e312]
+      - link "Westmoreland County Museum" [ref=e313] [cursor=pointer]:
+        - /url: https://www.westmorelandcountymuseum.org/
+        - img "Westmoreland County Museum" [ref=e314]
+  - contentinfo [ref=e315]:
+    - generic [ref=e317]:
+      - generic [ref=e318]:
+        - generic [ref=e319]:
+          - generic [ref=e320]:
+            - generic [ref=e322]: B
+            - generic [ref=e323]:
+              - generic [ref=e324]: THE BEND
+              - text: Community
+          - paragraph [ref=e325]: A heritage community platform connecting local businesses to share staff, materials, and equipment.
+        - generic [ref=e326]:
+          - heading "About" [level=4] [ref=e327]
+          - list [ref=e328]:
+            - listitem [ref=e329]:
+              - link "Our Story" [ref=e330] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e331]:
+              - link "Community Guidelines" [ref=e332] [cursor=pointer]:
+                - /url: /guidelines
+            - listitem [ref=e333]:
+              - link "Register" [ref=e334] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e335]:
+          - heading "Services" [level=4] [ref=e336]
+          - list [ref=e337]:
+            - listitem [ref=e338]:
+              - link "Browse Staff" [ref=e339] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e340]:
+              - link "Browse Materials" [ref=e341] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e342]:
+              - link "Browse Equipment" [ref=e343] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e344]:
+          - heading "Community" [level=4] [ref=e345]
+          - list [ref=e346]:
+            - listitem [ref=e347]:
+              - link "Volunteer Board" [ref=e348] [cursor=pointer]:
+                - /url: /volunteers
+            - listitem [ref=e349]:
+              - link "Talent Marketplace" [ref=e350] [cursor=pointer]:
+                - /url: /talent
+            - listitem [ref=e351]:
+              - link "All Listings" [ref=e352] [cursor=pointer]:
+                - /url: /browse
+            - listitem [ref=e353]:
+              - link "Advertise" [ref=e354] [cursor=pointer]:
+                - /url: /advertise
+      - generic [ref=e355]:
+        - generic [ref=e356]: © 2026 The Bend Community. All rights reserved.
+        - generic [ref=e357]: Preserving community, one connection at a time

@@ -274,11 +274,7 @@ function ChatView({
       {thread.listing && (
         <div className="mx-4 mt-3 flex-shrink-0">
           <div
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
-            style={{
-              backgroundColor: 'hsl(35, 15%, 93%)',
-              borderColor: 'hsl(35, 25%, 70%)',
-            }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs bg-[hsl(35,15%,93%)] border-[hsl(35,25%,70%)]"
           >
             <Tag size={12} style={{ color: 'hsl(160, 25%, 24%)' }} />
             <span className="text-gray-600">Re:</span>
@@ -286,7 +282,7 @@ function ChatView({
             {thread.listing.urgency !== 'normal' && (
               <span
                 className={`ml-auto flex-shrink-0 px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wide ${
-                  thread.listing.urgency === 'critical'
+                  thread.listing.urgency === 'urgent'
                     ? 'bg-red-100 text-red-700'
                     : 'bg-amber-100 text-amber-700'
                 }`}

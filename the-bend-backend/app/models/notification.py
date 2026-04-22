@@ -20,6 +20,7 @@ class Notification(Base):
     data: Mapped[dict | None] = mapped_column(JSONB)
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     read_at: Mapped[datetime | None] = mapped_column()
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships

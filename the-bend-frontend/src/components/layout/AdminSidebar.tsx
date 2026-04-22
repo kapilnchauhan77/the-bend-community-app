@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Store, FileText, Upload, BarChart3, Calendar, Link2, Megaphone, DollarSign, Settings } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Store, FileText, Upload, BarChart3, Calendar, Link2, Megaphone, DollarSign, Settings, Flag } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
@@ -11,6 +11,7 @@ const navItems = [
   { icon: Calendar, label: 'Events', path: '/admin/events' },
   { icon: Link2, label: 'Connectors', path: '/admin/connectors' },
   { icon: Megaphone, label: 'Sponsors', path: '/admin/sponsors' },
+  { icon: Flag, label: 'Flagged', path: '/admin/flagged' },
   { icon: DollarSign, label: 'Pricing', path: '/admin/pricing' },
   { icon: Settings, label: 'Settings', path: '/admin/settings' },
 ];
@@ -20,8 +21,8 @@ export function AdminSidebar() {
   return (
     <aside className="w-60 min-h-screen bg-white border-r hidden md:block">
       <div className="p-4 border-b">
-        <span className="text-lg font-bold" style={{ color: 'hsl(160, 25%, 24%)' }}>
-          🏘️ Admin
+        <span className="text-lg font-bold text-[hsl(160,25%,24%)]">
+          Admin
         </span>
       </div>
       <nav className="p-2 space-y-1">

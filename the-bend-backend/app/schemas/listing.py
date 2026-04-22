@@ -13,7 +13,7 @@ class ListingCreate(BaseModel):
     expiry_date: datetime | None = None
     price: Decimal | None = None
     is_free: bool = True
-    urgency: str = Field("normal", pattern="^(normal|urgent|critical)$")
+    urgency: str = Field("normal", pattern="^(normal|urgent)$")
     image_ids: list[str] = []
 
     @field_validator("price")
@@ -39,7 +39,7 @@ class ListingUpdate(BaseModel):
     expiry_date: datetime | None = None
     price: Decimal | None = None
     is_free: bool | None = None
-    urgency: str | None = Field(None, pattern="^(normal|urgent|critical)$")
+    urgency: str | None = Field(None, pattern="^(normal|urgent)$")
 
 
 class ShopSummary(BaseModel):

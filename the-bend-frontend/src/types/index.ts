@@ -1,9 +1,9 @@
 // Enums
-export type UserRole = 'community_admin' | 'shop_admin' | 'shop_employee';
+export type UserRole = 'super_admin' | 'community_admin' | 'shop_admin' | 'shop_employee';
 export type ShopStatus = 'pending' | 'active' | 'suspended';
 export type ListingType = 'offer' | 'request';
 export type ListingCategory = 'staff' | 'materials' | 'equipment';
-export type UrgencyLevel = 'normal' | 'urgent' | 'critical';
+export type UrgencyLevel = 'normal' | 'urgent';
 export type ListingStatus = 'active' | 'fulfilled' | 'expired' | 'deleted';
 
 // Models
@@ -22,11 +22,12 @@ export interface Shop {
   name: string;
   business_type: string;
   address?: string;
-  contact_phone: string;
+  contact_phone?: string;
   whatsapp?: string;
   status: ShopStatus;
   active_listings_count?: number;
   total_fulfilled?: number;
+  endorsement_count?: number;
   member_since?: string;
   avatar_url?: string;
 }
@@ -67,6 +68,7 @@ export interface ListingDetail extends Listing {
     address?: string;
   };
   viewer_has_interest: boolean;
+  viewer_has_saved: boolean;
   views_count: number;
 }
 
@@ -130,8 +132,10 @@ export interface Volunteer {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   skills: string;
   available_time: string;
+  photo_url?: string;
   created_at: string;
 }
 
@@ -139,11 +143,13 @@ export interface Talent {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   category: 'freelancer' | 'musician' | 'artist';
   skills: string;
   available_time: string;
   rate: number;
   rate_unit: 'hr' | 'gig' | 'day';
+  photo_url?: string;
   created_at: string;
 }
 
@@ -197,4 +203,44 @@ export interface AdPricing {
   placement: string;
   duration_days: number;
   price_cents: number;
+}
+
+export interface Tenant {
+  slug: string;
+  display_name: string;
+  tagline?: string;
+  about_text?: string;
+  hero_image_url?: string;
+  logo_url?: string;
+  primary_color: string;
+  footer_text?: string;
+}
+
+export interface TenantAdmin {
+  id: string;
+  slug: string;
+  subdomain: string;
+  display_name: string;
+  tagline?: string;
+  about_text?: string;
+  hero_image_url?: string;
+  logo_url?: string;
+  primary_color: string;
+  footer_text?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SuccessStory {
+  id: string;
+  listing_id: string;
+  listing_title: string;
+  listing_category: string;
+  shop_name: string;
+  shop_id?: string;
+  author_name: string;
+  quote: string;
+  is_featured: boolean;
+  created_at: string;
 }

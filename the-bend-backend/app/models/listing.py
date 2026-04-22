@@ -15,6 +15,7 @@ class Listing(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=False)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     type: Mapped[ListingType] = mapped_column(ENUM(ListingType, name="listing_type", create_type=False), nullable=False)
     category: Mapped[ListingCategory] = mapped_column(ENUM(ListingCategory, name="listing_category", create_type=False), nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -46,6 +47,7 @@ class Listing(Base):
         Index("idx_listings_created_at", "created_at"),
         Index("idx_listings_expiry", "expiry_date"),
         Index("idx_listings_feed", "status", "urgency", "created_at"),
+        Index("idx_listings_tenant_id", "tenant_id"),
     )
 
 

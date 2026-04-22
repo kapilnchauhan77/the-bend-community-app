@@ -7,8 +7,10 @@ from app.models.interest import Interest
 from app.models.listing import Listing
 from app.models.message import MessageThread, Message
 from app.models.user import User
+from app.models.enums import NotificationType
 from app.repositories.listing_repo import ListingRepository
 from app.core.exceptions import NotFoundError, ForbiddenError, ConflictError, BusinessRuleViolation
+from app.services.notification_service import NotificationService
 
 
 class InterestService:
@@ -84,7 +86,26 @@ class InterestService:
 
         await self.db.flush()
 
-        # TODO: Create notification for listing owner (Phase 6)
+        if listing_owner_id:
+            try:
+                notification_service = NotificationService(self.db)
+                await notification_service.notify(
+                    user_id=listing_owner_id,
+                    type=NotificationType.LISTING_INTEREST,
+                    title="Someone is interested!",
+                    body=f"A community member expressed interest in your listing '{listing.title}'.",
+                    data={"listing_id": str(listing.id)},
+                )
+            except Exception:
+                pass
+            try:
+                from app.services.email_service import email_service
+                owner_result = await self.db.execute(select(User).where(User.id == listing_owner_id))
+                owner = owner_result.scalar_one_or_none()
+                if owner:
+                    email_service.send_interest_notification_email(owner.email, owner.name, listing.title)
+            except Exception:
+                pass
         return interest
 
     async def withdraw_interest(self, listing_id: UUID, user_id: UUID):

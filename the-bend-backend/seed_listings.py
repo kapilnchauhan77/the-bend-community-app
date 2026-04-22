@@ -78,7 +78,7 @@ async def seed():
         # --- Create listings ---
         listings_data = [
             # Surfside Cafe
-            (0, ListingType.OFFER, ListingCategory.STAFF, "Experienced Barista Available",
+            (0, ListingType.OFFER, ListingCategory.STAFF, "Available: Experienced barista, Tue & Thu shifts",
              "Our barista is available for shifts on Tuesdays and Thursdays. 3 years experience with specialty coffee.",
              "2 shifts/week", "shifts", UrgencyLevel.NORMAL, True, None),
             (0, ListingType.OFFER, ListingCategory.MATERIALS, "Surplus Oat Milk - 20 Cartons",
@@ -86,13 +86,13 @@ async def seed():
              "20", "cartons", UrgencyLevel.URGENT, True, None),
             (0, ListingType.REQUEST, ListingCategory.EQUIPMENT, "Need Commercial Blender ASAP",
              "Our Vitamix broke mid-service. Looking to borrow or buy a commercial blender while ours is being repaired.",
-             "1", "unit", UrgencyLevel.CRITICAL, False, 150.00),
+             "1", "unit", UrgencyLevel.URGENT, False, 150.00),
 
             # Bend Brewery
             (1, ListingType.OFFER, ListingCategory.EQUIPMENT, "Spare Keg Fridge Available",
              "We have an extra keg fridge sitting in storage. Happy to lend it out for a few weeks if anyone needs one.",
              "1", "unit", UrgencyLevel.NORMAL, True, None),
-            (1, ListingType.REQUEST, ListingCategory.STAFF, "Need Weekend Kitchen Help",
+            (1, ListingType.REQUEST, ListingCategory.STAFF, "Hiring: Weekend kitchen hand, Sat 6pm-11pm",
              "Looking for a kitchen hand for Saturday nights. Gets busy with live music events. 6pm-11pm.",
              "1", "person", UrgencyLevel.URGENT, False, 35.00),
             (1, ListingType.OFFER, ListingCategory.MATERIALS, "Leftover Hops - Cascade Variety",
@@ -103,12 +103,12 @@ async def seed():
             (2, ListingType.REQUEST, ListingCategory.MATERIALS, "Need Fresh Herbs - Bulk Order",
              "Our herb supplier is on holiday. Need basil, cilantro, and mint in bulk for the next 2 weeks.",
              "10", "kg", UrgencyLevel.URGENT, False, 80.00),
-            (2, ListingType.OFFER, ListingCategory.STAFF, "Chef Available for Private Events",
+            (2, ListingType.OFFER, ListingCategory.STAFF, "Available: Head chef for private events, Mondays",
              "Our head chef is available for private catering events on Mondays (our day off). Fine dining experience.",
              "1", "person", UrgencyLevel.NORMAL, False, 500.00),
             (2, ListingType.OFFER, ListingCategory.MATERIALS, "Excess Salmon Fillets",
              "We received double our salmon order. 15kg of fresh Atlantic salmon, needs to be used within 3 days.",
-             "15", "kg", UrgencyLevel.CRITICAL, False, 120.00),
+             "15", "kg", UrgencyLevel.URGENT, False, 120.00),
 
             # Bend Burgers
             (3, ListingType.REQUEST, ListingCategory.EQUIPMENT, "Looking for Deep Fryer Rental",
@@ -117,7 +117,7 @@ async def seed():
             (3, ListingType.OFFER, ListingCategory.MATERIALS, "Burger Buns - 200 Units",
              "Bakery delivered double our order. 200 sesame burger buns, baked fresh today. First come, first served!",
              "200", "units", UrgencyLevel.URGENT, True, None),
-            (3, ListingType.OFFER, ListingCategory.STAFF, "Grill Cook Sharing Opportunity",
+            (3, ListingType.OFFER, ListingCategory.STAFF, "Available: Grill cook, Mon-Wed afternoons",
              "Our grill cook has availability Mon-Wed afternoons if any venue needs experienced grill help.",
              "3", "shifts", UrgencyLevel.NORMAL, False, 30.00),
 
@@ -127,8 +127,8 @@ async def seed():
              "30", "kg", UrgencyLevel.NORMAL, False, 250.00),
             (4, ListingType.REQUEST, ListingCategory.EQUIPMENT, "Need Stand Mixer Urgently",
              "Our KitchenAid died right before a wedding cake order. Need a stand mixer for the next 48 hours!",
-             "1", "unit", UrgencyLevel.CRITICAL, False, None),
-            (4, ListingType.OFFER, ListingCategory.STAFF, "Pastry Decorator Available Weekends",
+             "1", "unit", UrgencyLevel.URGENT, False, None),
+            (4, ListingType.OFFER, ListingCategory.STAFF, "Available: Pastry decorator, Saturday mornings",
              "Our cake decorator has Saturday mornings free. Specializes in fondant work and sugar flowers.",
              "1", "person", UrgencyLevel.NORMAL, False, 45.00),
         ]

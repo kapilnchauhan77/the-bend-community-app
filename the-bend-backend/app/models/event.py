@@ -22,8 +22,15 @@ class Event(Base):
     source: Mapped[str] = mapped_column(String(100), nullable=False, default="manual")
     source_url: Mapped[str | None] = mapped_column(String(500))
     connector_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("event_connectors.id", ondelete="SET NULL"))
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[EventStatus] = mapped_column(ENUM(EventStatus, name="event_status", create_type=False), nullable=False, default=EventStatus.ACTIVE)
+    submitted_by_name: Mapped[str | None] = mapped_column(String(150))
+    submitted_by_email: Mapped[str | None] = mapped_column(String(255))
+    is_nonprofit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    nonprofit_doc_url: Mapped[str | None] = mapped_column(String(500))
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255))
+    paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -35,6 +42,7 @@ class Event(Base):
         Index("idx_events_start_date", "start_date"),
         Index("idx_events_connector", "connector_id"),
         UniqueConstraint("source_url", "connector_id", name="uq_event_source_connector"),
+        Index("idx_events_tenant_id", "tenant_id"),
     )
 
 
@@ -47,6 +55,7 @@ class EventConnector(Base):
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     category: Mapped[EventCategory] = mapped_column(ENUM(EventCategory, name="event_category", create_type=False), nullable=False, default=EventCategory.COMMUNITY)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     config: Mapped[dict | None] = mapped_column(JSONB)
     last_synced_at: Mapped[datetime | None] = mapped_column()
     last_sync_count: Mapped[int | None] = mapped_column(Integer)
@@ -59,4 +68,5 @@ class EventConnector(Base):
     __table_args__ = (
         Index("idx_connectors_active", "is_active"),
         Index("idx_connectors_type", "type"),
+        Index("idx_connectors_tenant_id", "tenant_id"),
     )

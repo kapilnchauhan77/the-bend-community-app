@@ -54,6 +54,25 @@ async def get_unread_count(
     return {"unread_count": count}
 
 
+@router.delete("/{notification_id}")
+async def dismiss_notification(
+    notification_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete/dismiss a notification."""
+    from sqlalchemy import select, delete
+    from app.models.notification import Notification
+    await db.execute(
+        delete(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == current_user.id,
+        )
+    )
+    await db.flush()
+    return {"status": "dismissed"}
+
+
 @router.post("/push-subscription", status_code=status.HTTP_201_CREATED)
 async def register_push_subscription(
     data: PushSubscriptionRequest,

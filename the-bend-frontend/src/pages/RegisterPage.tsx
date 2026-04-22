@@ -17,6 +17,7 @@ import {
 import { authApi } from '@/services/authApi';
 import { registerSchema, type RegisterFormData } from '@/lib/validators';
 import { BUSINESS_TYPES } from '@/lib/constants';
+import { useTenant } from '@/context/TenantContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -38,6 +39,7 @@ function FieldError({ message }: { message?: string }) {
 }
 
 export default function RegisterPage() {
+  const tenant = useTenant();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,7 +84,7 @@ export default function RegisterPage() {
   // Success state
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6 py-12" style={{ backgroundColor: 'hsl(40, 25%, 97%)' }}>
+      <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
         <div className="w-full max-w-md text-center">
           <div
             className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center"
@@ -136,7 +138,7 @@ export default function RegisterPage() {
             <h2 className="font-serif text-xl font-bold text-white/95 mb-4">Why join The Bend?</h2>
             <ul className="space-y-3">
               {[
-                'Share staff, materials & equipment with neighbors',
+                'Find gigs, materials & equipment with neighbors',
                 'Reduce waste and save costs together',
                 'Connect with the local business community',
                 'List your needs and find help fast',
@@ -287,7 +289,7 @@ export default function RegisterPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
-                      Phone <span className="text-red-500">*</span>
+                      Phone <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
                     </Label>
                     <Input
                       id="phone"
@@ -385,12 +387,10 @@ export default function RegisterPage() {
               </p>
 
               <div
-                className="rounded p-4 mb-4 flex items-center gap-4"
-                style={{ backgroundColor: 'hsl(35, 15%, 93%)', border: '1px solid hsl(35, 18%, 84%)' }}
+                className="guidelines-card rounded p-4 mb-4 flex items-center gap-4 bg-[hsl(35,15%,93%)] border border-[hsl(35,18%,84%)]"
               >
                 <div
-                  className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded"
-                  style={{ backgroundColor: 'hsl(160, 25%, 24%, 0.12)' }}
+                  className="guidelines-icon flex-shrink-0 flex items-center justify-center w-10 h-10 rounded bg-[hsl(160,25%,24%,0.12)]"
                 >
                   <FileText className="w-5 h-5" style={{ color: PRIMARY }} />
                 </div>

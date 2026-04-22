@@ -1,0 +1,295 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "B THE BEND Community" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e9]: B
+        - generic [ref=e10]:
+          - generic [ref=e11]: THE BEND
+          - text: Community
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e14] [cursor=pointer]:
+          - /url: /browse
+        - link "Events" [ref=e15] [cursor=pointer]:
+          - /url: /events
+        - button "Community" [ref=e17] [cursor=pointer]:
+          - text: Community
+          - img [ref=e18]
+      - generic [ref=e20]:
+        - button "Toggle dark mode" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+        - generic [ref=e28]:
+          - button "Log In" [ref=e29] [cursor=pointer]
+          - button "Register" [ref=e30] [cursor=pointer]
+  - main [ref=e31]:
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - button "Go home" [ref=e35] [cursor=pointer]:
+          - img [ref=e36]
+        - generic [ref=e38]: Home
+        - generic [ref=e39]: /
+        - generic [ref=e40]: Events
+      - heading "Community Events" [level=1] [ref=e41]
+      - paragraph [ref=e42]: Discover what's happening in The Bend
+    - generic [ref=e45]:
+      - generic [ref=e47]:
+        - button "List" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - text: List
+        - button "Calendar" [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+          - text: Calendar
+      - generic [ref=e53]:
+        - img [ref=e54]
+        - textbox "Search events..." [ref=e57]
+      - generic [ref=e58]:
+        - button "All" [ref=e59] [cursor=pointer]
+        - button "Community" [ref=e60] [cursor=pointer]
+        - button "Music" [ref=e61] [cursor=pointer]
+        - button "Art" [ref=e62] [cursor=pointer]
+        - button "Food" [ref=e63] [cursor=pointer]
+        - button "Market" [ref=e64] [cursor=pointer]
+        - button "Historic" [ref=e65] [cursor=pointer]
+        - button "Outdoor" [ref=e66] [cursor=pointer]
+        - button "Education" [ref=e67] [cursor=pointer]
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - button "Previous month" [ref=e73] [cursor=pointer]:
+            - img [ref=e74]
+          - heading "April 2026" [level=2] [ref=e76]
+          - button "Next month" [ref=e77] [cursor=pointer]:
+            - img [ref=e78]
+        - generic [ref=e80]:
+          - generic [ref=e81]: Sun
+          - generic [ref=e82]: Mon
+          - generic [ref=e83]: Tue
+          - generic [ref=e84]: Wed
+          - generic [ref=e85]: Thu
+          - generic [ref=e86]: Fri
+          - generic [ref=e87]: Sat
+        - generic [ref=e88]:
+          - button "3/29/2026" [ref=e89] [cursor=pointer]:
+            - generic [ref=e90]: "29"
+          - button "3/30/2026" [ref=e91] [cursor=pointer]:
+            - generic [ref=e92]: "30"
+          - button "3/31/2026" [ref=e93] [cursor=pointer]:
+            - generic [ref=e94]: "31"
+          - button "4/1/2026" [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]: "1"
+          - button "4/2/2026" [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]: "2"
+          - button "4/3/2026" [ref=e99] [cursor=pointer]:
+            - generic [ref=e100]: "3"
+          - button "4/4/2026" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: "4"
+          - button "4/5/2026" [ref=e103] [cursor=pointer]:
+            - generic [ref=e104]: "5"
+          - button "4/6/2026" [ref=e105] [cursor=pointer]:
+            - generic [ref=e106]: "6"
+          - button "4/7/2026" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: "7"
+          - button "4/8/2026" [ref=e109] [cursor=pointer]:
+            - generic [ref=e110]: "8"
+          - button "4/9/2026" [ref=e111] [cursor=pointer]:
+            - generic [ref=e112]: "9"
+          - button "4/10/2026" [ref=e113] [cursor=pointer]:
+            - generic [ref=e114]: "10"
+          - button "4/11/2026" [ref=e115] [cursor=pointer]:
+            - generic [ref=e116]: "11"
+            - generic "Montross Farmers Market" [ref=e118]
+          - button "4/12/2026" [ref=e119] [cursor=pointer]:
+            - generic [ref=e120]: "12"
+            - generic [ref=e121]:
+              - generic "Outdoor Yoga in the Park" [ref=e122]
+              - generic "Live Jazz at the Inn" [ref=e123]
+          - button "4/13/2026" [ref=e124] [cursor=pointer]:
+            - generic [ref=e125]: "13"
+            - generic "Montross Library Book Sale" [ref=e127]
+          - button "4/14/2026" [ref=e128] [cursor=pointer]:
+            - generic [ref=e129]: "14"
+          - button "4/15/2026" [ref=e130] [cursor=pointer]:
+            - generic [ref=e131]: "15"
+            - generic "Youth STEM Workshop" [ref=e133]
+          - button "4/16/2026" [ref=e134] [cursor=pointer]:
+            - generic [ref=e135]: "16"
+          - button "4/17/2026" [ref=e136] [cursor=pointer]:
+            - generic [ref=e137]: "17"
+            - generic "Acoustic Night at Callao Brewing" [ref=e139]
+          - button "4/18/2026" [ref=e140] [cursor=pointer]:
+            - generic [ref=e141]: "18"
+            - generic "Westmoreland Heritage Festival" [ref=e143]
+          - button "4/19/2026" [ref=e144] [cursor=pointer]:
+            - generic [ref=e145]: "19"
+            - generic "Community Art Walk" [ref=e147]
+          - button "4/20/2026" [ref=e148] [cursor=pointer]:
+            - generic [ref=e149]: "20"
+            - generic "Stratford Hall Plantation Tour" [ref=e151]
+          - button "4/21/2026" [ref=e152] [cursor=pointer]:
+            - generic [ref=e153]: "21"
+          - button "4/22/2026" [ref=e154] [cursor=pointer]:
+            - generic [ref=e155]: "22"
+            - generic "Menokin Foundation Ruins Tour" [ref=e157]
+          - button "4/23/2026" [ref=e158] [cursor=pointer]:
+            - generic [ref=e159]: "23"
+          - button "4/24/2026" [ref=e160] [cursor=pointer]:
+            - generic [ref=e161]: "24"
+          - button "4/25/2026" [ref=e162] [cursor=pointer]:
+            - generic [ref=e163]: "25"
+            - generic "Spring BBQ Cook-Off" [ref=e165]
+          - button "4/26/2026" [ref=e166] [cursor=pointer]:
+            - generic [ref=e167]: "26"
+            - generic "Northern Neck Wine Trail Weekend" [ref=e169]
+          - button "4/27/2026" [ref=e170] [cursor=pointer]:
+            - generic [ref=e171]: "27"
+          - button "4/28/2026" [ref=e172] [cursor=pointer]:
+            - generic [ref=e173]: "28"
+          - button "4/29/2026" [ref=e174] [cursor=pointer]:
+            - generic [ref=e175]: "29"
+          - button "4/30/2026" [ref=e176] [cursor=pointer]:
+            - generic [ref=e177]: "30"
+          - button "5/1/2026" [ref=e178] [cursor=pointer]:
+            - generic [ref=e179]: "1"
+          - button "5/2/2026" [ref=e180] [cursor=pointer]:
+            - generic [ref=e181]: "2"
+          - button "5/3/2026" [ref=e182] [cursor=pointer]:
+            - generic [ref=e183]: "3"
+          - button "5/4/2026" [ref=e184] [cursor=pointer]:
+            - generic [ref=e185]: "4"
+          - button "5/5/2026" [ref=e186] [cursor=pointer]:
+            - generic [ref=e187]: "5"
+          - button "5/6/2026" [ref=e188] [cursor=pointer]:
+            - generic [ref=e189]: "6"
+          - button "5/7/2026" [ref=e190] [cursor=pointer]:
+            - generic [ref=e191]: "7"
+          - button "5/8/2026" [ref=e192] [cursor=pointer]:
+            - generic [ref=e193]: "8"
+          - button "5/9/2026" [ref=e194] [cursor=pointer]:
+            - generic [ref=e195]: "9"
+      - generic [ref=e196]:
+        - heading "Saturday, April 11" [level=3] [ref=e197]
+        - generic [ref=e201]:
+          - paragraph [ref=e202]: Montross Farmers Market
+          - paragraph [ref=e203]:
+            - text: 8:00 AM
+            - generic [ref=e204]: · Courthouse Square, Montross
+    - generic [ref=e205]:
+      - paragraph [ref=e206]: Community Partners
+      - generic [ref=e208]:
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e209] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - img "Inn at Montross" [ref=e211]
+          - paragraph [ref=e212]: Inn at Montross
+          - paragraph [ref=e213]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e214]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e215] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e217]
+          - paragraph [ref=e218]: ProLine Group
+          - paragraph [ref=e219]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e220]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e221] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e223]
+          - paragraph [ref=e224]: Provoke
+          - paragraph [ref=e225]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e226]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e227] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e229]
+          - paragraph [ref=e230]: Westmoreland County Museum
+          - paragraph [ref=e231]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e232]: Community Partner
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e233] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - img "Inn at Montross" [ref=e235]
+          - paragraph [ref=e236]: Inn at Montross
+          - paragraph [ref=e237]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e238]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e239] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e241]
+          - paragraph [ref=e242]: ProLine Group
+          - paragraph [ref=e243]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e244]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e245] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e247]
+          - paragraph [ref=e248]: Provoke
+          - paragraph [ref=e249]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e250]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e251] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e253]
+          - paragraph [ref=e254]: Westmoreland County Museum
+          - paragraph [ref=e255]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e256]: Community Partner
+  - generic [ref=e258]:
+    - paragraph [ref=e259]: Proud Community Partners
+    - generic [ref=e260]:
+      - link "Inn at Montross" [ref=e261] [cursor=pointer]:
+        - /url: https://www.montrossinn.com
+        - img "Inn at Montross" [ref=e262]
+      - link "ProLine Group" [ref=e263] [cursor=pointer]:
+        - /url: https://www.proline-online.com
+        - img "ProLine Group" [ref=e264]
+      - link "Provoke" [ref=e265] [cursor=pointer]:
+        - /url: https://provoke.space
+        - img "Provoke" [ref=e266]
+      - link "Westmoreland County Museum" [ref=e267] [cursor=pointer]:
+        - /url: https://www.westmorelandcountymuseum.org/
+        - img "Westmoreland County Museum" [ref=e268]
+  - contentinfo [ref=e269]:
+    - generic [ref=e271]:
+      - generic [ref=e272]:
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e276]: B
+            - generic [ref=e277]:
+              - generic [ref=e278]: THE BEND
+              - text: Community
+          - paragraph [ref=e279]: A heritage community platform connecting local businesses to share staff, materials, and equipment.
+        - generic [ref=e280]:
+          - heading "About" [level=4] [ref=e281]
+          - list [ref=e282]:
+            - listitem [ref=e283]:
+              - link "Our Story" [ref=e284] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e285]:
+              - link "Community Guidelines" [ref=e286] [cursor=pointer]:
+                - /url: /guidelines
+            - listitem [ref=e287]:
+              - link "Register" [ref=e288] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e289]:
+          - heading "Services" [level=4] [ref=e290]
+          - list [ref=e291]:
+            - listitem [ref=e292]:
+              - link "Browse Staff" [ref=e293] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e294]:
+              - link "Browse Materials" [ref=e295] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e296]:
+              - link "Browse Equipment" [ref=e297] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e298]:
+          - heading "Community" [level=4] [ref=e299]
+          - list [ref=e300]:
+            - listitem [ref=e301]:
+              - link "Volunteer Board" [ref=e302] [cursor=pointer]:
+                - /url: /volunteers
+            - listitem [ref=e303]:
+              - link "Talent Marketplace" [ref=e304] [cursor=pointer]:
+                - /url: /talent
+            - listitem [ref=e305]:
+              - link "All Listings" [ref=e306] [cursor=pointer]:
+                - /url: /browse
+            - listitem [ref=e307]:
+              - link "Advertise" [ref=e308] [cursor=pointer]:
+                - /url: /advertise
+      - generic [ref=e309]:
+        - generic [ref=e310]: © 2026 The Bend Community. All rights reserved.
+        - generic [ref=e311]: Preserving community, one connection at a time

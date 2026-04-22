@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Search,
-  Users,
+  Briefcase,
   Package,
   Wrench,
   Store,
@@ -19,16 +19,17 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
+import api from '@/services/api';
 import { listingApi } from '@/services/listingApi';
 import { eventApi } from '@/services/eventApi';
-import type { Listing, CommunityEvent } from '@/types';
+import type { Listing, CommunityEvent, SuccessStory } from '@/types';
 import { SponsorBanner } from '@/components/shared/SponsorBanner';
+import { useTenant } from '@/context/TenantContext';
 
-const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
 
 const services = [
-  { icon: Users, label: 'Share Staff', desc: 'Find or offer temporary help', href: '/browse?category=staff' },
+  { icon: Briefcase, label: 'Gig Board', desc: 'Job openings & available workers', href: '/browse?category=staff' },
   { icon: Package, label: 'Raw Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
   { icon: Wrench, label: 'Equipment', desc: 'Borrow or lend tools', href: '/browse?category=equipment' },
   { icon: Store, label: 'All Listings', desc: 'Browse the full directory', href: '/browse' },
@@ -36,38 +37,36 @@ const services = [
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
 ];
 
-const stats = [
-  { value: '28', label: 'Active Businesses' },
-  { value: '142', label: 'Active Listings' },
-  { value: '89', label: 'Items Shared' },
-];
+// Stats fetched from API — see useEffect below
 
-const fulfilledPlaceholder = [
-  { title: 'Commercial Mixer — 20qt', shop: 'Grain & Glory Bakery', category: 'Equipment', when: '2h ago' },
-  { title: '3 Bags Bread Flour', shop: 'The Daily Loaf', category: 'Materials', when: '5h ago' },
-  { title: 'Saturday Prep Cook', shop: 'Bent Fork Kitchen', category: 'Staff', when: 'Yesterday' },
-  { title: 'Proofing Racks (x4)', shop: 'Rise & Shine', category: 'Equipment', when: 'Yesterday' },
-  { title: 'Pastry Chef — 2 days', shop: 'Sweet Nothings', category: 'Staff', when: '2 days ago' },
-];
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const tenant = useTenant();
+  const PRIMARY = tenant.primary_color;
   const [searchQuery, setSearchQuery] = useState('');
   const [urgentListings, setUrgentListings] = useState<Listing[]>([]);
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
   const [loadingUrgent, setLoadingUrgent] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [upcomingEvents, setUpcomingEvents] = useState<CommunityEvent[]>([]);
+  const [fulfilledListings, setFulfilledListings] = useState<Listing[]>([]);
+  const [stories, setStories] = useState<SuccessStory[]>([]);
+  const [stats, setStats] = useState([
+    { value: '—', label: 'Active Businesses' },
+    { value: '—', label: 'Active Listings' },
+    { value: '—', label: 'Items Shared' },
+  ]);
 
   useEffect(() => {
     listingApi
-      .browse({ urgency: 'critical', limit: 3, status: 'active' })
+      .browse({ urgency: 'urgent', limit: 3 })
       .then((res) => setUrgentListings(res.data.items))
       .catch(() => setUrgentListings([]))
       .finally(() => setLoadingUrgent(false));
 
     listingApi
-      .browse({ limit: 5, status: 'active' })
+      .browse({ limit: 5 })
       .then((res) => setRecentListings(res.data.items))
       .catch(() => setRecentListings([]))
       .finally(() => setLoadingRecent(false));
@@ -76,6 +75,27 @@ export default function HomePage() {
       .getUpcoming(3)
       .then((res) => setUpcomingEvents(res.data.items ?? []))
       .catch(() => setUpcomingEvents([]));
+
+    listingApi
+      .browse({ status: 'fulfilled', limit: 5 })
+      .then((res) => setFulfilledListings(res.data.items))
+      .catch(() => setFulfilledListings([]));
+
+    listingApi
+      .getStories({ featured: 'true', limit: '3' })
+      .then((res) => setStories(res.data.items ?? []))
+      .catch(() => setStories([]));
+
+    api.get('/stats')
+      .then((res) => {
+        const d = res.data;
+        setStats([
+          { value: String(d.active_shops ?? 0), label: 'Active Businesses' },
+          { value: String(d.active_listings ?? 0), label: 'Active Listings' },
+          { value: String(d.items_shared ?? 0), label: 'Items Shared' },
+        ]);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -86,24 +106,29 @@ export default function HomePage() {
   return (
     <PageLayout>
       {/* Hero — Museum entrance feel */}
-      <section className="relative h-[380px] md:h-[460px] flex items-center overflow-hidden">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/the-bend-hero.jpg')" }} />
+      <section className="relative min-h-[280px] md:min-h-[460px] flex items-center overflow-hidden pb-14 pt-8 md:pb-16 md:pt-0">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${tenant.hero_image_url || '/images/the-bend-hero.jpg'}')` }} />
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, hsl(30,12%,12%,0.88), hsl(30,12%,12%,0.6))' }} />
         {/* Subtle grain overlay */}
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")" }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 w-full">
           <div className="max-w-2xl">
-            <div className="w-12 h-[2px] mb-4" style={{ backgroundColor: BRONZE }} />
-            <p className="text-xs tracking-[0.35em] uppercase text-[hsl(35,45%,65%)] mb-2 font-medium">
+            <div className="hidden md:block w-12 h-[2px] mb-4" style={{ backgroundColor: BRONZE }} />
+            <p className="hidden md:block text-xs tracking-[0.35em] uppercase text-[hsl(35,45%,65%)] mb-2 font-medium">
               Welcome to
             </p>
-            <h1 className="text-4xl md:text-6xl font-bold font-serif text-[hsl(40,20%,95%)] leading-[1.1] mb-4" style={{ letterSpacing: '-0.01em' }}>
-              The Bend<br />Community
+            <h1 className="text-2xl md:text-6xl font-bold font-serif text-[hsl(40,20%,95%)] leading-[1.1] mb-2 md:mb-4" style={{ letterSpacing: '-0.01em' }}>
+              {tenant.display_name.split('\u2014')[0].trim()}<br />Community
             </h1>
-            <p className="text-base md:text-lg text-[hsl(40,15%,75%)] mb-8 max-w-md leading-relaxed">
-              Share staff, materials &amp; equipment with your neighbors
+            <p className="text-base md:text-xl text-[hsl(40,15%,75%)] mb-4 max-w-md leading-relaxed">
+              {tenant.tagline || 'Find opportunity within your neighborhood'}
             </p>
+            {tenant.about_text && (
+            <p className="hidden md:block text-sm text-[hsl(40,15%,60%)] mb-8 max-w-lg leading-relaxed italic font-serif">
+              {tenant.about_text}
+            </p>
+            )}
             <form onSubmit={handleSearch} className="flex max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
@@ -154,13 +179,13 @@ export default function HomePage() {
                 <AlertTriangle className="w-5 h-5 text-[hsl(0,55%,45%)]" />
                 <div>
                   <h2 className="text-base font-bold font-serif text-[hsl(0,40%,30%)]">
-                    {urgentListings.length} Critical Need{urgentListings.length !== 1 ? 's' : ''}
+                    {urgentListings.length} Urgent Need{urgentListings.length !== 1 ? 's' : ''}
                   </h2>
                   <p className="text-xs text-[hsl(0,30%,50%)]">These listings need an immediate response</p>
                 </div>
               </div>
               <Link
-                to="/browse?urgency=critical"
+                to="/browse?urgency=urgent"
                 className="text-xs font-medium text-[hsl(0,55%,45%)] hover:text-[hsl(0,55%,35%)] flex items-center gap-1 tracking-wider uppercase transition-colors"
               >
                 View All <ChevronRight className="w-3.5 h-3.5" />
@@ -232,22 +257,40 @@ export default function HomePage() {
                 <h2 className="text-lg font-bold font-serif text-[hsl(30,15%,18%)]">Recently Fulfilled</h2>
               </div>
               <div className="space-y-2">
-                {fulfilledPlaceholder.map((item, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 p-3 bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,87%)] hover:border-[hsl(35,45%,42%,0.4)] transition-all cursor-pointer group"
-                    onClick={() => navigate('/browse?status=fulfilled')}
-                  >
-                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 border border-[hsl(35,18%,84%)]">
-                      <TrendingUp className="w-3.5 h-3.5" style={{ color: BRONZE }} />
+                {fulfilledListings.length > 0 ? (
+                  fulfilledListings.map((item) => (
+                    <div
+                      key={item.id}
+                      className="fulfilled-item flex items-center gap-3 p-3 border border-[hsl(160,18%,88%)] bg-[hsl(160,20%,97%)] transition-all cursor-pointer group"
+                      onClick={() => navigate(`/listing/${item.id}`)}
+                    >
+                      <div
+                        className="fulfilled-icon w-8 h-8 flex items-center justify-center flex-shrink-0 rounded-full bg-[hsl(160,20%,90%)] text-[hsl(160,25%,32%)]"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[hsl(160,20%,22%)] truncate group-hover:text-[hsl(160,25%,18%)] transition-colors">{item.title}</p>
+                        <Link
+                          to={`/business/${item.shop.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-[hsl(160,10%,45%)] truncate hover:underline"
+                        >
+                          {item.shop.name}
+                        </Link>
+                      </div>
+                      <span className="text-[10px] text-[hsl(160,10%,55%)] shrink-0 uppercase tracking-wider">
+                        {item.category}
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[hsl(30,15%,20%)] truncate group-hover:text-[hsl(35,45%,35%)] transition-colors">{item.title}</p>
-                      <p className="text-xs text-[hsl(30,10%,50%)] truncate">{item.shop}</p>
-                    </div>
-                    <span className="text-[10px] text-[hsl(30,10%,60%)] shrink-0">{item.when}</span>
+                  ))
+                ) : (
+                  <div className="py-6 text-center border border-dashed border-[hsl(160,18%,85%)] bg-[hsl(160,20%,97%)]">
+                    <p className="text-xs text-[hsl(160,10%,50%)] italic">
+                      No fulfilled items yet — be the first to complete a listing!
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -337,7 +380,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Stats — Museum plaque style */}
+      {/* Stats + Community Story — Museum plaque style */}
       <section className="relative py-12 overflow-hidden" style={{ backgroundColor: PRIMARY }}>
         <div className="absolute inset-0 bg-cover bg-center opacity-10" style={{ backgroundImage: "url('/images/courthouse.jpg')" }} />
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8">
@@ -353,6 +396,19 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+
+          {/* Inline community story quote */}
+          {stories.length > 0 && (
+            <div className="mt-10 pt-8 border-t border-white/10 max-w-lg mx-auto text-center">
+              <span className="text-3xl font-serif leading-none text-white/20">&ldquo;</span>
+              <p className="text-sm text-white/80 italic font-serif leading-relaxed mt-1">
+                {stories[0].quote}
+              </p>
+              <p className="text-xs text-white/50 mt-3 tracking-wider uppercase">
+                — {stories[0].author_name}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

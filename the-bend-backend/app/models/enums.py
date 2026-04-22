@@ -2,6 +2,7 @@ import enum
 
 
 class UserRole(str, enum.Enum):
+    SUPER_ADMIN = "super_admin"
     COMMUNITY_ADMIN = "community_admin"
     SHOP_ADMIN = "shop_admin"
     SHOP_EMPLOYEE = "shop_employee"
@@ -27,7 +28,6 @@ class ListingCategory(str, enum.Enum):
 class UrgencyLevel(str, enum.Enum):
     NORMAL = "normal"
     URGENT = "urgent"
-    CRITICAL = "critical"
 
 
 class ListingStatus(str, enum.Enum):
@@ -44,7 +44,6 @@ class NotificationType(str, enum.Enum):
     LISTING_INTEREST = "listing_interest"
     NEW_MESSAGE = "new_message"
     LISTING_EXPIRING = "listing_expiring"
-    NEW_CRITICAL_LISTING = "new_critical_listing"
     NEW_URGENT_LISTING = "new_urgent_listing"
     SHOP_SUSPENDED = "shop_suspended"
 
@@ -62,6 +61,7 @@ class EventCategory(str, enum.Enum):
 
 class EventStatus(str, enum.Enum):
     ACTIVE = "active"
+    PENDING = "pending"
     CANCELLED = "cancelled"
     PAST = "past"
 

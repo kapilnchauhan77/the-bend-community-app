@@ -8,8 +8,11 @@ from pydantic import BaseModel
 
 from app.api.deps import get_db
 from app.config import get_settings
+from app.core.permissions import get_current_tenant
+from app.models.tenant import Tenant
 from app.models.ad_pricing import AdPricing
 from app.models.sponsor import Sponsor
+from app.middleware.tenant import get_frontend_url as _frontend_url
 
 router = APIRouter(prefix="/advertising", tags=["Advertising"])
 settings = get_settings()
@@ -26,11 +29,15 @@ class AdOrderRequest(BaseModel):
 
 
 @router.get("/pricing")
-async def list_pricing(db: AsyncSession = Depends(get_db)):
+async def list_pricing(
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
     """List available ad placements and pricing."""
-    result = await db.execute(
-        select(AdPricing).where(AdPricing.is_active == True).order_by(AdPricing.sort_order, AdPricing.price_cents)
-    )
+    query = select(AdPricing).where(AdPricing.is_active == True).order_by(AdPricing.sort_order, AdPricing.price_cents)
+    if tenant:
+        query = query.where(AdPricing.tenant_id == tenant.id)
+    result = await db.execute(query)
     items = result.scalars().all()
     return {
         "items": [{
@@ -45,7 +52,11 @@ async def list_pricing(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/checkout")
-async def create_checkout(data: AdOrderRequest, db: AsyncSession = Depends(get_db)):
+async def create_checkout(
+    data: AdOrderRequest,
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
     """Create a Stripe Checkout session for an ad purchase."""
     # Get pricing
     try:
@@ -71,6 +82,7 @@ async def create_checkout(data: AdOrderRequest, db: AsyncSession = Depends(get_d
         contact_email=data.contact_email,
         contact_name=data.contact_name,
         pricing_id=pricing.id,
+        tenant_id=tenant.id if tenant else None,
     )
     db.add(sponsor)
     await db.flush()
@@ -92,8 +104,8 @@ async def create_checkout(data: AdOrderRequest, db: AsyncSession = Depends(get_d
             "quantity": 1,
         }],
         mode="payment",
-        success_url=f"{settings.FRONTEND_URL}/advertise/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{settings.FRONTEND_URL}/advertise?cancelled=true",
+        success_url=f"{_frontend_url(tenant)}/advertise/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{_frontend_url(tenant)}/advertise?cancelled=true",
         customer_email=data.contact_email,
         metadata={
             "sponsor_id": str(sponsor.id),
@@ -127,8 +139,46 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        sponsor_id = session.get("metadata", {}).get("sponsor_id")
-        pricing_id = session.get("metadata", {}).get("pricing_id")
+        metadata = session.get("metadata", {})
+        sponsor_id = metadata.get("sponsor_id")
+        pricing_id = metadata.get("pricing_id")
+        event_id = metadata.get("event_id")
+        payment_type = metadata.get("type")
+
+        # Handle connector purchase — notify admin
+        if payment_type == "connector_purchase":
+            try:
+                from app.models.user import User
+                from app.models.notification import Notification
+                from app.models.enums import UserRole, NotificationType
+                admin_result = await db.execute(
+                    select(User).where(User.role == UserRole.COMMUNITY_ADMIN, User.is_active == True)
+                )
+                admins = admin_result.scalars().all()
+                biz_name = metadata.get("business_name", "Unknown")
+                website = metadata.get("website_url", "")
+                for admin in admins:
+                    notif = Notification(
+                        id=uuid4(),
+                        user_id=admin.id,
+                        type=NotificationType.SYSTEM,
+                        title="New Connector Purchase",
+                        body=f"{biz_name} purchased a 90-day Automatic Website Events Linker for {website}. Please set up the connector.",
+                        data={"website_url": website, "contact_email": metadata.get("contact_email", "")},
+                    )
+                    db.add(notif)
+                await db.flush()
+            except Exception:
+                pass
+
+        # Handle event posting payment
+        if payment_type == "event_posting" and event_id:
+            from app.models.event import Event
+            result = await db.execute(select(Event).where(Event.id == event_id))
+            evt = result.scalar_one_or_none()
+            if evt:
+                evt.paid = True
+                await db.flush()
 
         if sponsor_id:
             result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))

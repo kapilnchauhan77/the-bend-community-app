@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, Calendar, List, ArrowDownUp } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, Calendar, List, ArrowDownUp, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { eventApi } from '@/services/eventApi';
 import type { CommunityEvent, EventCategory } from '@/types/index';
 import { SponsorBanner } from '@/components/shared/SponsorBanner';
+import { uploadApi } from '@/services/uploadApi';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ShareButton } from '@/components/shared/ShareButton';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -93,7 +97,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 function EventCard({ event }: { event: CommunityEvent }) {
   const cat = getCategoryConfig(event.category);
   return (
-    <Card className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 overflow-hidden group">
+    <Card id={`event-${event.id}`} className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group">
       {event.image_url && (
         <div className="relative h-40 overflow-hidden">
           <img
@@ -138,20 +142,27 @@ function EventCard({ event }: { event: CommunityEvent }) {
         )}
 
         <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100 truncate max-w-[70%]">
+          <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100 truncate max-w-[50%]">
             {event.source}
           </span>
-          {event.source_url && (
-            <a
-              href={event.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] font-medium hover:underline"
-              style={{ color: PRIMARY }}
-            >
-              Details →
-            </a>
-          )}
+          <div className="flex items-center gap-2">
+            <ShareButton
+              url={`/events#event-${event.id}`}
+              title={event.title}
+              description={`${event.title} - ${formatEventDate(event.start_date, event.end_date)}${event.location ? ' at ' + event.location : ''}`}
+            />
+            {event.source_url && (
+              <a
+                href={event.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-medium hover:underline"
+                style={{ color: PRIMARY }}
+              >
+                Details →
+              </a>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -322,16 +333,47 @@ function CalendarView({ events }: { events: CommunityEvent[] }) {
 
 export default function EventsPage() {
   const navigate = useNavigate();
-  const [view, setView] = useState<'list' | 'calendar'>('calendar');
+  const [view, setView] = useState<'list' | 'calendar'>(window.location.hash ? 'list' : 'calendar');
   const [category, setCategory] = useState<string | null>(null);
   const [events, setEvents] = useState<CommunityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortDesc, setSortDesc] = useState(true);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Post Event modal state
+  const [showPostForm, setShowPostForm] = useState(false);
+  const [postStep, setPostStep] = useState<'tier' | 'details'>('tier');
+  const [postTier, setPostTier] = useState<'forprofit' | 'nonprofit'>('forprofit');
+  const [postForm, setPostForm] = useState({
+    title: '', description: '', start_date: '', end_date: '', location: '', category: 'community',
+    submitted_by_name: '', submitted_by_email: '',
+  });
+  const [nonprofitDocUrl, setNonprofitDocUrl] = useState<string | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const [postSubmitting, setPostSubmitting] = useState(false);
+  const [postError, setPostError] = useState('');
+  const [postSuccess, setPostSuccess] = useState(false);
+
+  // Check for success return from Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('posted') === 'success') {
+      setPostSuccess(true);
+      window.history.replaceState({}, '', '/events');
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     setLoading(true);
     const params: Record<string, string> = { limit: '100' };
     if (category) params.category = category;
+    if (debouncedSearch) params.search = debouncedSearch;
     eventApi.list(params)
       .then(res => {
         setEvents(res.data.items ?? []);
@@ -341,7 +383,22 @@ export default function EventsPage() {
         setEvents([]);
       })
       .finally(() => setLoading(false));
-  }, [category]);
+  }, [category, debouncedSearch]);
+
+  // Scroll to and highlight a card based on URL hash
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      setTimeout(() => {
+        const el = document.getElementById(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.boxShadow = '0 0 0 3px hsl(35, 45%, 42%)';
+          setTimeout(() => { el.style.boxShadow = ''; }, 3000);
+        }
+      }, 500);
+    }
+  }, []);
 
   const sortedEvents = [...events].sort((a, b) => {
     const da = parseDate(a.start_date).getTime();
@@ -366,8 +423,21 @@ export default function EventsPage() {
             <span>/</span>
             <span className="text-white">Events</span>
           </div>
-          <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">Community Events</h1>
-          <p className="text-sm text-white/85 mt-1">Discover what's happening in The Bend</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">Community Events</h1>
+              <p className="text-sm text-white/85 mt-1">Discover what's happening in the community</p>
+            </div>
+            <Button
+              onClick={() => { setShowPostForm(true); setPostStep('tier'); setPostError(''); }}
+              size="sm"
+              className="gap-1.5 text-xs tracking-wider uppercase font-semibold cursor-pointer"
+              style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Post Event
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -413,6 +483,18 @@ export default function EventsPage() {
                   {sortDesc ? 'Newest' : 'Oldest'}
                 </button>
               )}
+            </div>
+
+            {/* Search input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search events..."
+                className="pl-10 pr-4 h-9 w-full sm:w-64 text-sm border border-[hsl(35,18%,84%)] bg-white rounded focus:outline-none focus:ring-1 focus:ring-[hsl(35,45%,42%)]"
+              />
             </div>
 
             {/* Category filters */}
@@ -488,6 +570,218 @@ export default function EventsPage() {
         </div>
       </section>
       <SponsorBanner placement="events" />
+
+      {/* Success toast */}
+      {postSuccess && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-white border border-[hsl(35,25%,70%)] shadow-lg rounded-lg p-4 flex items-center gap-3 max-w-md">
+          <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: PRIMARY }} />
+          <div>
+            <p className="text-sm font-semibold text-[hsl(30,15%,18%)]">Event submitted!</p>
+            <p className="text-xs text-[hsl(30,10%,48%)]">Payment received. Your event will be live after admin review.</p>
+          </div>
+          <button onClick={() => setPostSuccess(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X size={16} /></button>
+        </div>
+      )}
+
+      {/* Post Event Modal */}
+      {showPostForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPostForm(false); }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowPostForm(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer z-10"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="p-6 md:p-8">
+              {postStep === 'tier' ? (
+                <>
+                  <h2 className="text-xl font-bold font-serif text-gray-900 mb-1">Post an Event</h2>
+                  <p className="text-sm text-gray-500 mb-6">Select your organization type to continue</p>
+
+                  <div className="space-y-3">
+                    {/* For-Profit */}
+                    <button
+                      onClick={() => { setPostTier('forprofit'); setPostStep('details'); }}
+                      className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer"
+                      style={{ borderColor: 'hsl(35, 18%, 84%)' }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900">For-Profit Business</h3>
+                        <span className="text-xl font-bold font-serif" style={{ color: 'hsl(35, 45%, 42%)' }}>$19.99</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Standard rate for businesses and commercial event postings.</p>
+                    </button>
+
+                    {/* Nonprofit */}
+                    <button
+                      onClick={() => { setPostTier('nonprofit'); setPostStep('details'); }}
+                      className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(160,25%,24%)] hover:shadow-md cursor-pointer"
+                      style={{ borderColor: 'hsl(35, 18%, 84%)' }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900">Not-for-Profit Organization</h3>
+                        <span className="text-xl font-bold font-serif" style={{ color: PRIMARY }}>$9.99</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Reduced rate for registered nonprofits. Documentation of not-for-profit status is required during checkout.</p>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <button
+                      onClick={() => setPostStep('tier')}
+                      className="text-xs flex items-center gap-1 hover:underline cursor-pointer"
+                      style={{ color: 'hsl(35, 45%, 42%)' }}
+                    >
+                      <ChevronLeft size={14} /> Back
+                    </button>
+                  </div>
+                  <h2 className="text-xl font-bold font-serif text-gray-900 mb-1">Event Details</h2>
+                  <p className="text-sm text-gray-500 mb-1">
+                    {postTier === 'nonprofit' ? 'Not-for-Profit' : 'For-Profit'} — <span className="font-semibold" style={{ color: 'hsl(35, 45%, 42%)' }}>{postTier === 'nonprofit' ? '$9.99' : '$19.99'}</span>
+                  </p>
+
+                  {postError && (
+                    <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">{postError}</div>
+                  )}
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setPostError('');
+                      if (postTier === 'nonprofit' && !nonprofitDocUrl) {
+                        setPostError('Please upload documentation of your not-for-profit status.');
+                        return;
+                      }
+                      setPostSubmitting(true);
+                      try {
+                        const res = await eventApi.submit({
+                          ...postForm,
+                          is_nonprofit: postTier === 'nonprofit',
+                          nonprofit_doc_url: nonprofitDocUrl || undefined,
+                        });
+                        const checkoutUrl = res.data?.checkout_url;
+                        if (checkoutUrl) {
+                          window.location.href = checkoutUrl;
+                        }
+                      } catch {
+                        setPostError('Something went wrong. Please try again.');
+                      } finally {
+                        setPostSubmitting(false);
+                      }
+                    }}
+                    className="space-y-4 mt-4"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Your Name <span className="text-red-400">*</span></label>
+                        <Input value={postForm.submitted_by_name} onChange={(e) => setPostForm(f => ({ ...f, submitted_by_name: e.target.value }))} required placeholder="Jane Smith" className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Your Email <span className="text-red-400">*</span></label>
+                        <Input type="email" value={postForm.submitted_by_email} onChange={(e) => setPostForm(f => ({ ...f, submitted_by_email: e.target.value }))} required placeholder="jane@example.com" className="rounded-xl h-11" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-gray-700">Event Title <span className="text-red-400">*</span></label>
+                      <Input value={postForm.title} onChange={(e) => setPostForm(f => ({ ...f, title: e.target.value }))} required placeholder="Spring Community Fair" className="rounded-xl h-11" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-gray-700">Description</label>
+                      <textarea value={postForm.description} onChange={(e) => setPostForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="What's this event about?"
+                        className="w-full px-3 py-2.5 text-sm border border-input bg-background rounded-xl resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Start Date & Time <span className="text-red-400">*</span></label>
+                        <Input type="datetime-local" value={postForm.start_date} onChange={(e) => setPostForm(f => ({ ...f, start_date: e.target.value }))} required className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">End Date & Time</label>
+                        <Input type="datetime-local" value={postForm.end_date} onChange={(e) => setPostForm(f => ({ ...f, end_date: e.target.value }))} className="rounded-xl h-11" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Location</label>
+                        <Input value={postForm.location} onChange={(e) => setPostForm(f => ({ ...f, location: e.target.value }))} placeholder="Town Square, Montross" className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Category</label>
+                        <select value={postForm.category} onChange={(e) => setPostForm(f => ({ ...f, category: e.target.value }))}
+                          className="w-full px-3 py-2.5 h-11 text-sm border border-input bg-background rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer">
+                          {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Nonprofit documentation upload */}
+                    {postTier === 'nonprofit' && (
+                      <div className="space-y-1.5 p-4 rounded-xl border-2 border-dashed" style={{ borderColor: 'hsl(160, 25%, 70%)', backgroundColor: 'hsl(160, 20%, 97%)' }}>
+                        <label className="block text-sm font-medium" style={{ color: PRIMARY }}>
+                          <Upload className="w-4 h-4 inline mr-1.5" />
+                          Not-for-Profit Documentation <span className="text-red-400">*</span>
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">Upload proof of your not-for-profit status (IRS determination letter, state registration, etc.)</p>
+                        {nonprofitDocUrl ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" style={{ color: PRIMARY }} />
+                            <span className="text-sm text-gray-700">Document uploaded</span>
+                            <button type="button" onClick={() => setNonprofitDocUrl(null)} className="text-xs text-red-500 hover:underline cursor-pointer ml-2">Remove</button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-200 rounded-xl cursor-pointer hover:bg-white transition-colors">
+                            {docUploading ? 'Uploading...' : 'Choose File'}
+                            <input type="file" accept="image/*,.pdf" className="hidden" disabled={docUploading} onChange={async (ev) => {
+                              const file = ev.target.files?.[0];
+                              if (!file) return;
+                              setDocUploading(true);
+                              try {
+                                const { data } = await uploadApi.uploadPhoto(file);
+                                setNonprofitDocUrl(data.photo_url);
+                              } catch { /* silent */ }
+                              setDocUploading(false);
+                              ev.target.value = '';
+                            }} />
+                          </label>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                      <Button type="button" variant="outline" onClick={() => setShowPostForm(false)} className="flex-1 h-11 rounded-xl cursor-pointer">
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={postSubmitting}
+                        className="flex-1 h-11 rounded-xl font-semibold text-white cursor-pointer"
+                        style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}
+                      >
+                        {postSubmitting ? 'Redirecting to Payment...' : `Pay ${postTier === 'nonprofit' ? '$9.99' : '$19.99'} & Submit`}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 text-center">
+                      You'll be securely redirected to Stripe to complete payment. Event goes live after admin review.
+                    </p>
+                  </form>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

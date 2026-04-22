@@ -65,7 +65,6 @@ export default function DashboardPage() {
   }
 
   const urgencyClass = (urgency: string) => {
-    if (urgency === 'critical') return 'bg-red-100 text-red-700 border-red-200';
     if (urgency === 'urgent') return 'bg-amber-100 text-amber-700 border-amber-200';
     return 'bg-gray-100 text-gray-600 border-gray-200';
   };

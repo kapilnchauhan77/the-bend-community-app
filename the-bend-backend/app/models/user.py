@@ -20,6 +20,7 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500))
     role: Mapped[UserRole] = mapped_column(ENUM(UserRole, name="user_role", create_type=False), nullable=False, default=UserRole.SHOP_ADMIN)
     shop_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("shops.id", ondelete="SET NULL"))
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
@@ -36,4 +37,5 @@ class User(Base):
         Index("idx_users_email", "email"),
         Index("idx_users_shop_id", "shop_id"),
         Index("idx_users_role", "role"),
+        Index("idx_users_tenant_id", "tenant_id"),
     )

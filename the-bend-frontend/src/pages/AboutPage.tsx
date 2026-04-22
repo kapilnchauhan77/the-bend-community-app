@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/PageLayout';
+import { useTenant } from '@/context/TenantContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -21,7 +22,7 @@ const values = [
     icon: Handshake,
     title: 'Community First',
     description:
-      'We believe local businesses thrive when they support each other. The Bend connects businesses so neighbors can share what they have and find what they need.',
+      'We believe local businesses thrive when they support each other. The community connects businesses so neighbors can share what they have and find what they need.',
   },
   {
     icon: Leaf,
@@ -46,8 +47,8 @@ const values = [
 const categories = [
   {
     icon: Users,
-    title: 'Staff Sharing',
-    description: 'Need an extra hand for the weekend rush? Share staff between businesses to cover shifts, seasonal peaks, or unexpected absences.',
+    title: 'Gig Opportunities',
+    description: 'Post job openings and find available workers in the community. Whether you need weekend help or have skills to offer, the Gig Board connects you.',
     color: 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]',
   },
   {
@@ -59,7 +60,7 @@ const categories = [
   {
     icon: Wrench,
     title: 'Equipment',
-    description: 'Lend or borrow commercial mixers, proofing racks, refrigeration units, and more. Why buy when you can share?',
+    description: 'Looking for commercial mixers, proofing racks, refrigeration units and more? See what your neighbors have to offer.',
     color: 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]',
   },
 ];
@@ -68,12 +69,13 @@ const guidelines = [
   'Be honest and accurate in your listings — describe condition, quantity, and availability clearly.',
   'Respond to messages promptly. A quick "no longer available" is better than silence.',
   'Honor your commitments. If you agree to share something, follow through.',
-  'Respect pricing norms. The Bend is about community support, not profit.',
+  'Respect pricing norms. The Bend is about community support.',
   'Report any issues or concerns to the community admin team.',
 ];
 
 export default function AboutPage() {
   const navigate = useNavigate();
+  const tenant = useTenant();
 
   return (
     <PageLayout>
@@ -88,9 +90,9 @@ export default function AboutPage() {
             <span>/</span>
             <span className="text-white">About</span>
           </div>
-          <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">About The Bend Community</h1>
+          <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">About {tenant.display_name} Community</h1>
           <p className="text-sm text-white/85 mt-1">
-            A local resource-sharing platform where businesses share staff, materials, and equipment with their neighbors
+            A local resource-sharing platform where businesses find gigs, materials, and equipment with their neighbors
           </p>
         </div>
       </section>

@@ -1,5 +1,5 @@
 from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 def get_admin_service(db: AsyncSession = Depends(get_db)):
+    # tenant_id is set per-request from current_user in route handlers
     return AdminService(db)
 
 
@@ -25,6 +26,7 @@ async def dashboard(
     service: AdminService = Depends(get_admin_service),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
+    service.tenant_id = current_user.tenant_id
     return await service.get_dashboard()
 
 
@@ -36,7 +38,11 @@ async def get_registrations(
     service: AdminService = Depends(get_admin_service),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
-    return await service.get_registrations(status, cursor, limit)
+    service.tenant_id = current_user.tenant_id
+    result = await service.get_registrations(status, cursor, limit)
+    counts = await service.get_registration_counts()
+    result["counts"] = counts
+    return result
 
 
 @router.post("/registrations/{shop_id}/approve")
@@ -68,6 +74,7 @@ async def get_shops(
     service: AdminService = Depends(get_admin_service),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
+    service.tenant_id = current_user.tenant_id
     return await service.get_shops(status, search, cursor, limit)
 
 
@@ -103,6 +110,7 @@ async def get_all_listings(
     service: AdminService = Depends(get_admin_service),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
+    service.tenant_id = current_user.tenant_id
     return await service.get_all_listings(status, category, urgency, shop_id, search, cursor, limit)
 
 
@@ -122,6 +130,7 @@ async def get_reports(
     service: AdminService = Depends(get_admin_service),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
+    service.tenant_id = current_user.tenant_id
     return await service.get_reports(period)
 
 
@@ -138,6 +147,7 @@ async def admin_list_events(
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
+    event_service.tenant_id = _.tenant_id
     result = await event_service.list_all_events(cursor, limit)
     from app.api.v1.events import _serialize_event
     items = [_serialize_event(e) for e in result.items]
@@ -150,6 +160,7 @@ async def admin_create_event(
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
+    event_service.tenant_id = _.tenant_id
     event = await event_service.create_event(data)
     return {"id": str(event.id), "title": event.title}
 
@@ -198,6 +209,7 @@ async def admin_list_connectors(
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
+    event_service.tenant_id = _.tenant_id
     connectors = await event_service.list_connectors()
     return {"items": [_serialize_connector(c) for c in connectors]}
 
@@ -208,6 +220,7 @@ async def admin_create_connector(
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
+    event_service.tenant_id = _.tenant_id
     connector = await event_service.create_connector(data)
     return {"id": str(connector.id), "name": connector.name}
 
@@ -282,13 +295,21 @@ async def admin_list_sponsors(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    result = await db.execute(select(Sponsor).order_by(Sponsor.sort_order, Sponsor.name))
+    query = select(Sponsor).order_by(Sponsor.sort_order, Sponsor.name)
+    if _.tenant_id:
+        query = query.where(Sponsor.tenant_id == _.tenant_id)
+    result = await db.execute(query)
     sponsors = result.scalars().all()
     return {"items": [{
         "id": str(s.id), "name": s.name, "description": s.description,
         "logo_url": s.logo_url, "banner_url": s.banner_url,
         "website_url": s.website_url, "placement": s.placement,
         "is_active": s.is_active, "sort_order": s.sort_order,
+        "paid": s.paid, "approved": s.approved,
+        "contact_name": s.contact_name, "contact_email": s.contact_email,
+        "starts_at": str(s.starts_at) if s.starts_at else None,
+        "expires_at": str(s.expires_at) if s.expires_at else None,
+        "stripe_session_id": s.stripe_session_id,
         "created_at": str(s.created_at),
     } for s in sponsors]}
 
@@ -299,7 +320,7 @@ async def admin_create_sponsor(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    sponsor = Sponsor(id=uuid4(), **data.model_dump())
+    sponsor = Sponsor(id=uuid4(), **data.model_dump(), tenant_id=_.tenant_id)
     db.add(sponsor)
     await db.flush()
     return {"id": str(sponsor.id), "name": sponsor.name}
@@ -366,7 +387,10 @@ async def admin_list_pricing(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    result = await db.execute(select(AdPricing).order_by(AdPricing.sort_order))
+    query = select(AdPricing).order_by(AdPricing.sort_order)
+    if _.tenant_id:
+        query = query.where(AdPricing.tenant_id == _.tenant_id)
+    result = await db.execute(query)
     items = result.scalars().all()
     return {"items": [{
         "id": str(p.id), "name": p.name, "description": p.description,
@@ -382,7 +406,7 @@ async def admin_create_pricing(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    pricing = AdPricing(id=uuid4(), **{k: v for k, v in data.items() if hasattr(AdPricing, k)})
+    pricing = AdPricing(id=uuid4(), tenant_id=_.tenant_id, **{k: v for k, v in data.items() if hasattr(AdPricing, k) and k != 'tenant_id'})
     db.add(pricing)
     await db.flush()
     return {"id": str(pricing.id)}
@@ -421,6 +445,80 @@ async def admin_delete_pricing(
     await db.delete(pricing)
     await db.flush()
     return {"status": "deleted"}
+
+
+# --- Success Story Admin Routes ---
+
+from app.models.success_story import SuccessStory
+
+
+@router.post("/stories/{story_id}/feature")
+async def admin_toggle_story_featured(
+    story_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(SuccessStory).where(SuccessStory.id == story_id))
+    story = result.scalar_one_or_none()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    story.is_featured = not story.is_featured
+    await db.flush()
+    return {"id": str(story.id), "is_featured": story.is_featured}
+
+
+# --- Report Flags Admin Routes ---
+
+from app.models.report import Report
+from app.models.listing import Listing
+
+
+@router.get("/reports/flags")
+async def admin_list_reports(
+    resolved: bool | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    query = select(Report).order_by(Report.created_at.desc()).limit(50)
+    if resolved is not None:
+        query = query.where(Report.resolved == resolved)
+    result = await db.execute(query)
+    reports = result.scalars().all()
+
+    items = []
+    for r in reports:
+        # Get listing title
+        listing_result = await db.execute(select(Listing).where(Listing.id == r.listing_id))
+        listing = listing_result.scalar_one_or_none()
+        # Get reporter name
+        reporter_result = await db.execute(select(User).where(User.id == r.reporter_id))
+        reporter = reporter_result.scalar_one_or_none()
+        items.append({
+            "id": str(r.id),
+            "listing_id": str(r.listing_id),
+            "listing_title": listing.title if listing else "Deleted",
+            "reporter_name": reporter.name if reporter else "Unknown",
+            "reason": r.reason,
+            "details": r.details,
+            "resolved": r.resolved,
+            "created_at": str(r.created_at),
+        })
+    return {"items": items}
+
+
+@router.post("/reports/flags/{report_id}/resolve")
+async def admin_resolve_report(
+    report_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(Permission.require_community_admin()),
+):
+    result = await db.execute(select(Report).where(Report.id == report_id))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report.resolved = True
+    await db.flush()
+    return {"status": "resolved"}
 
 
 # --- Platform Settings Route ---

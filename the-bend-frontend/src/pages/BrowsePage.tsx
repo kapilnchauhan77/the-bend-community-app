@@ -14,7 +14,7 @@ import { SponsorBanner } from '@/components/shared/SponsorBanner';
 
 const categories = [
   { value: '', label: 'All' },
-  { value: 'staff', label: 'Staff' },
+  { value: 'staff', label: 'Gigs' },
   { value: 'materials', label: 'Materials' },
   { value: 'equipment', label: 'Equipment' },
 ];
@@ -72,7 +72,7 @@ export default function BrowsePage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <Input
             className="pl-10"
-            placeholder="Search staff, materials, equipment..."
+            placeholder="Search gigs, materials, equipment..."
             value={search}
             onChange={(e) => updateFilter('search', e.target.value)}
           />

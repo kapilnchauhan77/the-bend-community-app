@@ -11,6 +11,10 @@ export const adminApi = {
   getListings: (params?: Record<string, string>) => api.get('/admin/listings', { params }),
   removeListing: (id: string, reason: string) => api.delete(`/admin/listings/${id}`, { data: { reason } }),
   getReports: (period?: string) => api.get('/admin/reports', { params: { period } }),
+  getReportedPosts: (params?: Record<string, string>) =>
+    api.get('/admin/reports/flags', { params }),
+  resolveReport: (reportId: string) =>
+    api.post(`/admin/reports/flags/${reportId}/resolve`),
   uploadGuidelines: (file: File) => {
     const form = new FormData();
     form.append('file', file);

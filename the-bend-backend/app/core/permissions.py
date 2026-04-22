@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -8,6 +8,7 @@ from app.api.deps import get_db
 from app.core.security import decode_access_token
 from app.core.exceptions import UnauthorizedError, ForbiddenError
 from app.models.user import User
+from app.models.tenant import Tenant
 from app.models.enums import UserRole
 
 
@@ -89,11 +90,11 @@ class Permission:
 
     @staticmethod
     def require_community_admin():
-        """Community admin only."""
+        """Community admin or super admin."""
         async def checker(
             current_user: User = Depends(get_current_user),
         ) -> User:
-            if current_user.role != UserRole.COMMUNITY_ADMIN:
+            if current_user.role not in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN):
                 raise ForbiddenError("Community admin access required")
             return current_user
         return checker
@@ -110,3 +111,19 @@ class Permission:
                 raise ForbiddenError("Shop admin access required")
             return current_user
         return checker
+
+    @staticmethod
+    def require_super_admin():
+        """Super admin only."""
+        async def checker(
+            current_user: User = Depends(get_current_user),
+        ) -> User:
+            if current_user.role != UserRole.SUPER_ADMIN:
+                raise ForbiddenError("Super admin access required")
+            return current_user
+        return checker
+
+
+async def get_current_tenant(request: Request) -> Tenant | None:
+    """Get the current tenant from request state (set by TenantMiddleware)."""
+    return getattr(request.state, "tenant", None)

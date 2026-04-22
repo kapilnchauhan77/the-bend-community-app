@@ -19,7 +19,7 @@ export default function GuidelinesViewPage() {
             <span className="text-white">Community Guidelines</span>
           </div>
           <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">Community Guidelines</h1>
-          <p className="text-sm text-white/85 mt-1">Rules and terms governing The Bend Community Platform</p>
+          <p className="text-sm text-white/85 mt-1">Rules and terms governing the Community Platform</p>
         </div>
       </section>
 
@@ -30,7 +30,7 @@ export default function GuidelinesViewPage() {
         <section className="mb-10">
           <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">1. Purpose & Mission</h2>
           <p className="text-sm text-[hsl(30,10%,35%)] leading-relaxed mb-3">
-            The Bend Community Platform ("the Platform") is operated by ProLine Online Group ("the Operator") and serves as a resource-sharing hub connecting local businesses, volunteers, and talent in the community. Our mission is to reduce waste, strengthen local commerce, and foster neighborly cooperation through the sharing of staff, materials, equipment, and services.
+            The Community Platform ("the Platform") is operated by ProLine Online Group ("the Operator") and serves as a resource-sharing hub connecting local businesses, volunteers, and talent in the community. Our mission is to reduce waste, strengthen local commerce, and foster neighborly cooperation through gig postings, materials, equipment, and services.
           </p>
         </section>
 
@@ -54,7 +54,7 @@ export default function GuidelinesViewPage() {
             <li>Be honest and accurate in all listings — describe condition, quantity, and availability clearly.</li>
             <li>Respond to messages and inquiries promptly. A quick "no longer available" is better than silence.</li>
             <li>Honor commitments. If you agree to share something, follow through.</li>
-            <li>Respect pricing norms. The Bend is about community support, not profiteering.</li>
+            <li>Respect pricing norms. This platform is about community support, not profiteering.</li>
             <li>Treat all community members with respect and professionalism in all communications.</li>
             <li>Not post misleading, fraudulent, or illegal content.</li>
             <li>Not use the platform for spam, solicitation outside of legitimate listings, or harassment.</li>
@@ -65,7 +65,7 @@ export default function GuidelinesViewPage() {
         <section className="mb-10">
           <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">4. Listings & Transactions</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
-            <li>All listings must be for legitimate goods, services, staff sharing, or equipment lending.</li>
+            <li>All listings must be for legitimate goods, services, gig postings, or equipment lending.</li>
             <li>Items listed as "free" must be provided at no cost. Items with a price must be honored at the listed price.</li>
             <li>Expired or fulfilled listings should be updated promptly to avoid confusion.</li>
             <li>The Platform does not facilitate payment between members for listings. All financial arrangements for shared resources are strictly between the participating parties.</li>
@@ -105,7 +105,7 @@ export default function GuidelinesViewPage() {
             <ul className="list-disc list-inside space-y-2 ml-2">
               <li>Any transactions, payments, disputes, or agreements between members or between members and third parties.</li>
               <li>The quality, safety, legality, or accuracy of any listings, services, volunteer offers, talent profiles, or event information posted on the Platform.</li>
-              <li>Any loss, damage, injury, or expense arising from the use of shared resources, equipment, materials, or staff arranged through the Platform.</li>
+              <li>Any loss, damage, injury, or expense arising from the use of shared resources, equipment, materials, or gig arrangements through the Platform.</li>
               <li>Any financial loss resulting from advertising purchases, including but not limited to loss of revenue, business interruption, or failure to achieve expected results.</li>
               <li>Service interruptions, data loss, or technical failures of the Platform.</li>
               <li>Actions of third-party service providers, including but not limited to payment processors (Stripe), hosting providers, and data aggregation services.</li>
@@ -164,7 +164,7 @@ export default function GuidelinesViewPage() {
         {/* Footer note */}
         <div className="border-t border-[hsl(35,18%,84%)] pt-6 mt-10">
           <p className="text-xs text-[hsl(30,10%,55%)] leading-relaxed">
-            &copy; 2026 The Bend Community Platform. Operated by ProLine Online Group. All rights reserved.
+            &copy; 2026 The Community Platform. Operated by ProLine Online Group. All rights reserved.
           </p>
         </div>
       </article>

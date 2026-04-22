@@ -12,7 +12,8 @@ class EventRepository(BaseRepository[Event]):
     def __init__(self, session: AsyncSession):
         super().__init__(Event, session)
 
-    async def browse(self, category=None, status=None, start_after=None, start_before=None, cursor=None, limit=20) -> PaginatedResult:
+    async def browse(self, category=None, status=None, start_after=None, start_before=None, search=None, cursor=None, limit=20, tenant_id=None) -> PaginatedResult:
+        from sqlalchemy import or_
         filters = []
         if category:
             filters.append(Event.category == category)
@@ -24,6 +25,17 @@ class EventRepository(BaseRepository[Event]):
             filters.append(Event.start_date >= start_after)
         if start_before:
             filters.append(Event.start_date <= start_before)
+        if search:
+            search_term = f"%{search}%"
+            filters.append(
+                or_(
+                    Event.title.ilike(search_term),
+                    Event.description.ilike(search_term),
+                    Event.location.ilike(search_term),
+                )
+            )
+        if tenant_id:
+            filters.append(Event.tenant_id == tenant_id)
         return await self.get_all(
             filters=filters,
             order_by=[Event.start_date.asc()],
@@ -31,13 +43,15 @@ class EventRepository(BaseRepository[Event]):
             cursor=cursor,
         )
 
-    async def get_upcoming(self, limit=5):
-        result = await self.session.execute(
+    async def get_upcoming(self, limit=5, tenant_id=None):
+        query = (
             select(Event)
             .where(Event.status == EventStatus.ACTIVE, Event.start_date >= datetime.utcnow())
-            .order_by(Event.start_date.asc())
-            .limit(limit)
         )
+        if tenant_id:
+            query = query.where(Event.tenant_id == tenant_id)
+        query = query.order_by(Event.start_date.asc()).limit(limit)
+        result = await self.session.execute(query)
         return list(result.scalars().all())
 
     async def find_by_source_url(self, source_url: str, connector_id: UUID) -> Event | None:

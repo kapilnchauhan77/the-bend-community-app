@@ -25,4 +25,19 @@ export const listingApi = {
 
   withdrawInterest: (listingId: string) =>
     api.delete(`/interests/${listingId}`),
+
+  saveListing: (listingId: string) =>
+    api.post(`/listings/${listingId}/save`),
+
+  unsaveListing: (listingId: string) =>
+    api.delete(`/listings/${listingId}/save`),
+
+  getSavedListings: () =>
+    api.get('/listings/saved'),
+
+  getStories: (params?: Record<string, string>) =>
+    api.get('/stories', { params }),
+
+  reportListing: (listingId: string, data: { reason: string; details?: string }) =>
+    api.post(`/listings/${listingId}/report`, data),
 };

@@ -7,7 +7,7 @@ class RegisterRequest(BaseModel):
     business_type: str = Field(..., min_length=1)
     owner_name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
-    phone: str = Field(..., min_length=5, max_length=20)
+    phone: str | None = Field(None, max_length=20)
     whatsapp: str | None = None
     password: str = Field(..., min_length=8)
     address: str | None = None

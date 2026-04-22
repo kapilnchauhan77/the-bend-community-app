@@ -6,7 +6,7 @@ export const registerSchema = z
     business_type: z.string().min(1, 'Please select a business type'),
     owner_name: z.string().min(1, 'Name is required').max(100),
     email: z.string().email('Invalid email address'),
-    phone: z.string().min(5, 'Phone number is required').max(20),
+    phone: z.string().max(20).optional().or(z.literal('')),
     whatsapp: z.string().max(20).optional().or(z.literal('')),
     password: z
       .string()

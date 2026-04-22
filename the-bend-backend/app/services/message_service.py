@@ -7,7 +7,9 @@ from app.models.message import Message
 from app.models.user import User
 from app.models.shop import Shop
 from app.models.listing import Listing
+from app.models.enums import NotificationType
 from app.core.exceptions import ForbiddenError
+from app.services.notification_service import NotificationService
 
 
 class MessageService:
@@ -108,7 +110,20 @@ class MessageService:
         if not await self.message_repo.is_participant(thread_id, sender_id):
             raise ForbiddenError("Not a participant of this thread")
         msg = await self.message_repo.create_message(thread_id, sender_id, content)
-        # TODO: Push notification + WebSocket broadcast (Phase 6)
+        try:
+            thread = await self.message_repo.get_thread_by_id(thread_id)
+            if thread:
+                recipient_id = thread.participant_b if thread.participant_a == sender_id else thread.participant_a
+                notification_service = NotificationService(self.db)
+                await notification_service.notify(
+                    user_id=recipient_id,
+                    type=NotificationType.NEW_MESSAGE,
+                    title="New Message",
+                    body=f"You have a new message: '{content[:50]}{'...' if len(content) > 50 else ''}'",
+                    data={"thread_id": str(thread_id)},
+                )
+        except Exception:
+            pass
         return msg
 
     async def get_unread_count(self, user_id: UUID) -> int:

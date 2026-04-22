@@ -7,8 +7,9 @@ from app.core.exceptions import NotFoundError
 
 
 class EventService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, tenant_id=None):
         self.db = db
+        self.tenant_id = tenant_id
         self.event_repo = EventRepository(db)
         self.connector_repo = ConnectorRepository(db)
 
@@ -25,6 +26,7 @@ class EventService:
             "image_url": data.image_url,
             "is_featured": data.is_featured,
             "source": "manual",
+            "tenant_id": self.tenant_id,
         })
 
     async def update_event(self, event_id: UUID, data: EventUpdate):
@@ -46,14 +48,26 @@ class EventService:
             raise NotFoundError("Event")
         return event
 
-    async def browse_events(self, **kwargs):
-        return await self.event_repo.browse(**kwargs)
+    async def browse_events(self, category=None, start_after=None, start_before=None, search=None, cursor=None, limit=50):
+        return await self.event_repo.browse(
+            category=category,
+            start_after=start_after,
+            start_before=start_before,
+            search=search,
+            cursor=cursor,
+            limit=limit,
+            tenant_id=self.tenant_id,
+        )
 
     async def get_upcoming(self, limit=5):
-        return await self.event_repo.get_upcoming(limit)
+        return await self.event_repo.get_upcoming(limit, tenant_id=self.tenant_id)
 
     async def list_all_events(self, cursor=None, limit=20):
-        return await self.event_repo.get_all(limit=limit, cursor=cursor)
+        from app.models.event import Event
+        filters = []
+        if self.tenant_id:
+            filters.append(Event.tenant_id == self.tenant_id)
+        return await self.event_repo.get_all(filters=filters, limit=limit, cursor=cursor)
 
     # Connectors
     async def create_connector(self, data: ConnectorCreate):
@@ -65,6 +79,7 @@ class EventService:
             "category": data.category,
             "is_active": data.is_active,
             "config": data.config,
+            "tenant_id": self.tenant_id,
         })
 
     async def update_connector(self, connector_id: UUID, data: ConnectorUpdate):
@@ -81,7 +96,11 @@ class EventService:
         return await self.connector_repo.delete(connector_id)
 
     async def list_connectors(self):
-        result = await self.connector_repo.get_all(limit=100)
+        from app.models.event import EventConnector
+        filters = []
+        if self.tenant_id:
+            filters.append(EventConnector.tenant_id == self.tenant_id)
+        result = await self.connector_repo.get_all(filters=filters, limit=100)
         return result.items
 
     async def get_connector(self, connector_id: UUID):

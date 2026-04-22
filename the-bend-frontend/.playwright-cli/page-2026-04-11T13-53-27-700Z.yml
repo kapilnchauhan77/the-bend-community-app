@@ -1,0 +1,733 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "B THE BEND Community" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e9]: B
+        - generic [ref=e10]:
+          - generic [ref=e11]: THE BEND
+          - text: Community
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e14] [cursor=pointer]:
+          - /url: /browse
+        - link "Events" [ref=e15] [cursor=pointer]:
+          - /url: /events
+        - button "Community" [ref=e17] [cursor=pointer]:
+          - text: Community
+          - img [ref=e18]
+      - generic [ref=e20]:
+        - button "Toggle dark mode" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+        - generic [ref=e28]:
+          - button "Log In" [ref=e29] [cursor=pointer]
+          - button "Register" [ref=e30] [cursor=pointer]
+  - main [ref=e31]:
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - button "Go home" [ref=e35] [cursor=pointer]:
+          - img [ref=e36]
+        - generic [ref=e38]: Home
+        - generic [ref=e39]: /
+        - generic [ref=e40]: Events
+      - heading "Community Events" [level=1] [ref=e41]
+      - paragraph [ref=e42]: Discover what's happening in The Bend
+    - generic [ref=e45]:
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - button "List" [active] [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+            - text: List
+          - button "Calendar" [ref=e50] [cursor=pointer]:
+            - img [ref=e51]
+            - text: Calendar
+        - button "Newest" [ref=e312] [cursor=pointer]:
+          - img [ref=e313]
+          - text: Newest
+      - generic [ref=e53]:
+        - img [ref=e54]
+        - textbox "Search events..." [ref=e57]
+      - generic [ref=e58]:
+        - button "All" [ref=e59] [cursor=pointer]
+        - button "Community" [ref=e60] [cursor=pointer]
+        - button "Music" [ref=e61] [cursor=pointer]
+        - button "Art" [ref=e62] [cursor=pointer]
+        - button "Food" [ref=e63] [cursor=pointer]
+        - button "Market" [ref=e64] [cursor=pointer]
+        - button "Historic" [ref=e65] [cursor=pointer]
+        - button "Outdoor" [ref=e66] [cursor=pointer]
+        - button "Education" [ref=e67] [cursor=pointer]
+    - generic [ref=e316]:
+      - generic [ref=e318]:
+        - generic [ref=e319]:
+          - generic [ref=e320]: Food
+          - img [ref=e321]
+        - heading "Northern Neck Wine Trail Weekend" [level=3] [ref=e323]
+        - paragraph [ref=e324]: Sun, Apr 26 · 11:00 AM – 5:00 PM
+        - generic [ref=e325]:
+          - img [ref=e326]
+          - generic [ref=e329]: Northern Neck Wine Trail
+        - paragraph [ref=e330]: Visit five local wineries with a single passport ticket. Live music at each stop.
+        - generic [ref=e331]:
+          - generic [ref=e332]: manual
+          - button "Share" [ref=e335] [cursor=pointer]:
+            - img [ref=e336]
+            - text: Share
+      - generic [ref=e343]:
+        - generic [ref=e344]:
+          - generic [ref=e345]: Food
+          - img [ref=e346]
+        - heading "Spring BBQ Cook-Off" [level=3] [ref=e348]
+        - paragraph [ref=e349]: Sat, Apr 25 · 11:00 AM – 4:00 PM
+        - generic [ref=e350]:
+          - img [ref=e351]
+          - generic [ref=e354]: Montross Town Park
+        - paragraph [ref=e355]: Amateur and pro pitmasters compete for the golden rib trophy. Tasting tickets available at the gate.
+        - generic [ref=e356]:
+          - generic [ref=e357]: manual
+          - button "Share" [ref=e360] [cursor=pointer]:
+            - img [ref=e361]
+            - text: Share
+      - generic [ref=e368]:
+        - generic [ref=e370]: Historic
+        - heading "Menokin Foundation Ruins Tour" [level=3] [ref=e371]
+        - paragraph [ref=e372]: Wed, Apr 22 · 10:00 AM – 2:00 PM
+        - generic [ref=e373]:
+          - img [ref=e374]
+          - generic [ref=e377]: Menokin Foundation
+        - paragraph [ref=e378]: Explore the 18th-century ruins of Menokin and learn about the innovative glass preservation project.
+        - generic [ref=e379]:
+          - generic [ref=e380]: manual
+          - button "Share" [ref=e383] [cursor=pointer]:
+            - img [ref=e384]
+            - text: Share
+      - generic [ref=e391]:
+        - generic [ref=e393]: Historic
+        - heading "Stratford Hall Plantation Tour" [level=3] [ref=e394]
+        - paragraph [ref=e395]: Mon, Apr 20 · 10:00 AM – 3:00 PM
+        - generic [ref=e396]:
+          - img [ref=e397]
+          - generic [ref=e400]: Stratford Hall
+        - paragraph [ref=e401]: Guided tours of the birthplace of Robert E. Lee. Special spring garden exhibit included.
+        - generic [ref=e402]:
+          - generic [ref=e403]: manual
+          - button "Share" [ref=e406] [cursor=pointer]:
+            - img [ref=e407]
+            - text: Share
+      - generic [ref=e414]:
+        - generic [ref=e416]: Art
+        - heading "Community Art Walk" [level=3] [ref=e417]
+        - paragraph [ref=e418]: Sun, Apr 19 · 2:00 PM – 5:00 PM
+        - generic [ref=e419]:
+          - img [ref=e420]
+          - generic [ref=e423]: Downtown Montross
+        - paragraph [ref=e424]: Local artists open their studios for a self-guided walking tour through downtown Montross.
+        - generic [ref=e425]:
+          - generic [ref=e426]: manual
+          - button "Share" [ref=e429] [cursor=pointer]:
+            - img [ref=e430]
+            - text: Share
+      - generic [ref=e437]:
+        - generic [ref=e438]:
+          - generic [ref=e439]: Historic
+          - img [ref=e440]
+        - heading "Westmoreland Heritage Festival" [level=3] [ref=e442]
+        - paragraph [ref=e443]: Sat, Apr 18 · 10:00 AM – 6:00 PM
+        - generic [ref=e444]:
+          - img [ref=e445]
+          - generic [ref=e448]: Montross Town Green
+        - paragraph [ref=e449]: Celebrate the rich history of Westmoreland County with live music, historical reenactments, and local food vendors.
+        - generic [ref=e450]:
+          - generic [ref=e451]: manual
+          - button "Share" [ref=e454] [cursor=pointer]:
+            - img [ref=e455]
+            - text: Share
+      - generic [ref=e462]:
+        - generic [ref=e464]: Music
+        - heading "Acoustic Night at Callao Brewing" [level=3] [ref=e465]
+        - paragraph [ref=e466]: Fri, Apr 17 · 6:00 PM – 9:00 PM
+        - generic [ref=e467]:
+          - img [ref=e468]
+          - generic [ref=e471]: Callao Brewing Company
+        - paragraph [ref=e472]: Local singer-songwriters perform in an intimate taproom setting. No cover charge.
+        - generic [ref=e473]:
+          - generic [ref=e474]: manual
+          - button "Share" [ref=e477] [cursor=pointer]:
+            - img [ref=e478]
+            - text: Share
+      - generic [ref=e485]:
+        - generic [ref=e487]: Education
+        - heading "Youth STEM Workshop" [level=3] [ref=e488]
+        - paragraph [ref=e489]: Wed, Apr 15 · 9:00 AM – 12:00 PM
+        - generic [ref=e490]:
+          - img [ref=e491]
+          - generic [ref=e494]: Rappahannock Community College
+        - paragraph [ref=e495]: Hands-on science and robotics workshop for kids ages 8-14. Limited spots — register early.
+        - generic [ref=e496]:
+          - generic [ref=e497]: manual
+          - button "Share" [ref=e500] [cursor=pointer]:
+            - img [ref=e501]
+            - text: Share
+      - generic [ref=e508]:
+        - generic [ref=e510]: Community
+        - heading "Montross Library Book Sale" [level=3] [ref=e511]
+        - paragraph [ref=e512]: Mon, Apr 13 · 9:00 AM – 3:00 PM
+        - generic [ref=e513]:
+          - img [ref=e514]
+          - generic [ref=e517]: Central Rappahannock Regional Library
+        - paragraph [ref=e518]: Annual spring book sale — thousands of gently used books, DVDs, and audiobooks at bargain prices.
+        - generic [ref=e519]:
+          - generic [ref=e520]: manual
+          - button "Share" [ref=e523] [cursor=pointer]:
+            - img [ref=e524]
+            - text: Share
+      - generic [ref=e531]:
+        - generic [ref=e533]: Music
+        - heading "Live Jazz at the Inn" [level=3] [ref=e534]
+        - paragraph [ref=e535]: Sun, Apr 12 · 7:00 PM – 10:00 PM
+        - generic [ref=e536]:
+          - img [ref=e537]
+          - generic [ref=e540]: Inn at Montross
+        - paragraph [ref=e541]: Enjoy an evening of smooth jazz with the Northern Neck Jazz Quartet. Light refreshments served.
+        - generic [ref=e542]:
+          - generic [ref=e543]: manual
+          - button "Share" [ref=e546] [cursor=pointer]:
+            - img [ref=e547]
+            - text: Share
+      - generic [ref=e554]:
+        - generic [ref=e556]: Outdoor
+        - heading "Outdoor Yoga in the Park" [level=3] [ref=e557]
+        - paragraph [ref=e558]: Sun, Apr 12 · 8:00 AM – 9:30 AM
+        - generic [ref=e559]:
+          - img [ref=e560]
+          - generic [ref=e563]: Montross Town Park
+        - paragraph [ref=e564]: Start your weekend with a free community yoga session. All levels welcome. Bring your own mat.
+        - generic [ref=e565]:
+          - generic [ref=e566]: manual
+          - button "Share" [ref=e569] [cursor=pointer]:
+            - img [ref=e570]
+            - text: Share
+      - generic [ref=e577]:
+        - generic [ref=e578]:
+          - generic [ref=e579]: Market
+          - img [ref=e580]
+        - heading "Montross Farmers Market" [level=3] [ref=e582]
+        - paragraph [ref=e583]: Sat, Apr 11 · 8:00 AM – 12:00 PM
+        - generic [ref=e584]:
+          - img [ref=e585]
+          - generic [ref=e588]: Courthouse Square, Montross
+        - paragraph [ref=e589]: Fresh produce, baked goods, and local crafts every Saturday morning on the courthouse square.
+        - generic [ref=e590]:
+          - generic [ref=e591]: manual
+          - button "Share" [ref=e594] [cursor=pointer]:
+            - img [ref=e595]
+            - text: Share
+      - generic [ref=e602]:
+        - generic [ref=e604]: Community
+        - heading "Porter’s on Main’s Smoked Old Fashioned" [level=3] [ref=e605]
+        - paragraph [ref=e606]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e607]: DIRECTIONS
+        - generic [ref=e608]:
+          - generic [ref=e609]: Local Scoop Magazine
+          - generic [ref=e610]:
+            - button "Share" [ref=e612] [cursor=pointer]:
+              - img [ref=e613]
+              - text: Share
+            - link "Details →" [ref=e619] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/eat-stay-play/smoked-old-fashioned/
+      - generic [ref=e621]:
+        - generic [ref=e623]: Community
+        - 'heading "Spotlight on Irvington: Step Into Village Life" [level=3] [ref=e624]'
+        - paragraph [ref=e625]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e626]: Brought to you by the Irvington Virginia Business Association, serving Irvington and the local Lancaster County community.
+        - generic [ref=e627]:
+          - generic [ref=e628]: Local Scoop Magazine
+          - generic [ref=e629]:
+            - button "Share" [ref=e631] [cursor=pointer]:
+              - img [ref=e632]
+              - text: Share
+            - link "Details →" [ref=e638] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/spring-2026-spotlight-on-irvington/
+      - generic [ref=e640]:
+        - generic [ref=e642]: Community
+        - 'heading "Insta Trends: Spring 2026" [level=3] [ref=e643]'
+        - paragraph [ref=e644]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e645]: What’s new, now and trending in the Northern Neck, Middle Peninsula and Greater Williamsburg.
+        - generic [ref=e646]:
+          - generic [ref=e647]: Local Scoop Magazine
+          - generic [ref=e648]:
+            - button "Share" [ref=e650] [cursor=pointer]:
+              - img [ref=e651]
+              - text: Share
+            - link "Details →" [ref=e657] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/shop-style/instatrends/insta-trends-spring-2026/
+      - generic [ref=e659]:
+        - generic [ref=e661]: Community
+        - 'heading "Surround Yourself with Edibles: The Homestead Movement" [level=3] [ref=e662]'
+        - paragraph [ref=e663]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e664]: Homesteading is the intentional practice of living more self-sufficiently by growing food, raising animals, reducing waste, generating energy, and learning skills that promote sustainability.
+        - generic [ref=e665]:
+          - generic [ref=e666]: Local Scoop Magazine
+          - generic [ref=e667]:
+            - button "Share" [ref=e669] [cursor=pointer]:
+              - img [ref=e670]
+              - text: Share
+            - link "Details →" [ref=e676] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/arts-culture/surround-yourself-with-edibles/
+      - generic [ref=e678]:
+        - generic [ref=e680]: Community
+        - heading "We’re Off to the Farmers Market" [level=3] [ref=e681]
+        - paragraph [ref=e682]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e683]: Our local farmer's markets are brimming with local produce, work by local artisans, locally raised eggs and meat, baked goods, canned goods, plants and so much more.
+        - generic [ref=e684]:
+          - generic [ref=e685]: Local Scoop Magazine
+          - generic [ref=e686]:
+            - button "Share" [ref=e688] [cursor=pointer]:
+              - img [ref=e689]
+              - text: Share
+            - link "Details →" [ref=e695] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/shop-style/we%E2%80%99re-off-to-the-farmers-market/
+      - generic [ref=e697]:
+        - generic [ref=e699]: Community
+        - 'heading "Good Vibes: Local Spring Festivals & Celebrations" [level=3] [ref=e700]'
+        - paragraph [ref=e701]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e702]: "Garden lovers, history buffs and parade-goers take note: the Bloom & Grow Festival, Colonial Williamsburg’s milestone year and the Gloucester Daffodil Festival are leading the season."
+        - generic [ref=e703]:
+          - generic [ref=e704]: Local Scoop Magazine
+          - generic [ref=e705]:
+            - button "Share" [ref=e707] [cursor=pointer]:
+              - img [ref=e708]
+              - text: Share
+            - link "Details →" [ref=e714] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/arts-culture/good-vibes-spring-2026/
+      - generic [ref=e716]:
+        - generic [ref=e718]: Community
+        - 'heading "Legacy in Every Lawn: Inside Organic Green’s Commitment to Clients and the Chesapeake Bay" [level=3] [ref=e719]'
+        - paragraph [ref=e720]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e721]: Inside Organic Green's commitment to clients and the Chesapeake Bay-their goal is to create a lawn for each individual customer based solely on their needs.
+        - generic [ref=e722]:
+          - generic [ref=e723]: Local Scoop Magazine
+          - generic [ref=e724]:
+            - button "Share" [ref=e726] [cursor=pointer]:
+              - img [ref=e727]
+              - text: Share
+            - link "Details →" [ref=e733] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/shop-style/legacy-in-every-lawn/
+      - generic [ref=e735]:
+        - generic [ref=e737]: Community
+        - heading "Sweethaven Lavender Blooms with New Experiences in Williamsburg" [level=3] [ref=e738]
+        - paragraph [ref=e739]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e740]: Daughter/Mother duo Hannah and Kerry Messer created Sweethaven to be a place they would want to frequent for family days or date nights.
+        - generic [ref=e741]:
+          - generic [ref=e742]: Local Scoop Magazine
+          - generic [ref=e743]:
+            - button "Share" [ref=e745] [cursor=pointer]:
+              - img [ref=e746]
+              - text: Share
+            - link "Details →" [ref=e752] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/sweethaven-lavender-blooms-with-new-experiences/
+      - generic [ref=e754]:
+        - generic [ref=e756]: Community
+        - heading "Lavender Fields, Historic Roots" [level=3] [ref=e757]
+        - paragraph [ref=e758]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e759]: The Nolls settled on the Clifton property in December 2024 and havespent their time since establishing Two Bees Lavender at Historic Clifton, tucked away in Kilmarnock.
+        - generic [ref=e760]:
+          - generic [ref=e761]: Local Scoop Magazine
+          - generic [ref=e762]:
+            - button "Share" [ref=e764] [cursor=pointer]:
+              - img [ref=e765]
+              - text: Share
+            - link "Details →" [ref=e771] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/lavender-fields-historic-roots/
+      - generic [ref=e773]:
+        - generic [ref=e775]: Community
+        - heading "Porter’s on Main's Chicken Carciofi" [level=3] [ref=e776]
+        - paragraph [ref=e777]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e778]: Chicken Carciofi is a classic Italian-American dish featuring pan-seared chicken cutlets, tender artichoke hearts, and a zesty white wine and lemon sauce. It’s a light yet savory meal, elevated with ingredients like capers, garlic and herbs.
+        - generic [ref=e779]:
+          - generic [ref=e780]: Local Scoop Magazine
+          - generic [ref=e781]:
+            - button "Share" [ref=e783] [cursor=pointer]:
+              - img [ref=e784]
+              - text: Share
+            - link "Details →" [ref=e790] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/eat-stay-play/chicken-carciofi/
+      - generic [ref=e792]:
+        - generic [ref=e794]: Community
+        - heading "Real Estate & More in the Northern Neck and Middle Peninsula" [level=3] [ref=e795]
+        - paragraph [ref=e796]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e797]: Find your first home, a getaway, an investment property, or the perfect building site.
+        - generic [ref=e798]:
+          - generic [ref=e799]: Local Scoop Magazine
+          - generic [ref=e800]:
+            - button "Share" [ref=e802] [cursor=pointer]:
+              - img [ref=e803]
+              - text: Share
+            - link "Details →" [ref=e809] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/real-estate/real-estate-and-more-spring-2026/
+      - generic [ref=e811]:
+        - generic [ref=e813]: Community
+        - 'heading "Restaurateur With a Mission: Gary Ward’s Culinary Journey Fuels Gloucester" [level=3] [ref=e814]'
+        - paragraph [ref=e815]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e816]: What's a restaurateur to do when a 1920s building that had housed an upscale restaurant in Gloucester becomes available? For someone like Gary Ward, you create a new dining opportunity, Porter's on Main.
+        - generic [ref=e817]:
+          - generic [ref=e818]: Local Scoop Magazine
+          - generic [ref=e819]:
+            - button "Share" [ref=e821] [cursor=pointer]:
+              - img [ref=e822]
+              - text: Share
+            - link "Details →" [ref=e828] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/eat-stay-play/restaurateur-with-a-mission/
+      - generic [ref=e830]:
+        - generic [ref=e832]: Community
+        - 'heading "Cooking Up Connections: The Inspiring Rise of Urbanna’s Montague Kitchen and Cookery School" [level=3] [ref=e833]'
+        - paragraph [ref=e834]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e835]: What aspiring cook wouldn't want to learn from a pro how to make handmade tamales and street tacos or seafood paella?
+        - generic [ref=e836]:
+          - generic [ref=e837]: Local Scoop Magazine
+          - generic [ref=e838]:
+            - button "Share" [ref=e840] [cursor=pointer]:
+              - img [ref=e841]
+              - text: Share
+            - link "Details →" [ref=e847] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/eat-stay-play/cooking-up-connections/
+      - generic [ref=e849]:
+        - generic [ref=e851]: Community
+        - 'heading "Long Road to Inclusion: Northern Neck Mom Builds Community for Neurodivergent Kids" [level=3] [ref=e852]'
+        - paragraph [ref=e853]: Wed, Mar 18 · 11:40 AM
+        - paragraph [ref=e854]: Autistic kids may not be comfortable on the soccer field or in some other "mainstream" activities, but they're not "sick." Sara Cockrell's goal is to help kids and their families feel less isolated-and more understood.
+        - generic [ref=e855]:
+          - generic [ref=e856]: Local Scoop Magazine
+          - generic [ref=e857]:
+            - button "Share" [ref=e859] [cursor=pointer]:
+              - img [ref=e860]
+              - text: Share
+            - link "Details →" [ref=e866] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/long-road-to-inclusion/
+      - generic [ref=e868]:
+        - generic [ref=e870]: Community
+        - 'heading "Family Day: Tales of the Dragon Dance & Art" [level=3] [ref=e871]'
+        - paragraph [ref=e872]: Thu, Mar 5 · 6:21 PM
+        - paragraph [ref=e873]: Family Day is Saturday, March 7, 2026 at the Jamestowne Settlement.
+        - generic [ref=e874]:
+          - generic [ref=e875]: Local Scoop Magazine
+          - generic [ref=e876]:
+            - button "Share" [ref=e878] [cursor=pointer]:
+              - img [ref=e879]
+              - text: Share
+            - link "Details →" [ref=e885] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/family-day-tales-of-the-dragon-dance-art/
+      - generic [ref=e887]:
+        - generic [ref=e889]: Community
+        - 'heading "Outlander: Costumes Woven in Time" [level=3] [ref=e890]'
+        - paragraph [ref=e891]: Thu, Mar 5 · 5:37 PM
+        - paragraph [ref=e892]: Go behind the scenes at the American Revolution Museum at Yorktown for a look at captivating costumes from the hit television series “Outlander.”
+        - generic [ref=e893]:
+          - generic [ref=e894]: Local Scoop Magazine
+          - generic [ref=e895]:
+            - button "Share" [ref=e897] [cursor=pointer]:
+              - img [ref=e898]
+              - text: Share
+            - link "Details →" [ref=e904] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/outlander-costumes-woven-in-time/
+      - generic [ref=e906]:
+        - generic [ref=e908]: Community
+        - 'heading "Making History: New Colonial Williamsburg Exhibition Celebrates 100th Anniversary of the World’s Largest U.S. History Museum" [level=3] [ref=e909]'
+        - paragraph [ref=e910]: Thu, Mar 5 · 5:05 PM
+        - paragraph [ref=e911]: "A new exhibition at the Art Museums of Colonial Williamsburg, entitled Colonial Williamsburg: The First 100 Years, explores the origins, evolution and impact of this unique organization that today operates the world’s largest U.S. history museum."
+        - generic [ref=e912]:
+          - generic [ref=e913]: Local Scoop Magazine
+          - generic [ref=e914]:
+            - button "Share" [ref=e916] [cursor=pointer]:
+              - img [ref=e917]
+              - text: Share
+            - link "Details →" [ref=e923] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/making-history-new-colonial-williamsburg-exhibition-celebrat/
+      - generic [ref=e925]:
+        - generic [ref=e927]: Community
+        - heading "Transformative Technology to Be Unveiled at Battle of Hampton Roads Commemoration Day" [level=3] [ref=e928]
+        - paragraph [ref=e929]: Thu, Mar 5 · 4:41 PM
+        - paragraph [ref=e930]: Groundbreaking underwater imaging captures USS Monitor with unprecedented clarity.
+        - generic [ref=e931]:
+          - generic [ref=e932]: Local Scoop Magazine
+          - generic [ref=e933]:
+            - button "Share" [ref=e935] [cursor=pointer]:
+              - img [ref=e936]
+              - text: Share
+            - link "Details →" [ref=e942] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/transformative-technology-to-be-unveiled-at-battle-of-hampto/
+      - generic [ref=e944]:
+        - generic [ref=e946]: Community
+        - heading "Consociate Media Presents “Working Waterfronts” Photography Exhibition at York & Main" [level=3] [ref=e947]
+        - paragraph [ref=e948]: Thu, Mar 5 · 12:47 PM
+        - paragraph [ref=e949]: An intimate look at the people and places shaped by Virginia’s working waters arrives in Gloucester this March.
+        - generic [ref=e950]:
+          - generic [ref=e951]: Local Scoop Magazine
+          - generic [ref=e952]:
+            - button "Share" [ref=e954] [cursor=pointer]:
+              - img [ref=e955]
+              - text: Share
+            - link "Details →" [ref=e961] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/consociate-media-presents-%E2%80%9Cworking-waterfronts%E2%80%9D-photography-/
+      - generic [ref=e963]:
+        - generic [ref=e965]: Community
+        - heading "Intrepid Scythian Band Returns to its Roots Feb. 28" [level=3] [ref=e966]
+        - paragraph [ref=e967]: Mon, Feb 9 · 7:56 PM
+        - paragraph [ref=e968]: An exuberant evening of music will fill the Lancaster Elementary School Theater with vibrant Celtic, Eastern European, and Appalachian sounds. Hosted by RFA, the show promises joyful musical storytelling, lively rhythms, and festival-style fun.
+        - generic [ref=e969]:
+          - generic [ref=e970]: Local Scoop Magazine
+          - generic [ref=e971]:
+            - button "Share" [ref=e973] [cursor=pointer]:
+              - img [ref=e974]
+              - text: Share
+            - link "Details →" [ref=e980] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/intrepid-scythian-band-returns-to-its-roots-feb-28/
+      - generic [ref=e982]:
+        - generic [ref=e984]: Community
+        - heading "Yorktown Habitat ReStore Launches Clothing Department to Strengthen Funding for Affordable Housing" [level=3] [ref=e985]
+        - paragraph [ref=e986]: Sat, Jan 31 · 3:21 AM
+        - paragraph [ref=e987]: The new department is accepting gently used clothing donations. Donated items should be clean, in good condition, and free of stains, tears or heavy wear. Donors are encouraged to bring clothing bagged or boxed for easy drop-off.
+        - generic [ref=e988]:
+          - generic [ref=e989]: Local Scoop Magazine
+          - generic [ref=e990]:
+            - button "Share" [ref=e992] [cursor=pointer]:
+              - img [ref=e993]
+              - text: Share
+            - link "Details →" [ref=e999] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/yorktown-habitat-restore-launches-clothing-department/
+      - generic [ref=e1001]:
+        - generic [ref=e1003]: Community
+        - heading "A New Season Blooms for the Bulb Shoppe and Gardens at Brent & Becky’s" [level=3] [ref=e1004]
+        - paragraph [ref=e1005]: Thu, Jan 8 · 7:46 PM
+        - paragraph [ref=e1006]: The 2026 calendar includes Pilates classes, gardening workshops, club meetings, educational talks, and seasonal vendor markets throughout the year.
+        - generic [ref=e1007]:
+          - generic [ref=e1008]: Local Scoop Magazine
+          - generic [ref=e1009]:
+            - button "Share" [ref=e1011] [cursor=pointer]:
+              - img [ref=e1012]
+              - text: Share
+            - link "Details →" [ref=e1018] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/a-new-season-blooms-at-the-bulb-shoppe-and-gardens/
+      - generic [ref=e1020]:
+        - generic [ref=e1022]: Community
+        - heading "Steamboat Era Museum Names Lanier Executive Director" [level=3] [ref=e1023]
+        - paragraph [ref=e1024]: Thu, Jan 8 · 7:16 PM
+        - paragraph [ref=e1025]: New leadership brings a focus on youth education, community outreach, and expanded public programming in 2026.
+        - generic [ref=e1026]:
+          - generic [ref=e1027]: Local Scoop Magazine
+          - generic [ref=e1028]:
+            - button "Share" [ref=e1030] [cursor=pointer]:
+              - img [ref=e1031]
+              - text: Share
+            - link "Details →" [ref=e1037] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/steamboat-era-museum-names-lanier-executive-director/
+      - generic [ref=e1039]:
+        - generic [ref=e1041]: Community
+        - 'heading "JYF Museums History Uncovered: January 2026" [level=3] [ref=e1042]'
+        - paragraph [ref=e1043]: Thu, Jan 8 · 7:01 PM
+        - paragraph [ref=e1044]: Start the new year with unforgettable experiences and one-of-a-kind events at Jamestown Settlement & American Revolution Museum at Yorktown.
+        - generic [ref=e1045]:
+          - generic [ref=e1046]: Local Scoop Magazine
+          - generic [ref=e1047]:
+            - button "Share" [ref=e1049] [cursor=pointer]:
+              - img [ref=e1050]
+              - text: Share
+            - link "Details →" [ref=e1056] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/jyf-museums-history-uncovered-january-2026/
+      - generic [ref=e1058]:
+        - generic [ref=e1060]: Community
+        - 'heading "One Daring Dog – A #1 Bestseller" [level=3] [ref=e1061]'
+        - paragraph [ref=e1062]: Sun, Jan 4 · 5:46 PM
+        - paragraph [ref=e1063]: Bright, joyful, and full of heart, this children’s picture book celebrates a spirited dog whose love of adventure shines at every age. Filled with real-life journeys and vibrant photography, it reminds us that love, joy, and wonder never fade.
+        - generic [ref=e1064]:
+          - generic [ref=e1065]: Local Scoop Magazine
+          - generic [ref=e1066]:
+            - button "Share" [ref=e1068] [cursor=pointer]:
+              - img [ref=e1069]
+              - text: Share
+            - link "Details →" [ref=e1075] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/one-daring-dog-a-%231-bestseller/
+      - generic [ref=e1077]:
+        - generic [ref=e1079]: Community
+        - heading "Arts on Main Announces $350,000 Challenge Gift" [level=3] [ref=e1080]
+        - paragraph [ref=e1081]: Thu, Dec 4 · 6:37 PM
+        - paragraph [ref=e1082]: The Robins’ Challenge encourages early investment in a series of capital improvements that will expand space, increase accessibility, and strengthen Arts on Main’s role in the region’s cultural and economic vitality.
+        - generic [ref=e1083]:
+          - generic [ref=e1084]: Local Scoop Magazine
+          - generic [ref=e1085]:
+            - button "Share" [ref=e1087] [cursor=pointer]:
+              - img [ref=e1088]
+              - text: Share
+            - link "Details →" [ref=e1094] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/arts-on-main-announces-challenge-gift/
+      - generic [ref=e1096]:
+        - generic [ref=e1098]: Community
+        - heading "Kings Return Quartet Presents Glorious Harmonies on December 13" [level=3] [ref=e1099]
+        - paragraph [ref=e1100]: Thu, Dec 4 · 6:24 PM
+        - paragraph [ref=e1101]: Hosted by RFA, their brand of R&B is entwined with free moments of jazz, soulful bursts of gospel, and bright touches of pop—all built on a solid, classical foundation.
+        - generic [ref=e1102]:
+          - generic [ref=e1103]: Local Scoop Magazine
+          - generic [ref=e1104]:
+            - button "Share" [ref=e1106] [cursor=pointer]:
+              - img [ref=e1107]
+              - text: Share
+            - link "Details →" [ref=e1113] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/kings-return-quartet-presents-glorious-harmonies-december-13/
+      - generic [ref=e1115]:
+        - generic [ref=e1117]: Community
+        - 'heading "JYF Museums History Uncovered: December 2025" [level=3] [ref=e1118]'
+        - paragraph [ref=e1119]: Thu, Dec 4 · 5:39 PM
+        - paragraph [ref=e1120]: Discover new exhibits featuring unearthed artifacts, art reflecting the American Revolution, and upcoming holiday programs.
+        - generic [ref=e1121]:
+          - generic [ref=e1122]: Local Scoop Magazine
+          - generic [ref=e1123]:
+            - button "Share" [ref=e1125] [cursor=pointer]:
+              - img [ref=e1126]
+              - text: Share
+            - link "Details →" [ref=e1132] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/jyf-museums-history-uncovered-december-2025/
+      - generic [ref=e1134]:
+        - generic [ref=e1136]: Community
+        - heading "P is for Pea Crab! New Chesapeake ABC Book Celebrates Bay Life" [level=3] [ref=e1137]
+        - paragraph [ref=e1138]: Thu, Dec 4 · 4:55 PM
+        - paragraph [ref=e1139]: A charming new children’s book—created by two local educators—reveals the quirky world of oystering on the Chesapeake Bay, including why finding a pea crab in your oyster is considered good luck.
+        - generic [ref=e1140]:
+          - generic [ref=e1141]: Local Scoop Magazine
+          - generic [ref=e1142]:
+            - button "Share" [ref=e1144] [cursor=pointer]:
+              - img [ref=e1145]
+              - text: Share
+            - link "Details →" [ref=e1151] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/p-is-for-pea-crab/
+      - generic [ref=e1153]:
+        - generic [ref=e1155]: Community
+        - heading "Grand Illumination Fireworks First Three Saturdays in December" [level=3] [ref=e1156]
+        - paragraph [ref=e1157]: Wed, Nov 26 · 5:53 PM
+        - paragraph [ref=e1158]: Additional holiday programming is happening all throughout the week.
+        - generic [ref=e1159]:
+          - generic [ref=e1160]: Local Scoop Magazine
+          - generic [ref=e1161]:
+            - button "Share" [ref=e1163] [cursor=pointer]:
+              - img [ref=e1164]
+              - text: Share
+            - link "Details →" [ref=e1170] [cursor=pointer]:
+              - /url: https://www.localscoopmagazine.com/community/commonground-blog/grand-illumination-fireworks-first-three-saturdays-in-december/
+    - generic [ref=e205]:
+      - paragraph [ref=e206]: Community Partners
+      - generic [ref=e208]:
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e209] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - img "Inn at Montross" [ref=e211]
+          - paragraph [ref=e212]: Inn at Montross
+          - paragraph [ref=e213]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e214]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e215] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e217]
+          - paragraph [ref=e218]: ProLine Group
+          - paragraph [ref=e219]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e220]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e221] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e223]
+          - paragraph [ref=e224]: Provoke
+          - paragraph [ref=e225]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e226]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e227] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e229]
+          - paragraph [ref=e230]: Westmoreland County Museum
+          - paragraph [ref=e231]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e232]: Community Partner
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e233] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - img "Inn at Montross" [ref=e235]
+          - paragraph [ref=e236]: Inn at Montross
+          - paragraph [ref=e237]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e238]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e239] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e241]
+          - paragraph [ref=e242]: ProLine Group
+          - paragraph [ref=e243]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e244]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e245] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e247]
+          - paragraph [ref=e248]: Provoke
+          - paragraph [ref=e249]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e250]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e251] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e253]
+          - paragraph [ref=e254]: Westmoreland County Museum
+          - paragraph [ref=e255]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e256]: Community Partner
+  - generic [ref=e258]:
+    - paragraph [ref=e259]: Proud Community Partners
+    - generic [ref=e260]:
+      - link "Inn at Montross" [ref=e261] [cursor=pointer]:
+        - /url: https://www.montrossinn.com
+        - img "Inn at Montross" [ref=e262]
+      - link "ProLine Group" [ref=e263] [cursor=pointer]:
+        - /url: https://www.proline-online.com
+        - img "ProLine Group" [ref=e264]
+      - link "Provoke" [ref=e265] [cursor=pointer]:
+        - /url: https://provoke.space
+        - img "Provoke" [ref=e266]
+      - link "Westmoreland County Museum" [ref=e267] [cursor=pointer]:
+        - /url: https://www.westmorelandcountymuseum.org/
+        - img "Westmoreland County Museum" [ref=e268]
+  - contentinfo [ref=e269]:
+    - generic [ref=e271]:
+      - generic [ref=e272]:
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e276]: B
+            - generic [ref=e277]:
+              - generic [ref=e278]: THE BEND
+              - text: Community
+          - paragraph [ref=e279]: A heritage community platform connecting local businesses to share staff, materials, and equipment.
+        - generic [ref=e280]:
+          - heading "About" [level=4] [ref=e281]
+          - list [ref=e282]:
+            - listitem [ref=e283]:
+              - link "Our Story" [ref=e284] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e285]:
+              - link "Community Guidelines" [ref=e286] [cursor=pointer]:
+                - /url: /guidelines
+            - listitem [ref=e287]:
+              - link "Register" [ref=e288] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e289]:
+          - heading "Services" [level=4] [ref=e290]
+          - list [ref=e291]:
+            - listitem [ref=e292]:
+              - link "Browse Staff" [ref=e293] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e294]:
+              - link "Browse Materials" [ref=e295] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e296]:
+              - link "Browse Equipment" [ref=e297] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e298]:
+          - heading "Community" [level=4] [ref=e299]
+          - list [ref=e300]:
+            - listitem [ref=e301]:
+              - link "Volunteer Board" [ref=e302] [cursor=pointer]:
+                - /url: /volunteers
+            - listitem [ref=e303]:
+              - link "Talent Marketplace" [ref=e304] [cursor=pointer]:
+                - /url: /talent
+            - listitem [ref=e305]:
+              - link "All Listings" [ref=e306] [cursor=pointer]:
+                - /url: /browse
+            - listitem [ref=e307]:
+              - link "Advertise" [ref=e308] [cursor=pointer]:
+                - /url: /advertise
+      - generic [ref=e309]:
+        - generic [ref=e310]: © 2026 The Bend Community. All rights reserved.
+        - generic [ref=e311]: Preserving community, one connection at a time

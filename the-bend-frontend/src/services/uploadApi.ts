@@ -21,6 +21,14 @@ export const uploadApi = {
 
   getCurrentGuidelines: () => api.get('/upload/guidelines/current'),
 
+  uploadPhoto: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ photo_url: string }>('/upload/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   uploadAvatar: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);

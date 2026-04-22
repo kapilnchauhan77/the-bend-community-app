@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Clock, Heart, Users, CheckCircle, X, Plus } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Clock, Heart, Users, CheckCircle, X, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { volunteerApi } from '@/services/volunteerApi';
+import { uploadApi } from '@/services/uploadApi';
+import { ShareButton } from '@/components/shared/ShareButton';
+import { resolveAssetUrl } from '@/lib/constants';
 import type { Volunteer } from '@/types/index';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -20,8 +23,11 @@ export default function VolunteerPage() {
   // Form state
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [skills, setSkills] = useState('');
   const [availableTime, setAvailableTime] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState('');
@@ -43,6 +49,21 @@ export default function VolunteerPage() {
 
   useEffect(() => {
     fetchVolunteers();
+  }, []);
+
+  // Scroll to and highlight a card based on URL hash
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      setTimeout(() => {
+        const el = document.getElementById(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.boxShadow = '0 0 0 3px hsl(35, 45%, 42%)';
+          setTimeout(() => { el.style.boxShadow = ''; }, 3000);
+        }
+      }, 500);
+    }
   }, []);
 
   // Auto-dismiss success message
@@ -83,14 +104,20 @@ export default function VolunteerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    if (!phone && !email) {
+      setFormError('Please provide at least an email or phone number.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await volunteerApi.enroll({ name, phone, skills, available_time: availableTime });
+      await volunteerApi.enroll({ name, phone: phone || undefined, email: email || undefined, skills, available_time: availableTime, photo_url: photo || undefined });
       setSuccess(true);
       setName('');
       setPhone('');
+      setEmail('');
       setSkills('');
       setAvailableTime('');
+      setPhoto(null);
       setShowForm(false);
       await fetchVolunteers();
     } catch (err) {
@@ -115,7 +142,7 @@ export default function VolunteerPage() {
             <span className="text-white">Volunteer Board</span>
           </div>
           <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">Volunteer Board</h1>
-          <p className="text-sm text-white/85 mt-1">Give your time and skills to help local shops in The Bend community</p>
+          <p className="text-sm text-white/85 mt-1">Give your time and skills to help local shops in the community</p>
         </div>
       </section>
 
@@ -201,16 +228,21 @@ export default function VolunteerPage() {
               {volunteers.map((v) => (
                 <Card
                   key={v.id}
+                  id={`vol-${v.id}`}
                   className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group"
                 >
                   <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-4">
-                      <div
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0"
-                        style={{ backgroundColor: 'hsl(35, 15%, 88%)', color: PRIMARY }}
-                      >
-                        {v.name.charAt(0).toUpperCase()}
-                      </div>
+                      {v.photo_url ? (
+                        <img src={resolveAssetUrl(v.photo_url)} alt={v.name} className="w-11 h-11 rounded-full object-cover flex-shrink-0 border border-gray-200" />
+                      ) : (
+                        <div
+                          className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0"
+                          style={{ backgroundColor: 'hsl(35, 15%, 88%)', color: PRIMARY }}
+                        >
+                          {v.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <h3 className="font-serif font-bold text-gray-900 text-base leading-tight truncate">{v.name}</h3>
                         <span className="text-xs text-muted-foreground">Volunteer</span>
@@ -232,14 +264,31 @@ export default function VolunteerPage() {
                       <span>{v.available_time}</span>
                     </div>
 
-                    <a
-                      href={`tel:${v.phone}`}
-                      className="flex items-center justify-center gap-2 w-full h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
-                      style={{ borderColor: PRIMARY, color: PRIMARY }}
-                    >
-                      <Phone className="w-4 h-4" />
-                      {v.phone}
-                    </a>
+                    <div className="flex gap-2">
+                      <a
+                        href={`tel:${v.phone}`}
+                        className="flex items-center justify-center gap-2 flex-1 h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
+                        style={{ borderColor: PRIMARY, color: PRIMARY }}
+                      >
+                        <Phone className="w-4 h-4" />
+                        {v.phone}
+                      </a>
+                      <ShareButton
+                        url={`/volunteers#vol-${v.id}`}
+                        title={`${v.name} - Community Volunteer`}
+                        description={`${v.name} is volunteering: ${v.skills}`}
+                      />
+                    </div>
+                    {v.email && (
+                      <a
+                        href={`mailto:${v.email}`}
+                        className="flex items-center justify-center gap-2 w-full h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md mt-2"
+                        style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}
+                      >
+                        <Mail className="w-4 h-4" />
+                        {v.email}
+                      </a>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -298,18 +347,32 @@ export default function VolunteerPage() {
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="vol-phone" className="block text-sm font-medium text-gray-700">
-                      Phone <span className="text-red-400">*</span>
+                      Phone
                     </label>
                     <Input
                       id="vol-phone"
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      required
                       placeholder="e.g., 555-123-4567"
                       className="rounded-xl h-11"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="vol-email" className="block text-sm font-medium text-gray-700">
+                    Email
+                  </label>
+                  <Input
+                    id="vol-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="rounded-xl h-11"
+                  />
+                  <p className="text-xs text-gray-500">Email or phone is required</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -325,6 +388,34 @@ export default function VolunteerPage() {
                     placeholder="e.g., Cooking, cleaning, customer service, inventory management"
                     className="w-full px-3 py-2.5 text-sm border border-input bg-background rounded-xl ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
+                  <div className="flex items-center gap-4">
+                    {photo ? (
+                      <img src={resolveAssetUrl(photo)} alt="Preview" className="w-16 h-16 rounded-full object-cover border border-gray-200" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">No photo</div>
+                    )}
+                    <label className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                      {photoUploading ? 'Uploading...' : 'Choose Photo'}
+                      <input type="file" accept="image/*" className="hidden" disabled={photoUploading} onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setPhotoUploading(true);
+                        try {
+                          const { data } = await uploadApi.uploadPhoto(file);
+                          setPhoto(data.photo_url);
+                        } catch { /* silent */ }
+                        setPhotoUploading(false);
+                        e.target.value = '';
+                      }} />
+                    </label>
+                    {photo && (
+                      <button type="button" onClick={() => setPhoto(null)} className="text-xs text-red-500 hover:underline cursor-pointer">Remove</button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

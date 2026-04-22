@@ -11,7 +11,6 @@ from app.database import async_session
 from app.models.user import User
 from app.models.shop import Shop
 from app.models.listing import Listing
-from app.models.employee import Employee
 from app.models.interest import Interest
 from app.models.message import MessageThread, Message
 from app.models.enums import (
@@ -140,14 +139,14 @@ async def seed():
         # 2. Listings
         # ------------------------------------------------------------------
         listings_data = [
-            # Critical (2)
+            # Urgent (high priority)
             {
                 "shop": fresh_bites,
                 "type": ListingType.OFFER,
                 "category": ListingCategory.MATERIALS,
                 "title": "Tomatoes — 5kg",
                 "description": "Ripe Roma tomatoes, bought 2 days ago. Need to move before they go bad.",
-                "urgency": UrgencyLevel.CRITICAL,
+                "urgency": UrgencyLevel.URGENT,
                 "is_free": True,
                 "price": None,
                 "expiry_date": tomorrow,
@@ -156,9 +155,9 @@ async def seed():
                 "shop": corner_grill,
                 "type": ListingType.REQUEST,
                 "category": ListingCategory.STAFF,
-                "title": "Need baker for tomorrow 6 AM",
+                "title": "Hiring: Baker for tomorrow 6 AM shift",
                 "description": "Our regular baker is sick. Need someone experienced with bread and pastries for a morning shift.",
-                "urgency": UrgencyLevel.CRITICAL,
+                "urgency": UrgencyLevel.URGENT,
                 "is_free": False,
                 "price": Decimal("25.00"),
                 "expiry_date": tomorrow,
@@ -190,7 +189,7 @@ async def seed():
                 "shop": fresh_bites,
                 "type": ListingType.OFFER,
                 "category": ListingCategory.STAFF,
-                "title": "Experienced cashier available afternoons",
+                "title": "Available: Experienced cashier, afternoons Mon-Wed",
                 "description": "One of our cashiers has open afternoons Mon-Wed. 3 years retail experience.",
                 "urgency": UrgencyLevel.URGENT,
                 "is_free": False,
@@ -235,7 +234,7 @@ async def seed():
                 "shop": deli_plus,
                 "type": ListingType.OFFER,
                 "category": ListingCategory.STAFF,
-                "title": "Part-time deli counter help available",
+                "title": "Available: Deli counter worker, part-time",
                 "description": "We have a trained deli worker available Thursdays and Fridays. Good with customers.",
                 "urgency": UrgencyLevel.NORMAL,
                 "is_free": False,
@@ -268,7 +267,7 @@ async def seed():
                 "shop": corner_grill,
                 "type": ListingType.REQUEST,
                 "category": ListingCategory.STAFF,
-                "title": "Need 2 waitstaff for Saturday",
+                "title": "Hiring: 2 waitstaff for Saturday service",
                 "description": "Big reservation this Saturday evening. Looking for 2 experienced waitstaff, 5 PM to 10 PM.",
                 "urgency": UrgencyLevel.NORMAL,
                 "is_free": False,
@@ -306,49 +305,7 @@ async def seed():
         listing_flour = listings[6]      # index 6 — Corner Grill bread flour
 
         # ------------------------------------------------------------------
-        # 3. Employees
-        # ------------------------------------------------------------------
-        employees_data = [
-            {
-                "shop": fresh_bites,
-                "name": "Alex Rivera",
-                "role_title": "Line Cook",
-                "skills": ["cooking", "food prep", "inventory"],
-                "is_available": True,
-            },
-            {
-                "shop": fresh_bites,
-                "name": "Kim Park",
-                "role_title": "Cashier",
-                "skills": ["customer service", "POS", "stocking"],
-                "is_available": True,
-            },
-            {
-                "shop": corner_grill,
-                "name": "Dave Brown",
-                "role_title": "Waiter",
-                "skills": ["serving", "bartending", "cleaning"],
-                "is_available": False,
-            },
-        ]
-
-        for d in employees_data:
-            employee = Employee(
-                id=uuid4(),
-                shop_id=d["shop"].id,
-                name=d["name"],
-                role_title=d["role_title"],
-                skills=d["skills"],
-                is_available=d["is_available"],
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(employee)
-
-        await session.flush()
-
-        # ------------------------------------------------------------------
-        # 4. Interests + message threads
+        # 3. Interests + message threads
         # ------------------------------------------------------------------
         # Helper: create interest + thread + initial message
         async def create_interest(listing, interested_user, listing_owner, message_text):
@@ -398,7 +355,7 @@ async def seed():
         await create_interest(listing_flour, sarah, maria, "I'd love 2 bags please")
 
         # ------------------------------------------------------------------
-        # 5. Two fulfilled historical listings
+        # 4. Two fulfilled historical listings
         # ------------------------------------------------------------------
         old_time = now - timedelta(days=14)
         fulfilled_time = now - timedelta(days=7)
@@ -448,7 +405,6 @@ async def seed():
         print(f"  - 5 shop admin users created")
         print(f"  - {len(listings)} active listings created")
         print(f"  - 2 fulfilled historical listings created")
-        print(f"  - 3 employees created")
         print(f"  - 3 interests with message threads created")
 
 

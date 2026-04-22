@@ -1,0 +1,388 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "B THE BEND Community" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e9]: B
+        - generic [ref=e10]:
+          - generic [ref=e11]: THE BEND
+          - text: Community
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e14] [cursor=pointer]:
+          - /url: /browse
+        - link "Events" [ref=e15] [cursor=pointer]:
+          - /url: /events
+        - button "Community" [ref=e17] [cursor=pointer]:
+          - text: Community
+          - img [ref=e18]
+      - generic [ref=e20]:
+        - button "Toggle dark mode" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+        - generic [ref=e28]:
+          - button "Log In" [ref=e29] [cursor=pointer]
+          - button "Register" [ref=e30] [cursor=pointer]
+  - main [ref=e31]:
+    - generic [ref=e32]:
+      - heading "Browse Listings" [level=1] [ref=e33]
+      - generic [ref=e34]:
+        - img [ref=e35]
+        - textbox "Search staff, materials, equipment..." [ref=e38]
+      - generic [ref=e39]:
+        - button "All" [ref=e40]
+        - button "Staff" [ref=e41]
+        - button "Materials" [ref=e42]
+        - button "Equipment" [ref=e43]
+      - generic [ref=e44]:
+        - generic [ref=e45]: 12 results
+        - combobox [ref=e46]:
+          - generic: Urgency
+          - img [ref=e47]
+      - generic [ref=e49]:
+        - generic [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]:
+            - generic [ref=e53]:
+              - generic [ref=e54]: Offering
+              - generic [ref=e55]: Urgent
+            - generic [ref=e57]:
+              - img [ref=e58]
+              - generic [ref=e63]: Staff
+          - heading "Experienced cashier available afternoons" [level=3] [ref=e64]
+          - paragraph [ref=e65]: One of our cashiers has open afternoons Mon-Wed. 3 years retail experience.
+          - generic [ref=e66]:
+            - link "F Fresh Bites Café" [ref=e67]:
+              - /url: /business/8664a548-9f68-4769-b042-4b882c01fa4f
+              - generic [ref=e68]: F
+              - generic [ref=e69]: Fresh Bites Café
+            - generic [ref=e70]:
+              - generic [ref=e71]: $18
+              - generic [ref=e72]:
+                - img [ref=e73]
+                - text: 7d ago
+        - generic [ref=e77] [cursor=pointer]:
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: Looking for
+              - generic [ref=e81]: Urgent
+            - generic [ref=e83]:
+              - img [ref=e84]
+              - generic [ref=e89]: Staff
+          - heading "Need baker for tomorrow 6 AM" [level=3] [ref=e90]
+          - paragraph [ref=e91]: Our regular baker is sick. Need someone experienced with bread and pastries for a morning shift.
+          - generic [ref=e92]:
+            - link "T The Corner Grill" [ref=e93]:
+              - /url: /business/18954ce7-028e-4884-b505-b2284e3bb75d
+              - generic [ref=e94]: T
+              - generic [ref=e95]: The Corner Grill
+            - generic [ref=e96]:
+              - generic [ref=e97]: $25
+              - generic [ref=e98]:
+                - img [ref=e99]
+                - text: 7d ago
+              - generic [ref=e102]: Expired
+        - generic [ref=e104] [cursor=pointer]:
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - generic [ref=e107]: Looking for
+              - generic [ref=e108]: Urgent
+            - generic [ref=e110]:
+              - img [ref=e111]
+              - generic [ref=e115]: Materials
+          - heading "Need 5L olive oil urgently" [level=3] [ref=e116]
+          - paragraph [ref=e117]: Ran out of olive oil for the weekend rush. Looking for anyone with surplus.
+          - generic [ref=e118]:
+            - link "D Deli Plus" [ref=e119]:
+              - /url: /business/dcf70bda-66e7-4a0e-9411-42b3b0f62fd1
+              - generic [ref=e120]: D
+              - generic [ref=e121]: Deli Plus
+            - generic [ref=e122]:
+              - generic [ref=e123]: $30
+              - generic [ref=e124]:
+                - img [ref=e125]
+                - text: 7d ago
+        - generic [ref=e129] [cursor=pointer]:
+          - generic [ref=e130]:
+            - generic [ref=e131]:
+              - generic [ref=e132]: Offering
+              - generic [ref=e133]: Urgent
+            - generic [ref=e135]:
+              - img [ref=e136]
+              - generic [ref=e140]: Materials
+          - heading "Tomatoes — 5kg" [level=3] [ref=e141]
+          - paragraph [ref=e142]: Ripe Roma tomatoes, bought 2 days ago. Need to move before they go bad.
+          - generic [ref=e143]:
+            - link "F Fresh Bites Café" [ref=e144]:
+              - /url: /business/8664a548-9f68-4769-b042-4b882c01fa4f
+              - generic [ref=e145]: F
+              - generic [ref=e146]: Fresh Bites Café
+            - generic [ref=e147]:
+              - generic [ref=e148]: FREE
+              - generic [ref=e149]:
+                - img [ref=e150]
+                - text: 7d ago
+              - generic [ref=e153]: Expired
+        - generic [ref=e155] [cursor=pointer]:
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - generic [ref=e158]: Offering
+              - generic [ref=e159]: Urgent
+            - generic [ref=e161]:
+              - img [ref=e162]
+              - generic [ref=e164]: Equipment
+          - heading "Commercial mixer available this weekend" [level=3] [ref=e165]
+          - paragraph [ref=e166]: KitchenAid commercial stand mixer. Available Friday through Sunday. Must pick up and return.
+          - generic [ref=e167]:
+            - link "M Mama's Kitchen" [ref=e168]:
+              - /url: /business/e9f941dd-0f47-406c-b370-711f6a6676af
+              - generic [ref=e169]: M
+              - generic [ref=e170]: Mama's Kitchen
+            - generic [ref=e171]:
+              - generic [ref=e172]: FREE
+              - generic [ref=e173]:
+                - img [ref=e174]
+                - text: 7d ago
+        - generic [ref=e178] [cursor=pointer]:
+          - generic [ref=e179]:
+            - generic [ref=e181]: Offering
+            - generic [ref=e182]:
+              - img [ref=e183]
+              - generic [ref=e185]: Equipment
+          - heading "Extra folding tables and chairs" [level=3] [ref=e186]
+          - paragraph [ref=e187]: We have 4 folding tables and 20 chairs available for events or busy periods. Free to borrow.
+          - generic [ref=e188]:
+            - link "T Tool Hub" [ref=e189]:
+              - /url: /business/c347b0a1-f20e-4199-a4c3-4976b334fa0c
+              - generic [ref=e190]: T
+              - generic [ref=e191]: Tool Hub
+            - generic [ref=e192]:
+              - generic [ref=e193]: FREE
+              - generic [ref=e194]:
+                - img [ref=e195]
+                - text: 7d ago
+        - generic [ref=e199] [cursor=pointer]:
+          - generic [ref=e200]:
+            - generic [ref=e202]: Offering
+            - generic [ref=e203]:
+              - img [ref=e204]
+              - generic [ref=e208]: Materials
+          - heading "Extra bread flour — 10kg bags" [level=3] [ref=e209]
+          - paragraph [ref=e210]: Over-ordered flour. Have 3 bags of 10kg premium bread flour. Best before next month.
+          - generic [ref=e211]:
+            - link "T The Corner Grill" [ref=e212]:
+              - /url: /business/18954ce7-028e-4884-b505-b2284e3bb75d
+              - generic [ref=e213]: T
+              - generic [ref=e214]: The Corner Grill
+            - generic [ref=e215]:
+              - generic [ref=e216]: $12
+              - generic [ref=e217]:
+                - img [ref=e218]
+                - text: 7d ago
+        - generic [ref=e222] [cursor=pointer]:
+          - generic [ref=e223]:
+            - generic [ref=e225]: Offering
+            - generic [ref=e226]:
+              - img [ref=e227]
+              - generic [ref=e232]: Staff
+          - heading "Part-time deli counter help available" [level=3] [ref=e233]
+          - paragraph [ref=e234]: We have a trained deli worker available Thursdays and Fridays. Good with customers.
+          - generic [ref=e235]:
+            - link "D Deli Plus" [ref=e236]:
+              - /url: /business/dcf70bda-66e7-4a0e-9411-42b3b0f62fd1
+              - generic [ref=e237]: D
+              - generic [ref=e238]: Deli Plus
+            - generic [ref=e239]:
+              - generic [ref=e240]: $16
+              - generic [ref=e241]:
+                - img [ref=e242]
+                - text: 7d ago
+        - generic [ref=e246] [cursor=pointer]:
+          - generic [ref=e247]:
+            - generic [ref=e249]: Offering
+            - generic [ref=e250]:
+              - img [ref=e251]
+              - generic [ref=e253]: Equipment
+          - heading "Lawnmower for weekly rental" [level=3] [ref=e254]
+          - paragraph [ref=e255]: Gas-powered lawnmower in great condition. Available for weekly rental to any shop on the bend.
+          - generic [ref=e256]:
+            - link "T Tool Hub" [ref=e257]:
+              - /url: /business/c347b0a1-f20e-4199-a4c3-4976b334fa0c
+              - generic [ref=e258]: T
+              - generic [ref=e259]: Tool Hub
+            - generic [ref=e260]:
+              - generic [ref=e261]: $15
+              - generic [ref=e262]:
+                - img [ref=e263]
+                - text: 7d ago
+        - generic [ref=e267] [cursor=pointer]:
+          - generic [ref=e268]:
+            - generic [ref=e270]: Looking for
+            - generic [ref=e271]:
+              - img [ref=e272]
+              - generic [ref=e274]: Equipment
+          - heading "Need industrial blender for 2 days" [level=3] [ref=e275]
+          - paragraph [ref=e276]: Making large batch of soups for an event. Need a heavy-duty blender for Tuesday and Wednesday.
+          - generic [ref=e277]:
+            - link "M Mama's Kitchen" [ref=e278]:
+              - /url: /business/e9f941dd-0f47-406c-b370-711f6a6676af
+              - generic [ref=e279]: M
+              - generic [ref=e280]: Mama's Kitchen
+            - generic [ref=e281]:
+              - generic [ref=e282]: $10
+              - generic [ref=e283]:
+                - img [ref=e284]
+                - text: 7d ago
+        - generic [ref=e288] [cursor=pointer]:
+          - generic [ref=e289]:
+            - generic [ref=e291]: Offering
+            - generic [ref=e292]:
+              - img [ref=e293]
+              - generic [ref=e297]: Materials
+          - heading "Sourdough starter — free to good home" [level=3] [ref=e298]
+          - paragraph [ref=e299]: Active sourdough starter, been feeding it for 6 months. Makes amazing bread.
+          - generic [ref=e300]:
+            - link "F Fresh Bites Café" [ref=e301]:
+              - /url: /business/8664a548-9f68-4769-b042-4b882c01fa4f
+              - generic [ref=e302]: F
+              - generic [ref=e303]: Fresh Bites Café
+            - generic [ref=e304]:
+              - generic [ref=e305]: FREE
+              - generic [ref=e306]:
+                - img [ref=e307]
+                - text: 7d ago
+        - generic [ref=e311] [cursor=pointer]:
+          - generic [ref=e312]:
+            - generic [ref=e314]: Looking for
+            - generic [ref=e315]:
+              - img [ref=e316]
+              - generic [ref=e321]: Staff
+          - heading "Need 2 waitstaff for Saturday" [level=3] [ref=e322]
+          - paragraph [ref=e323]: Big reservation this Saturday evening. Looking for 2 experienced waitstaff, 5 PM to 10 PM.
+          - generic [ref=e324]:
+            - link "T The Corner Grill" [ref=e325]:
+              - /url: /business/18954ce7-028e-4884-b505-b2284e3bb75d
+              - generic [ref=e326]: T
+              - generic [ref=e327]: The Corner Grill
+            - generic [ref=e328]:
+              - generic [ref=e329]: $20
+              - generic [ref=e330]:
+                - img [ref=e331]
+                - text: 7d ago
+    - generic [ref=e334]:
+      - paragraph [ref=e335]: Community Partners
+      - generic [ref=e337]:
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e338] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - img "Inn at Montross" [ref=e340]
+          - paragraph [ref=e341]: Inn at Montross
+          - paragraph [ref=e342]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e343]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e344] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e346]
+          - paragraph [ref=e347]: ProLine Group
+          - paragraph [ref=e348]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e349]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e350] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e352]
+          - paragraph [ref=e353]: Provoke
+          - paragraph [ref=e354]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e355]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e356] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e358]
+          - paragraph [ref=e359]: Westmoreland County Museum
+          - paragraph [ref=e360]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e361]: Community Partner
+        - link "Inn at Montross Inn at Montross Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor. Community Partner" [ref=e362] [cursor=pointer]:
+          - /url: https://www.montrossinn.com
+          - img "Inn at Montross" [ref=e364]
+          - paragraph [ref=e365]: Inn at Montross
+          - paragraph [ref=e366]: Historic Bed & Breakfast offering five thoughtfully appointed rooms in a 19th-century building, featuring a pub and dining that celebrates local flavor.
+          - paragraph [ref=e367]: Community Partner
+        - link "ProLine Group ProLine Group AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution. Community Partner" [ref=e368] [cursor=pointer]:
+          - /url: https://www.proline-online.com
+          - img "ProLine Group" [ref=e370]
+          - paragraph [ref=e371]: ProLine Group
+          - paragraph [ref=e372]: AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
+          - paragraph [ref=e373]: Community Partner
+        - link "Provoke Provoke One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation. Community Partner" [ref=e374] [cursor=pointer]:
+          - /url: https://provoke.space
+          - img "Provoke" [ref=e376]
+          - paragraph [ref=e377]: Provoke
+          - paragraph [ref=e378]: One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.
+          - paragraph [ref=e379]: Community Partner
+        - link "Westmoreland County Museum Westmoreland County Museum Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents. Community Partner" [ref=e380] [cursor=pointer]:
+          - /url: https://www.westmorelandcountymuseum.org/
+          - img "Westmoreland County Museum" [ref=e382]
+          - paragraph [ref=e383]: Westmoreland County Museum
+          - paragraph [ref=e384]: Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.
+          - paragraph [ref=e385]: Community Partner
+  - generic [ref=e387]:
+    - paragraph [ref=e388]: Proud Community Partners
+    - generic [ref=e389]:
+      - link "Inn at Montross" [ref=e390] [cursor=pointer]:
+        - /url: https://www.montrossinn.com
+        - img "Inn at Montross" [ref=e391]
+      - link "ProLine Group" [ref=e392] [cursor=pointer]:
+        - /url: https://www.proline-online.com
+        - img "ProLine Group" [ref=e393]
+      - link "Provoke" [ref=e394] [cursor=pointer]:
+        - /url: https://provoke.space
+        - img "Provoke" [ref=e395]
+      - link "Westmoreland County Museum" [ref=e396] [cursor=pointer]:
+        - /url: https://www.westmorelandcountymuseum.org/
+        - img "Westmoreland County Museum" [ref=e397]
+  - contentinfo [ref=e398]:
+    - generic [ref=e400]:
+      - generic [ref=e401]:
+        - generic [ref=e402]:
+          - generic [ref=e403]:
+            - generic [ref=e405]: B
+            - generic [ref=e406]:
+              - generic [ref=e407]: THE BEND
+              - text: Community
+          - paragraph [ref=e408]: A heritage community platform connecting local businesses to share staff, materials, and equipment.
+        - generic [ref=e409]:
+          - heading "About" [level=4] [ref=e410]
+          - list [ref=e411]:
+            - listitem [ref=e412]:
+              - link "Our Story" [ref=e413] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e414]:
+              - link "Community Guidelines" [ref=e415] [cursor=pointer]:
+                - /url: /guidelines
+            - listitem [ref=e416]:
+              - link "Register" [ref=e417] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e418]:
+          - heading "Services" [level=4] [ref=e419]
+          - list [ref=e420]:
+            - listitem [ref=e421]:
+              - link "Browse Staff" [ref=e422] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e423]:
+              - link "Browse Materials" [ref=e424] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e425]:
+              - link "Browse Equipment" [ref=e426] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e427]:
+          - heading "Community" [level=4] [ref=e428]
+          - list [ref=e429]:
+            - listitem [ref=e430]:
+              - link "Volunteer Board" [ref=e431] [cursor=pointer]:
+                - /url: /volunteers
+            - listitem [ref=e432]:
+              - link "Talent Marketplace" [ref=e433] [cursor=pointer]:
+                - /url: /talent
+            - listitem [ref=e434]:
+              - link "All Listings" [ref=e435] [cursor=pointer]:
+                - /url: /browse
+            - listitem [ref=e436]:
+              - link "Advertise" [ref=e437] [cursor=pointer]:
+                - /url: /advertise
+      - generic [ref=e438]:
+        - generic [ref=e439]: © 2026 The Bend Community. All rights reserved.
+        - generic [ref=e440]: Preserving community, one connection at a time

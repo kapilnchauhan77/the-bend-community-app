@@ -1,21 +1,40 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class TalentCreate(BaseModel):
     name: str
-    phone: str
+    phone: str | None = None
+    email: str | None = None
     category: str
     skills: str
     available_time: str
     rate: float
     rate_unit: str = "hr"
+    photo_url: str | None = None
 
-    @field_validator("name", "phone", "category", "skills", "available_time")
+    @field_validator("name", "skills", "available_time")
     @classmethod
     def not_empty(cls, v):
-        if not v or not v.strip():
+        if v is None:
+            return v
+        if not v.strip():
             raise ValueError("Field cannot be empty")
         return v.strip()
+
+    @field_validator("phone")
+    @classmethod
+    def phone_not_empty(cls, v):
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
+    @model_validator(mode='after')
+    def require_email_or_phone(self):
+        if not self.phone and not self.email:
+            raise ValueError("At least email or phone is required")
+        return self
 
     @field_validator("category")
     @classmethod

@@ -10,22 +10,12 @@ import {
   CheckCircle,
   Trash2,
   Loader2,
-  UserPlus,
   Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,18 +33,9 @@ import { listingApi } from '@/services/listingApi';
 import { useAuthStore } from '@/stores/authStore';
 import type { Listing } from '@/types';
 
-interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  skills?: string;
-  is_available: boolean;
-}
-
 const urgencyStyles = {
   normal: 'bg-gray-100 text-gray-600',
   urgent: 'bg-amber-100 text-amber-700',
-  critical: 'bg-red-100 text-red-600',
 };
 
 function timeAgo(dateStr: string): string {
@@ -183,9 +164,7 @@ export default function MyShopPage() {
 
   const [activeListings, setActiveListings] = useState<Listing[]>([]);
   const [historyListings, setHistoryListings] = useState<Listing[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loadingListings, setLoadingListings] = useState(true);
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const loadListings = useCallback(async () => {
@@ -203,27 +182,13 @@ export default function MyShopPage() {
     }
   }, [shop]);
 
-  const loadEmployees = useCallback(async () => {
-    if (!shop) return;
-    setLoadingEmployees(true);
-    try {
-      const { data } = await shopApi.getEmployees(shop.id);
-      setEmployees((data as { items?: Employee[] }).items || (data as Employee[]));
-    } catch {
-      // silently fail
-    } finally {
-      setLoadingEmployees(false);
-    }
-  }, [shop]);
-
   useEffect(() => {
     if (!isAuthenticated || !shop) {
       navigate('/login');
       return;
     }
     loadListings();
-    loadEmployees();
-  }, [isAuthenticated, shop, loadListings, loadEmployees, navigate]);
+  }, [isAuthenticated, shop, loadListings, navigate]);
 
   async function handleFulfill(id: string) {
     setActionLoading(id);
@@ -242,28 +207,6 @@ export default function MyShopPage() {
       await loadListings();
     } finally {
       setActionLoading(null);
-    }
-  }
-
-  async function handleToggleAvailability(emp: Employee) {
-    try {
-      await shopApi.updateEmployee(shop!.id, emp.id, {
-        is_available: !emp.is_available,
-      });
-      setEmployees((prev) =>
-        prev.map((e) => (e.id === emp.id ? { ...e, is_available: !e.is_available } : e))
-      );
-    } catch {
-      // silently fail
-    }
-  }
-
-  async function handleDeleteEmployee(eid: string) {
-    try {
-      await shopApi.deleteEmployee(shop!.id, eid);
-      setEmployees((prev) => prev.filter((e) => e.id !== eid));
-    } catch {
-      // silently fail
     }
   }
 
@@ -394,14 +337,6 @@ export default function MyShopPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="history" className="flex-1 sm:flex-none">History</TabsTrigger>
-            <TabsTrigger value="employees" className="flex-1 sm:flex-none">
-              Team
-              {employees.length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-                  {employees.length}
-                </span>
-              )}
-            </TabsTrigger>
           </TabsList>
 
           {/* Active listings */}
@@ -490,106 +425,6 @@ export default function MyShopPage() {
             )}
           </TabsContent>
 
-          {/* Employees */}
-          <TabsContent value="employees">
-            <div className="flex justify-end mb-3">
-              <Button
-                size="sm"
-                className="gap-1.5"
-                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
-                onClick={() => {
-                  // Navigate to employee add page or open a dialog
-                  // Placeholder: shows alert for now
-                  alert('Add employee flow coming soon');
-                }}
-              >
-                <UserPlus size={14} />
-                Add Employee
-              </Button>
-            </div>
-            {loadingEmployees ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
-                ))}
-              </div>
-            ) : employees.length === 0 ? (
-              <div className="py-14 text-center">
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                  <UserPlus className="w-6 h-6 text-gray-400" />
-                </div>
-                <h3 className="font-semibold mb-1">No team members yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Add employees to manage availability and skills sharing.
-                </p>
-              </div>
-            ) : (
-              <Card>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead className="hidden sm:table-cell">Skills</TableHead>
-                      <TableHead>Available</TableHead>
-                      <TableHead className="w-12" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {employees.map((emp) => (
-                      <TableRow key={emp.id}>
-                        <TableCell className="font-medium">{emp.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="capitalize text-xs">
-                            {emp.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                          {emp.skills || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={emp.is_available}
-                            onCheckedChange={() => handleToggleAvailability(emp)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 size={14} />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove {emp.name}?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will remove {emp.name} from your team.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteEmployee(emp.id)}
-                                  className="bg-red-600 hover:bg-red-700 text-white"
-                                >
-                                  Remove
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
-            )}
-          </TabsContent>
         </Tabs>
       </div>
 

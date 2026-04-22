@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CheckCircle, DollarSign, Tag, Loader2 } from 'lucide-react';
+import { CheckCircle, DollarSign, Tag, Loader2, ImagePlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/select';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { listingApi } from '@/services/listingApi';
+import { uploadApi } from '@/services/uploadApi';
+import { resolveAssetUrl } from '@/lib/constants';
 
 const schema = z
   .object({
@@ -28,7 +30,7 @@ const schema = z
     description: z.string().min(10, 'Description must be at least 10 characters').max(500, 'Description must be under 500 characters'),
     quantity: z.string().optional(),
     unit: z.string().optional(),
-    urgency: z.enum(['normal', 'urgent', 'critical']),
+    urgency: z.enum(['normal', 'urgent']),
     is_free: z.boolean(),
     price: z.string().optional(),
     expiry_date: z.string().optional(),
@@ -43,7 +45,6 @@ type FormData = z.infer<typeof schema>;
 const urgencyOptions = [
   { value: 'normal', label: 'Normal', desc: 'No rush', color: 'border-gray-300 text-gray-700 bg-white' },
   { value: 'urgent', label: 'Urgent', desc: 'Needed soon', color: 'border-amber-400 text-amber-700 bg-amber-50' },
-  { value: 'critical', label: 'Critical', desc: 'Needed ASAP', color: 'border-red-400 text-red-600 bg-red-50' },
 ] as const;
 
 export default function CreateListingPage() {
@@ -51,6 +52,8 @@ export default function CreateListingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [images, setImages] = useState<{ url: string; thumbnail_url: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const {
     register,
@@ -72,6 +75,25 @@ export default function CreateListingPage() {
   const watchedUrgency = watch('urgency');
   const watchedIsFree = watch('is_free');
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const res = await uploadApi.uploadImages(Array.from(files));
+      setImages(prev => [...prev, ...(res.data.images || [])]);
+    } catch {
+      // silent
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   async function onSubmit(data: FormData) {
     setSubmitting(true);
     setServerError(null);
@@ -88,6 +110,7 @@ export default function CreateListingPage() {
       if (data.unit) payload.unit = data.unit;
       if (!data.is_free && data.price) payload.price = parseFloat(data.price);
       if (data.expiry_date) payload.expiry_date = data.expiry_date;
+      if (images.length > 0) payload.image_ids = images.map(img => img.url);
 
       await listingApi.create(payload);
       setSuccess(true);
@@ -139,7 +162,9 @@ export default function CreateListingPage() {
                         : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                   >
-                    {t === 'offer' ? 'Offering Something' : 'Requesting Something'}
+                    {t === 'offer'
+                      ? (watch('category') === 'staff' ? 'Hiring' : 'Offering Something')
+                      : (watch('category') === 'staff' ? 'Available for Hire' : 'Requesting Something')}
                   </button>
                 ))}
               </div>
@@ -160,7 +185,7 @@ export default function CreateListingPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="staff">Staff / Labour</SelectItem>
+                  <SelectItem value="staff">Gigs</SelectItem>
                   <SelectItem value="materials">Raw Materials</SelectItem>
                   <SelectItem value="equipment">Equipment</SelectItem>
                 </SelectContent>
@@ -200,6 +225,38 @@ export default function CreateListingPage() {
                   <p className="text-red-500 text-xs mt-1">{errors.description.message}</p>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Images */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <ImagePlus size={18} />
+                Photos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                {images.map((img, i) => (
+                  <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-[hsl(35,18%,84%)] group">
+                    <img src={resolveAssetUrl(img.url)} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <X size={12} className="text-white" />
+                    </button>
+                  </div>
+                ))}
+                <label className="w-20 h-20 rounded-lg border-2 border-dashed border-[hsl(35,18%,84%)] flex flex-col items-center justify-center cursor-pointer hover:border-[hsl(35,45%,42%)] transition-colors">
+                  <ImagePlus size={20} className="text-[hsl(30,10%,55%)]" />
+                  <span className="text-[9px] text-[hsl(30,10%,55%)] mt-1">{uploading ? 'Uploading...' : 'Add'}</span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={uploading} />
+                </label>
+              </div>
+              <p className="text-[10px] text-[hsl(30,10%,55%)] mt-2">Up to 5 photos. JPG, PNG accepted.</p>
             </CardContent>
           </Card>
 

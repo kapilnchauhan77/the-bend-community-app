@@ -4,6 +4,11 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './index.css';
 
+// Apply dark mode immediately before render to prevent flash
+if (localStorage.getItem('theme') === 'dark') {
+  document.documentElement.classList.add('dark');
+}
+
 // Register service worker with auto-update
 registerSW({
   onNeedRefresh() {

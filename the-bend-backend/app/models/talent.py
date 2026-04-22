@@ -14,11 +14,14 @@ class Talent(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255))
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     skills: Mapped[str] = mapped_column(Text, nullable=False)
     available_time: Mapped[str] = mapped_column(String(255), nullable=False)
     rate: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     rate_unit: Mapped[str] = mapped_column(String(20), nullable=False, default="hr")
+    photo_url: Mapped[str | None] = mapped_column(String(500))
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     inquiries: Mapped[list[TalentInquiry]] = relationship("TalentInquiry", back_populates="talent")
@@ -26,6 +29,7 @@ class Talent(Base):
     __table_args__ = (
         Index("idx_talent_category", "category"),
         Index("idx_talent_created", "created_at"),
+        Index("idx_talent_tenant_id", "tenant_id"),
     )
 
 

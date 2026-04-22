@@ -71,6 +71,7 @@ const formatDate = (iso: string) =>
 export default function RegistrationsPage() {
   const [tab, setTab] = useState<RegistrationStatus>('pending');
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [counts, setCounts] = useState<{ pending: number; approved: number; rejected: number }>({ pending: 0, approved: 0, rejected: 0 });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -87,6 +88,7 @@ export default function RegistrationsPage() {
     try {
       const res = await adminApi.getRegistrations({ status });
       setRegistrations(res.data?.items ?? res.data?.registrations ?? res.data ?? []);
+      if (res.data?.counts) setCounts(res.data.counts);
     } catch {
       setRegistrations([]);
     } finally {
@@ -146,9 +148,9 @@ export default function RegistrationsPage() {
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as RegistrationStatus)}>
           <TabsList className="mb-4">
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="approved">Approved</TabsTrigger>
-            <TabsTrigger value="rejected">Rejected</TabsTrigger>
+            <TabsTrigger value="pending">Pending {counts.pending > 0 && <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full">{counts.pending}</span>}</TabsTrigger>
+            <TabsTrigger value="approved">Approved {counts.approved > 0 && <span className="ml-1 text-xs bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)] px-1.5 rounded-full">{counts.approved}</span>}</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected {counts.rejected > 0 && <span className="ml-1 text-xs bg-red-100 text-red-600 px-1.5 rounded-full">{counts.rejected}</span>}</TabsTrigger>
           </TabsList>
 
           {(['pending', 'approved', 'rejected'] as RegistrationStatus[]).map((status) => (

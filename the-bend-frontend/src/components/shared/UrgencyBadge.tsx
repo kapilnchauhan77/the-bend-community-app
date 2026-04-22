@@ -4,13 +4,11 @@ import type { UrgencyLevel } from '@/types';
 const styles: Record<UrgencyLevel, string> = {
   normal: 'bg-gray-100 text-gray-600',
   urgent: 'bg-amber-100 text-amber-700',
-  critical: 'bg-red-100 text-red-600',
 };
 
 const dotColors: Record<UrgencyLevel, string> = {
   normal: 'bg-gray-400',
   urgent: 'bg-amber-500',
-  critical: 'bg-red-500',
 };
 
 export function UrgencyBadge({ urgency }: { urgency: UrgencyLevel }) {

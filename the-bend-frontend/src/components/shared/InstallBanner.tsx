@@ -47,7 +47,7 @@ export function InstallBanner() {
             <Download className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">Install The Bend</p>
+            <p className="text-sm font-semibold text-gray-900">Install App</p>
             <p className="text-xs text-gray-500 mt-0.5">Add to your home screen for quick access</p>
             <div className="flex gap-2 mt-2.5">
               <button
@@ -89,7 +89,7 @@ export function InstallBanner() {
             <Download className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">Install The Bend</p>
+            <p className="text-sm font-semibold text-gray-900">Install App</p>
             <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
               Tap <Share size={12} className="inline -mt-0.5 mx-0.5" /> <span className="font-medium">Share</span> in Safari, then <span className="font-medium">"Add to Home Screen"</span>
             </p>

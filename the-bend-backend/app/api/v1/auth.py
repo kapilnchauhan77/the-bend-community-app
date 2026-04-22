@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.core.permissions import get_current_tenant
+from app.models.tenant import Tenant
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
     RegisterRequest, RegisterResponse, LoginRequest, TokenResponse,
@@ -20,8 +22,10 @@ def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
 async def register(
     data: RegisterRequest,
     service: AuthService = Depends(get_auth_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Register a new shop and its admin user."""
+    service.tenant_id = tenant.id if tenant else None
     return await service.register(data)
 
 

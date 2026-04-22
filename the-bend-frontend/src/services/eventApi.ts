@@ -9,6 +9,24 @@ export const eventApi = {
   getDetail: (id: string) =>
     api.get(`/events/${id}`),
 
+  // Event submission (paid)
+  getPricing: () =>
+    api.get('/events/pricing'),
+  submit: (data: {
+    title: string; description?: string; start_date: string;
+    end_date?: string; location?: string; category?: string;
+    image_url?: string; is_nonprofit: boolean; nonprofit_doc_url?: string;
+    submitted_by_name: string; submitted_by_email: string;
+  }) =>
+    api.post('/events/submit', data),
+
+  // Connector purchase
+  connectorCheckout: (data: {
+    business_name: string; website_url: string;
+    contact_name: string; contact_email: string; notes?: string;
+  }) =>
+    api.post('/events/connector-checkout', data),
+
   // Admin - Events
   adminList: (params?: Record<string, string>) =>
     api.get('/admin/events', { params }),

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Phone,
+  Mail,
   Clock,
   Music,
   Palette,
@@ -19,6 +20,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { talentApi } from '@/services/talentApi';
+import { uploadApi } from '@/services/uploadApi';
+import { ShareButton } from '@/components/shared/ShareButton';
+import { resolveAssetUrl } from '@/lib/constants';
 import type { Talent } from '@/types/index';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -49,11 +53,14 @@ export default function TalentPage() {
   const [showRegForm, setShowRegForm] = useState(false);
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
   const [regCategory, setRegCategory] = useState<'freelancer' | 'musician' | 'artist'>('freelancer');
   const [regSkills, setRegSkills] = useState('');
   const [regAvailableTime, setRegAvailableTime] = useState('');
   const [regRate, setRegRate] = useState('');
   const [regRateUnit, setRegRateUnit] = useState<'hr' | 'gig' | 'day'>('hr');
+  const [regPhoto, setRegPhoto] = useState<string | null>(null);
+  const [regPhotoUploading, setRegPhotoUploading] = useState(false);
   const [regSubmitting, setRegSubmitting] = useState(false);
   const [regSuccess, setRegSuccess] = useState(false);
   const [regError, setRegError] = useState('');
@@ -90,6 +97,21 @@ export default function TalentPage() {
   useEffect(() => {
     fetchTalents(activeFilter);
   }, [activeFilter]);
+
+  // Scroll to and highlight a card based on URL hash
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      setTimeout(() => {
+        const el = document.getElementById(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.boxShadow = '0 0 0 3px hsl(35, 45%, 42%)';
+          setTimeout(() => { el.style.boxShadow = ''; }, 3000);
+        }
+      }, 500);
+    }
+  }, []);
 
   // Auto-dismiss success
   useEffect(() => {
@@ -133,16 +155,21 @@ export default function TalentPage() {
   const handleRegSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
+    if (!regPhone && !regEmail) {
+      setRegError('Please provide at least an email or phone number.');
+      return;
+    }
     setRegSubmitting(true);
     try {
       await talentApi.register({
-        name: regName, phone: regPhone, category: regCategory,
+        name: regName, phone: regPhone || undefined, email: regEmail || undefined, category: regCategory,
         skills: regSkills, available_time: regAvailableTime,
         rate: parseFloat(regRate), rate_unit: regRateUnit,
+        photo_url: regPhoto || undefined,
       });
       setRegSuccess(true);
-      setRegName(''); setRegPhone(''); setRegCategory('freelancer');
-      setRegSkills(''); setRegAvailableTime(''); setRegRate(''); setRegRateUnit('hr');
+      setRegName(''); setRegPhone(''); setRegEmail(''); setRegCategory('freelancer');
+      setRegSkills(''); setRegAvailableTime(''); setRegRate(''); setRegRateUnit('hr'); setRegPhoto(null);
       setShowRegForm(false);
       await fetchTalents(activeFilter);
     } catch (err) {
@@ -209,7 +236,7 @@ export default function TalentPage() {
             <span className="text-white">Talent Marketplace</span>
           </div>
           <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">Talent Marketplace</h1>
-          <p className="text-sm text-white/85 mt-1">Discover freelancers, musicians, and artists in The Bend — book them for your next event or project</p>
+          <p className="text-sm text-white/85 mt-1">Discover freelancers, musicians, and artists — book them for your next event or project</p>
         </div>
       </section>
 
@@ -324,16 +351,20 @@ export default function TalentPage() {
                 const meta = categoryMeta[talent.category];
                 const CategoryIcon = meta.Icon;
                 return (
-                  <Card key={talent.id} className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group">
+                  <Card key={talent.id} id={`talent-${talent.id}`} className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group">
                     <CardContent className="p-6">
                       {/* Avatar + Name + Rate */}
                       <div className="flex items-center gap-3 mb-4">
-                        <div
-                          className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0"
-                          style={{ backgroundColor: meta.bg, color: meta.text }}
-                        >
-                          {talent.name.charAt(0).toUpperCase()}
-                        </div>
+                        {talent.photo_url ? (
+                          <img src={resolveAssetUrl(talent.photo_url)} alt={talent.name} className="w-11 h-11 rounded-full object-cover flex-shrink-0 border border-gray-200" />
+                        ) : (
+                          <div
+                            className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0"
+                            style={{ backgroundColor: meta.bg, color: meta.text }}
+                          >
+                            {talent.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <h3 className="font-bold font-serif text-gray-900 text-base leading-tight truncate">{talent.name}</h3>
                           <Badge
@@ -371,15 +402,28 @@ export default function TalentPage() {
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" style={{ color: PRIMARY }} />
                           {talent.phone}
                         </a>
+                        {talent.email && (
+                          <a href={`mailto:${talent.email}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[hsl(35,45%,35%)] transition-colors cursor-pointer">
+                            <Mail className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'hsl(35, 45%, 42%)' }} />
+                            {talent.email}
+                          </a>
+                        )}
                       </div>
 
-                      <Button
-                        onClick={() => openBooking(talent)}
-                        className="w-full h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
-                        style={{ backgroundColor: PRIMARY }}
-                      >
-                        Book {talent.name.split(' ')[0]}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => openBooking(talent)}
+                          className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
+                          style={{ backgroundColor: PRIMARY }}
+                        >
+                          Book {talent.name.split(' ')[0]}
+                        </Button>
+                        <ShareButton
+                          url={`/talent#talent-${talent.id}`}
+                          title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                          description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
+                        />
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -431,11 +475,26 @@ export default function TalentPage() {
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="tal-phone" className="block text-sm font-medium text-gray-700">
-                      Phone <span className="text-red-400">*</span>
+                      Phone
                     </label>
                     <Input id="tal-phone" type="tel" value={regPhone} onChange={(e) => setRegPhone(e.target.value)}
-                      required placeholder="e.g., 555-123-4567" className="rounded-xl h-11" />
+                      placeholder="e.g., 555-123-4567" className="rounded-xl h-11" />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="tal-email" className="block text-sm font-medium text-gray-700">
+                    Email
+                  </label>
+                  <Input
+                    id="tal-email"
+                    type="email"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="rounded-xl h-11"
+                  />
+                  <p className="text-xs text-gray-500">Email or phone is required</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -471,6 +530,34 @@ export default function TalentPage() {
                   <Input id="tal-time" type="text" value={regAvailableTime}
                     onChange={(e) => setRegAvailableTime(e.target.value)}
                     required placeholder="e.g., Weekends, Evenings after 6pm" className="rounded-xl h-11" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
+                  <div className="flex items-center gap-4">
+                    {regPhoto ? (
+                      <img src={resolveAssetUrl(regPhoto)} alt="Preview" className="w-16 h-16 rounded-full object-cover border border-gray-200" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">No photo</div>
+                    )}
+                    <label className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                      {regPhotoUploading ? 'Uploading...' : 'Choose Photo'}
+                      <input type="file" accept="image/*" className="hidden" disabled={regPhotoUploading} onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setRegPhotoUploading(true);
+                        try {
+                          const { data } = await uploadApi.uploadPhoto(file);
+                          setRegPhoto(data.photo_url);
+                        } catch { /* silent */ }
+                        setRegPhotoUploading(false);
+                        e.target.value = '';
+                      }} />
+                    </label>
+                    {regPhoto && (
+                      <button type="button" onClick={() => setRegPhoto(null)} className="text-xs text-red-500 hover:underline cursor-pointer">Remove</button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

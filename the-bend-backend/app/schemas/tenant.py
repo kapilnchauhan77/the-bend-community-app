@@ -1,0 +1,69 @@
+from pydantic import BaseModel, Field
+from typing import Optional
+
+
+class TenantCreate(BaseModel):
+    slug: str = Field(..., min_length=2, max_length=63, pattern=r"^[a-z0-9][a-z0-9-]*$")
+    subdomain: str = Field(..., max_length=100)
+    display_name: str = Field(..., min_length=2, max_length=150)
+    tagline: Optional[str] = None
+    about_text: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: str = "hsl(160,25%,24%)"
+    footer_text: Optional[str] = None
+
+
+class TenantUpdate(BaseModel):
+    slug: Optional[str] = Field(None, min_length=2, max_length=63, pattern=r"^[a-z0-9][a-z0-9-]*$")
+    subdomain: Optional[str] = Field(None, max_length=100)
+    display_name: Optional[str] = Field(None, min_length=2, max_length=150)
+    tagline: Optional[str] = None
+    about_text: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    footer_text: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class TenantResponse(BaseModel):
+    id: str
+    slug: str
+    subdomain: str
+    display_name: str
+    tagline: Optional[str] = None
+    about_text: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: str
+    footer_text: Optional[str] = None
+    is_active: bool
+    created_at: str
+    updated_at: str
+
+
+class TenantPublicResponse(BaseModel):
+    """Public tenant info for branding (no admin fields)."""
+    slug: str
+    display_name: str
+    tagline: Optional[str] = None
+    about_text: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: str
+    footer_text: Optional[str] = None
+
+
+class TenantAdminCreate(BaseModel):
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=8)
+    name: str = Field(..., max_length=100)
+
+
+class TenantStatsResponse(BaseModel):
+    tenant_id: str
+    active_shops: int
+    active_listings: int
+    total_users: int
+    total_events: int

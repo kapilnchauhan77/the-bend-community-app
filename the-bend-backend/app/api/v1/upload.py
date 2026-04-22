@@ -61,6 +61,18 @@ async def get_current_guidelines(db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.post("/photo")
+async def upload_public_photo(
+    file: UploadFile = File(...),
+):
+    """Upload a photo for talent/volunteer profiles (no auth required)."""
+    service = FileService()
+    result = await service.upload_images([file])
+    if not result:
+        raise HTTPException(status_code=400, detail="Upload failed")
+    return {"photo_url": result[0]["url"]}
+
+
 @router.post("/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),

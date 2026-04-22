@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { AdPricing } from '@/types';
 import { advertisingApi } from '@/services/advertisingApi';
+import { eventApi } from '@/services/eventApi';
 import { PageLayout } from '@/components/layout/PageLayout';
 
 const HEADER_BG = 'hsl(160, 25%, 24%)';
@@ -29,9 +30,15 @@ export default function AdvertisePage() {
     logo_url: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<'select' | 'details' | 'success'>('select');
+  const [step, setStep] = useState<'select' | 'details' | 'connector' | 'success'>('select');
   const [statusMessage, setStatusMessage] = useState('');
   const [loadingPricing, setLoadingPricing] = useState(true);
+
+  // Connector purchase state
+  const [connectorForm, setConnectorForm] = useState({
+    business_name: '', website_url: '', contact_name: '', contact_email: '', notes: '',
+  });
+  const [connectorSubmitting, setConnectorSubmitting] = useState(false);
 
   useEffect(() => {
     if (sessionId) {
@@ -103,7 +110,7 @@ export default function AdvertisePage() {
               <span className="mx-2">/</span>
               <span style={{ color: 'hsl(35, 45%, 65%)' }}>Advertise</span>
             </nav>
-            <h1 className="font-serif text-3xl font-bold text-white tracking-wide">Advertise with The Bend</h1>
+            <h1 className="font-serif text-3xl font-bold text-white tracking-wide">Advertise with Us</h1>
           </div>
         </div>
 
@@ -117,7 +124,7 @@ export default function AdvertisePage() {
             {statusMessage || 'Payment received! Your ad is being reviewed and will be live within 24 hours.'}
           </h2>
           <p className="text-sm mb-8" style={{ color: 'hsl(35, 10%, 45%)' }}>
-            Thank you for supporting The Bend community. You'll receive a confirmation email once your ad goes live.
+            Thank you for supporting the community. You'll receive a confirmation email once your ad goes live.
           </p>
           <Link
             to="/"
@@ -141,7 +148,7 @@ export default function AdvertisePage() {
             <span className="mx-2">/</span>
             <span style={{ color: 'hsl(35, 45%, 65%)' }}>Advertise</span>
           </nav>
-          <h1 className="font-serif text-3xl font-bold text-white tracking-wide">Advertise with The Bend</h1>
+          <h1 className="font-serif text-3xl font-bold text-white tracking-wide">Advertise with Us</h1>
           <p className="mt-2 text-sm" style={{ color: 'hsl(160, 15%, 72%)' }}>
             Reach the local community with a featured placement on our platform
           </p>
@@ -175,6 +182,41 @@ export default function AdvertisePage() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* Example Sponsor Card */}
+        <section className="mb-14">
+          <h2 className="font-serif text-xl font-bold mb-2" style={{ color: 'hsl(160, 25%, 24%)' }}>What Your Ad Looks Like</h2>
+          <p className="text-xs mb-6" style={{ color: 'hsl(35, 10%, 50%)' }}>
+            Here's an example of how your sponsor card will appear across the platform.
+          </p>
+          <div className="max-w-sm mx-auto">
+            <div
+              className="rounded border p-5 text-center"
+              style={{ borderColor: CARD_BORDER, background: CARD_BG }}
+            >
+              <div
+                className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-xl font-bold font-serif text-white"
+                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
+              >
+                P
+              </div>
+              <h3 className="font-serif font-bold text-base mb-1" style={{ color: 'hsl(30, 15%, 18%)' }}>
+                Provoke
+              </h3>
+              <p className="text-xs leading-relaxed mb-2" style={{ color: 'hsl(35, 10%, 45%)' }}>
+                1 workspace every AI workflow.
+              </p>
+              <p className="text-[10px] uppercase tracking-wider font-medium" style={{ color: BRONZE }}>
+                Launching Spring 2026
+              </p>
+              <div className="mt-3 pt-3 border-t" style={{ borderColor: 'hsl(35, 18%, 88%)' }}>
+                <span className="text-[10px] uppercase tracking-wider" style={{ color: 'hsl(35, 10%, 60%)' }}>
+                  Community Partner
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -245,6 +287,187 @@ export default function AdvertisePage() {
                 })}
               </div>
             )}
+          </section>
+        )}
+
+        {/* Premium: Automatic Website Events Linker */}
+        {step === 'select' && (
+          <section className="mb-14">
+            <h2 className="font-serif text-xl font-bold mb-2" style={{ color: 'hsl(160, 25%, 24%)' }}>
+              Premium Service
+            </h2>
+            <p className="text-xs mb-6" style={{ color: 'hsl(35, 10%, 50%)' }}>
+              Automate your event presence
+            </p>
+            <div
+              className="rounded border-2 p-6 relative overflow-hidden"
+              style={{ borderColor: BRONZE, background: 'linear-gradient(135deg, hsl(40,20%,98%), hsl(35,15%,94%))' }}
+            >
+              <div className="absolute top-0 right-0 px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-white" style={{ backgroundColor: BRONZE }}>
+                Premium
+              </div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex-1">
+                  <h3 className="font-serif text-xl font-bold mb-2" style={{ color: 'hsl(160, 25%, 24%)' }}>
+                    Automatic Website Events Linker
+                  </h3>
+                  <p className="text-sm leading-relaxed mb-3" style={{ color: 'hsl(35, 10%, 40%)' }}>
+                    Never manually post events again. We connect directly to your website, calendar feed, or event page and automatically pull your events into the community calendar.
+                  </p>
+                  <ul className="space-y-1.5 text-xs" style={{ color: 'hsl(35, 10%, 50%)' }}>
+                    <li className="flex items-start gap-2">
+                      <span style={{ color: BRONZE }}>&#10003;</span>
+                      Automatic sync from your website, RSS feed, or calendar
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span style={{ color: BRONZE }}>&#10003;</span>
+                      Events appear within hours of posting on your site
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span style={{ color: BRONZE }}>&#10003;</span>
+                      90-day active connection with deduplication
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span style={{ color: BRONZE }}>&#10003;</span>
+                      Setup handled by our team — just provide your website URL
+                    </li>
+                  </ul>
+                </div>
+                <div className="text-center md:text-right flex-shrink-0">
+                  <div className="font-serif text-3xl font-bold mb-1" style={{ color: BRONZE }}>$399</div>
+                  <p className="text-xs mb-4" style={{ color: 'hsl(35, 10%, 55%)' }}>90-day connector</p>
+                  <button
+                    onClick={() => setStep('connector')}
+                    className="px-6 py-3 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90 cursor-pointer"
+                    style={{ background: 'hsl(160, 25%, 24%)' }}
+                  >
+                    Get Started
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Connector Details Form */}
+        {step === 'connector' && (
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <button
+                onClick={() => setStep('select')}
+                className="text-xs flex items-center gap-1 hover:underline"
+                style={{ color: BRONZE }}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back
+              </button>
+            </div>
+
+            <div
+              className="rounded border p-4 mb-8 flex items-center justify-between"
+              style={{ borderColor: SELECTED_BORDER, borderWidth: '2px', background: 'white' }}
+            >
+              <div>
+                <p className="text-xs uppercase tracking-wide font-medium mb-1" style={{ color: 'hsl(35, 10%, 55%)' }}>Selected</p>
+                <p className="font-serif font-bold" style={{ color: 'hsl(160, 25%, 24%)' }}>Automatic Website Events Linker</p>
+                <p className="text-xs mt-0.5" style={{ color: 'hsl(35, 10%, 55%)' }}>90-day automated event sync</p>
+              </div>
+              <span className="font-serif text-2xl font-bold" style={{ color: BRONZE }}>$399.00</span>
+            </div>
+
+            <h2 className="font-serif text-xl font-bold mb-6" style={{ color: 'hsl(160, 25%, 24%)' }}>
+              Your Details
+            </h2>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setConnectorSubmitting(true);
+                try {
+                  const res = await eventApi.connectorCheckout(connectorForm);
+                  const checkoutUrl = (res.data as { checkout_url?: string })?.checkout_url;
+                  if (checkoutUrl) window.location.href = checkoutUrl;
+                } catch {
+                  setConnectorSubmitting(false);
+                }
+              }}
+              className="space-y-5 max-w-2xl"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'hsl(160, 25%, 28%)' }}>
+                    Contact Name <span style={{ color: BRONZE }}>*</span>
+                  </label>
+                  <input type="text" required value={connectorForm.contact_name}
+                    onChange={(e) => setConnectorForm(f => ({ ...f, contact_name: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm outline-none focus:ring-1"
+                    style={{ borderColor: CARD_BORDER, background: 'white' }} placeholder="Jane Smith" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'hsl(160, 25%, 28%)' }}>
+                    Contact Email <span style={{ color: BRONZE }}>*</span>
+                  </label>
+                  <input type="email" required value={connectorForm.contact_email}
+                    onChange={(e) => setConnectorForm(f => ({ ...f, contact_email: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm outline-none focus:ring-1"
+                    style={{ borderColor: CARD_BORDER, background: 'white' }} placeholder="jane@example.com" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'hsl(160, 25%, 28%)' }}>
+                  Business / Organization Name <span style={{ color: BRONZE }}>*</span>
+                </label>
+                <input type="text" required value={connectorForm.business_name}
+                  onChange={(e) => setConnectorForm(f => ({ ...f, business_name: e.target.value }))}
+                  className="w-full border rounded px-3 py-2 text-sm outline-none focus:ring-1"
+                  style={{ borderColor: CARD_BORDER, background: 'white' }} placeholder="My Business" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'hsl(160, 25%, 28%)' }}>
+                  Website URL (where your events are posted) <span style={{ color: BRONZE }}>*</span>
+                </label>
+                <input type="url" required value={connectorForm.website_url}
+                  onChange={(e) => setConnectorForm(f => ({ ...f, website_url: e.target.value }))}
+                  className="w-full border rounded px-3 py-2 text-sm outline-none focus:ring-1"
+                  style={{ borderColor: CARD_BORDER, background: 'white' }} placeholder="https://mybusiness.com/events" />
+                <p className="text-xs mt-1" style={{ color: 'hsl(35, 10%, 55%)' }}>
+                  Provide the URL where your events are listed. We support websites, calendar feeds (ICS), and RSS feeds.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'hsl(160, 25%, 28%)' }}>
+                  Additional Notes <span className="font-normal normal-case tracking-normal" style={{ color: 'hsl(35, 10%, 55%)' }}>(optional)</span>
+                </label>
+                <textarea rows={3} value={connectorForm.notes}
+                  onChange={(e) => setConnectorForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full border rounded px-3 py-2 text-sm outline-none focus:ring-1 resize-none"
+                  style={{ borderColor: CARD_BORDER, background: 'white' }}
+                  placeholder="Any special instructions about where events are on your site, login requirements, etc." />
+              </div>
+
+              <div className="pt-2">
+                <button type="submit" disabled={connectorSubmitting}
+                  className="px-8 py-3 font-semibold text-white text-sm rounded transition-opacity hover:opacity-90 disabled:opacity-60 flex items-center gap-2 cursor-pointer"
+                  style={{ background: 'hsl(160, 25%, 24%)' }}
+                >
+                  {connectorSubmitting && (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
+                  {connectorSubmitting ? 'Redirecting to Payment...' : 'Pay $399 & Activate'}
+                </button>
+                <p className="text-xs mt-3" style={{ color: 'hsl(35, 10%, 55%)' }}>
+                  You'll be securely redirected to Stripe. After payment, our team will set up your connector within 24-48 hours.
+                </p>
+              </div>
+            </form>
           </section>
         )}
 
@@ -342,12 +565,16 @@ export default function AdvertisePage() {
                 <textarea
                   name="description"
                   rows={3}
+                  maxLength={200}
                   value={formData.description}
                   onChange={handleFormChange}
                   className="w-full border rounded px-3 py-2 text-sm outline-none focus:ring-1 resize-none"
                   style={{ borderColor: CARD_BORDER, background: 'white' }}
                   placeholder="A short description of your business or promotion..."
                 />
+                <p className="text-xs mt-1" style={{ color: 'hsl(35, 10%, 55%)' }}>
+                  Use the description to sell your services with custom text. {formData.description.length}/200 characters viewable.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -367,7 +594,7 @@ export default function AdvertisePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'hsl(160, 25%, 28%)' }}>
-                    Logo URL <span className="font-normal normal-case tracking-normal" style={{ color: 'hsl(35, 10%, 55%)' }}>(optional)</span>
+                    Image URL <span className="font-normal normal-case tracking-normal" style={{ color: 'hsl(35, 10%, 55%)' }}>(optional)</span>
                   </label>
                   <input
                     type="url"
@@ -378,6 +605,9 @@ export default function AdvertisePage() {
                     style={{ borderColor: CARD_BORDER, background: 'white' }}
                     placeholder="https://mybusiness.com/logo.png"
                   />
+                  <p className="text-xs mt-1" style={{ color: 'hsl(35, 10%, 55%)' }}>
+                    Use this image upload feature to add custom image artwork or custom advertising images.
+                  </p>
                 </div>
               </div>
 

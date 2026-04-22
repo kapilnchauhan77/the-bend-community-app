@@ -1,15 +1,17 @@
 import { resolveAssetUrl } from '@/lib/constants';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Menu, X, ChevronDown, Settings, LogOut, User as UserIcon, Store } from 'lucide-react';
+import { Bell, Menu, X, ChevronDown, Settings, LogOut, User as UserIcon, Store, Bookmark, Moon, Sun } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
+import { useDarkMode } from '@/hooks/useDarkMode';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 
 export function Navbar() {
   const { isAuthenticated, user, shop, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { isDark, toggle: toggleDark } = useDarkMode();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [communityOpen, setCommunityOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -31,6 +33,7 @@ export function Navbar() {
   }, []);
 
   const communityLinks = [
+    { to: '/directory', label: 'Directory' },
     { to: '/volunteers', label: 'Volunteers' },
     { to: '/talent', label: 'Talent' },
     { to: '/about', label: 'About' },
@@ -96,12 +99,19 @@ export function Navbar() {
                 <Link to="/messages" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
                   Messages
                 </Link>
-                <Link to="/my-shop" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
-                  My Business
-                </Link>
+                {user?.role !== 'community_admin' && user?.role !== 'super_admin' && (
+                  <Link to="/my-shop" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
+                    My Business
+                  </Link>
+                )}
                 {user?.role === 'community_admin' && (
                   <Link to="/admin" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
                     Admin
+                  </Link>
+                )}
+                {user?.role === 'super_admin' && (
+                  <Link to="/super-admin" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
+                    Super Admin
                   </Link>
                 )}
               </>
@@ -110,6 +120,13 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={toggleDark}
+              className="p-2 text-[hsl(30,10%,48%)] hover:text-[hsl(35,45%,42%)] transition-colors cursor-pointer"
+              aria-label="Toggle dark mode"
+            >
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/notifications')}
@@ -146,12 +163,21 @@ export function Navbar() {
                       {shop && <p className="text-[10px] text-[hsl(35,45%,42%)] mt-0.5 truncate">{shop.name}</p>}
                     </div>
                     {/* Menu items */}
+                    {user?.role !== 'community_admin' && user?.role !== 'super_admin' && (
+                      <button
+                        onClick={() => { setProfileOpen(false); navigate('/my-shop'); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
+                      >
+                        <Store size={15} />
+                        My Business
+                      </button>
+                    )}
                     <button
-                      onClick={() => { setProfileOpen(false); navigate('/my-shop'); }}
+                      onClick={() => { setProfileOpen(false); navigate('/saved'); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
                     >
-                      <Store size={15} />
-                      My Business
+                      <Bookmark size={15} />
+                      Saved
                     </button>
                     <button
                       onClick={() => { setProfileOpen(false); navigate('/settings'); }}
@@ -211,14 +237,16 @@ export function Navbar() {
               { to: '/', label: 'Home' },
               { to: '/browse', label: 'Browse' },
               { to: '/events', label: 'Events' },
+              { to: '/directory', label: 'Directory' },
               { to: '/volunteers', label: 'Volunteers' },
               { to: '/talent', label: 'Talent' },
               { to: '/about', label: 'About' },
               ...(isAuthenticated
                 ? [
                     { to: '/messages', label: 'Messages' },
-                    { to: '/my-shop', label: 'My Business' },
+                    ...(user?.role !== 'community_admin' && user?.role !== 'super_admin' ? [{ to: '/my-shop', label: 'My Business' }] : []),
                     ...(user?.role === 'community_admin' ? [{ to: '/admin', label: 'Admin' }] : []),
+                    ...(user?.role === 'super_admin' ? [{ to: '/super-admin', label: 'Super Admin' }] : []),
                   ]
                 : []),
             ].map((link) => (

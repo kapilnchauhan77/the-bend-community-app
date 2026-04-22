@@ -25,13 +25,20 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS
+    # Tenant resolution middleware (must be added before CORS so it runs after CORS)
+    from app.middleware.tenant import TenantMiddleware
+    app.add_middleware(TenantMiddleware, base_domain=settings.BASE_DOMAIN)
+
+    # CORS — allow all tenant subdomains dynamically
+    base = settings.BASE_DOMAIN.replace(".", r"\.")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
+        allow_origin_regex=r"https?://[\w-]+\.(" + base + r"|localhost)(:\d+)?",
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
 
     # Exception handlers

@@ -78,7 +78,7 @@ function isExpired(expires_at?: string): boolean {
   return new Date(expires_at) < new Date();
 }
 
-type TabKey = 'all' | 'pending' | 'active' | 'expired';
+type TabKey = 'all' | 'pending' | 'active' | 'inactive' | 'expired';
 
 interface EditFormData {
   name: string;
@@ -194,17 +194,22 @@ export default function SponsorsPage() {
   const filtered = sponsors.filter((s) => {
     if (activeTab === 'pending') return s.paid && !s.approved;
     if (activeTab === 'active') return s.approved && s.is_active && !isExpired(s.expires_at);
+    if (activeTab === 'inactive') return !s.is_active && !isExpired(s.expires_at);
     if (activeTab === 'expired') return isExpired(s.expires_at);
     return true;
   });
 
   const pendingCount = sponsors.filter((s) => s.paid && !s.approved).length;
+  const activeCount = sponsors.filter((s) => s.approved && s.is_active && !isExpired(s.expires_at)).length;
+  const inactiveCount = sponsors.filter((s) => !s.is_active && !isExpired(s.expires_at)).length;
+  const expiredCount = sponsors.filter((s) => isExpired(s.expires_at)).length;
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'all', label: 'All', count: sponsors.length },
     { key: 'pending', label: 'Pending Approval', count: pendingCount },
-    { key: 'active', label: 'Active' },
-    { key: 'expired', label: 'Expired' },
+    { key: 'active', label: 'Active', count: activeCount },
+    { key: 'inactive', label: 'Inactive', count: inactiveCount },
+    { key: 'expired', label: 'Expired', count: expiredCount },
   ];
 
   return (
@@ -289,6 +294,8 @@ export default function SponsorsPage() {
                 ? 'No sponsors awaiting approval.'
                 : activeTab === 'active'
                 ? 'No active sponsors.'
+                : activeTab === 'inactive'
+                ? 'No inactive sponsors.'
                 : activeTab === 'expired'
                 ? 'No expired sponsorships.'
                 : 'No sponsors yet.'}

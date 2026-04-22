@@ -26,7 +26,7 @@ async def _check_expiring():
                 Listing.status == ListingStatus.ACTIVE,
                 Listing.expiry_date.isnot(None),
                 Listing.expiry_date <= threshold,
-                Listing.urgency != UrgencyLevel.CRITICAL,
+                Listing.urgency == UrgencyLevel.NORMAL,
             )
         )
         listings = result.scalars().all()
