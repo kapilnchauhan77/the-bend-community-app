@@ -96,9 +96,12 @@ class AdminService:
             items.append({
                 "id": str(s.id), "name": s.name, "business_type": s.business_type,
                 "status": display_status, "address": s.address,
-                "contact_phone": s.contact_phone, "whatsapp": s.whatsapp,
+                "contact_phone": s.contact_phone, "phone": s.contact_phone,
+                "whatsapp": s.whatsapp,
                 "created_at": str(s.created_at),
                 "admin": {"name": admin.name, "email": admin.email} if admin else None,
+                "admin_name": admin.name if admin else None,
+                "admin_email": admin.email if admin else None,
                 "rejection_reason": s.rejection_reason,
             })
         return {"items": items, "next_cursor": None, "has_more": False}
