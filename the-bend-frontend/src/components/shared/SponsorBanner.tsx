@@ -52,8 +52,8 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
                 className="group text-center max-w-[160px] cursor-pointer"
               >
                 {s.logo_url ? (
-                  <div className="h-10 w-36 mx-auto flex items-center justify-center opacity-70 group-hover:opacity-100 transition-opacity">
-                    <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'max-h-full max-w-full')} />
+                  <div className="h-10 w-44 mx-auto flex items-center justify-center opacity-70 group-hover:opacity-100 transition-opacity">
+                    <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'h-10 w-auto max-w-full object-contain')} />
                   </div>
                 ) : (
                   <div className="h-10 w-36 mx-auto flex items-center justify-center">
@@ -111,8 +111,8 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
               className="flex-shrink-0 w-[280px] border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] px-4 py-4 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer group block"
             >
               {s.logo_url && (
-                <div className="mb-2.5 h-10 w-36 flex items-center justify-center">
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'max-h-full max-w-full')} />
+                <div className="mb-2.5 h-10 w-full flex items-center justify-start">
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'h-10 w-auto max-w-full object-contain')} />
                 </div>
               )}
               <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
@@ -166,8 +166,8 @@ function SponsorCardCarousel({ sponsors }: { sponsors: Sponsor[] }) {
           Community Partner
         </p>
         {sponsor.logo_url && (
-          <div className="mb-2 h-8 w-28 flex items-center justify-center">
-            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className={logoClass(sponsor.logo_url, 'max-h-full max-w-full')} />
+          <div className="mb-2 h-8 w-full flex items-center justify-start">
+            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className={logoClass(sponsor.logo_url, 'h-8 w-auto max-w-full object-contain')} />
           </div>
         )}
         <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors mb-1">
