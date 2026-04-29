@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { useTenant } from '@/context/TenantContext';
+import { useAuthStore } from '@/stores/authStore';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -76,6 +77,7 @@ const guidelines = [
 export default function AboutPage() {
   const navigate = useNavigate();
   const tenant = useTenant();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   return (
     <PageLayout>
@@ -199,13 +201,15 @@ export default function AboutPage() {
             Register your business and start sharing with your neighbors today.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              onClick={() => navigate('/register')}
-              className="font-semibold px-6 h-10 text-white cursor-pointer"
-              style={{ backgroundColor: PRIMARY }}
-            >
-              Register Your Business
-            </Button>
+            {!isAuthenticated && (
+              <Button
+                onClick={() => navigate('/register')}
+                className="font-semibold px-6 h-10 text-white cursor-pointer"
+                style={{ backgroundColor: PRIMARY }}
+              >
+                Register Your Business
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => navigate('/browse')}

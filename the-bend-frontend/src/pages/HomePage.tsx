@@ -22,6 +22,7 @@ import { ListingCard } from '@/components/shared/ListingCard';
 import api from '@/services/api';
 import { listingApi } from '@/services/listingApi';
 import { eventApi } from '@/services/eventApi';
+import { useAuthStore } from '@/stores/authStore';
 import type { Listing, CommunityEvent, SuccessStory } from '@/types';
 import { SponsorBanner } from '@/components/shared/SponsorBanner';
 import { useTenant } from '@/context/TenantContext';
@@ -43,6 +44,7 @@ const services = [
 export default function HomePage() {
   const navigate = useNavigate();
   const tenant = useTenant();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const PRIMARY = tenant.primary_color;
   const [searchQuery, setSearchQuery] = useState('');
   const [urgentListings, setUrgentListings] = useState<Listing[]>([]);
@@ -309,14 +311,16 @@ export default function HomePage() {
                   <ClipboardList className="w-4 h-4" />
                   Post a Listing
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/register')}
-                  className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
-                >
-                  <Store className="w-4 h-4" />
-                  Register Your Business
-                </Button>
+                {!isAuthenticated && (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/register')}
+                    className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+                  >
+                    <Store className="w-4 h-4" />
+                    Register Your Business
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => navigate('/volunteers')}
