@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.api.deps import get_db
 from app.config import get_settings
 from app.core.permissions import get_current_tenant
+from app.core.stripe_resolver import get_stripe_keys
 from app.models.tenant import Tenant
 from app.models.ad_pricing import AdPricing
 from app.models.sponsor import Sponsor
@@ -88,7 +89,7 @@ async def create_checkout(
     await db.flush()
 
     # Create Stripe checkout session
-    stripe.api_key = settings.STRIPE_SECRET_KEY
+    stripe.api_key = get_stripe_keys(tenant).secret
 
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
@@ -122,7 +123,12 @@ async def create_checkout(
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    """Handle Stripe webhook for payment confirmation."""
+    """Handle Stripe webhook for payment confirmation.
+
+    Uses env-level Stripe credentials (a single webhook URL is hit by Stripe
+    regardless of which tenant initiated the checkout). Per-tenant keys are
+    used at checkout creation time only.
+    """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 

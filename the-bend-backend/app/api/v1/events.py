@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.api.deps import get_db
 from app.config import get_settings
 from app.core.permissions import get_current_tenant
+from app.core.stripe_resolver import get_stripe_keys
 from app.models.tenant import Tenant
 from app.services.event_service import EventService
 from app.models.event import Event
@@ -141,7 +142,7 @@ async def submit_event(
     await db.flush()
 
     # Create Stripe checkout session
-    stripe.api_key = settings.STRIPE_SECRET_KEY
+    stripe.api_key = get_stripe_keys(tenant).secret
 
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
@@ -190,7 +191,7 @@ async def purchase_connector(
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Purchase a 90-day Automatic Website Events Linker."""
-    stripe.api_key = settings.STRIPE_SECRET_KEY
+    stripe.api_key = get_stripe_keys(tenant).secret
 
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],

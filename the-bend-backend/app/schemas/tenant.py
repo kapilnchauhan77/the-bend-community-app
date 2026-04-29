@@ -82,3 +82,19 @@ class TenantStatsResponse(BaseModel):
     active_listings: int
     total_users: int
     total_events: int
+
+
+class TenantStripeUpdate(BaseModel):
+    """Per-tenant Stripe credential update. Empty/None → use env fallback."""
+    stripe_secret_key: Optional[str] = Field(None, max_length=255)
+    stripe_publishable_key: Optional[str] = Field(None, max_length=255)
+    stripe_webhook_secret: Optional[str] = Field(None, max_length=255)
+
+
+class TenantStripeStatus(BaseModel):
+    """Masked Stripe credential status for admin UI."""
+    stripe_configured: bool
+    stripe_publishable_key: str
+    stripe_secret_key_masked: str
+    stripe_webhook_configured: bool
+    source: str  # "tenant" | "env" | "mixed" | "none"

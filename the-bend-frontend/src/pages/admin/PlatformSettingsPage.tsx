@@ -66,6 +66,14 @@ interface TenantBranding {
   primary_color: string;
 }
 
+interface StripeStatus {
+  stripe_configured: boolean;
+  stripe_publishable_key: string;
+  stripe_secret_key_masked: string;
+  stripe_webhook_configured: boolean;
+  source: 'tenant' | 'env' | 'mixed' | 'none';
+}
+
 export default function PlatformSettingsPage() {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,13 +90,33 @@ export default function PlatformSettingsPage() {
   const [savingBranding, setSavingBranding] = useState(false);
   const [brandingMsg, setBrandingMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Stripe form state
+  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [stripeForm, setStripeForm] = useState({
+    stripe_secret_key: '',
+    stripe_publishable_key: '',
+    stripe_webhook_secret: '',
+  });
+  const [savingStripe, setSavingStripe] = useState(false);
+  const [stripeMsg, setStripeMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const reloadStripeStatus = async () => {
+    try {
+      const res = await api.get('/tenant/current/stripe-status');
+      setStripeStatus(res.data);
+    } catch {
+      setStripeStatus(null);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const [settingsRes, tenantRes] = await Promise.all([
+        const [settingsRes, tenantRes, stripeRes] = await Promise.all([
           sponsorApi.getSettings(),
           api.get('/tenant/current'),
+          api.get('/tenant/current/stripe-status').catch(() => null),
         ]);
         setSettings(settingsRes.data);
         const t = tenantRes.data;
@@ -99,6 +127,7 @@ export default function PlatformSettingsPage() {
           footer_text: t.footer_text || '',
           primary_color: t.primary_color || '',
         });
+        if (stripeRes) setStripeStatus(stripeRes.data);
       } catch {
         setError('Failed to load settings.');
       } finally {
@@ -106,6 +135,51 @@ export default function PlatformSettingsPage() {
       }
     })();
   }, []);
+
+  const saveStripe = async () => {
+    setSavingStripe(true);
+    setStripeMsg(null);
+    try {
+      // Only send fields the user actually entered (non-empty), so we don't
+      // overwrite existing tenant keys with empty when they leave a field blank
+      const payload: Record<string, string> = {};
+      if (stripeForm.stripe_secret_key) payload.stripe_secret_key = stripeForm.stripe_secret_key;
+      if (stripeForm.stripe_publishable_key) payload.stripe_publishable_key = stripeForm.stripe_publishable_key;
+      if (stripeForm.stripe_webhook_secret) payload.stripe_webhook_secret = stripeForm.stripe_webhook_secret;
+      if (Object.keys(payload).length === 0) {
+        setStripeMsg({ ok: false, text: 'Enter at least one Stripe key to save.' });
+        return;
+      }
+      await api.put('/tenant/current/stripe', payload);
+      setStripeForm({ stripe_secret_key: '', stripe_publishable_key: '', stripe_webhook_secret: '' });
+      await reloadStripeStatus();
+      setStripeMsg({ ok: true, text: 'Stripe keys saved.' });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      setStripeMsg({ ok: false, text: err?.response?.data?.detail || 'Save failed.' });
+    } finally {
+      setSavingStripe(false);
+    }
+  };
+
+  const clearStripeKeys = async () => {
+    if (!confirm('Clear all per-tenant Stripe keys? Will fall back to platform .env values.')) return;
+    setSavingStripe(true);
+    setStripeMsg(null);
+    try {
+      await api.put('/tenant/current/stripe', {
+        stripe_secret_key: '',
+        stripe_publishable_key: '',
+        stripe_webhook_secret: '',
+      });
+      await reloadStripeStatus();
+      setStripeMsg({ ok: true, text: 'Cleared. Now using platform fallback.' });
+    } catch {
+      setStripeMsg({ ok: false, text: 'Clear failed.' });
+    } finally {
+      setSavingStripe(false);
+    }
+  };
 
   const saveBranding = async () => {
     setSavingBranding(true);
@@ -147,11 +221,12 @@ export default function PlatformSettingsPage() {
         <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
           <Info size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800">
-            <p className="font-semibold mb-1">Environment-managed settings</p>
+            <p className="font-semibold mb-1">Per-tenant Stripe keys</p>
             <p>
-              Stripe keys and other sensitive values are managed through environment variables.
-              To update them, edit your <code className="bg-blue-100 px-1 rounded font-mono text-xs">.env</code> file
-              or update the variables in your Railway (or Render) project dashboard, then redeploy.
+              You can use this tenant&rsquo;s own Stripe account by setting keys here.
+              Leave fields blank to fall back to the platform&rsquo;s shared keys.
+              Keys are stored encrypted-at-rest by your database; only masked
+              previews are shown.
             </p>
           </div>
         </div>
@@ -178,7 +253,7 @@ export default function PlatformSettingsPage() {
           </div>
         ) : settings ? (
           <div className="space-y-4">
-            {/* Stripe card */}
+            {/* Stripe card — now editable per-tenant */}
             <Card className="border-[hsl(35,18%,87%)]">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base" style={{ color: PRIMARY }}>
@@ -186,39 +261,104 @@ export default function PlatformSettingsPage() {
                   Stripe Configuration
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <StatusBadge ok={settings.stripe_configured} label="Stripe Secret Key" />
-                  <StatusBadge ok={settings.stripe_webhook_configured} label="Stripe Webhook Secret" />
-                  <StatusBadge
-                    ok={!!settings.stripe_publishable_key}
-                    label="Stripe Publishable Key"
-                  />
-                </div>
+              <CardContent className="space-y-5">
+                {stripeStatus && (
+                  <>
+                    <div className="space-y-2">
+                      <StatusBadge ok={stripeStatus.stripe_configured} label="Stripe Secret Key" />
+                      <StatusBadge ok={stripeStatus.stripe_webhook_configured} label="Stripe Webhook Secret" />
+                      <StatusBadge
+                        ok={!!stripeStatus.stripe_publishable_key}
+                        label="Stripe Publishable Key"
+                      />
+                      <div className="text-xs text-muted-foreground pt-1">
+                        Source:{' '}
+                        <span className="font-medium uppercase tracking-wider">
+                          {stripeStatus.source === 'tenant' && 'This tenant'}
+                          {stripeStatus.source === 'env' && 'Platform fallback'}
+                          {stripeStatus.source === 'mixed' && 'Mixed (some tenant, some platform)'}
+                          {stripeStatus.source === 'none' && 'Not configured'}
+                        </span>
+                      </div>
+                    </div>
 
-                {(settings.stripe_publishable_key || settings.stripe_secret_key_masked) && (
-                  <div className="mt-3 rounded-md border border-[hsl(35,18%,90%)] bg-[hsl(35,15%,97%)] px-4 py-1">
-                    {settings.stripe_publishable_key && (
-                      <MaskedKeyRow
-                        label="Publishable key"
-                        value={settings.stripe_publishable_key}
-                      />
+                    {(stripeStatus.stripe_publishable_key || stripeStatus.stripe_secret_key_masked) && (
+                      <div className="rounded-md border border-[hsl(35,18%,90%)] bg-[hsl(35,15%,97%)] px-4 py-1">
+                        {stripeStatus.stripe_publishable_key && (
+                          <MaskedKeyRow label="Publishable key" value={stripeStatus.stripe_publishable_key} />
+                        )}
+                        {stripeStatus.stripe_secret_key_masked && (
+                          <MaskedKeyRow label="Secret key" value={stripeStatus.stripe_secret_key_masked} />
+                        )}
+                      </div>
                     )}
-                    {settings.stripe_secret_key_masked && (
-                      <MaskedKeyRow
-                        label="Secret key"
-                        value={settings.stripe_secret_key_masked}
-                      />
-                    )}
-                  </div>
+                  </>
                 )}
 
-                {!settings.stripe_configured && (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                    Stripe is not configured. Payments will not work until{' '}
-                    <code className="font-mono text-xs">STRIPE_SECRET_KEY</code> is set.
+                <div className="border-t border-[hsl(35,18%,90%)] pt-4 space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Enter new keys below to override for this tenant. Leave a field blank to keep its current value.
                   </p>
-                )}
+                  <div>
+                    <Label htmlFor="stripe_secret_key" className="text-sm">Stripe Secret Key</Label>
+                    <Input
+                      id="stripe_secret_key"
+                      type="password"
+                      autoComplete="new-password"
+                      value={stripeForm.stripe_secret_key}
+                      onChange={(e) => setStripeForm(s => ({ ...s, stripe_secret_key: e.target.value }))}
+                      placeholder="sk_live_…"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="stripe_publishable_key" className="text-sm">Stripe Publishable Key</Label>
+                    <Input
+                      id="stripe_publishable_key"
+                      value={stripeForm.stripe_publishable_key}
+                      onChange={(e) => setStripeForm(s => ({ ...s, stripe_publishable_key: e.target.value }))}
+                      placeholder="pk_live_…"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="stripe_webhook_secret" className="text-sm">Stripe Webhook Secret</Label>
+                    <Input
+                      id="stripe_webhook_secret"
+                      type="password"
+                      autoComplete="new-password"
+                      value={stripeForm.stripe_webhook_secret}
+                      onChange={(e) => setStripeForm(s => ({ ...s, stripe_webhook_secret: e.target.value }))}
+                      placeholder="whsec_…"
+                      className="mt-1 font-mono"
+                    />
+                  </div>
+                  {stripeMsg && (
+                    <div className={`text-sm rounded px-3 py-2 ${stripeMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                      {stripeMsg.text}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={saveStripe}
+                      disabled={savingStripe}
+                      className="text-white gap-2"
+                      style={{ backgroundColor: PRIMARY }}
+                    >
+                      {savingStripe ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      {savingStripe ? 'Saving...' : 'Save Stripe Keys'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearStripeKeys}
+                      disabled={savingStripe}
+                      className="gap-2"
+                    >
+                      Clear & use platform fallback
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

@@ -3,11 +3,15 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.config import get_settings
 from app.core.permissions import get_current_tenant, Permission
 from app.core.exceptions import ForbiddenError
+from app.core.stripe_resolver import get_stripe_keys, mask
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.schemas.tenant import TenantPublicResponse, TenantSelfUpdate
+from app.schemas.tenant import (
+    TenantPublicResponse, TenantSelfUpdate, TenantStripeUpdate, TenantStripeStatus,
+)
 
 router = APIRouter(prefix="/tenant", tags=["tenant"])
 
@@ -71,3 +75,71 @@ async def update_current_tenant(
     await db.flush()
     await db.refresh(fresh)
     return _to_public(fresh)
+
+
+@router.get("/current/stripe-status")
+async def get_stripe_status(
+    tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    """Masked Stripe credential status for admin UI."""
+    if not tenant:
+        raise ForbiddenError("Tenant not resolved")
+    if current_user.role.value == "community_admin" and current_user.tenant_id != tenant.id:
+        raise ForbiddenError("Cannot view another tenant")
+
+    settings = get_settings()
+    keys = get_stripe_keys(tenant)
+
+    # Determine source per credential
+    def src(tenant_val: str | None, env_val: str) -> str:
+        if tenant_val:
+            return "tenant"
+        if env_val:
+            return "env"
+        return "none"
+
+    s_secret = src(tenant.stripe_secret_key, settings.STRIPE_SECRET_KEY)
+    s_pub = src(tenant.stripe_publishable_key, settings.STRIPE_PUBLISHABLE_KEY)
+    s_wh = src(tenant.stripe_webhook_secret, settings.STRIPE_WEBHOOK_SECRET)
+    sources = {s_secret, s_pub, s_wh} - {"none"}
+    if len(sources) == 0:
+        source = "none"
+    elif len(sources) == 1:
+        source = sources.pop()
+    else:
+        source = "mixed"
+
+    return TenantStripeStatus(
+        stripe_configured=bool(keys.secret),
+        stripe_publishable_key=mask(keys.publishable),
+        stripe_secret_key_masked=mask(keys.secret),
+        stripe_webhook_configured=bool(keys.webhook),
+        source=source,
+    )
+
+
+@router.put("/current/stripe")
+async def update_stripe_keys(
+    data: TenantStripeUpdate,
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    """Community admin updates Stripe keys for their own tenant.
+
+    Pass empty string to clear a field (falls back to env). Only fields included
+    in the request body are touched.
+    """
+    if not tenant:
+        raise ForbiddenError("Tenant not resolved")
+    if current_user.role.value == "community_admin" and current_user.tenant_id != tenant.id:
+        raise ForbiddenError("Cannot edit another tenant")
+
+    update_data = data.model_dump(exclude_unset=True)
+    fresh = await db.get(Tenant, tenant.id)
+    for key, value in update_data.items():
+        # Empty string → null (use env fallback)
+        setattr(fresh, key, value if value else None)
+    await db.flush()
+    return {"message": "Stripe keys updated"}
