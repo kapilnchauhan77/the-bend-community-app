@@ -37,7 +37,7 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
                 className="group text-center max-w-[160px] cursor-pointer"
               >
                 {s.logo_url ? (
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="h-8 mx-auto opacity-70 group-hover:opacity-100 transition-opacity bg-white/95 rounded px-3 py-1.5 object-contain" />
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="h-8 mx-auto opacity-70 group-hover:opacity-100 transition-opacity object-contain dark:invert dark:brightness-0" />
                 ) : (
                   <span className="text-sm font-serif font-semibold text-[hsl(30,10%,45%)] group-hover:text-[hsl(35,45%,42%)] transition-colors">
                     {s.name}
@@ -93,7 +93,7 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
             >
               {s.logo_url && (
                 <div className="mb-2.5 h-8 flex items-center">
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="max-h-8 max-w-[140px] object-contain bg-white/95 rounded px-2 py-1" />
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="max-h-8 max-w-[140px] object-contain dark:invert dark:brightness-0" />
                 </div>
               )}
               <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
@@ -148,7 +148,7 @@ function SponsorCardCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         </p>
         {sponsor.logo_url && (
           <div className="mb-2 h-6 flex items-center">
-            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className="max-h-6 max-w-[100px] object-contain bg-white/95 rounded px-1.5 py-1" />
+            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className="max-h-6 max-w-[100px] object-contain dark:invert dark:brightness-0" />
           </div>
         )}
         <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors mb-1">
