@@ -52,11 +52,15 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
                 className="group text-center max-w-[160px] cursor-pointer"
               >
                 {s.logo_url ? (
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'h-8 mx-auto opacity-70 group-hover:opacity-100 transition-opacity')} />
+                  <div className="h-10 w-36 mx-auto flex items-center justify-center opacity-70 group-hover:opacity-100 transition-opacity">
+                    <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'max-h-full max-w-full')} />
+                  </div>
                 ) : (
-                  <span className="text-sm font-serif font-semibold text-[hsl(30,10%,45%)] group-hover:text-[hsl(35,45%,42%)] transition-colors">
-                    {s.name}
-                  </span>
+                  <div className="h-10 w-36 mx-auto flex items-center justify-center">
+                    <span className="text-sm font-serif font-semibold text-[hsl(30,10%,45%)] group-hover:text-[hsl(35,45%,42%)] transition-colors">
+                      {s.name}
+                    </span>
+                  </div>
                 )}
               </a>
             ))}
@@ -107,8 +111,8 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
               className="flex-shrink-0 w-[280px] border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] px-4 py-4 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer group block"
             >
               {s.logo_url && (
-                <div className="mb-2.5 h-8 flex items-center">
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'max-h-8 max-w-[140px]')} />
+                <div className="mb-2.5 h-10 w-36 flex items-center justify-center">
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'max-h-full max-w-full')} />
                 </div>
               )}
               <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
@@ -162,8 +166,8 @@ function SponsorCardCarousel({ sponsors }: { sponsors: Sponsor[] }) {
           Community Partner
         </p>
         {sponsor.logo_url && (
-          <div className="mb-2 h-6 flex items-center">
-            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className={logoClass(sponsor.logo_url, 'max-h-6 max-w-[100px]')} />
+          <div className="mb-2 h-8 w-28 flex items-center justify-center">
+            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className={logoClass(sponsor.logo_url, 'max-h-full max-w-full')} />
           </div>
         )}
         <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors mb-1">
