@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -49,17 +49,21 @@ const urgencyOptions = [
 
 export default function CreateListingPage() {
   const navigate = useNavigate();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEdit = Boolean(editId);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [images, setImages] = useState<{ url: string; thumbnail_url: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(isEdit);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -70,6 +74,37 @@ export default function CreateListingPage() {
       is_free: true,
     },
   });
+
+  // Load existing listing for edit mode
+  useEffect(() => {
+    if (!editId) return;
+    listingApi.getDetail(editId)
+      .then((res) => {
+        const l = res.data;
+        reset({
+          type: l.type,
+          category: l.category,
+          title: l.title || '',
+          description: l.description || '',
+          quantity: l.quantity || '',
+          unit: l.unit || '',
+          urgency: l.urgency || 'normal',
+          is_free: Boolean(l.is_free),
+          price: l.price != null ? String(l.price) : '',
+          expiry_date: l.expiry_date ? String(l.expiry_date).slice(0, 10) : '',
+        });
+        if (Array.isArray(l.images)) {
+          setImages(
+            l.images.map((img: { url: string; thumbnail_url?: string }) => ({
+              url: img.url,
+              thumbnail_url: img.thumbnail_url || img.url,
+            }))
+          );
+        }
+      })
+      .catch(() => setServerError('Failed to load listing.'))
+      .finally(() => setLoadingExisting(false));
+  }, [editId, reset]);
 
   const watchedType = watch('type');
   const watchedUrgency = watch('urgency');
@@ -112,11 +147,15 @@ export default function CreateListingPage() {
       if (data.expiry_date) payload.expiry_date = data.expiry_date;
       if (images.length > 0) payload.image_ids = images.map(img => img.url);
 
-      await listingApi.create(payload);
+      if (isEdit && editId) {
+        await listingApi.update(editId, payload);
+      } else {
+        await listingApi.create(payload);
+      }
       setSuccess(true);
-      setTimeout(() => navigate('/browse'), 1500);
+      setTimeout(() => navigate(isEdit && editId ? `/listing/${editId}` : '/browse'), 1500);
     } catch {
-      setServerError('Failed to create listing. Please try again.');
+      setServerError(isEdit ? 'Failed to update listing. Please try again.' : 'Failed to create listing. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -129,8 +168,8 @@ export default function CreateListingPage() {
           <div className="w-16 h-16 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-[hsl(160,25%,28%)]" />
           </div>
-          <h2 className="text-xl font-bold mb-2">Listing Posted!</h2>
-          <p className="text-muted-foreground">Redirecting you to browse...</p>
+          <h2 className="text-xl font-bold mb-2">{isEdit ? 'Listing Updated!' : 'Listing Posted!'}</h2>
+          <p className="text-muted-foreground">Redirecting...</p>
         </div>
       </PageLayout>
     );
@@ -139,7 +178,13 @@ export default function CreateListingPage() {
   return (
     <PageLayout>
       <div className="max-w-2xl mx-auto px-4 md:px-8 py-8">
-        <h1 className="text-2xl font-bold mb-6">Post a Listing</h1>
+        <h1 className="text-2xl font-bold mb-6">{isEdit ? 'Edit Listing' : 'Post a Listing'}</h1>
+        {loadingExisting && (
+          <div className="flex items-center gap-2 text-muted-foreground mb-6">
+            <Loader2 size={16} className="animate-spin" />
+            Loading listing...
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Offer / Request toggle */}
@@ -378,10 +423,10 @@ export default function CreateListingPage() {
               {submitting ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Posting...
+                  {isEdit ? 'Saving...' : 'Posting...'}
                 </>
               ) : (
-                'Post Listing'
+                isEdit ? 'Save Changes' : 'Post Listing'
               )}
             </Button>
           </div>

@@ -79,6 +79,7 @@ function App() {
 
         {/* Protected routes */}
         <Route path="/create" element={<ProtectedRoute><CreateListingPage /></ProtectedRoute>} />
+        <Route path="/listing/:id/edit" element={<ProtectedRoute><CreateListingPage /></ProtectedRoute>} />
         <Route path="/my-shop" element={<ProtectedRoute><MyShopPage /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
         <Route path="/messages/:threadId" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
