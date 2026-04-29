@@ -1,5 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { Briefcase, Package, Wrench, Clock } from 'lucide-react';
+import { resolveAssetUrl } from '@/lib/constants';
 import type { Listing } from '@/types';
 
 const categoryIcons = {
@@ -49,12 +50,30 @@ export function ListingCard({ listing }: { listing: Listing }) {
     : (isOffer ? 'Offering' : 'Looking for');
   const typeColor = isOffer ? 'text-[hsl(160,25%,28%)]' : 'text-[hsl(220,50%,45%)]';
 
+  const cover = listing.images?.[0];
+  const coverUrl = cover?.thumbnail_url || cover?.url;
+
   return (
     <div
-      className="bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,84%)] cursor-pointer shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-[hsl(35,45%,42%,0.4)] active:translate-y-0 active:shadow-sm transition-all duration-150 group"
+      className="bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,84%)] cursor-pointer shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-[hsl(35,45%,42%,0.4)] active:translate-y-0 active:shadow-sm transition-all duration-150 group overflow-hidden"
       style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}
       onClick={() => navigate(`/listing/${listing.id}`)}
     >
+      {coverUrl && (
+        <div className="relative aspect-[16/9] bg-[hsl(35,15%,90%)] overflow-hidden">
+          <img
+            src={resolveAssetUrl(coverUrl)}
+            alt={listing.title}
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+          {listing.images && listing.images.length > 1 && (
+            <span className="absolute bottom-2 right-2 bg-black/55 backdrop-blur-sm text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+              +{listing.images.length - 1}
+            </span>
+          )}
+        </div>
+      )}
       <div className="px-4 py-3">
         {/* Top row: type + urgency dot + category */}
         <div className="flex items-center justify-between mb-1.5">
