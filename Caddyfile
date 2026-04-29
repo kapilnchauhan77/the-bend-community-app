@@ -1,0 +1,31 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# API on api.bend.community → backend
+api.{$BASE_DOMAIN} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	reverse_proxy backend:8000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote}
+		header_up X-Forwarded-For {remote}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	encode gzip zstd
+}
+
+# Root + all tenant subdomains → frontend (nginx serving Vite SPA)
+{$BASE_DOMAIN}, *.{$BASE_DOMAIN} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	reverse_proxy frontend:80 {
+		header_up Host {host}
+		header_up X-Real-IP {remote}
+		header_up X-Forwarded-For {remote}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	encode gzip zstd
+}

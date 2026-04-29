@@ -66,6 +66,16 @@ export default defineConfig({
               networkTimeoutSeconds: 10,
             },
           },
+          {
+            urlPattern: /\/images\/.*\.(?:png|jpg|jpeg|svg|webp)$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'local-images-cache',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+              networkTimeoutSeconds: 5,
+            },
+          },
         ],
       },
     }),

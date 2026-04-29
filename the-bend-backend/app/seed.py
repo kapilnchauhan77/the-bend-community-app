@@ -288,10 +288,10 @@ async def seed_sponsors():
             Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Provoke", description="One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.", logo_url="/images/provoke-logo.png", website_url="https://provoke.space", placement="events", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@provoke.space", contact_name="Provoke"),
             Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Provoke", description="One workspace. Every workflow. AI-powered workspace unifying chat, email, calendar, projects, and media generation.", logo_url="/images/provoke-logo.png", website_url="https://provoke.space", placement="footer", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@provoke.space", contact_name="Provoke"),
             # Westmoreland County Museum — all placements
-            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.jpeg", website_url="https://www.westmorelandcountymuseum.org/", placement="homepage", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
-            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.jpeg", website_url="https://www.westmorelandcountymuseum.org/", placement="browse", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
-            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.jpeg", website_url="https://www.westmorelandcountymuseum.org/", placement="events", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
-            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.jpeg", website_url="https://www.westmorelandcountymuseum.org/", placement="footer", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
+            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.png", website_url="https://www.westmorelandcountymuseum.org/", placement="homepage", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
+            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.png", website_url="https://www.westmorelandcountymuseum.org/", placement="browse", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
+            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.png", website_url="https://www.westmorelandcountymuseum.org/", placement="events", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
+            Sponsor(id=uuid4(), tenant_id=_default_tenant_id, name="Westmoreland County Museum", description="Preserving and celebrating the rich history of Westmoreland County — birthplace of American presidents.", logo_url="/images/westmoreland-museum-logo.png", website_url="https://www.westmorelandcountymuseum.org/", placement="footer", is_active=True, paid=True, approved=True, sort_order=0, contact_email="info@westmorelandcountymuseum.org", contact_name="Westmoreland County Museum"),
         ]
         session.add_all(sponsors)
         await session.commit()
@@ -549,6 +549,89 @@ async def seed_new_kent():
     )
 
 
+async def clear_dummy_data():
+    """Delete all dummy/seeded content but keep tenants and seed admin accounts.
+
+    Preserves:
+      - Tenants (westmoreland, king-george, new-kent, etc.)
+      - Super admin user (super@thebend.app)
+      - Community admin users (admin@thebend.app, admin@kinggeorge.bend.community,
+        admin@newkent.bend.community)
+      - Guidelines, ad pricing, sponsors (platform configuration)
+
+    Deletes everything else: shops, listings, events, volunteers, talent,
+    success_stories, event_connectors, notifications, messages, interests,
+    saved_listings, reports, endorsements, shop_admin/employee users.
+    """
+    from sqlalchemy import delete, select, or_, not_
+    from app.models.message import Message, MessageThread
+    from app.models.notification import Notification
+    from app.models.interest import Interest
+    from app.models.saved_listing import SavedListing
+    from app.models.report import Report
+    from app.models.endorsement import Endorsement
+    from app.models.guideline import Guideline
+    from app.models.success_story import SuccessStory
+    from app.models.listing import Listing, ListingImage
+
+    PROTECTED_EMAILS = {
+        "super@thebend.app",
+        "admin@thebend.app",
+        "admin@kinggeorge.bend.community",
+        "admin@newkent.bend.community",
+    }
+
+    async with async_session() as session:
+        # Order matters: delete dependents before parents to satisfy FK constraints
+        # 1. Listing-related (interests, saved, reports, success stories, images)
+        await session.execute(delete(Interest))
+        await session.execute(delete(SavedListing))
+        await session.execute(delete(Report))
+        await session.execute(delete(SuccessStory))
+        await session.execute(delete(ListingImage))
+
+        # 2. Messaging
+        await session.execute(delete(Message))
+        await session.execute(delete(MessageThread))
+
+        # 3. Notifications
+        await session.execute(delete(Notification))
+
+        # 4. Endorsements
+        await session.execute(delete(Endorsement))
+
+        # 5. Listings
+        await session.execute(delete(Listing))
+
+        # 6. Events & Connectors
+        await session.execute(delete(Event))
+        await session.execute(delete(EventConnector))
+
+        # 7. Volunteers, Talent (keep Sponsors, AdPricing, Guidelines as platform config)
+        await session.execute(delete(Volunteer))
+        await session.execute(delete(Talent))
+
+        # 8. Detach users from shops, then delete shops
+        await session.execute(
+            User.__table__.update().values(shop_id=None)
+        )
+        await session.execute(delete(Shop))
+
+        # 9. Delete all users except protected seed accounts
+        await session.execute(
+            delete(User).where(not_(User.email.in_(PROTECTED_EMAILS)))
+        )
+
+        await session.commit()
+
+        # Report what's left
+        remaining = await session.execute(select(User.email, User.role))
+        print("Cleared all dummy data. Preserved users:")
+        for email, role in remaining.all():
+            role_val = role.value if hasattr(role, "value") else role
+            print(f"  - {email} ({role_val})")
+
+
 async def main():
     await ensure_default_tenant()
     await create_super_admin()
@@ -566,8 +649,24 @@ async def main():
     await seed_new_kent()
 
 
+async def fix_logo_extensions():
+    """Update sponsor logo URLs from .jpeg to .png after file rename."""
+    from sqlalchemy import text
+    async with async_session() as session:
+        result = await session.execute(text(
+            "UPDATE sponsors SET logo_url = REPLACE(logo_url, '.jpeg', '.png') "
+            "WHERE logo_url LIKE '%-logo.jpeg'"
+        ))
+        await session.commit()
+        print(f"Updated {result.rowcount} sponsor logo URLs (.jpeg -> .png)")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] == "clear":
+        asyncio.run(clear_dummy_data())
+    elif len(sys.argv) > 1 and sys.argv[1] == "fix-logos":
+        asyncio.run(fix_logo_extensions())
+    elif len(sys.argv) > 1:
         email = sys.argv[1]
         password = sys.argv[2] if len(sys.argv) > 2 else "admin123456"
         asyncio.run(create_community_admin(email, password))

@@ -46,8 +46,20 @@ export function getTenantSlug(): string {
 }
 
 /**
- * Detect whether the current hostname is the root domain (no subdomain).
- * e.g. bend.community → true, montross.bend.community → false
+ * Detect whether the current hostname should render the landing page
+ * (i.e. it is NOT a tenant subdomain).
+ *
+ * Treats as landing:
+ *   - bend.community / www.bend.community (root)
+ *   - bend-community.pages.dev (Cloudflare Pages preview)
+ *   - localhost (plain, no subdomain)
+ *   - any other hostname that doesn't match {slug}.{baseDomain} pattern
+ *
+ * Treats as tenant (returns false):
+ *   - westmoreland.bend.community
+ *   - montross.localhost
+ *   - any {slug}.{baseDomain} subdomain
+ *
  * Returns false during SSR or if window is unavailable.
  */
 export function isRootDomain(): boolean {
@@ -59,8 +71,12 @@ export function isRootDomain(): boolean {
   const hostname = window.location.hostname;
   const baseDomain = import.meta.env.VITE_BASE_DOMAIN || 'thebend.app';
 
-  // Exact match: "bend.community" or "www.bend.community"
-  return hostname === baseDomain || hostname === `www.${baseDomain}`;
+  // A tenant subdomain looks like "{slug}.{baseDomain}" — anything else → landing
+  if (hostname.endsWith(`.${baseDomain}`) && hostname !== `www.${baseDomain}`) {
+    return false;
+  }
+
+  return true;
 }
 
 // Backend root URL for serving uploads/static files

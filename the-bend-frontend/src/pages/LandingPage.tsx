@@ -41,6 +41,18 @@ export default function LandingPage() {
   const [community, setCommunity] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  // Force light mode on the landing page — restore previous state on unmount
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadDark = root.classList.contains('dark');
+    root.classList.remove('dark');
+    root.style.colorScheme = 'light';
+    return () => {
+      if (hadDark) root.classList.add('dark');
+      root.style.colorScheme = '';
+    };
+  }, []);
+
   const phil = useReveal<HTMLDivElement>();
   const what = useReveal<HTMLDivElement>();
   const proof = useReveal<HTMLDivElement>();
