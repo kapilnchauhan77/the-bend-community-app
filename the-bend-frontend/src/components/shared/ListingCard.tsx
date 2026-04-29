@@ -110,9 +110,18 @@ export function ListingCard({ listing }: { listing: Listing }) {
             onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1.5 group/shop"
           >
-            <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)]">
-              {listing.shop.name.charAt(0)}
-            </div>
+            {listing.shop.avatar_url ? (
+              <img
+                src={resolveAssetUrl(listing.shop.avatar_url)}
+                alt={listing.shop.name}
+                className="w-5 h-5 rounded-full object-cover bg-[hsl(35,15%,90%)]"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)]">
+                {listing.shop.name.charAt(0)}
+              </div>
+            )}
             <span className="text-[11px] text-[hsl(30,10%,45%)] truncate max-w-[100px] group-hover/shop:underline">{listing.shop.name}</span>
           </Link>
           ) : (

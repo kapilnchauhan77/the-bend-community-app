@@ -27,7 +27,7 @@ def _serialize_listing(listing, viewer_has_interest: bool = False) -> ListingRes
     images = [ImageResponse(url=img.url, thumbnail_url=img.thumbnail_url) for img in (listing.images or [])]
     return ListingResponse(
         id=str(listing.id),
-        shop=ShopSummary(id=str(shop.id), name=shop.name, business_type=shop.business_type),
+        shop=ShopSummary(id=str(shop.id), name=shop.name, business_type=shop.business_type, avatar_url=shop.avatar_url),
         type=listing.type.value if hasattr(listing.type, "value") else listing.type,
         category=listing.category.value if hasattr(listing.category, "value") else listing.category,
         title=listing.title,
