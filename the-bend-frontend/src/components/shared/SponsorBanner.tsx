@@ -3,6 +3,21 @@ import { sponsorApi } from '@/services/sponsorApi';
 import { resolveAssetUrl } from '@/lib/constants';
 import type { Sponsor } from '@/types';
 
+// Logos that are mostly dark/monochrome — need a white pill in dark mode
+// to stay visible. Colored brand logos (Provoke, ProLine) render transparent.
+const DARK_LOGOS = [
+  'westmoreland-museum-logo',
+  'inn-at-montross',
+];
+
+function logoClass(url: string | undefined, sizeClasses: string): string {
+  if (!url) return sizeClasses;
+  const isDark = DARK_LOGOS.some((m) => url.toLowerCase().includes(m));
+  return isDark
+    ? `${sizeClasses} object-contain dark:bg-white/95 dark:rounded dark:px-2 dark:py-1`
+    : `${sizeClasses} object-contain`;
+}
+
 interface SponsorBannerProps {
   placement: string;
   variant?: 'inline' | 'strip' | 'card';
@@ -37,7 +52,7 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
                 className="group text-center max-w-[160px] cursor-pointer"
               >
                 {s.logo_url ? (
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="h-8 mx-auto opacity-70 group-hover:opacity-100 transition-opacity object-contain dark:invert dark:brightness-0" />
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'h-8 mx-auto opacity-70 group-hover:opacity-100 transition-opacity')} />
                 ) : (
                   <span className="text-sm font-serif font-semibold text-[hsl(30,10%,45%)] group-hover:text-[hsl(35,45%,42%)] transition-colors">
                     {s.name}
@@ -93,7 +108,7 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
             >
               {s.logo_url && (
                 <div className="mb-2.5 h-8 flex items-center">
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className="max-h-8 max-w-[140px] object-contain dark:invert dark:brightness-0" />
+                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'max-h-8 max-w-[140px]')} />
                 </div>
               )}
               <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
@@ -148,7 +163,7 @@ function SponsorCardCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         </p>
         {sponsor.logo_url && (
           <div className="mb-2 h-6 flex items-center">
-            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className="max-h-6 max-w-[100px] object-contain dark:invert dark:brightness-0" />
+            <img src={resolveAssetUrl(sponsor.logo_url)} alt={sponsor.name} className={logoClass(sponsor.logo_url, 'max-h-6 max-w-[100px]')} />
           </div>
         )}
         <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors mb-1">
