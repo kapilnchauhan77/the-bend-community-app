@@ -366,9 +366,17 @@ export default function ListingDetailPage() {
             <div className="flex items-start gap-3">
               {/* Avatar */}
               <Link to={`/business/${listing.shop.id}`} className="flex-shrink-0">
-                <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] hover:opacity-80 transition-opacity">
-                  {listing.shop.name.charAt(0).toUpperCase()}
-                </div>
+                {listing.shop.avatar_url ? (
+                  <img
+                    src={resolveAssetUrl(listing.shop.avatar_url)}
+                    alt={listing.shop.name}
+                    className="w-12 h-12 rounded-full object-cover bg-[hsl(35,15%,90%)] hover:opacity-80 transition-opacity"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] hover:opacity-80 transition-opacity">
+                    {listing.shop.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
               </Link>
               <div className="flex-1 min-w-0">
                 <Link

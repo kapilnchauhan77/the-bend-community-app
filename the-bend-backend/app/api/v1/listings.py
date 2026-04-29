@@ -184,6 +184,7 @@ async def get_listing(
             "contact_phone": shop.contact_phone,
             "whatsapp": shop.whatsapp,
             "address": shop.address,
+            "avatar_url": shop.avatar_url,
         },
         "viewer_has_interest": viewer_has_interest,
         "viewer_has_saved": viewer_has_saved,
