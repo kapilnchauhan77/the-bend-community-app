@@ -214,6 +214,7 @@ export interface Tenant {
   logo_url?: string;
   primary_color: string;
   footer_text?: string;
+  sponsor_strip_label?: string;
 }
 
 export interface TenantAdmin {
@@ -227,6 +228,7 @@ export interface TenantAdmin {
   logo_url?: string;
   primary_color: string;
   footer_text?: string;
+  sponsor_strip_label?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

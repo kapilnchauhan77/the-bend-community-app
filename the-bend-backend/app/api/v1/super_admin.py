@@ -28,6 +28,7 @@ def _tenant_to_response(t) -> TenantResponse:
         logo_url=t.logo_url,
         primary_color=t.primary_color,
         footer_text=t.footer_text,
+        sponsor_strip_label=t.sponsor_strip_label,
         is_active=t.is_active,
         created_at=t.created_at.isoformat(),
         updated_at=t.updated_at.isoformat(),

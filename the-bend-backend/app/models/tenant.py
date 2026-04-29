@@ -21,6 +21,7 @@ class Tenant(Base):
     logo_url: Mapped[str | None] = mapped_column(String(500))
     primary_color: Mapped[str] = mapped_column(String(20), nullable=False, default="hsl(160,25%,24%)")
     footer_text: Mapped[str | None] = mapped_column(String(300))
+    sponsor_strip_label: Mapped[str | None] = mapped_column(String(150))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

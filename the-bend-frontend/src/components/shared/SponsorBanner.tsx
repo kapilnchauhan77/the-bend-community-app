@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sponsorApi } from '@/services/sponsorApi';
 import { resolveAssetUrl } from '@/lib/constants';
+import { useTenant } from '@/context/TenantContext';
 import type { Sponsor } from '@/types';
 
 // Logos that are mostly dark/monochrome — need a white pill in dark mode
@@ -24,6 +25,8 @@ interface SponsorBannerProps {
 }
 
 export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerProps) {
+  const tenant = useTenant();
+  const stripLabel = tenant.sponsor_strip_label || 'Proud Community Partners';
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
       <div className="border-y border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] py-6">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <p className="text-[10px] tracking-[0.2em] uppercase text-[hsl(30,10%,60%)] text-center mb-4 font-medium">
-            Proud Community Partners
+            {stripLabel}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
             {sponsors.map(s => (

@@ -24,7 +24,20 @@ class TenantUpdate(BaseModel):
     logo_url: Optional[str] = None
     primary_color: Optional[str] = None
     footer_text: Optional[str] = None
+    sponsor_strip_label: Optional[str] = Field(None, max_length=150)
     is_active: Optional[bool] = None
+
+
+class TenantSelfUpdate(BaseModel):
+    """Limited fields a community admin can edit on their own tenant."""
+    display_name: Optional[str] = Field(None, min_length=2, max_length=150)
+    tagline: Optional[str] = None
+    about_text: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    footer_text: Optional[str] = None
+    sponsor_strip_label: Optional[str] = Field(None, max_length=150)
 
 
 class TenantResponse(BaseModel):
@@ -38,6 +51,7 @@ class TenantResponse(BaseModel):
     logo_url: Optional[str] = None
     primary_color: str
     footer_text: Optional[str] = None
+    sponsor_strip_label: Optional[str] = None
     is_active: bool
     created_at: str
     updated_at: str
@@ -53,6 +67,7 @@ class TenantPublicResponse(BaseModel):
     logo_url: Optional[str] = None
     primary_color: str
     footer_text: Optional[str] = None
+    sponsor_strip_label: Optional[str] = None
 
 
 class TenantAdminCreate(BaseModel):

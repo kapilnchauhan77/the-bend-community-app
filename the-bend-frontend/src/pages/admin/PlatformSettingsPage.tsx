@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { sponsorApi } from '@/services/sponsorApi';
+import api from '@/services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CheckCircle2, XCircle, Info, CreditCard, Globe, Settings } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckCircle2, XCircle, Info, CreditCard, Globe, Settings, Palette, Save, Loader2 } from 'lucide-react';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -53,17 +58,47 @@ function MaskedKeyRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+interface TenantBranding {
+  display_name: string;
+  tagline: string;
+  sponsor_strip_label: string;
+  footer_text: string;
+  primary_color: string;
+}
+
 export default function PlatformSettingsPage() {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Tenant branding form
+  const [branding, setBranding] = useState<TenantBranding>({
+    display_name: '',
+    tagline: '',
+    sponsor_strip_label: '',
+    footer_text: '',
+    primary_color: '',
+  });
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [brandingMsg, setBrandingMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const res = await sponsorApi.getSettings();
-        setSettings(res.data);
+        const [settingsRes, tenantRes] = await Promise.all([
+          sponsorApi.getSettings(),
+          api.get('/tenant/current'),
+        ]);
+        setSettings(settingsRes.data);
+        const t = tenantRes.data;
+        setBranding({
+          display_name: t.display_name || '',
+          tagline: t.tagline || '',
+          sponsor_strip_label: t.sponsor_strip_label || '',
+          footer_text: t.footer_text || '',
+          primary_color: t.primary_color || '',
+        });
       } catch {
         setError('Failed to load settings.');
       } finally {
@@ -71,6 +106,26 @@ export default function PlatformSettingsPage() {
       }
     })();
   }, []);
+
+  const saveBranding = async () => {
+    setSavingBranding(true);
+    setBrandingMsg(null);
+    try {
+      await api.put('/tenant/current', {
+        display_name: branding.display_name || undefined,
+        tagline: branding.tagline || null,
+        sponsor_strip_label: branding.sponsor_strip_label || null,
+        footer_text: branding.footer_text || null,
+        primary_color: branding.primary_color || null,
+      });
+      setBrandingMsg({ ok: true, text: 'Branding saved. Refresh to see changes.' });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      setBrandingMsg({ ok: false, text: err?.response?.data?.detail || 'Save failed.' });
+    } finally {
+      setSavingBranding(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -164,6 +219,91 @@ export default function PlatformSettingsPage() {
                     <code className="font-mono text-xs">STRIPE_SECRET_KEY</code> is set.
                   </p>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Branding card — community admin can edit their own tenant */}
+            <Card className="border-[hsl(35,18%,87%)]">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base" style={{ color: PRIMARY }}>
+                  <Palette size={18} />
+                  Tenant Branding
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="display_name" className="text-sm">Display Name</Label>
+                  <Input
+                    id="display_name"
+                    value={branding.display_name}
+                    onChange={(e) => setBranding(b => ({ ...b, display_name: e.target.value }))}
+                    placeholder="The Bend — Westmoreland"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="tagline" className="text-sm">Tagline</Label>
+                  <Input
+                    id="tagline"
+                    value={branding.tagline}
+                    onChange={(e) => setBranding(b => ({ ...b, tagline: e.target.value }))}
+                    placeholder="Find opportunity within your neighborhood"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sponsor_strip_label" className="text-sm">Sponsor Strip Label</Label>
+                  <Input
+                    id="sponsor_strip_label"
+                    value={branding.sponsor_strip_label}
+                    onChange={(e) => setBranding(b => ({ ...b, sponsor_strip_label: e.target.value }))}
+                    placeholder="Proud Community Partners"
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Heading shown above the sponsor logo strip on every page.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="footer_text" className="text-sm">Footer Tagline</Label>
+                  <Textarea
+                    id="footer_text"
+                    value={branding.footer_text}
+                    onChange={(e) => setBranding(b => ({ ...b, footer_text: e.target.value }))}
+                    placeholder="Preserving community, one connection at a time"
+                    rows={2}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="primary_color" className="text-sm">Primary Color (HSL)</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      id="primary_color"
+                      value={branding.primary_color}
+                      onChange={(e) => setBranding(b => ({ ...b, primary_color: e.target.value }))}
+                      placeholder="hsl(160,25%,24%)"
+                    />
+                    <div
+                      className="w-10 h-10 rounded border border-[hsl(35,18%,87%)] flex-shrink-0"
+                      style={{ backgroundColor: branding.primary_color || PRIMARY }}
+                    />
+                  </div>
+                </div>
+                {brandingMsg && (
+                  <div className={`text-sm rounded px-3 py-2 ${brandingMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                    {brandingMsg.text}
+                  </div>
+                )}
+                <Button
+                  onClick={saveBranding}
+                  disabled={savingBranding}
+                  className="text-white gap-2"
+                  style={{ backgroundColor: PRIMARY }}
+                >
+                  {savingBranding ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {savingBranding ? 'Saving...' : 'Save Branding'}
+                </Button>
               </CardContent>
             </Card>
 
