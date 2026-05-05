@@ -102,7 +102,7 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         <div
           className="flex gap-4 animate-marquee hover:[animation-play-state:paused]"
           style={{
-            animation: `marquee ${sponsors.length * 6}s linear infinite`,
+            animation: `marquee ${sponsors.length * 3}s linear infinite`,
           }}
         >
           {doubled.map((s, i) => (
