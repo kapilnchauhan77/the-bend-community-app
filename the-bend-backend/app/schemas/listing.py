@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,7 +26,15 @@ class ListingCreate(BaseModel):
     @field_validator("expiry_date")
     @classmethod
     def validate_expiry(cls, v):
-        if v and v < datetime.utcnow():
+        if v is None:
+            return v
+        # If the client sent a date-only value (midnight), treat it as end-of-day
+        # so picking today's date is still valid for the rest of the day.
+        if v.hour == 0 and v.minute == 0 and v.second == 0 and v.microsecond == 0:
+            v = datetime.combine(v.date(), time(23, 59, 59), tzinfo=v.tzinfo)
+        # Compare with current UTC time, naive vs aware safe.
+        now = datetime.now(v.tzinfo) if v.tzinfo else datetime.utcnow()
+        if v < now:
             raise ValueError("Expiry date must be in the future")
         return v
 
