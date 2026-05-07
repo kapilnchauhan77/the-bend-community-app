@@ -4,6 +4,7 @@ import { AdminLayout } from '@/components/layout/AdminLayout';
 import { adminApi } from '@/services/adminApi';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { parseServerDate } from '@/lib/utils';
 import { CheckCircle, Loader2, Flag, ExternalLink } from 'lucide-react';
 
 interface Report {
@@ -20,7 +21,8 @@ interface Report {
 type TabValue = 'all' | 'pending' | 'resolved';
 
 function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const d = parseServerDate(iso);
+  const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -28,7 +30,7 @@ function timeAgo(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function ReasonBadge({ reason }: { reason: string }) {

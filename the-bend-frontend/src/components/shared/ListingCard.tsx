@@ -1,6 +1,7 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { Briefcase, Package, Wrench, Clock } from 'lucide-react';
 import { resolveAssetUrl } from '@/lib/constants';
+import { timeAgo, parseServerDate } from '@/lib/utils';
 import type { Listing } from '@/types';
 
 const categoryIcons = {
@@ -15,18 +16,9 @@ const categoryLabels: Record<string, string> = {
   equipment: 'Equipment',
 };
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
 function expiryLabel(dateStr?: string): string | null {
   if (!dateStr) return null;
-  const expiry = new Date(dateStr.replace(' ', 'T'));
+  const expiry = parseServerDate(dateStr.replace(' ', 'T'));
   const now = Date.now();
   const diff = expiry.getTime() - now;
   if (diff <= 0) return 'Expired';
