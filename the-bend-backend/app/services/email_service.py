@@ -166,5 +166,48 @@ class EmailService:
         """
         return self._send(to_email, f"Interest in '{listing_title}' - The Bend Community", html)
 
+    def send_referral_intro_email(self, to_email, referred_name, referrer_name, referrer_county, note=None):
+        note_block = (
+            f'<blockquote style="border-left:3px solid #c8a96a;margin:16px 0;padding:8px 16px;color:#555;font-style:italic;">{note}</blockquote>'
+            if note else ''
+        )
+        html = f"""<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;padding:40px 20px;">
+            <h1 style="color:#2d6a3f;font-size:22px;text-align:center;margin:0 0 20px;">The Bend Community</h1>
+            <h2 style="color:#333;">Hi {referred_name},</h2>
+            <p style="color:#555;line-height:1.7;"><strong>{referrer_name}</strong> from <strong>{referrer_county}</strong> thinks The Bend would be a great fit for your county.</p>
+            {note_block}
+            <p style="color:#555;line-height:1.7;">The Bend is a hyper-local marketplace platform that lets neighboring businesses share gigs, surplus materials, equipment, and volunteer time — built per-county with your branding, your subdomain, and seeded with your local businesses.</p>
+            <p style="color:#555;line-height:1.7;">If you'd like to see how it works, reply to this email and we'll set up a 20-minute demo.</p>
+            <p style="color:#555;line-height:1.7;margin-top:24px;">— The Bend Community team</p>
+            <p style="text-align:center;color:#aaa;font-size:11px;margin-top:40px;">You're receiving this because {referrer_name} referred you.</p>
+        </div>"""
+        return self._send(to_email, f"{referrer_name} thinks The Bend is a fit for your county", html)
+
+    def send_referral_status_email(self, to_email, referrer_name, referred_county_name, new_status, reward_months=None):
+        status_label = {
+            "pending": "received",
+            "contacted": "contacted",
+            "demo_scheduled": "scheduled for a demo",
+            "launched": "launched",
+            "expired": "closed (no response)",
+        }.get(new_status, new_status)
+
+        reward_block = ""
+        if new_status == "launched" and reward_months:
+            reward_block = f"""<div style="background:#f4ecd8;border:1px solid #c8a96a;padding:16px;border-radius:6px;margin:24px 0;">
+                <p style="margin:0;color:#5a4a2a;font-weight:bold;">Reward earned</p>
+                <p style="margin:8px 0 0;color:#5a4a2a;">{reward_months} months of free platform fees on your tenant.</p>
+            </div>"""
+
+        html = f"""<div style="font-family:Georgia,serif;max-width:600px;margin:0 auto;padding:40px 20px;">
+            <h1 style="color:#2d6a3f;font-size:22px;text-align:center;margin:0 0 20px;">The Bend Community</h1>
+            <h2 style="color:#333;">Hi {referrer_name},</h2>
+            <p style="color:#555;line-height:1.7;">Quick update on your referral for <strong>{referred_county_name}</strong>: we've just <strong>{status_label}</strong> them.</p>
+            {reward_block}
+            <p style="color:#555;line-height:1.7;">Thanks for helping grow the community.</p>
+            <p style="color:#555;line-height:1.7;margin-top:24px;">— The Bend Community team</p>
+        </div>"""
+        return self._send(to_email, f"Your referral update — {referred_county_name}", html)
+
 
 email_service = EmailService()

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Store, FileText, Upload, BarChart3, Calendar, Link2, Megaphone, DollarSign, Settings, Flag } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Store, FileText, Upload, BarChart3, Calendar, Link2, Megaphone, DollarSign, Settings, Flag, Gift } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
@@ -12,6 +12,7 @@ const navItems = [
   { icon: Link2, label: 'Connectors', path: '/admin/connectors' },
   { icon: Megaphone, label: 'Sponsors', path: '/admin/sponsors' },
   { icon: Flag, label: 'Flagged', path: '/admin/flagged' },
+  { icon: Gift, label: 'Refer a County', path: '/admin/referrals' },
   { icon: DollarSign, label: 'Pricing', path: '/admin/pricing' },
   { icon: Settings, label: 'Settings', path: '/admin/settings' },
 ];

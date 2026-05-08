@@ -234,6 +234,34 @@ export interface TenantAdmin {
   updated_at: string;
 }
 
+export type ReferralStatus = 'pending' | 'contacted' | 'demo_scheduled' | 'launched' | 'expired';
+
+export interface TenantReferral {
+  id: string;
+  referrer_tenant_id: string;
+  referrer_tenant_name?: string;
+  referrer_user_id?: string;
+  referrer_user_name?: string;
+  referred_email: string;
+  referred_name: string;
+  referred_county_name: string;
+  referred_message?: string;
+  status: ReferralStatus;
+  reward_type: 'free_months' | 'credit' | 'revshare';
+  reward_amount?: number;
+  reward_granted_at?: string;
+  resulting_tenant_id?: string;
+  super_admin_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReferralSummary {
+  total_referrals: number;
+  launched: number;
+  free_months_earned: number;
+}
+
 export interface SuccessStory {
   id: string;
   listing_id: string;

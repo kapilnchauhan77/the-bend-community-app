@@ -116,3 +116,54 @@ async def get_tenant_stats(
 ):
     svc = TenantService(db)
     return await svc.get_tenant_stats(tenant_id)
+
+
+# ─── Tenant Referrals (super admin) ─────────────────────────────────────────
+
+from app.services.referral_service import ReferralService
+from app.schemas.referral import ReferralAdvance
+from app.models.enums import ReferralStatus
+
+
+@router.get("/referrals")
+async def list_all_referrals(
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(Permission.require_super_admin()),
+):
+    svc = ReferralService(db)
+    parsed_status = ReferralStatus(status) if status else None
+    refs = await svc.list_all(parsed_status)
+    items = [await svc.to_response(r) for r in refs]
+    return {"items": items}
+
+
+@router.post("/referrals/{referral_id}/advance")
+async def advance_referral(
+    referral_id: UUID,
+    data: ReferralAdvance,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(Permission.require_super_admin()),
+):
+    svc = ReferralService(db)
+    ref = await svc.advance(referral_id, data)
+
+    # Notify the referrer about a status update (best-effort)
+    try:
+        from app.services.email_service import email_service
+        from sqlalchemy import select
+        from app.models.user import User as UserModel
+        if ref.referrer_user_id:
+            u = (await db.execute(select(UserModel).where(UserModel.id == ref.referrer_user_id))).scalar_one_or_none()
+            if u:
+                email_service.send_referral_status_email(
+                    to_email=u.email,
+                    referrer_name=u.name,
+                    referred_county_name=ref.referred_county_name,
+                    new_status=ref.status.value,
+                    reward_months=ref.reward_amount if ref.status == ReferralStatus.LAUNCHED else None,
+                )
+    except Exception:
+        pass
+
+    return await svc.to_response(ref)

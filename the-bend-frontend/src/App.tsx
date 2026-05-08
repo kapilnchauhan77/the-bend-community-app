@@ -44,6 +44,8 @@ import GuidelinesViewPage from '@/pages/GuidelinesViewPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import TenantsListPage from '@/pages/super-admin/TenantsListPage';
 import TenantDetailPage from '@/pages/super-admin/TenantDetailPage';
+import ReferralsKanbanPage from '@/pages/super-admin/ReferralsKanbanPage';
+import ReferralsPage from '@/pages/admin/ReferralsPage';
 import SavedListingsPage from '@/pages/SavedListingsPage';
 import { ProtectedRoute } from '@/components/shared/ProtectedRoute';
 import { RoleGuard } from '@/components/shared/RoleGuard';
@@ -100,11 +102,13 @@ function App() {
         <Route path="/admin/pricing" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><PricingPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><PlatformSettingsPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/flagged" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><ReportedPostsPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/referrals" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><ReferralsPage /></RoleGuard></ProtectedRoute>} />
 
         {/* Super Admin routes */}
         <Route path="/super-admin" element={<ProtectedRoute><RoleGuard allowedRoles={['super_admin']}><TenantsListPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/super-admin/tenants" element={<ProtectedRoute><RoleGuard allowedRoles={['super_admin']}><TenantsListPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/super-admin/tenants/:tenantId" element={<ProtectedRoute><RoleGuard allowedRoles={['super_admin']}><TenantDetailPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/super-admin/referrals" element={<ProtectedRoute><RoleGuard allowedRoles={['super_admin']}><ReferralsKanbanPage /></RoleGuard></ProtectedRoute>} />
 
         {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />

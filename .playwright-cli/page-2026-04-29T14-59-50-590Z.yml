@@ -1,0 +1,164 @@
+- generic [ref=e3]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "B THE BEND Community" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e9]: B
+        - generic [ref=e10]:
+          - generic [ref=e11]: THE BEND
+          - text: Community
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+        - link "Browse" [ref=e14] [cursor=pointer]:
+          - /url: /browse
+        - link "Events" [ref=e15] [cursor=pointer]:
+          - /url: /events
+        - button "Community" [ref=e17] [cursor=pointer]:
+          - text: Community
+          - img [ref=e18]
+      - generic [ref=e20]:
+        - button "Toggle dark mode" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+        - generic [ref=e24]:
+          - button "Log In" [ref=e25] [cursor=pointer]
+          - button "Register" [ref=e26] [cursor=pointer]
+  - main [ref=e27]:
+    - generic [ref=e33]:
+      - paragraph [ref=e35]: Welcome to
+      - heading "The Bend Community" [level=1] [ref=e36]:
+        - text: The Bend
+        - text: Community
+      - paragraph [ref=e37]: Find opportunity within your neighborhood
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - img [ref=e40]
+          - textbox "Search listings, shops..." [ref=e43]
+        - button "Search" [ref=e44] [cursor=pointer]
+    - generic [ref=e46]:
+      - link "Gig Board Job openings & available workers" [ref=e47] [cursor=pointer]:
+        - /url: /browse?category=staff
+        - img [ref=e48]
+        - heading "Gig Board" [level=3] [ref=e51]
+        - paragraph [ref=e52]: Job openings & available workers
+      - link "Raw Materials Surplus ingredients & supplies" [ref=e53] [cursor=pointer]:
+        - /url: /browse?category=materials
+        - img [ref=e54]
+        - heading "Raw Materials" [level=3] [ref=e58]
+        - paragraph [ref=e59]: Surplus ingredients & supplies
+      - link "Equipment Borrow or lend tools" [ref=e60] [cursor=pointer]:
+        - /url: /browse?category=equipment
+        - img [ref=e61]
+        - heading "Equipment" [level=3] [ref=e63]
+        - paragraph [ref=e64]: Borrow or lend tools
+      - link "All Listings Browse the full directory" [ref=e65] [cursor=pointer]:
+        - /url: /browse
+        - img [ref=e66]
+        - heading "All Listings" [level=3] [ref=e70]
+        - paragraph [ref=e71]: Browse the full directory
+      - link "Volunteer Give your time to the community" [ref=e72] [cursor=pointer]:
+        - /url: /volunteers
+        - img [ref=e73]
+        - heading "Volunteer" [level=3] [ref=e75]
+        - paragraph [ref=e76]: Give your time to the community
+      - link "Talent Book local freelancers & artists" [ref=e77] [cursor=pointer]:
+        - /url: /talent
+        - img [ref=e78]
+        - heading "Talent" [level=3] [ref=e82]
+        - paragraph [ref=e83]: Book local freelancers & artists
+    - generic [ref=e85]:
+      - generic [ref=e87]:
+        - heading "Community Board" [level=2] [ref=e90]
+        - link "View All" [ref=e91] [cursor=pointer]:
+          - /url: /browse
+          - text: View All
+          - img [ref=e92]
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - heading "Recently Fulfilled" [level=2] [ref=e102]
+          - paragraph [ref=e105]: No fulfilled items yet — be the first to complete a listing!
+        - generic [ref=e106]:
+          - heading "Quick Actions" [level=2] [ref=e109]
+          - generic [ref=e110]:
+            - button "Post a Listing" [ref=e111] [cursor=pointer]:
+              - img [ref=e112]
+              - text: Post a Listing
+            - button "Register Your Business" [ref=e115] [cursor=pointer]:
+              - img [ref=e116]
+              - text: Register Your Business
+            - button "Volunteer Board" [ref=e120] [cursor=pointer]:
+              - img [ref=e121]
+              - text: Volunteer Board
+            - button "Talent Marketplace" [ref=e123] [cursor=pointer]:
+              - img [ref=e124]
+              - text: Talent Marketplace
+    - generic [ref=e128]:
+      - heading "Our Community in Numbers" [level=2] [ref=e131]
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - generic [ref=e134]: —
+          - paragraph [ref=e135]: Active Businesses
+        - generic [ref=e136]:
+          - generic [ref=e137]: —
+          - paragraph [ref=e138]: Active Listings
+        - generic [ref=e139]:
+          - generic [ref=e140]: —
+          - paragraph [ref=e141]: Items Shared
+    - generic [ref=e143]:
+      - heading "Ready to support your neighbors?" [level=2] [ref=e145]
+      - paragraph [ref=e146]: Post a listing, share what you have, or find what you need — it only takes a minute.
+      - generic [ref=e147]:
+        - button "Post a Listing" [ref=e148] [cursor=pointer]
+        - button "Browse Listings" [ref=e149] [cursor=pointer]
+  - contentinfo [ref=e150]:
+    - generic [ref=e152]:
+      - generic [ref=e153]:
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - generic [ref=e157]: B
+            - generic [ref=e158]:
+              - generic [ref=e159]: THE BEND
+              - text: Community
+          - paragraph [ref=e160]: A heritage community platform connecting local businesses to find gigs, materials, and equipment.
+        - generic [ref=e161]:
+          - heading "About" [level=4] [ref=e162]
+          - list [ref=e163]:
+            - listitem [ref=e164]:
+              - link "Our Story" [ref=e165] [cursor=pointer]:
+                - /url: /about
+            - listitem [ref=e166]:
+              - link "Community Guidelines" [ref=e167] [cursor=pointer]:
+                - /url: /guidelines
+            - listitem [ref=e168]:
+              - link "Register" [ref=e169] [cursor=pointer]:
+                - /url: /register
+        - generic [ref=e170]:
+          - heading "Services" [level=4] [ref=e171]
+          - list [ref=e172]:
+            - listitem [ref=e173]:
+              - link "Browse Gigs" [ref=e174] [cursor=pointer]:
+                - /url: /browse?category=staff
+            - listitem [ref=e175]:
+              - link "Browse Materials" [ref=e176] [cursor=pointer]:
+                - /url: /browse?category=materials
+            - listitem [ref=e177]:
+              - link "Browse Equipment" [ref=e178] [cursor=pointer]:
+                - /url: /browse?category=equipment
+        - generic [ref=e179]:
+          - heading "Community" [level=4] [ref=e180]
+          - list [ref=e181]:
+            - listitem [ref=e182]:
+              - link "Volunteer Board" [ref=e183] [cursor=pointer]:
+                - /url: /volunteers
+            - listitem [ref=e184]:
+              - link "Talent Marketplace" [ref=e185] [cursor=pointer]:
+                - /url: /talent
+            - listitem [ref=e186]:
+              - link "All Listings" [ref=e187] [cursor=pointer]:
+                - /url: /browse
+            - listitem [ref=e188]:
+              - link "Advertise" [ref=e189] [cursor=pointer]:
+                - /url: /advertise
+      - generic [ref=e190]:
+        - generic [ref=e191]: © 2026 The Bend — Westmoreland. All rights reserved.
+        - generic [ref=e192]: Preserving community, one connection at a time

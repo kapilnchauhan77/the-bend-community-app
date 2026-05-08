@@ -4,6 +4,7 @@ from app.models.enums import (
     EventCategory, EventStatus, ConnectorType,
 )
 from app.models.tenant import Tenant
+from app.models.tenant_referral import TenantReferral
 from app.models.user import User
 from app.models.shop import Shop
 from app.models.listing import Listing, ListingImage
@@ -27,7 +28,7 @@ __all__ = [
     "UserRole", "ShopStatus", "ListingType", "ListingCategory",
     "UrgencyLevel", "ListingStatus", "NotificationType",
     "EventCategory", "EventStatus", "ConnectorType",
-    "Tenant",
+    "Tenant", "TenantReferral",
     "User", "Shop", "Listing", "ListingImage", "Interest",
     "MessageThread", "Message", "Notification", "Guideline",
     "PushSubscription", "Employee",

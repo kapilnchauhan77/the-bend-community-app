@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Building2, Users, FileText, ChevronRight } from 'lucide-react';
+import { Plus, Building2, Users, FileText, ChevronRight, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,14 +65,24 @@ export default function TenantsListPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">Manage all community tenants</p>
           </div>
-          <Button
-            onClick={() => setShowCreate(!showCreate)}
-            className="text-white text-xs tracking-wider uppercase"
-            style={{ backgroundColor: BRONZE }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Tenant
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/super-admin/referrals')}
+              className="text-xs tracking-wider uppercase"
+            >
+              <Gift className="w-4 h-4 mr-2" />
+              Referrals
+            </Button>
+            <Button
+              onClick={() => setShowCreate(!showCreate)}
+              className="text-white text-xs tracking-wider uppercase"
+              style={{ backgroundColor: BRONZE }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Tenant
+            </Button>
+          </div>
         </div>
 
         {showCreate && (

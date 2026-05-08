@@ -1,6 +1,20 @@
 import enum
 
 
+class ReferralStatus(str, enum.Enum):
+    PENDING = "pending"
+    CONTACTED = "contacted"
+    DEMO_SCHEDULED = "demo_scheduled"
+    LAUNCHED = "launched"
+    EXPIRED = "expired"
+
+
+class ReferralRewardType(str, enum.Enum):
+    FREE_MONTHS = "free_months"
+    CREDIT = "credit"
+    REVSHARE = "revshare"
+
+
 class UserRole(str, enum.Enum):
     SUPER_ADMIN = "super_admin"
     COMMUNITY_ADMIN = "community_admin"

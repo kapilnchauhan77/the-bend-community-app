@@ -33,9 +33,9 @@ const services = [
   { icon: Briefcase, label: 'Gig Board', desc: 'Job openings & available workers', href: '/browse?category=staff' },
   { icon: Package, label: 'Raw Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
   { icon: Wrench, label: 'Equipment', desc: 'Borrow or lend tools', href: '/browse?category=equipment' },
-  { icon: Store, label: 'All Listings', desc: 'Browse the full directory', href: '/browse' },
   { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
+  { icon: Store, label: 'All Listings', desc: 'Browse the full directory', href: '/browse' },
 ];
 
 // Stats fetched from API — see useEffect below

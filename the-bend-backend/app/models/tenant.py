@@ -25,6 +25,7 @@ class Tenant(Base):
     stripe_secret_key: Mapped[str | None] = mapped_column(String(255))
     stripe_publishable_key: Mapped[str | None] = mapped_column(String(255))
     stripe_webhook_secret: Mapped[str | None] = mapped_column(String(255))
+    referred_by_tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
