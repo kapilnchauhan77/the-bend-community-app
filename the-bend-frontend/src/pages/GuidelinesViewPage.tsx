@@ -43,6 +43,7 @@ export default function GuidelinesViewPage() {
             <li>Businesses must operate legally within their jurisdiction and hold any required licenses or permits.</li>
             <li>The community administrator reserves the right to deny or revoke membership at any time for violations of these guidelines.</li>
             <li>Each business may have one primary account. Duplicate registrations may be removed.</li>
+            <li>While business registrations are subject to administrator review, approval does not constitute an endorsement, background check, or guarantee of a business's legitimacy, safety, or creditworthiness. Members interact with other approved businesses at their own risk.</li>
           </ul>
         </section>
 
@@ -54,7 +55,6 @@ export default function GuidelinesViewPage() {
             <li>Be honest and accurate in all listings — describe condition, quantity, and availability clearly.</li>
             <li>Respond to messages and inquiries promptly. A quick "no longer available" is better than silence.</li>
             <li>Honor commitments. If you agree to share something, follow through.</li>
-            <li>Respect pricing norms. This platform is about community support, not profiteering.</li>
             <li>Treat all community members with respect and professionalism in all communications.</li>
             <li>Not post misleading, fraudulent, or illegal content.</li>
             <li>Not use the platform for spam, solicitation outside of legitimate listings, or harassment.</li>
@@ -118,6 +118,9 @@ export default function GuidelinesViewPage() {
             </p>
             <p>
               <strong>ADVERTISING PAYMENTS:</strong> Payments for advertising placements are processed by Stripe, a third-party payment processor. The Operator is not liable for payment processing errors, declined transactions, or disputes with the payment processor. Advertising fees are non-refundable once the ad is approved and live.
+            </p>
+            <p>
+              <strong>NO EMPLOYMENT OR PARTNERSHIP RELATIONSHIP:</strong> Nothing in these Guidelines creates an employment, agency, joint venture, or partnership relationship between the Operator and any member. The Operator is not an employer of any talent or volunteer using the Platform, nor does it act as a joint employer with any business.
             </p>
           </div>
         </section>
