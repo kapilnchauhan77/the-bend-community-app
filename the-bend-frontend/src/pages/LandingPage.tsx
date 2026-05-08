@@ -67,7 +67,7 @@ export default function LandingPage() {
     const body = encodeURIComponent(
       `Hello,\n\nI would like to explore bringing The Bend to ${community}.\nContact: ${email}\n\n— A community leader`
     );
-    window.location.href = `mailto:hello@bend.community?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:support@proline-online.com?subject=${subject}&body=${body}`;
     setSubmitted(true);
   };
 
@@ -670,11 +670,11 @@ export default function LandingPage() {
           >
             Or write to{' '}
             <a
-              href="mailto:hello@bend.community"
+              href="mailto:support@proline-online.com"
               className="underline underline-offset-4"
               style={{ color: INK }}
             >
-              hello@bend.community
+              support@proline-online.com
             </a>
           </div>
         </div>

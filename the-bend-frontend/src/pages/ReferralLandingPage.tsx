@@ -38,7 +38,7 @@ export default function ReferralLandingPage() {
     }
     if (isAuthenticated) {
       // Logged in but not an admin — show a friendly prompt and route to mailto
-      window.location.href = `mailto:hello@bend.community?subject=I want to refer a county`;
+      window.location.href = `mailto:support@proline-online.com?subject=I want to refer a county`;
       return;
     }
     navigate('/login');
@@ -406,7 +406,7 @@ export default function ReferralLandingPage() {
             },
             {
               q: 'I\'m not a community admin yet — can I still refer?',
-              a: 'The reward (6 months free fees) only applies to existing tenants. If you\'d like to bring The Bend to your own county first, write to us at hello@bend.community and we\'ll get you set up.',
+              a: 'The reward (6 months free fees) only applies to existing tenants. If you\'d like to bring The Bend to your own county first, write to us at support@proline-online.com and we\'ll get you set up.',
             },
             {
               q: 'Is there a cash alternative to free months?',
@@ -483,11 +483,11 @@ export default function ReferralLandingPage() {
           >
             Or write to{' '}
             <a
-              href="mailto:hello@bend.community"
+              href="mailto:support@proline-online.com"
               className="underline underline-offset-4"
               style={{ color: INK }}
             >
-              hello@bend.community
+              support@proline-online.com
             </a>
           </p>
         </div>
