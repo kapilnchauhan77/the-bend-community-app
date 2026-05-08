@@ -3,8 +3,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.permissions import get_current_tenant
+from app.core.permissions import get_current_tenant, get_current_user_optional
+from app.core.privacy import mask_phone, mask_email
 from app.models.tenant import Tenant
+from app.models.user import User
 from app.services.talent_service import TalentService
 from app.schemas.talent import TalentCreate, TalentInquiryCreate
 
@@ -33,14 +35,16 @@ async def list_talent(
     limit: int = Query(20, le=50),
     service: TalentService = Depends(get_service),
     tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     service.tenant_id = tenant.id if tenant else None
     result = await service.list_talent(category, cursor, limit)
+    is_authed = current_user is not None
     items = [{
         "id": str(t.id),
         "name": t.name,
-        "phone": t.phone,
-        "email": t.email,
+        "phone": mask_phone(t.phone, is_authed),
+        "email": mask_email(t.email, is_authed),
         "category": t.category,
         "skills": t.skills,
         "available_time": t.available_time,

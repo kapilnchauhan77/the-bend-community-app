@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.api.deps import get_db
 from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant, Permission
+from app.core.privacy import mask_phone
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.models.enums import UserRole
@@ -179,14 +180,15 @@ async def get_listing(
         )
         viewer_has_saved = saved_result.scalar_one_or_none() is not None
 
+    is_authed = current_user is not None
     return {
         **data.model_dump(),
         "shop": {
             "id": str(shop.id),
             "name": shop.name,
             "business_type": shop.business_type,
-            "contact_phone": shop.contact_phone,
-            "whatsapp": shop.whatsapp,
+            "contact_phone": mask_phone(shop.contact_phone, is_authed),
+            "whatsapp": mask_phone(shop.whatsapp, is_authed),
             "address": shop.address,
             "avatar_url": shop.avatar_url,
         },

@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.permissions import get_current_tenant
+from app.core.permissions import get_current_tenant, get_current_user_optional
+from app.core.privacy import mask_phone, mask_email
 from app.models.tenant import Tenant
+from app.models.user import User
 from app.services.volunteer_service import VolunteerService
 from app.schemas.volunteer import VolunteerCreate
 
@@ -31,14 +33,16 @@ async def list_volunteers(
     limit: int = Query(20, le=50),
     service: VolunteerService = Depends(get_service),
     tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     service.tenant_id = tenant.id if tenant else None
     result = await service.list_volunteers(cursor, limit)
+    is_authed = current_user is not None
     items = [{
         "id": str(v.id),
         "name": v.name,
-        "phone": v.phone,
-        "email": v.email,
+        "phone": mask_phone(v.phone, is_authed),
+        "email": mask_email(v.email, is_authed),
         "skills": v.skills,
         "available_time": v.available_time,
         "photo_url": v.photo_url,

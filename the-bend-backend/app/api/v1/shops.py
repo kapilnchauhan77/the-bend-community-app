@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant, Permission
+from app.core.privacy import mask_phone
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.services.shop_service import ShopService
@@ -40,6 +41,7 @@ async def list_shops(
     limit: int = Query(20, le=50),
     db: AsyncSession = Depends(get_db),
     tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Public directory of active businesses, sorted by endorsement count."""
     from sqlalchemy import select, func, desc
@@ -87,13 +89,14 @@ async def list_shops(
         )
         active_count = count_result.scalar_one()
 
+        is_authed = current_user is not None
         shop_data.append({
             "id": str(shop.id),
             "name": shop.name,
             "business_type": shop.business_type,
             "address": shop.address,
             "avatar_url": shop.avatar_url,
-            "contact_phone": shop.contact_phone,
+            "contact_phone": mask_phone(shop.contact_phone, is_authed),
             "active_listings_count": active_count,
             "endorsement_count": endorse_count or 0,
             "member_since": str(shop.created_at),
@@ -132,10 +135,13 @@ async def get_shop(
     )
     endorsement_count = count_result.scalar_one()
 
+    is_authed = current_user is not None
     return {
         "id": str(shop.id), "name": shop.name, "business_type": shop.business_type,
-        "address": shop.address, "contact_phone": shop.contact_phone,
-        "whatsapp": shop.whatsapp, "status": shop.status.value,
+        "address": shop.address,
+        "contact_phone": mask_phone(shop.contact_phone, is_authed),
+        "whatsapp": mask_phone(shop.whatsapp, is_authed),
+        "status": shop.status.value,
         "avatar_url": shop.avatar_url,
         "active_listings_count": result["active_listings_count"],
         "total_fulfilled": result["total_fulfilled"],
