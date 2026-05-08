@@ -17,5 +17,8 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Cloudflare Web Analytics — privacy-friendly, no cookies. Token loaded from env. -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js'
+            data-cf-beacon='{"token": "%VITE_CF_ANALYTICS_TOKEN%"}'></script>
   </body>
 </html>

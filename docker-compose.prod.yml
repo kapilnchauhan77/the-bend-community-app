@@ -27,6 +27,7 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL}
         VITE_BASE_DOMAIN: ${VITE_BASE_DOMAIN}
+        VITE_CF_ANALYTICS_TOKEN: ${VITE_CF_ANALYTICS_TOKEN:-}
     restart: unless-stopped
     environment:
       PORT: 80
