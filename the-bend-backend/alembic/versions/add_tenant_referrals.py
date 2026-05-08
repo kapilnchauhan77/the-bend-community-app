@@ -14,20 +14,27 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # create_type=False on the column-bound ENUMs prevents
-    # alembic's create_table from attempting to recreate the type.
-    referral_status_create = ENUM(
-        'pending', 'contacted', 'demo_scheduled', 'launched', 'expired',
-        name='referral_status'
-    )
-    referral_status_create.create(op.get_bind(), checkfirst=True)
+    # Idempotent ENUM creation — SQLAlchemy's checkfirst sometimes misfires
+    # under asyncpg, so use a PL/pgSQL DO block that guards against duplicates.
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE referral_status AS ENUM (
+                'pending', 'contacted', 'demo_scheduled', 'launched', 'expired'
+            );
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE referral_reward_type AS ENUM (
+                'free_months', 'credit', 'revshare'
+            );
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
 
-    referral_reward_type_create = ENUM(
-        'free_months', 'credit', 'revshare',
-        name='referral_reward_type'
-    )
-    referral_reward_type_create.create(op.get_bind(), checkfirst=True)
-
+    # Bind with create_type=False so alembic's create_table won't try to
+    # recreate the types via the before_create hook.
     referral_status = ENUM(
         'pending', 'contacted', 'demo_scheduled', 'launched', 'expired',
         name='referral_status', create_type=False,
