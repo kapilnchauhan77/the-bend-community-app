@@ -14,17 +14,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    referral_status = ENUM(
+    # create_type=False on the column-bound ENUMs prevents
+    # alembic's create_table from attempting to recreate the type.
+    referral_status_create = ENUM(
         'pending', 'contacted', 'demo_scheduled', 'launched', 'expired',
         name='referral_status'
     )
-    referral_status.create(op.get_bind(), checkfirst=True)
+    referral_status_create.create(op.get_bind(), checkfirst=True)
 
-    referral_reward_type = ENUM(
+    referral_reward_type_create = ENUM(
         'free_months', 'credit', 'revshare',
         name='referral_reward_type'
     )
-    referral_reward_type.create(op.get_bind(), checkfirst=True)
+    referral_reward_type_create.create(op.get_bind(), checkfirst=True)
+
+    referral_status = ENUM(
+        'pending', 'contacted', 'demo_scheduled', 'launched', 'expired',
+        name='referral_status', create_type=False,
+    )
+    referral_reward_type = ENUM(
+        'free_months', 'credit', 'revshare',
+        name='referral_reward_type', create_type=False,
+    )
 
     op.add_column('tenants', sa.Column('referred_by_tenant_id', UUID(as_uuid=True), nullable=True))
 
