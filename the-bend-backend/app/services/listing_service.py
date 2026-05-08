@@ -51,6 +51,13 @@ class ListingService:
             if urgent_count >= 3:
                 raise BusinessRuleViolation("Maximum 3 active urgent listings per business")
 
+        # Normalize pricing fields by mode — clear values that don't apply
+        pt = data.pricing_type
+        clean_price = data.price if pt in ("fixed", "hourly", "range") else None
+        clean_price_max = data.price_max if pt == "range" else None
+        clean_price_unit = data.price_unit if pt in ("hourly", "range") else None
+        clean_price_text = data.price_text if pt == "custom" else None
+
         listing = await self.listing_repo.create({
             "id": uuid4(),
             "shop_id": current_user.shop_id,
@@ -62,8 +69,12 @@ class ListingService:
             "quantity": data.quantity,
             "unit": data.unit,
             "expiry_date": data.expiry_date,
-            "price": data.price,
-            "is_free": data.is_free,
+            "pricing_type": pt,
+            "price": clean_price,
+            "price_max": clean_price_max,
+            "price_unit": clean_price_unit,
+            "price_text": clean_price_text,
+            "is_free": pt == "free",
             "urgency": data.urgency,
         })
 
@@ -94,6 +105,21 @@ class ListingService:
             raise ForbiddenError("Cannot modify another shop's listing")
 
         update_data = data.model_dump(exclude_unset=True)
+
+        # If pricing_type is being changed, normalize the payload
+        # and keep is_free in sync.
+        if "pricing_type" in update_data:
+            pt = update_data["pricing_type"]
+            update_data["is_free"] = (pt == "free")
+            if pt not in ("fixed", "hourly", "range"):
+                update_data["price"] = None
+            if pt != "range":
+                update_data["price_max"] = None
+            if pt not in ("hourly", "range"):
+                update_data["price_unit"] = None
+            if pt != "custom":
+                update_data["price_text"] = None
+
         return await self.listing_repo.update(listing_id, update_data)
 
     async def fulfill_listing(self, listing_id: UUID, current_user: User):

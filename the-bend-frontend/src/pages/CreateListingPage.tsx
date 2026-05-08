@@ -31,16 +31,52 @@ const schema = z
     quantity: z.string().optional(),
     unit: z.string().optional(),
     urgency: z.enum(['normal', 'urgent']),
-    is_free: z.boolean(),
+    pricing_type: z.enum(['free', 'fixed', 'hourly', 'range', 'custom']),
     price: z.string().optional(),
+    price_max: z.string().optional(),
+    price_unit: z.string().optional(),
+    price_text: z.string().optional(),
     expiry_date: z.string().optional(),
   })
-  .refine(
-    (data) => data.is_free || (data.price && parseFloat(data.price) > 0),
-    { message: 'Enter a price or mark as free', path: ['price'] }
-  );
+  .superRefine((data, ctx) => {
+    const pt = data.pricing_type;
+    if (pt === 'fixed' || pt === 'hourly') {
+      if (!data.price || parseFloat(data.price) <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Enter a price greater than 0' });
+      }
+    }
+    if (pt === 'hourly' && !data.price_unit) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price_unit'], message: 'Pick a rate unit (hr, day, gig, project)' });
+    }
+    if (pt === 'range') {
+      const lo = parseFloat(data.price || '');
+      const hi = parseFloat(data.price_max || '');
+      if (!data.price || lo <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Enter the minimum amount' });
+      }
+      if (!data.price_max || hi <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price_max'], message: 'Enter the maximum amount' });
+      }
+      if (data.price && data.price_max && hi < lo) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price_max'], message: 'Maximum cannot be less than minimum' });
+      }
+    }
+    if (pt === 'custom' && !(data.price_text && data.price_text.trim())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['price_text'], message: 'Describe the pricing (e.g. "Negotiable", "DOE")' });
+    }
+  });
 
 type FormData = z.infer<typeof schema>;
+
+const pricingModes = [
+  { value: 'free', label: 'Free', desc: 'No charge' },
+  { value: 'fixed', label: 'Fixed', desc: 'A single price' },
+  { value: 'hourly', label: 'Rate', desc: 'Per hour, day, gig…' },
+  { value: 'range', label: 'Range', desc: 'Min–max, depending on scope' },
+  { value: 'custom', label: 'Custom', desc: 'Negotiable / DOE / etc.' },
+] as const;
+
+const rateUnits = ['hr', 'day', 'gig', 'project', 'session', 'visit'] as const;
 
 const urgencyOptions = [
   { value: 'normal', label: 'Normal', desc: 'No rush', color: 'border-gray-300 text-gray-700 bg-white' },
@@ -71,7 +107,7 @@ export default function CreateListingPage() {
       type: 'offer',
       category: 'materials',
       urgency: 'normal',
-      is_free: true,
+      pricing_type: 'free',
     },
   });
 
@@ -81,6 +117,14 @@ export default function CreateListingPage() {
     listingApi.getDetail(editId)
       .then((res) => {
         const l = res.data;
+        // Derive pricing_type for older listings that pre-date the upgrade.
+        const fallbackType = l.pricing_type
+          ? l.pricing_type
+          : l.is_free
+            ? 'free'
+            : l.price != null
+              ? 'fixed'
+              : 'free';
         reset({
           type: l.type,
           category: l.category,
@@ -89,8 +133,11 @@ export default function CreateListingPage() {
           quantity: l.quantity || '',
           unit: l.unit || '',
           urgency: l.urgency || 'normal',
-          is_free: Boolean(l.is_free),
+          pricing_type: fallbackType,
           price: l.price != null ? String(l.price) : '',
+          price_max: l.price_max != null ? String(l.price_max) : '',
+          price_unit: l.price_unit || '',
+          price_text: l.price_text || '',
           expiry_date: l.expiry_date ? String(l.expiry_date).slice(0, 10) : '',
         });
         if (Array.isArray(l.images)) {
@@ -108,7 +155,7 @@ export default function CreateListingPage() {
 
   const watchedType = watch('type');
   const watchedUrgency = watch('urgency');
-  const watchedIsFree = watch('is_free');
+  const watchedPricingType = watch('pricing_type');
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -139,13 +186,27 @@ export default function CreateListingPage() {
         title: data.title,
         description: data.description,
         urgency: data.urgency,
-        is_free: data.is_free,
+        pricing_type: data.pricing_type,
+        is_free: data.pricing_type === 'free',
       };
       if (data.quantity) payload.quantity = data.quantity;
       if (data.unit) payload.unit = data.unit;
-      if (!data.is_free && data.price) payload.price = parseFloat(data.price);
       if (data.expiry_date) payload.expiry_date = data.expiry_date;
       if (images.length > 0) payload.image_ids = images.map(img => img.url);
+
+      // Pricing fields per mode
+      if (data.pricing_type === 'fixed' || data.pricing_type === 'hourly' || data.pricing_type === 'range') {
+        payload.price = parseFloat(data.price || '0');
+      }
+      if (data.pricing_type === 'range') {
+        payload.price_max = parseFloat(data.price_max || '0');
+      }
+      if (data.pricing_type === 'hourly' || data.pricing_type === 'range') {
+        if (data.price_unit) payload.price_unit = data.price_unit;
+      }
+      if (data.pricing_type === 'custom') {
+        payload.price_text = (data.price_text || '').trim();
+      }
 
       if (isEdit && editId) {
         await listingApi.update(editId, payload);
@@ -350,41 +411,182 @@ export default function CreateListingPage() {
             </CardContent>
           </Card>
 
-          {/* Pricing */}
+          {/* Pricing — multi-mode */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Pricing</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag size={16} className="text-[hsl(160,25%,28%)]" />
+                Pricing
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="is_free" className="flex items-center gap-2 cursor-pointer">
-                  <Tag size={16} className="text-[hsl(160,25%,28%)]" />
-                  <span>Offering for free</span>
-                </Label>
-                <Switch
-                  id="is_free"
-                  checked={watchedIsFree}
-                  onCheckedChange={(v) => setValue('is_free', v)}
-                />
+            <CardContent className="space-y-4">
+              {/* Mode picker */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {pricingModes.map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setValue('pricing_type', m.value)}
+                    className={`px-3 py-2.5 rounded-lg border text-left transition-all ${
+                      watchedPricingType === m.value
+                        ? 'border-[hsl(35,45%,42%)] bg-[hsl(35,15%,94%)] text-[hsl(160,25%,24%)]'
+                        : 'border-gray-200 text-gray-600 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{m.label}</div>
+                    <div className="text-[11px] opacity-70 leading-tight">{m.desc}</div>
+                  </button>
+                ))}
               </div>
-              {!watchedIsFree && (
-                <div className="relative">
-                  <DollarSign
-                    size={16}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <Input
-                    placeholder="0.00"
-                    className="pl-8"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    {...register('price')}
-                  />
+
+              {/* FIXED — single price */}
+              {watchedPricingType === 'fixed' && (
+                <div>
+                  <Label className="text-sm">Price</Label>
+                  <div className="relative mt-1">
+                    <DollarSign
+                      size={16}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <Input
+                      placeholder="0.00"
+                      className="pl-8"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      {...register('price')}
+                    />
+                  </div>
                   {errors.price && (
                     <p className="text-red-500 text-xs mt-1">{errors.price.message}</p>
                   )}
                 </div>
+              )}
+
+              {/* HOURLY — rate + unit */}
+              {watchedPricingType === 'hourly' && (
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-start">
+                  <div>
+                    <Label className="text-sm">Rate</Label>
+                    <div className="relative mt-1">
+                      <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Input
+                        placeholder="22.00"
+                        className="pl-8"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        {...register('price')}
+                      />
+                    </div>
+                    {errors.price && (
+                      <p className="text-red-500 text-xs mt-1">{errors.price.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-sm">Per</Label>
+                    <Select
+                      value={watch('price_unit') || ''}
+                      onValueChange={(v) => setValue('price_unit', v)}
+                    >
+                      <SelectTrigger className="mt-1 w-32">
+                        <SelectValue placeholder="hr" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rateUnits.map(u => (
+                          <SelectItem key={u} value={u}>{u}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.price_unit && (
+                      <p className="text-red-500 text-xs mt-1">{errors.price_unit.message}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* RANGE — min, max, optional unit */}
+              {watchedPricingType === 'range' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-sm">Min</Label>
+                      <div className="relative mt-1">
+                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <Input
+                          placeholder="15.00"
+                          className="pl-8"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          {...register('price')}
+                        />
+                      </div>
+                      {errors.price && (
+                        <p className="text-red-500 text-xs mt-1">{errors.price.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label className="text-sm">Max</Label>
+                      <div className="relative mt-1">
+                        <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <Input
+                          placeholder="25.00"
+                          className="pl-8"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          {...register('price_max')}
+                        />
+                      </div>
+                      {errors.price_max && (
+                        <p className="text-red-500 text-xs mt-1">{errors.price_max.message}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Per (optional)</Label>
+                    <Select
+                      value={watch('price_unit') || ''}
+                      onValueChange={(v) => setValue('price_unit', v)}
+                    >
+                      <SelectTrigger className="mt-1 w-32">
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rateUnits.map(u => (
+                          <SelectItem key={u} value={u}>{u}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      e.g. "$15–$25/hr depending on experience"
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* CUSTOM — freeform text */}
+              {watchedPricingType === 'custom' && (
+                <div>
+                  <Label className="text-sm">Pricing description</Label>
+                  <Input
+                    placeholder='e.g. "Negotiable", "DOE", "Trade welcome"'
+                    className="mt-1"
+                    maxLength={150}
+                    {...register('price_text')}
+                  />
+                  {errors.price_text && (
+                    <p className="text-red-500 text-xs mt-1">{errors.price_text.message}</p>
+                  )}
+                </div>
+              )}
+
+              {/* FREE — explanation */}
+              {watchedPricingType === 'free' && (
+                <p className="text-sm text-muted-foreground">
+                  No charge — perfect for surplus materials, lending, or volunteer offers.
+                </p>
               )}
             </CardContent>
           </Card>

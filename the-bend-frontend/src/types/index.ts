@@ -5,6 +5,7 @@ export type ListingType = 'offer' | 'request';
 export type ListingCategory = 'staff' | 'materials' | 'equipment';
 export type UrgencyLevel = 'normal' | 'urgent';
 export type ListingStatus = 'active' | 'fulfilled' | 'expired' | 'deleted';
+export type PricingType = 'free' | 'fixed' | 'hourly' | 'range' | 'custom';
 
 // Models
 export interface User {
@@ -52,7 +53,11 @@ export interface Listing {
   quantity?: string;
   unit?: string;
   expiry_date?: string;
+  pricing_type?: PricingType;
   price?: number;
+  price_max?: number;
+  price_unit?: string;
+  price_text?: string;
   is_free: boolean;
   urgency: UrgencyLevel;
   status: ListingStatus;

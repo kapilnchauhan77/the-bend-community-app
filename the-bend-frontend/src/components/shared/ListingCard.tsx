@@ -1,7 +1,7 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { Briefcase, Package, Wrench, Clock } from 'lucide-react';
 import { resolveAssetUrl } from '@/lib/constants';
-import { timeAgo, parseServerDate } from '@/lib/utils';
+import { timeAgo, parseServerDate, formatPrice } from '@/lib/utils';
 import type { Listing } from '@/types';
 
 const categoryIcons = {
@@ -120,8 +120,15 @@ export function ListingCard({ listing }: { listing: Listing }) {
             <span className="text-[11px] text-[hsl(30,10%,45%)]">Unknown</span>
           )}
           <div className="flex items-center gap-2">
-            <span className={`text-[11px] font-semibold ${listing.is_free ? 'text-[hsl(160,25%,28%)]' : 'text-[hsl(30,15%,25%)]'}`}>
-              {listing.is_free ? 'FREE' : `$${listing.price}`}
+            <span
+              className={`text-[11px] font-semibold ${
+                (listing.pricing_type === 'free' || (!listing.pricing_type && listing.is_free))
+                  ? 'text-[hsl(160,25%,28%)]'
+                  : 'text-[hsl(30,15%,25%)]'
+              }`}
+              title={formatPrice(listing)}
+            >
+              {formatPrice(listing) || '—'}
             </span>
             <span className="flex items-center gap-0.5 text-[10px] text-[hsl(30,10%,60%)]">
               <Clock className="w-3 h-3" />

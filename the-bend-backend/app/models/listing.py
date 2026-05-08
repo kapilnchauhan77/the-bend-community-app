@@ -7,7 +7,7 @@ from sqlalchemy import String, Boolean, Text, Integer, ForeignKey, Index, Numeri
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from app.database import Base
-from app.models.enums import ListingType, ListingCategory, UrgencyLevel, ListingStatus
+from app.models.enums import ListingType, ListingCategory, UrgencyLevel, ListingStatus, PricingType
 
 
 class Listing(Base):
@@ -24,6 +24,13 @@ class Listing(Base):
     unit: Mapped[str | None] = mapped_column(String(20))
     expiry_date: Mapped[datetime | None] = mapped_column()
     price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    price_max: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    price_unit: Mapped[str | None] = mapped_column(String(30))
+    price_text: Mapped[str | None] = mapped_column(String(150))
+    pricing_type: Mapped[PricingType] = mapped_column(
+        ENUM(PricingType, name="pricing_type", create_type=False),
+        nullable=False, default=PricingType.FREE,
+    )
     is_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     urgency: Mapped[UrgencyLevel] = mapped_column(ENUM(UrgencyLevel, name="urgency_level", create_type=False), nullable=False, default=UrgencyLevel.NORMAL)
     status: Mapped[ListingStatus] = mapped_column(ENUM(ListingStatus, name="listing_status", create_type=False), nullable=False, default=ListingStatus.ACTIVE)

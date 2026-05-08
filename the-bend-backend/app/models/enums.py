@@ -51,6 +51,14 @@ class ListingStatus(str, enum.Enum):
     DELETED = "deleted"
 
 
+class PricingType(str, enum.Enum):
+    FREE = "free"           # No charge
+    FIXED = "fixed"         # Single price (existing behavior)
+    HOURLY = "hourly"       # Rate per unit of time/work — needs price + unit
+    RANGE = "range"         # Min-max range, e.g. $15-$25/hr — needs price + price_max + unit
+    CUSTOM = "custom"       # Freeform text e.g. "DOE", "Negotiable"
+
+
 class NotificationType(str, enum.Enum):
     REGISTRATION_SUBMITTED = "registration_submitted"
     REGISTRATION_APPROVED = "registration_approved"

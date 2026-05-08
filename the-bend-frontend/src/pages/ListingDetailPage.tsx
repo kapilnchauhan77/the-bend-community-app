@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { resolveAssetUrl } from '@/lib/constants';
-import { timeAgo, parseServerDate } from '@/lib/utils';
+import { timeAgo, parseServerDate, formatPrice } from '@/lib/utils';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -301,9 +301,13 @@ export default function ListingDetailPage() {
           {/* Price */}
           <div className="flex items-center gap-4 mb-3">
             <span
-              className={`text-xl font-bold ${listing.is_free ? 'text-[hsl(160,25%,28%)]' : 'text-gray-900'}`}
+              className={`text-xl font-bold ${
+                (listing.pricing_type === 'free' || (!listing.pricing_type && listing.is_free))
+                  ? 'text-[hsl(160,25%,28%)]'
+                  : 'text-gray-900'
+              }`}
             >
-              {listing.is_free ? 'FREE' : `$${listing.price}`}
+              {formatPrice(listing) || '—'}
             </span>
             {listing.quantity && (
               <span className="text-sm text-muted-foreground">
