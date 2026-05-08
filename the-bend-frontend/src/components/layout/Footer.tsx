@@ -49,6 +49,7 @@ export function Footer() {
               <li><Link to="/talent" className="hover:text-[hsl(40,20%,90%)] transition-colors">Talent Marketplace</Link></li>
               <li><Link to="/browse" className="hover:text-[hsl(40,20%,90%)] transition-colors">All Listings</Link></li>
               <li><Link to="/advertise" className="hover:text-[hsl(40,20%,90%)] transition-colors">Advertise</Link></li>
+              <li><Link to="/refer-a-county" className="hover:text-[hsl(40,20%,90%)] transition-colors">Refer a County</Link></li>
             </ul>
           </div>
         </div>

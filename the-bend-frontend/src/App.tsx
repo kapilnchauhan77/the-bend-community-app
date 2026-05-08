@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { TenantProvider } from '@/context/TenantContext';
 import { isRootDomain } from '@/lib/constants';
 import LandingPage from '@/pages/LandingPage';
+import ReferralLandingPage from '@/pages/ReferralLandingPage';
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -78,6 +79,8 @@ function App() {
         <Route path="/guidelines" element={<GuidelinesViewPage />} />
         <Route path="/business/:shopId" element={<BusinessProfilePage />} />
         <Route path="/directory" element={<DirectoryPage />} />
+        <Route path="/refer-a-county" element={<ReferralLandingPage />} />
+        <Route path="/refer" element={<ReferralLandingPage />} />
 
         {/* Protected routes */}
         <Route path="/create" element={<ProtectedRoute><CreateListingPage /></ProtectedRoute>} />
