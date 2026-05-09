@@ -28,7 +28,12 @@ class Listing(Base):
     price_unit: Mapped[str | None] = mapped_column(String(30))
     price_text: Mapped[str | None] = mapped_column(String(150))
     pricing_type: Mapped[PricingType] = mapped_column(
-        ENUM(PricingType, name="pricing_type", create_type=False),
+        ENUM(
+            PricingType,
+            name="pricing_type",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False, default=PricingType.FREE,
     )
     is_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
