@@ -100,7 +100,7 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         <div className="absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none" style={{ background: 'linear-gradient(to left, var(--fade-bg, hsl(40,25%,96%)), transparent)' }} />
 
         <div
-          className="flex gap-4 animate-marquee hover:[animation-play-state:paused]"
+          className="sponsor-marquee flex gap-3 md:gap-4 hover:[animation-play-state:paused]"
           style={{
             animation: `marquee ${sponsors.length * 3}s linear infinite`,
           }}
@@ -111,7 +111,7 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
               href={s.website_url || '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-shrink-0 w-[280px] border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] px-4 py-4 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer group block"
+              className="flex-shrink-0 w-[200px] md:w-[280px] border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] px-3 py-3 md:px-4 md:py-4 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer group block"
             >
               {s.logo_url && (
                 <div className="mb-2.5 h-10 w-full flex items-center justify-start">
@@ -129,13 +129,6 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
           ))}
         </div>
       </div>
-
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }

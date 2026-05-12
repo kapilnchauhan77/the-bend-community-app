@@ -826,3 +826,14 @@ html.dark [role="checkbox"][data-state="checked"] {
   background-color: hsl(160, 25%, 24%) !important;
   border-color: hsl(160, 25%, 24%) !important;
 }
+
+/* Sponsor carousel marquee — defined here so the keyframes are always
+   present in the CSS bundle (avoids any race with React-injected styles
+   that caused the animation to silently no-op on slower mobile browsers). */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.sponsor-marquee {
+  will-change: transform;
+}
