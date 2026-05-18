@@ -370,7 +370,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {[
               {
                 slug: 'westmoreland',
@@ -380,10 +380,10 @@ export default function LandingPage() {
                 est: 'Est. 2026',
               },
               {
-                slug: 'king-george',
-                name: 'King George',
-                tagline: 'Neighbors, connected',
-                palette: 'hsl(220, 32%, 38%)',
+                slug: 'blacksburg',
+                name: 'Blacksburg',
+                tagline: 'From the Blue Ridge to the Hokie Nation',
+                palette: 'hsl(348, 72%, 38%)',
                 est: 'Est. 2026',
               },
               {
@@ -391,6 +391,13 @@ export default function LandingPage() {
                 name: 'New Kent',
                 tagline: 'Virginia heritage, reassembled',
                 palette: 'hsl(28, 48%, 38%)',
+                est: 'Est. 2026',
+              },
+              {
+                slug: 'alexandria',
+                name: 'Alexandria',
+                tagline: 'Old Town meets the new economy',
+                palette: 'hsl(210, 42%, 38%)',
                 est: 'Est. 2026',
               },
             ].map((c) => (

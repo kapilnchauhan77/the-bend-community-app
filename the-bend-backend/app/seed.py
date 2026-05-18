@@ -446,51 +446,110 @@ async def _create_tenant_with_data(
         print(f"Seeded tenant '{slug}': {len(shops_data)} shops, {len(listings_data)} listings, {len(events_data)} events, {len(volunteers_data)} volunteers, {len(talent_data)} talent")
 
 
-async def seed_king_george():
+async def seed_blacksburg():
     await _create_tenant_with_data(
-        slug="king-george", subdomain="king-george.bend.community",
-        display_name="The Bend \u2014 King George",
-        tagline="Connecting King George County businesses",
-        about_text="The Bend \u2014 King George brings the same community marketplace to King George County, helping local businesses share resources and thrive together.",
-        primary_color="hsl(220,30%,28%)", footer_text="Building community, one connection at a time",
-        admin_email="admin@kinggeorge.bend.community", admin_password="admin123456", admin_name="King George Admin",
+        slug="blacksburg", subdomain="blacksburg.bend.community",
+        display_name="The Bend \u2014 Blacksburg",
+        tagline="From the Blue Ridge to the Hokie Nation",
+        about_text="Blacksburg is a mountain college town anchored by Virginia Tech, surrounded by the Jefferson National Forest. The Bend \u2014 Blacksburg connects local makers, students, and businesses across the New River Valley \u2014 from Main Street to the research park.",
+        primary_color="hsl(348,72%,28%)", footer_text="Built in the New River Valley",
+        admin_email="admin@blacksburg.bend.community", admin_password="admin123456", admin_name="Blacksburg Admin",
         shops_data=[
-            ("King George Diner", "restaurant", "9100 Kings Hwy, King George, VA", "Tom Reynolds", "tom@kgdiner.com", "540-555-1000"),
-            ("Riverside Hardware", "hardware", "8700 Dahlgren Rd, King George, VA", "Sarah Blake", "sarah@riversidehw.com", "540-555-1001"),
-            ("Potomac Bakery", "bakery", "9200 James Madison Pkwy, King George, VA", "Maria Santos", "maria@potomacbakery.com", "540-555-1002"),
-            ("Blue Ridge Crafts", "retail", "8900 Kings Hwy, King George, VA", "David Chen", "david@blueridgecrafts.com", "540-555-1003"),
+            ("Mill Mountain Coffee", "cafe", "605 N Main St, Blacksburg, VA", "Jordan Pierce", "jordan@millmtncoffee.com", "540-555-1100"),
+            ("Lefty's Main Street Grille", "restaurant", "211 N Main St, Blacksburg, VA", "Hannah Wells", "hannah@leftysgrille.com", "540-555-1101"),
+            ("Eastern Divide Brewing", "retail", "3175 Commerce St, Blacksburg, VA", "Andrew Kessler", "andrew@easterndivide.com", "540-555-1102"),
+            ("Hokie Hardware", "hardware", "1224 N Main St, Blacksburg, VA", "Marcus Tate", "marcus@hokiehardware.com", "540-555-1103"),
+            ("Black Hen Bakery", "bakery", "118 Draper Rd SW, Blacksburg, VA", "Elena Rios", "elena@blackhenbakery.com", "540-555-1104"),
         ],
         listings_data=[
-            (0, ListingType.OFFER, ListingCategory.STAFF, "Line cook needed weekends", "Looking for experienced line cook for Saturday and Sunday brunch shifts.", 22.0, False, UrgencyLevel.URGENT),
-            (0, ListingType.REQUEST, ListingCategory.MATERIALS, "Fresh herbs supplier wanted", "Need regular supply of basil, thyme, and rosemary. Weekly delivery preferred.", None, True, UrgencyLevel.NORMAL),
-            (1, ListingType.OFFER, ListingCategory.EQUIPMENT, "Power washer available for rent", "Commercial grade power washer. Available weekdays. Pickup only.", 45.0, False, UrgencyLevel.NORMAL),
-            (1, ListingType.OFFER, ListingCategory.MATERIALS, "Surplus lumber and plywood", "200 board feet of pine lumber and 12 sheets of 3/4 inch plywood.", None, True, UrgencyLevel.URGENT),
-            (2, ListingType.REQUEST, ListingCategory.STAFF, "Early morning baker needed", "Need someone who can start at 4 AM. Bread and pastry experience required.", 20.0, False, UrgencyLevel.URGENT),
-            (2, ListingType.OFFER, ListingCategory.MATERIALS, "Day-old bread and pastries", "Available daily after 5 PM. Perfect for food banks or animal feed.", None, True, UrgencyLevel.NORMAL),
-            (3, ListingType.REQUEST, ListingCategory.EQUIPMENT, "Need pottery kiln access", "Looking to fire ceramics. Will pay hourly rate for kiln time.", 30.0, False, UrgencyLevel.NORMAL),
-            (3, ListingType.OFFER, ListingCategory.STAFF, "Art workshop instructor", "Offering weekend watercolor workshops. 2-hour sessions, materials included.", 35.0, False, UrgencyLevel.NORMAL),
+            (0, ListingType.OFFER, ListingCategory.STAFF, "Weekend barista needed", "Mornings 6am-1pm Sat-Sun. Latte art and pour-overs. Hokie students welcome.", 17.0, False, UrgencyLevel.URGENT),
+            (0, ListingType.REQUEST, ListingCategory.MATERIALS, "Local roaster partnership", "Looking for a New River Valley roaster to feature seasonally. Wholesale terms.", None, True, UrgencyLevel.NORMAL),
+            (1, ListingType.OFFER, ListingCategory.EQUIPMENT, "Tailgate tents & tables for rent", "10x10 canopies and folding tables \u2014 perfect for home football weekends.", 40.0, False, UrgencyLevel.NORMAL),
+            (1, ListingType.REQUEST, ListingCategory.STAFF, "Game-day servers (Hokie home games)", "Need 4 servers for all 6 home Saturdays this fall. Tips average $200/shift.", 18.0, False, UrgencyLevel.URGENT),
+            (2, ListingType.OFFER, ListingCategory.MATERIALS, "Spent grain \u2014 free for farms", "Daily pickup of brewery spent grain. Great cattle/pig feed. Bring your own totes.", None, True, UrgencyLevel.NORMAL),
+            (2, ListingType.OFFER, ListingCategory.EQUIPMENT, "Mobile keg cooler available", "4-tap jockey box \u2014 rent for festivals, weddings, tailgates. CO2 included.", 80.0, False, UrgencyLevel.NORMAL),
+            (3, ListingType.REQUEST, ListingCategory.STAFF, "Inventory help \u2014 spring rush", "2 weeks of stocking and tagging help. Flexible hours, can work around classes.", 15.0, False, UrgencyLevel.URGENT),
+            (4, ListingType.OFFER, ListingCategory.MATERIALS, "Day-old sourdough boules", "Available every evening after 6pm. $2 each or free to nonprofits.", 2.0, False, UrgencyLevel.NORMAL),
         ],
         events_data=[
-            dict(id=uuid4(), title="King George Farmers Market", description="Fresh local produce, artisan bread, and handmade crafts every Saturday.", start_date=datetime(2026,4,12,8,0), end_date=datetime(2026,4,12,12,0), location="King George Courthouse Green", category="market", source="manual", is_featured=True, status="active"),
-            dict(id=uuid4(), title="Potomac River Cleanup Day", description="Join us for the annual river cleanup. Gloves and bags provided.", start_date=datetime(2026,4,19,9,0), end_date=datetime(2026,4,19,13,0), location="Fairview Beach", category="community", source="manual", is_featured=True, status="active"),
-            dict(id=uuid4(), title="Bluegrass at the Brewery", description="Live bluegrass music with The Potomac Pickers. Food trucks on site.", start_date=datetime(2026,4,18,18,0), end_date=datetime(2026,4,18,21,0), location="King George Brewing Co.", category="music", source="manual", is_featured=False, status="active"),
-            dict(id=uuid4(), title="Spring Plant Sale", description="Master Gardeners selling native plants, herbs, and vegetable starts.", start_date=datetime(2026,4,25,9,0), end_date=datetime(2026,4,25,14,0), location="King George Extension Office", category="outdoor", source="manual", is_featured=False, status="active"),
-            dict(id=uuid4(), title="Kids Art in the Park", description="Free art workshop for kids ages 5-12. Painting, drawing, and sculpture.", start_date=datetime(2026,4,20,10,0), end_date=datetime(2026,4,20,12,0), location="Barnesfield Park", category="art", source="manual", is_featured=False, status="active"),
-            dict(id=uuid4(), title="Local History Night", description="Presentation on the colonial history of King George County.", start_date=datetime(2026,4,22,19,0), end_date=datetime(2026,4,22,21,0), location="Smoot Library", category="historic", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Blacksburg Farmers Market", description="100+ vendors of produce, baked goods, meat, and crafts in the Market Square pavilion.", start_date=datetime(2026,5,16,8,0), end_date=datetime(2026,5,16,14,0), location="Market Square Park", category="market", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="Steppin' Out Festival", description="Two-day downtown street festival \u2014 200 artisans, live music, food trucks.", start_date=datetime(2026,8,7,10,0), end_date=datetime(2026,8,8,22,0), location="Downtown Blacksburg", category="community", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="VT Football Tailgate \u2014 home opener", description="Community tailgate with bluegrass, BBQ, and a kids zone. All Hokies welcome.", start_date=datetime(2026,9,5,15,0), end_date=datetime(2026,9,5,19,0), location="Lane Stadium Lots", category="community", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="Cascade Falls Group Hike", description="6-mile guided hike to the 66-ft waterfall. Beginner-friendly. Lunch at the trailhead.", start_date=datetime(2026,5,30,9,0), end_date=datetime(2026,5,30,14,0), location="Pembroke Trailhead", category="outdoor", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Live Jazz at Rising Silo", description="Local jazz quartet on the farm patio. Pizza wood-fired on-site.", start_date=datetime(2026,6,12,18,30), end_date=datetime(2026,6,12,21,30), location="Rising Silo Brewery", category="music", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Smithfield Plantation History Tour", description="Walking tour of the 1774 estate \u2014 Preston family history and the broader Appalachian story.", start_date=datetime(2026,5,24,10,0), end_date=datetime(2026,5,24,12,0), location="Historic Smithfield Plantation", category="historic", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Maker Faire NRV", description="Showcase of regional makers \u2014 3D printing, woodwork, robotics, textiles. Family-friendly.", start_date=datetime(2026,6,20,10,0), end_date=datetime(2026,6,20,17,0), location="Blacksburg Community Center", category="art", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Huckleberry Trail Trash Pickup", description="Two-hour volunteer cleanup along the trail. Gloves and bags provided.", start_date=datetime(2026,5,17,8,0), end_date=datetime(2026,5,17,10,0), location="Huckleberry Trailhead, Merrimac", category="community", source="manual", is_featured=False, status="active"),
         ],
         volunteers_data=[
-            dict(id=uuid4(), name="Jake Morrison", phone="540-555-2001", email="jake.morrison@example.com", skills="Landscaping, fence repair, heavy lifting", available_time="Weekends 7am-3pm"),
-            dict(id=uuid4(), name="Lisa Park", phone="540-555-2002", email="lisa.park@example.com", skills="Bookkeeping, office organization, data entry", available_time="Weekday mornings"),
-            dict(id=uuid4(), name="Carlos Ruiz", phone="540-555-2003", email="carlos.ruiz@example.com", skills="Cooking, food prep, serving", available_time="Flexible with notice"),
-            dict(id=uuid4(), name="Amy Watson", phone="540-555-2004", email="amy.watson@example.com", skills="Teaching, tutoring, after-school programs", available_time="Mon-Fri 3pm-6pm"),
-            dict(id=uuid4(), name="Brian Cole", phone="540-555-2005", email="brian.cole@example.com", skills="Plumbing, basic electrical, handyman", available_time="Saturdays only"),
+            dict(id=uuid4(), name="Connor McKee", phone="540-555-2101", email="connor.mckee@example.com", skills="Trail maintenance, tree clearing, GPS mapping", available_time="Weekends 8am-2pm"),
+            dict(id=uuid4(), name="Aaliyah Brooks", phone="540-555-2102", email="aaliyah.brooks@example.com", skills="Event setup, kids' booth supervision, face painting", available_time="Saturdays"),
+            dict(id=uuid4(), name="Dev Patel", phone="540-555-2103", email="dev.patel@example.com", skills="A/V setup, livestreaming, sound engineering", available_time="Evenings, on call"),
+            dict(id=uuid4(), name="Megan Ledford", phone="540-555-2104", email="megan.ledford@example.com", skills="Volunteer coordination, scheduling, intake", available_time="Weekday mornings"),
+            dict(id=uuid4(), name="Reuben Carter", phone="540-555-2105", email="reuben.carter@example.com", skills="Carpentry, framing, sign building", available_time="Flexible w/ 48hr notice"),
+            dict(id=uuid4(), name="Sophie Yan", phone="540-555-2106", email="sophie.yan@example.com", skills="Graphic design, posters, social media graphics", available_time="Remote, evenings"),
         ],
         talent_data=[
-            dict(id=uuid4(), name="Nicole Harper", phone="540-555-3001", email="nicole@example.com", category="musician", skills="Vocals, acoustic guitar, country, folk", available_time="Fri-Sat evenings", rate=125.0, rate_unit="gig"),
-            dict(id=uuid4(), name="Marcus Wright", phone="540-555-3002", email="marcus@example.com", category="freelancer", skills="Photography, drone footage, video editing", available_time="By appointment", rate=75.0, rate_unit="hr"),
-            dict(id=uuid4(), name="Diane Kowalski", phone="540-555-3003", email="diane@example.com", category="artist", skills="Oil painting, portraits, murals, restoration", available_time="Weekdays", rate=55.0, rate_unit="hr"),
-            dict(id=uuid4(), name="Ray Jackson", phone="540-555-3004", email="ray@example.com", category="musician", skills="Drums, percussion, jazz combo, wedding bands", available_time="Weekends", rate=150.0, rate_unit="gig"),
-            dict(id=uuid4(), name="Priya Mehta", phone="540-555-3005", email="priya@example.com", category="freelancer", skills="Web development, Shopify, social media marketing", available_time="Remote, flexible", rate=40.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Wyatt Hendricks", phone="540-555-3101", email="wyatt@example.com", category="musician", skills="Old-time fiddle, clawhammer banjo, square dance caller", available_time="Fri-Sun", rate=140.0, rate_unit="gig"),
+            dict(id=uuid4(), name="Priya Nair", phone="540-555-3102", email="priya@example.com", category="freelancer", skills="Drone videography, real-estate reels, campus tours", available_time="By appointment", rate=85.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Caleb Hwang", phone="540-555-3103", email="caleb@example.com", category="artist", skills="Linocut printmaking, letterpress, custom merch", available_time="Tue-Sat", rate=55.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Mariana Lopez", phone="540-555-3104", email="mariana@example.com", category="musician", skills="Indie folk vocals, acoustic guitar, weddings", available_time="Weekends", rate=175.0, rate_unit="gig"),
+            dict(id=uuid4(), name="Trent Boyd", phone="540-555-3105", email="trent@example.com", category="freelancer", skills="Local SEO, Shopify, restaurant menu sites", available_time="Remote, weekdays", rate=50.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Ines Vargas", phone="540-555-3106", email="ines@example.com", category="artist", skills="Mural design, hand-lettered signage, storefront windows", available_time="Weekdays", rate=65.0, rate_unit="hr"),
+        ],
+    )
+
+
+async def seed_alexandria():
+    await _create_tenant_with_data(
+        slug="alexandria", subdomain="alexandria.bend.community",
+        display_name="The Bend \u2014 Alexandria",
+        tagline="Where Old Town meets the new economy",
+        about_text="Alexandria \u2014 founded 1749 \u2014 is a Potomac waterfront city of cobblestone streets, federal townhouses, and a deep professional community working across the river in DC. The Bend \u2014 Alexandria connects Old Town shops, Del Ray makers, and Eisenhower-corridor businesses to share resources, talent, and clients.",
+        primary_color="hsl(210,42%,28%)", footer_text="Cobblestone to corridor \u2014 one community",
+        admin_email="admin@alexandria.bend.community", admin_password="admin123456", admin_name="Alexandria Admin",
+        shops_data=[
+            ("Misha's Coffee", "cafe", "102 S Patrick St, Alexandria, VA", "Asha Patel", "asha@mishascoffee.com", "703-555-1200"),
+            ("Hank's Oyster Bar", "restaurant", "1026 King St, Alexandria, VA", "Liam O'Brien", "liam@hanksoyster.com", "703-555-1201"),
+            ("Sugar Shack Donuts", "bakery", "2310 Mount Vernon Ave, Alexandria, VA", "Renee Holt", "renee@sugarshack.com", "703-555-1202"),
+            ("Old Town Books", "retail", "104 S Union St, Alexandria, VA", "Theodore Bell", "theo@oldtownbooks.com", "703-555-1203"),
+            ("Del Ray Cleaners", "service", "2401 Mount Vernon Ave, Alexandria, VA", "Mei Lin", "mei@delraycleaners.com", "703-555-1204"),
+        ],
+        listings_data=[
+            (0, ListingType.OFFER, ListingCategory.STAFF, "Morning barista \u2014 Old Town location", "5am-1pm shift, Mon-Fri. Pour-over and espresso experience required.", 22.0, False, UrgencyLevel.URGENT),
+            (0, ListingType.REQUEST, ListingCategory.EQUIPMENT, "Looking for second espresso grinder", "Mazzer or comparable, used OK. Have cash for the right machine.", None, True, UrgencyLevel.NORMAL),
+            (1, ListingType.OFFER, ListingCategory.STAFF, "Line cook \u2014 waterfront seasonal", "Apr-Oct, full-time. Seafood prep + raw bar. Health insurance + tips.", 26.0, False, UrgencyLevel.URGENT),
+            (1, ListingType.REQUEST, ListingCategory.MATERIALS, "Local oyster supplier needed", "Looking to source from Northern Neck or Eastern Shore. Weekly deliveries.", None, True, UrgencyLevel.NORMAL),
+            (2, ListingType.OFFER, ListingCategory.MATERIALS, "Day-old donuts to community fridges", "20-40 dozen daily after 7pm \u2014 free to community fridges and shelters.", None, True, UrgencyLevel.NORMAL),
+            (3, ListingType.OFFER, ListingCategory.STAFF, "Author event coordinator \u2014 part-time", "12 hrs/week. Schedule local authors for in-store readings + run logistics.", 24.0, False, UrgencyLevel.NORMAL),
+            (3, ListingType.REQUEST, ListingCategory.EQUIPMENT, "Wireless mic system needed", "For monthly book readings \u2014 lavalier + handheld. Borrow or buy.", 50.0, False, UrgencyLevel.NORMAL),
+            (4, ListingType.OFFER, ListingCategory.STAFF, "Pickup/delivery driver \u2014 weekday afternoons", "1pm-5pm, M-F. Own vehicle, mileage reimbursed. Local routes only.", 19.0, False, UrgencyLevel.NORMAL),
+        ],
+        events_data=[
+            dict(id=uuid4(), title="Old Town Farmers Market", description="Oldest continuously-running farmers market in the US (since 1753). Produce, meat, baked goods.", start_date=datetime(2026,5,16,7,0), end_date=datetime(2026,5,16,12,0), location="Market Square, 301 King St", category="market", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="Art on the Avenue", description="Del Ray's annual street festival \u2014 250+ artists, 4 music stages, kids' alley.", start_date=datetime(2026,10,3,10,0), end_date=datetime(2026,10,3,18,0), location="Mount Vernon Ave, Del Ray", category="art", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="First Thursday \u2014 Del Ray", description="Monthly evening street party. Restaurants spill onto the avenue, live music, kids' activities.", start_date=datetime(2026,6,4,18,0), end_date=datetime(2026,6,4,21,0), location="Mount Vernon Ave", category="community", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="Mount Vernon Spring Wine Festival", description="Two days of Virginia wineries, jazz, and tours of George Washington's estate.", start_date=datetime(2026,5,17,11,0), end_date=datetime(2026,5,17,18,0), location="Mount Vernon Estate", category="community", source="manual", is_featured=True, status="active"),
+            dict(id=uuid4(), title="Waterfront Jazz Series", description="Free jazz concerts every Friday on the Potomac. Bring a blanket and picnic.", start_date=datetime(2026,6,5,18,0), end_date=datetime(2026,6,5,21,0), location="Waterfront Park", category="music", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Carlyle House Garden Tour", description="Self-guided tour of the 1753 mansion and its restored colonial gardens.", start_date=datetime(2026,5,23,10,0), end_date=datetime(2026,5,23,16,0), location="Carlyle House Historic Park", category="historic", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Eisenhower East Run Club", description="Tuesday evening 5K group run for all paces. Beers at the finish.", start_date=datetime(2026,5,19,18,30), end_date=datetime(2026,5,19,20,0), location="Eisenhower Avenue Metro", category="outdoor", source="manual", is_featured=False, status="active"),
+            dict(id=uuid4(), title="Torpedo Factory Second Saturday", description="Open studios at the 82-artist working art center. Meet the artists.", start_date=datetime(2026,5,9,18,0), end_date=datetime(2026,5,9,21,0), location="Torpedo Factory Art Center", category="art", source="manual", is_featured=False, status="active"),
+        ],
+        volunteers_data=[
+            dict(id=uuid4(), name="Naomi Hartmann", phone="703-555-2201", email="naomi.hartmann@example.com", skills="Event registration, check-in tables, ushering", available_time="Weekends"),
+            dict(id=uuid4(), name="Kareem Abbasi", phone="703-555-2202", email="kareem.abbasi@example.com", skills="French interpretation, German interpretation, translation", available_time="Evenings, remote"),
+            dict(id=uuid4(), name="Olivia Brennan", phone="703-555-2203", email="olivia.brennan@example.com", skills="Photography, event coverage, social media reels", available_time="Flexible"),
+            dict(id=uuid4(), name="Ravi Krishnan", phone="703-555-2204", email="ravi.krishnan@example.com", skills="Spreadsheet wizardry, vendor logistics, budgeting", available_time="Weekday evenings"),
+            dict(id=uuid4(), name="Hailey Stone", phone="703-555-2205", email="hailey.stone@example.com", skills="First aid certified, CPR, EMT volunteer", available_time="On-call for large events"),
+            dict(id=uuid4(), name="Jordan Walsh", phone="703-555-2206", email="jordan.walsh@example.com", skills="Carpentry, stage building, signage", available_time="Saturdays"),
+        ],
+        talent_data=[
+            dict(id=uuid4(), name="Vivienne Cole", phone="703-555-3201", email="vivienne@example.com", category="musician", skills="Jazz vocals, piano, Great American Songbook, weddings", available_time="Fri-Sun", rate=350.0, rate_unit="gig"),
+            dict(id=uuid4(), name="Hugo Rasmussen", phone="703-555-3202", email="hugo@example.com", category="freelancer", skills="Brand identity, restaurant logos, packaging design", available_time="Remote, weekdays", rate=110.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Imani Sterling", phone="703-555-3203", email="imani@example.com", category="artist", skills="Watercolor cityscapes, custom commissions, Old Town scenes", available_time="By appointment", rate=80.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Felix Yamamoto", phone="703-555-3204", email="felix@example.com", category="musician", skills="Classical guitar, weddings, cocktail hours, restaurants", available_time="Evenings", rate=275.0, rate_unit="gig"),
+            dict(id=uuid4(), name="Sasha Petrov", phone="703-555-3205", email="sasha@example.com", category="freelancer", skills="Federal-style copywriting, grant writing, government RFPs", available_time="Remote, flexible", rate=120.0, rate_unit="hr"),
+            dict(id=uuid4(), name="Daniella Cruz", phone="703-555-3206", email="daniella@example.com", category="artist", skills="Floral installations, wedding florals, event styling", available_time="Tue-Sat", rate=95.0, rate_unit="hr"),
         ],
     )
 
@@ -553,7 +612,7 @@ async def clear_dummy_data():
     """Delete all dummy/seeded content but keep tenants and seed admin accounts.
 
     Preserves:
-      - Tenants (westmoreland, king-george, new-kent, etc.)
+      - Tenants (westmoreland, blacksburg, new-kent, alexandria, etc.)
       - Super admin user (super@thebend.app)
       - Community admin users (admin@thebend.app, admin@kinggeorge.bend.community,
         admin@newkent.bend.community)
@@ -645,8 +704,9 @@ async def main():
     await seed_stories()
     await sync_connector()
     # Seed additional tenants
-    await seed_king_george()
+    await seed_blacksburg()
     await seed_new_kent()
+    await seed_alexandria()
 
 
 async def fix_logo_extensions():
