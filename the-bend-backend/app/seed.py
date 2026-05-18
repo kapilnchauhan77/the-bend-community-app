@@ -370,6 +370,7 @@ async def _create_tenant_with_data(
     admin_email: str, admin_password: str, admin_name: str,
     shops_data: list, listings_data: list, events_data: list,
     volunteers_data: list, talent_data: list,
+    hero_image_url: str | None = None,
 ):
     """Create a tenant with admin, shops, listings, events, volunteers, and talent."""
     from sqlalchemy import select, func
@@ -377,8 +378,15 @@ async def _create_tenant_with_data(
     async with async_session() as session:
         # Check if tenant already exists
         result = await session.execute(select(Tenant).where(Tenant.slug == slug))
-        if result.scalar_one_or_none():
-            print(f"Tenant '{slug}' already seeded")
+        existing = result.scalar_one_or_none()
+        if existing:
+            # Backfill hero image for existing tenants seeded before this field was set
+            if hero_image_url and not existing.hero_image_url:
+                existing.hero_image_url = hero_image_url
+                await session.commit()
+                print(f"Tenant '{slug}': backfilled hero_image_url")
+            else:
+                print(f"Tenant '{slug}' already seeded")
             return
 
         # Create tenant
@@ -386,7 +394,7 @@ async def _create_tenant_with_data(
         tenant = Tenant(
             id=tid, slug=slug, subdomain=subdomain, display_name=display_name,
             tagline=tagline, about_text=about_text, primary_color=primary_color,
-            footer_text=footer_text,
+            footer_text=footer_text, hero_image_url=hero_image_url,
         )
         session.add(tenant)
         await session.flush()
@@ -451,6 +459,7 @@ async def seed_blacksburg():
         slug="blacksburg", subdomain="blacksburg.bend.community",
         display_name="The Bend \u2014 Blacksburg",
         tagline="From the Blue Ridge to the Hokie Nation",
+        hero_image_url="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80&auto=format&fit=crop",
         about_text="Blacksburg is a mountain college town anchored by Virginia Tech, surrounded by the Jefferson National Forest. The Bend \u2014 Blacksburg connects local makers, students, and businesses across the New River Valley \u2014 from Main Street to the research park.",
         primary_color="hsl(348,72%,28%)", footer_text="Built in the New River Valley",
         admin_email="admin@blacksburg.bend.community", admin_password="admin123456", admin_name="Blacksburg Admin",
@@ -505,6 +514,7 @@ async def seed_alexandria():
         slug="alexandria", subdomain="alexandria.bend.community",
         display_name="The Bend \u2014 Alexandria",
         tagline="Where Old Town meets the new economy",
+        hero_image_url="https://images.unsplash.com/photo-1568376794508-ae52c6ab3929?w=1920&q=80&auto=format&fit=crop",
         about_text="Alexandria \u2014 founded 1749 \u2014 is a Potomac waterfront city of cobblestone streets, federal townhouses, and a deep professional community working across the river in DC. The Bend \u2014 Alexandria connects Old Town shops, Del Ray makers, and Eisenhower-corridor businesses to share resources, talent, and clients.",
         primary_color="hsl(210,42%,28%)", footer_text="Cobblestone to corridor \u2014 one community",
         admin_email="admin@alexandria.bend.community", admin_password="admin123456", admin_name="Alexandria Admin",
@@ -559,6 +569,7 @@ async def seed_new_kent():
         slug="new-kent", subdomain="new-kent.bend.community",
         display_name="The Bend \u2014 New Kent",
         tagline="Where Virginia heritage meets community spirit",
+        hero_image_url="https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?w=1920&q=80&auto=format&fit=crop",
         about_text="New Kent County, established in 1654, is home to award-winning wineries, premier golf courses, and the historic Colonial Downs Racetrack. The Bend \u2014 New Kent connects local businesses from the Chickahominy to the Pamunkey, helping neighbors share resources and build a stronger community.",
         primary_color="hsl(28,45%,28%)", footer_text="From vineyards to rivers \u2014 one community",
         admin_email="admin@newkent.bend.community", admin_password="admin123456", admin_name="New Kent Admin",
