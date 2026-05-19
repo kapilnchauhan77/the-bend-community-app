@@ -86,6 +86,7 @@ class ListingUpdate(BaseModel):
     price_text: str | None = Field(None, max_length=150)
     is_free: bool | None = None
     urgency: str | None = Field(None, pattern="^(normal|urgent)$")
+    image_ids: list[str] | None = None  # full set of image URLs after edits; replaces existing
 
 
 class ShopSummary(BaseModel):

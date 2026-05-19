@@ -106,6 +106,9 @@ class ListingService:
 
         update_data = data.model_dump(exclude_unset=True)
 
+        # image_ids isn't a column — pop it and sync the listing_images table.
+        new_image_urls = update_data.pop("image_ids", None)
+
         # If pricing_type is being changed, normalize the payload
         # and keep is_free in sync.
         if "pricing_type" in update_data:
@@ -120,7 +123,38 @@ class ListingService:
             if pt != "custom":
                 update_data["price_text"] = None
 
-        return await self.listing_repo.update(listing_id, update_data)
+        updated = await self.listing_repo.update(listing_id, update_data) if update_data else listing
+
+        if new_image_urls is not None:
+            from sqlalchemy import delete, select
+            from app.models.listing import ListingImage
+
+            # Replace strategy: delete rows whose url is no longer in the new set,
+            # add rows for new urls, and resequence sort_order to match the client.
+            existing = (await self.db.execute(
+                select(ListingImage).where(ListingImage.listing_id == listing_id)
+            )).scalars().all()
+            existing_by_url = {img.url: img for img in existing}
+            keep_urls = set(new_image_urls)
+
+            for img in existing:
+                if img.url not in keep_urls:
+                    await self.db.delete(img)
+
+            for i, url in enumerate(new_image_urls):
+                if url in existing_by_url:
+                    existing_by_url[url].sort_order = i
+                else:
+                    self.db.add(ListingImage(
+                        id=uuid4(),
+                        listing_id=listing_id,
+                        url=url,
+                        thumbnail_url=url,
+                        sort_order=i,
+                    ))
+            await self.db.commit()
+
+        return updated
 
     async def fulfill_listing(self, listing_id: UUID, current_user: User):
         listing = await self.listing_repo.get_by_id(listing_id)
