@@ -20,7 +20,10 @@ def upgrade() -> None:
     # for the remaining DDL. Same pattern as add_listing_pricing_options.py
     # would use for enum-add-value (we just inline it here).
     op.execute("COMMIT")
-    op.execute("ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'individual'")
+    # PG enum values for user_role are UPPERCASE (matches Python enum NAMES,
+    # because the User.role column has no values_callable). Adding 'INDIVIDUAL'
+    # to match that convention.
+    op.execute("ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'INDIVIDUAL'")
     op.execute("BEGIN")
 
     # 2. volunteers.user_id (nullable FK -> users.id, ON DELETE SET NULL) + index
