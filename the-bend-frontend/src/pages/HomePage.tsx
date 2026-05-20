@@ -31,7 +31,7 @@ const BRONZE = 'hsl(35, 45%, 42%)';
 
 const services = [
   { icon: Briefcase, label: 'Gig Board', desc: 'Job openings & available workers', href: '/browse?category=staff' },
-  { icon: Package, label: 'Raw Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
+  { icon: Package, label: 'Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
   { icon: Wrench, label: 'Equipment', desc: 'Borrow or lend tools', href: '/browse?category=equipment' },
   { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },

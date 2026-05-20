@@ -334,7 +334,7 @@ export default function SettingsPage() {
                   onCheckedChange={setGigAlerts}
                 />
                 <SwitchRow
-                  label="Raw Materials"
+                  label="Materials"
                   description="Flour, dairy, produce and more"
                   checked={materialsAlerts}
                   onCheckedChange={setMaterialsAlerts}

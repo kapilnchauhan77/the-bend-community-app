@@ -57,7 +57,7 @@ const categoryIcons = {
 
 const categoryLabels = {
   staff: 'Gigs',
-  materials: 'Raw Materials',
+  materials: 'Materials',
   equipment: 'Equipment',
 };
 

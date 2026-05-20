@@ -54,7 +54,7 @@ const categories = [
   },
   {
     icon: Package,
-    title: 'Raw Materials',
+    title: 'Materials',
     description: 'Surplus flour, produce, or packaging? List it before it expires so a neighbor can put it to good use — free or at cost.',
     color: 'bg-teal-100 text-teal-700',
   },

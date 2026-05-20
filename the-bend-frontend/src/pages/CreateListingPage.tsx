@@ -292,7 +292,7 @@ export default function CreateListingPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">Gigs</SelectItem>
-                  <SelectItem value="materials">Raw Materials</SelectItem>
+                  <SelectItem value="materials">Materials</SelectItem>
                   <SelectItem value="equipment">Equipment</SelectItem>
                 </SelectContent>
               </Select>

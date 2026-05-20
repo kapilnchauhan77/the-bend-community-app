@@ -9,7 +9,7 @@ export const URGENCY_COLORS = {
 
 export const CATEGORY_LABELS = {
   staff: 'Gigs',
-  materials: 'Raw Materials',
+  materials: 'Materials',
   equipment: 'Equipment',
 } as const;
 
