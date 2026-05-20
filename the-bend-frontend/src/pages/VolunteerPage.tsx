@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, Clock, Heart, Users, CheckCircle, X, Plus } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Clock, Heart, Users, CheckCircle, X, Plus, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { volunteerApi } from '@/services/volunteerApi';
 import { uploadApi } from '@/services/uploadApi';
+import { messageApi } from '@/services/messageApi';
+import { useAuthStore } from '@/stores/authStore';
 import { ShareButton } from '@/components/shared/ShareButton';
 import { resolveAssetUrl } from '@/lib/constants';
 import type { Volunteer } from '@/types/index';
@@ -16,9 +18,11 @@ const PRIMARY = 'hsl(160, 25%, 24%)';
 
 export default function VolunteerPage() {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuthStore();
 
   // Modal state
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -31,6 +35,10 @@ export default function VolunteerPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Per-card action state
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Volunteer list state
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -90,7 +98,31 @@ export default function VolunteerPage() {
     return () => { document.body.style.overflow = ''; };
   }, [showForm]);
 
+  const resetForm = () => {
+    setName('');
+    setPhone('');
+    setEmail('');
+    setSkills('');
+    setAvailableTime('');
+    setPhoto(null);
+    setEditingId(null);
+  };
+
   const openForm = () => {
+    resetForm();
+    setShowForm(true);
+    setSuccess(false);
+    setFormError('');
+  };
+
+  const openEditForm = (v: Volunteer) => {
+    setEditingId(v.id);
+    setName(v.name);
+    setPhone(v.phone ?? '');
+    setEmail(v.email ?? '');
+    setSkills(v.skills);
+    setAvailableTime(v.available_time);
+    setPhoto(v.photo_url ?? null);
     setShowForm(true);
     setSuccess(false);
     setFormError('');
@@ -104,20 +136,27 @@ export default function VolunteerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
-    if (!phone && !email) {
+    if (!isAuthenticated && !phone && !email) {
       setFormError('Please provide at least an email or phone number.');
       return;
     }
     setSubmitting(true);
     try {
-      await volunteerApi.enroll({ name, phone: phone || undefined, email: email || undefined, skills, available_time: availableTime, photo_url: photo || undefined });
+      const payload = {
+        name,
+        phone: phone || undefined,
+        email: email || undefined,
+        skills,
+        available_time: availableTime,
+        photo_url: photo || undefined,
+      };
+      if (editingId) {
+        await volunteerApi.update(editingId, payload);
+      } else {
+        await volunteerApi.enroll(payload);
+      }
       setSuccess(true);
-      setName('');
-      setPhone('');
-      setEmail('');
-      setSkills('');
-      setAvailableTime('');
-      setPhoto(null);
+      resetForm();
       setShowForm(false);
       await fetchVolunteers();
     } catch (err) {
@@ -125,6 +164,35 @@ export default function VolunteerPage() {
       setFormError('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleMessage = async (recipientUserId: string) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    setMessagingId(recipientUserId);
+    try {
+      const { data } = await messageApi.createDirectThread(recipientUserId);
+      navigate(`/messages/${data.id}`);
+    } catch (err) {
+      console.error('Failed to start thread:', err);
+    } finally {
+      setMessagingId(null);
+    }
+  };
+
+  const handleDelete = async (v: Volunteer) => {
+    if (!confirm(`Delete your volunteer profile? This cannot be undone.`)) return;
+    setDeletingId(v.id);
+    try {
+      await volunteerApi.delete(v.id);
+      await fetchVolunteers();
+    } catch (err) {
+      console.error('Failed to delete volunteer:', err);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -264,31 +332,109 @@ export default function VolunteerPage() {
                       <span>{v.available_time}</span>
                     </div>
 
-                    <div className="flex gap-2">
-                      <a
-                        href={`tel:${v.phone}`}
-                        className="flex items-center justify-center gap-2 flex-1 h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
-                        style={{ borderColor: PRIMARY, color: PRIMARY }}
-                      >
-                        <Phone className="w-4 h-4" />
-                        {v.phone}
-                      </a>
-                      <ShareButton
-                        url={`/volunteers#vol-${v.id}`}
-                        title={`${v.name} - Community Volunteer`}
-                        description={`${v.name} is volunteering: ${v.skills}`}
-                      />
-                    </div>
-                    {v.email && (
-                      <a
-                        href={`mailto:${v.email}`}
-                        className="flex items-center justify-center gap-2 w-full h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md mt-2"
-                        style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}
-                      >
-                        <Mail className="w-4 h-4" />
-                        {v.email}
-                      </a>
-                    )}
+                    {(() => {
+                      const isOwner = isAuthenticated && user?.id && v.user_id === user.id;
+                      const canMessage = isAuthenticated && !!v.user_id && !isOwner;
+                      if (isOwner) {
+                        return (
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              onClick={() => openEditForm(v)}
+                              variant="outline"
+                              className="flex-1 h-10 rounded-xl text-sm font-semibold cursor-pointer"
+                              style={{ borderColor: PRIMARY, color: PRIMARY }}
+                            >
+                              <Pencil className="w-4 h-4 mr-1.5" />
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => handleDelete(v)}
+                              variant="outline"
+                              disabled={deletingId === v.id}
+                              className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                            <ShareButton
+                              url={`/volunteers#vol-${v.id}`}
+                              title={`${v.name} - Community Volunteer`}
+                              description={`${v.name} is volunteering: ${v.skills}`}
+                            />
+                          </div>
+                        );
+                      }
+                      if (canMessage) {
+                        return (
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              onClick={() => handleMessage(v.user_id!)}
+                              disabled={messagingId === v.user_id}
+                              className="flex-1 h-10 rounded-xl text-sm font-semibold text-white cursor-pointer"
+                              style={{ backgroundColor: PRIMARY }}
+                            >
+                              <MessageSquare className="w-4 h-4 mr-1.5" />
+                              {messagingId === v.user_id ? 'Starting...' : 'Message'}
+                            </Button>
+                            <ShareButton
+                              url={`/volunteers#vol-${v.id}`}
+                              title={`${v.name} - Community Volunteer`}
+                              description={`${v.name} is volunteering: ${v.skills}`}
+                            />
+                          </div>
+                        );
+                      }
+                      // Anonymous viewer OR row without user_id — show masked phone/email as today
+                      return (
+                        <>
+                          <div className="flex gap-2">
+                            {v.phone ? (
+                              <a
+                                href={`tel:${v.phone}`}
+                                className="flex items-center justify-center gap-2 flex-1 h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
+                                style={{ borderColor: PRIMARY, color: PRIMARY }}
+                              >
+                                <Phone className="w-4 h-4" />
+                                {v.phone}
+                              </a>
+                            ) : v.email ? (
+                              <a
+                                href={`mailto:${v.email}`}
+                                className="flex items-center justify-center gap-2 flex-1 h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
+                                style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}
+                              >
+                                <Mail className="w-4 h-4" />
+                                {v.email}
+                              </a>
+                            ) : (
+                              <div
+                                className="flex-1 h-10 rounded-xl border-2 text-sm flex items-center justify-center"
+                                style={{ borderColor: 'hsl(35,18%,84%)', color: 'hsl(30,10%,55%)' }}
+                              >
+                                Contact via in-app messages
+                              </div>
+                            )}
+                            <ShareButton
+                              url={`/volunteers#vol-${v.id}`}
+                              title={`${v.name} - Community Volunteer`}
+                              description={`${v.name} is volunteering: ${v.skills}`}
+                            />
+                          </div>
+                          {v.phone && v.email && (
+                            <a
+                              href={`mailto:${v.email}`}
+                              className="flex items-center justify-center gap-2 w-full h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md mt-2"
+                              style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}
+                            >
+                              <Mail className="w-4 h-4" />
+                              {v.email}
+                            </a>
+                          )}
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))}
@@ -317,10 +463,27 @@ export default function VolunteerPage() {
             </button>
 
             <div className="p-6 md:p-8">
-              <h2 className="font-serif text-xl font-bold text-gray-900 mb-1">Sign Up to Volunteer</h2>
+              <h2 className="font-serif text-xl font-bold text-gray-900 mb-1">
+                {editingId ? 'Edit Your Volunteer Profile' : 'Sign Up to Volunteer'}
+              </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                Fill in your details and you'll appear on the board for businesses to find you.
+                {editingId
+                  ? 'Update your details below. Changes go live immediately.'
+                  : "Fill in your details and you'll appear on the board for businesses to find you."}
               </p>
+
+              {isAuthenticated && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl text-xs leading-relaxed"
+                  style={{
+                    backgroundColor: 'hsl(35, 15%, 93%)',
+                    border: '1px solid hsl(35, 18%, 84%)',
+                    color: 'hsl(160, 25%, 22%)',
+                  }}
+                >
+                  Other members will reach you via in-app messages — phone and email are optional.
+                </div>
+              )}
 
               {formError && (
                 <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
@@ -347,7 +510,7 @@ export default function VolunteerPage() {
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="vol-phone" className="block text-sm font-medium text-gray-700">
-                      Phone
+                      Phone {isAuthenticated && <span className="text-gray-400 font-normal">(optional)</span>}
                     </label>
                     <Input
                       id="vol-phone"
@@ -362,7 +525,7 @@ export default function VolunteerPage() {
 
                 <div className="space-y-1.5">
                   <label htmlFor="vol-email" className="block text-sm font-medium text-gray-700">
-                    Email
+                    Email {isAuthenticated && <span className="text-gray-400 font-normal">(optional)</span>}
                   </label>
                   <Input
                     id="vol-email"
@@ -372,7 +535,9 @@ export default function VolunteerPage() {
                     placeholder="you@example.com"
                     className="rounded-xl h-11"
                   />
-                  <p className="text-xs text-gray-500">Email or phone is required</p>
+                  {!isAuthenticated && (
+                    <p className="text-xs text-gray-500">Email or phone is required</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -448,7 +613,9 @@ export default function VolunteerPage() {
                     className="flex-1 h-11 rounded-xl font-semibold text-white cursor-pointer"
                     style={{ backgroundColor: PRIMARY }}
                   >
-                    {submitting ? 'Signing up...' : 'Sign Up'}
+                    {submitting
+                      ? editingId ? 'Saving...' : 'Signing up...'
+                      : editingId ? 'Save changes' : 'Sign Up'}
                   </Button>
                 </div>
               </form>

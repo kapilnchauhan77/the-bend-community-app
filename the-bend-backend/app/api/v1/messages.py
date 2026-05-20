@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -21,8 +21,35 @@ async def start_thread(
     service: MessageService = Depends(get_message_service),
     current_user: User = Depends(get_current_user),
 ):
+    """Start (or fetch existing) a message thread.
+
+    Three modes, in priority order:
+      1. listing_id provided        -> thread tied to the listing's shop admin
+                                       (existing behavior).
+      2. shop_id  provided (no listing) -> thread with the shop's admin.
+      3. recipient_user_id provided -> direct user-to-user thread (no listing)
+                                       — used by Volunteer/Talent "Message".
+
+    Rejects requests that provide none of the three. Self-messaging is
+    rejected at the service layer.
+    """
     listing_id = UUID(data.listing_id) if data.listing_id else None
-    return await service.start_thread_with_shop(current_user.id, UUID(data.shop_id), listing_id)
+    if data.shop_id:
+        return await service.start_thread_with_shop(
+            current_user.id, UUID(data.shop_id), listing_id
+        )
+    if data.recipient_user_id:
+        recipient_id = UUID(data.recipient_user_id)
+        if recipient_id == current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot start a thread with yourself",
+            )
+        return await service.start_direct_thread(current_user.id, recipient_id)
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Provide listing_id, shop_id, or recipient_user_id",
+    )
 
 
 @router.get("/threads")

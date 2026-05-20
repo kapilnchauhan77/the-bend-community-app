@@ -13,6 +13,9 @@ import {
   CheckCircle,
   Sparkles,
   Plus,
+  MessageSquare,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { talentApi } from '@/services/talentApi';
 import { uploadApi } from '@/services/uploadApi';
+import { messageApi } from '@/services/messageApi';
+import { useAuthStore } from '@/stores/authStore';
 import { ShareButton } from '@/components/shared/ShareButton';
 import { resolveAssetUrl } from '@/lib/constants';
 import type { Talent } from '@/types/index';
@@ -48,9 +53,11 @@ interface BookingForm {
 
 export default function TalentPage() {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuthStore();
 
   // Registration modal
   const [showRegForm, setShowRegForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -64,6 +71,10 @@ export default function TalentPage() {
   const [regSubmitting, setRegSubmitting] = useState(false);
   const [regSuccess, setRegSuccess] = useState(false);
   const [regError, setRegError] = useState('');
+
+  // Per-card action state
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Talent list
   const [talents, setTalents] = useState<Talent[]>([]);
@@ -141,7 +152,30 @@ export default function TalentPage() {
   }, [hasModal]);
 
   // Registration
+  const resetRegForm = () => {
+    setRegName(''); setRegPhone(''); setRegEmail(''); setRegCategory('freelancer');
+    setRegSkills(''); setRegAvailableTime(''); setRegRate(''); setRegRateUnit('hr'); setRegPhoto(null);
+    setEditingId(null);
+  };
+
   const openRegForm = () => {
+    resetRegForm();
+    setShowRegForm(true);
+    setRegSuccess(false);
+    setRegError('');
+  };
+
+  const openEditForm = (t: Talent) => {
+    setEditingId(t.id);
+    setRegName(t.name);
+    setRegPhone(t.phone ?? '');
+    setRegEmail(t.email ?? '');
+    setRegCategory(t.category);
+    setRegSkills(t.skills);
+    setRegAvailableTime(t.available_time);
+    setRegRate(String(t.rate ?? ''));
+    setRegRateUnit(t.rate_unit);
+    setRegPhoto(t.photo_url ?? null);
     setShowRegForm(true);
     setRegSuccess(false);
     setRegError('');
@@ -155,21 +189,30 @@ export default function TalentPage() {
   const handleRegSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
-    if (!regPhone && !regEmail) {
+    if (!isAuthenticated && !regPhone && !regEmail) {
       setRegError('Please provide at least an email or phone number.');
       return;
     }
     setRegSubmitting(true);
     try {
-      await talentApi.register({
-        name: regName, phone: regPhone || undefined, email: regEmail || undefined, category: regCategory,
-        skills: regSkills, available_time: regAvailableTime,
-        rate: parseFloat(regRate), rate_unit: regRateUnit,
+      const payload = {
+        name: regName,
+        phone: regPhone || undefined,
+        email: regEmail || undefined,
+        category: regCategory,
+        skills: regSkills,
+        available_time: regAvailableTime,
+        rate: parseFloat(regRate),
+        rate_unit: regRateUnit,
         photo_url: regPhoto || undefined,
-      });
+      };
+      if (editingId) {
+        await talentApi.update(editingId, payload);
+      } else {
+        await talentApi.register(payload);
+      }
       setRegSuccess(true);
-      setRegName(''); setRegPhone(''); setRegEmail(''); setRegCategory('freelancer');
-      setRegSkills(''); setRegAvailableTime(''); setRegRate(''); setRegRateUnit('hr'); setRegPhoto(null);
+      resetRegForm();
       setShowRegForm(false);
       await fetchTalents(activeFilter);
     } catch (err) {
@@ -177,6 +220,35 @@ export default function TalentPage() {
       setRegError('Something went wrong. Please try again.');
     } finally {
       setRegSubmitting(false);
+    }
+  };
+
+  const handleMessage = async (recipientUserId: string) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    setMessagingId(recipientUserId);
+    try {
+      const { data } = await messageApi.createDirectThread(recipientUserId);
+      navigate(`/messages/${data.id}`);
+    } catch (err) {
+      console.error('Failed to start thread:', err);
+    } finally {
+      setMessagingId(null);
+    }
+  };
+
+  const handleDelete = async (t: Talent) => {
+    if (!confirm(`Delete your talent profile? This cannot be undone.`)) return;
+    setDeletingId(t.id);
+    try {
+      await talentApi.delete(t.id);
+      await fetchTalents(activeFilter);
+    } catch (err) {
+      console.error('Failed to delete talent:', err);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -393,37 +465,95 @@ export default function TalentPage() {
                       </div>
 
                       {/* Time + Phone */}
-                      <div className="space-y-1.5 mb-4">
-                        <div className="flex items-start gap-1.5 text-sm text-gray-500">
-                          <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: PRIMARY }} />
-                          <span>{talent.available_time}</span>
-                        </div>
-                        <a href={`tel:${talent.phone}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[hsl(160,25%,24%)] transition-colors cursor-pointer">
-                          <Phone className="w-3.5 h-3.5 flex-shrink-0" style={{ color: PRIMARY }} />
-                          {talent.phone}
-                        </a>
-                        {talent.email && (
-                          <a href={`mailto:${talent.email}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[hsl(35,45%,35%)] transition-colors cursor-pointer">
-                            <Mail className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'hsl(35, 45%, 42%)' }} />
-                            {talent.email}
-                          </a>
-                        )}
-                      </div>
+                      {(() => {
+                        const isOwner = isAuthenticated && user?.id && talent.user_id === user.id;
+                        const canMessage = isAuthenticated && !!talent.user_id && !isOwner;
+                        const showMaskedContact = !canMessage && !isOwner;
+                        return (
+                          <>
+                            <div className="space-y-1.5 mb-4">
+                              <div className="flex items-start gap-1.5 text-sm text-gray-500">
+                                <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: PRIMARY }} />
+                                <span>{talent.available_time}</span>
+                              </div>
+                              {showMaskedContact && talent.phone && (
+                                <a href={`tel:${talent.phone}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[hsl(160,25%,24%)] transition-colors cursor-pointer">
+                                  <Phone className="w-3.5 h-3.5 flex-shrink-0" style={{ color: PRIMARY }} />
+                                  {talent.phone}
+                                </a>
+                              )}
+                              {showMaskedContact && talent.email && (
+                                <a href={`mailto:${talent.email}`} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[hsl(35,45%,35%)] transition-colors cursor-pointer">
+                                  <Mail className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'hsl(35, 45%, 42%)' }} />
+                                  {talent.email}
+                                </a>
+                              )}
+                            </div>
 
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => openBooking(talent)}
-                          className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
-                          style={{ backgroundColor: PRIMARY }}
-                        >
-                          Book {talent.name.split(' ')[0]}
-                        </Button>
-                        <ShareButton
-                          url={`/talent#talent-${talent.id}`}
-                          title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
-                          description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
-                        />
-                      </div>
+                            {isOwner ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  onClick={() => openEditForm(talent)}
+                                  variant="outline"
+                                  className="flex-1 h-10 rounded-xl font-semibold text-sm cursor-pointer"
+                                  style={{ borderColor: PRIMARY, color: PRIMARY }}
+                                >
+                                  <Pencil className="w-4 h-4 mr-1.5" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={() => handleDelete(talent)}
+                                  variant="outline"
+                                  disabled={deletingId === talent.id}
+                                  className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                                <ShareButton
+                                  url={`/talent#talent-${talent.id}`}
+                                  title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                                  description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
+                                />
+                              </div>
+                            ) : canMessage ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  onClick={() => handleMessage(talent.user_id!)}
+                                  disabled={messagingId === talent.user_id}
+                                  className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
+                                  style={{ backgroundColor: PRIMARY }}
+                                >
+                                  <MessageSquare className="w-4 h-4 mr-1.5" />
+                                  {messagingId === talent.user_id ? 'Starting...' : `Message ${talent.name.split(' ')[0]}`}
+                                </Button>
+                                <ShareButton
+                                  url={`/talent#talent-${talent.id}`}
+                                  title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                                  description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => openBooking(talent)}
+                                  className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
+                                  style={{ backgroundColor: PRIMARY }}
+                                >
+                                  Book {talent.name.split(' ')[0]}
+                                </Button>
+                                <ShareButton
+                                  url={`/talent#talent-${talent.id}`}
+                                  title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                                  description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
+                                />
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 );
@@ -453,10 +583,27 @@ export default function TalentPage() {
             </button>
 
             <div className="p-6 md:p-8">
-              <h2 className="text-xl font-bold font-serif text-gray-900 mb-1">Register Your Talent</h2>
+              <h2 className="text-xl font-bold font-serif text-gray-900 mb-1">
+                {editingId ? 'Edit Your Talent Profile' : 'Register Your Talent'}
+              </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                Create your profile so the community can discover and book you.
+                {editingId
+                  ? 'Update your details below. Changes go live immediately.'
+                  : 'Create your profile so the community can discover and book you.'}
               </p>
+
+              {isAuthenticated && (
+                <div
+                  className="mb-5 p-3.5 rounded-xl text-xs leading-relaxed"
+                  style={{
+                    backgroundColor: 'hsl(35, 15%, 93%)',
+                    border: '1px solid hsl(35, 18%, 84%)',
+                    color: 'hsl(160, 25%, 22%)',
+                  }}
+                >
+                  Other members will reach you via in-app messages — phone and email are optional.
+                </div>
+              )}
 
               {regError && (
                 <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
@@ -475,7 +622,7 @@ export default function TalentPage() {
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="tal-phone" className="block text-sm font-medium text-gray-700">
-                      Phone
+                      Phone {isAuthenticated && <span className="text-gray-400 font-normal">(optional)</span>}
                     </label>
                     <Input id="tal-phone" type="tel" value={regPhone} onChange={(e) => setRegPhone(e.target.value)}
                       placeholder="e.g., 555-123-4567" className="rounded-xl h-11" />
@@ -484,7 +631,7 @@ export default function TalentPage() {
 
                 <div className="space-y-1.5">
                   <label htmlFor="tal-email" className="block text-sm font-medium text-gray-700">
-                    Email
+                    Email {isAuthenticated && <span className="text-gray-400 font-normal">(optional)</span>}
                   </label>
                   <Input
                     id="tal-email"
@@ -494,7 +641,9 @@ export default function TalentPage() {
                     placeholder="you@example.com"
                     className="rounded-xl h-11"
                   />
-                  <p className="text-xs text-gray-500">Email or phone is required</p>
+                  {!isAuthenticated && (
+                    <p className="text-xs text-gray-500">Email or phone is required</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -592,7 +741,9 @@ export default function TalentPage() {
                     className="flex-1 h-11 rounded-xl font-semibold text-white cursor-pointer"
                     style={{ backgroundColor: PRIMARY }}
                   >
-                    {regSubmitting ? 'Registering...' : 'Register'}
+                    {regSubmitting
+                      ? editingId ? 'Saving...' : 'Registering...'
+                      : editingId ? 'Save changes' : 'Register'}
                   </Button>
                 </div>
               </form>
@@ -648,13 +799,17 @@ export default function TalentPage() {
                   <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold mb-1">Inquiry sent!</p>
-                    <p>
-                      Contact {bookingTalent.name} directly at{' '}
-                      <a href={`tel:${bookingTalent.phone}`} className="underline font-semibold cursor-pointer">
-                        {bookingTalent.phone}
-                      </a>{' '}
-                      to coordinate details.
-                    </p>
+                    {bookingTalent.phone ? (
+                      <p>
+                        Contact {bookingTalent.name} directly at{' '}
+                        <a href={`tel:${bookingTalent.phone}`} className="underline font-semibold cursor-pointer">
+                          {bookingTalent.phone}
+                        </a>{' '}
+                        to coordinate details.
+                      </p>
+                    ) : (
+                      <p>{bookingTalent.name} will reach out to you to coordinate details.</p>
+                    )}
                   </div>
                 </div>
               ) : (

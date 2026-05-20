@@ -45,5 +45,15 @@ class SendMessageRequest(BaseModel):
 
 
 class StartThreadRequest(BaseModel):
-    shop_id: str
+    # Legacy: shop_id + optional listing_id (existing clients).
+    shop_id: str | None = None
     listing_id: str | None = None
+    # New: direct user-to-user thread (Volunteer/Talent messaging).
+    recipient_user_id: str | None = None
+
+
+class MessageThreadCreate(BaseModel):
+    """Alias for StartThreadRequest — referenced by plan as MessageThreadCreate."""
+    listing_id: str | None = None
+    recipient_user_id: str | None = None
+    shop_id: str | None = None

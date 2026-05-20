@@ -13,12 +13,18 @@ class Volunteer(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
-    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255))
     skills: Mapped[str] = mapped_column(Text, nullable=False)
     available_time: Mapped[str] = mapped_column(String(255), nullable=False)
     photo_url: Mapped[str | None] = mapped_column(String(500))
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     __table_args__ = (

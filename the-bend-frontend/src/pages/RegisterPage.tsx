@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, FileText, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, FileText, CheckCircle2, ArrowLeft, Building2, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,6 @@ import {
 import { authApi } from '@/services/authApi';
 import { registerSchema, type RegisterFormData } from '@/lib/validators';
 import { BUSINESS_TYPES } from '@/lib/constants';
-import { useTenant } from '@/context/TenantContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -39,7 +38,7 @@ function FieldError({ message }: { message?: string }) {
 }
 
 export default function RegisterPage() {
-  const tenant = useTenant();
+  const [userType, setUserType] = useState<'business' | 'individual'>('business');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,27 +49,40 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { guidelines_accepted: false },
+    defaultValues: { guidelines_accepted: false, user_type: 'business' },
   });
 
   const onSubmit = async (data: RegisterFormData) => {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      await authApi.register({
-        shop_name: data.shop_name,
-        business_type: data.business_type,
-        owner_name: data.owner_name,
-        email: data.email,
-        phone: data.phone,
-        whatsapp: data.whatsapp || undefined,
-        password: data.password,
-        address: data.address || undefined,
-        guidelines_accepted: data.guidelines_accepted,
-      });
+      if (userType === 'individual') {
+        await authApi.register({
+          user_type: 'individual',
+          owner_name: data.owner_name,
+          email: data.email,
+          phone: data.phone || undefined,
+          password: data.password,
+          guidelines_accepted: data.guidelines_accepted,
+        });
+      } else {
+        await authApi.register({
+          user_type: 'business',
+          shop_name: data.shop_name || undefined,
+          business_type: data.business_type || undefined,
+          owner_name: data.owner_name,
+          email: data.email,
+          phone: data.phone || undefined,
+          whatsapp: data.whatsapp || undefined,
+          password: data.password,
+          address: data.address || undefined,
+          guidelines_accepted: data.guidelines_accepted,
+        });
+      }
       setSubmitted(true);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
@@ -79,6 +91,11 @@ export default function RegisterPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleToggleType = (type: 'business' | 'individual') => {
+    setUserType(type);
+    setValue('user_type', type, { shouldValidate: false });
   };
 
   // Success state
@@ -92,24 +109,29 @@ export default function RegisterPage() {
           >
             <CheckCircle2 className="w-8 h-8" style={{ color: PRIMARY }} strokeWidth={2} />
           </div>
-          <h2 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-3">Thank You!</h2>
+          <h2 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-3">
+            {userType === 'individual' ? 'Welcome to The Bend!' : 'Thank You!'}
+          </h2>
           <p className="text-sm text-[hsl(30,10%,48%)] leading-relaxed mb-8">
-            Your registration has been submitted for review. The community admin will review
-            your application and you'll receive an email once approved.
+            {userType === 'individual'
+              ? 'Your account is ready. Log in to start volunteering, sharing talents, and connecting with neighbors.'
+              : "Your registration has been submitted for review. The community admin will review your application and you'll receive an email once approved."}
           </p>
-          <Link to="/">
+          <Link to={userType === 'individual' ? '/login' : '/'}>
             <Button
               className="font-semibold text-sm tracking-wider uppercase text-white cursor-pointer"
               style={{ backgroundColor: PRIMARY }}
             >
               <ArrowLeft size={16} className="mr-2" />
-              Back to Home
+              {userType === 'individual' ? 'Sign in' : 'Back to Home'}
             </Button>
           </Link>
         </div>
       </div>
     );
   }
+
+  const isIndividual = userType === 'individual';
 
   return (
     <div className="min-h-screen flex">
@@ -149,7 +171,7 @@ export default function RegisterPage() {
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-white/40 mt-6 tracking-wider uppercase">Free to join · Admin-approved</p>
+            <p className="text-xs text-white/40 mt-6 tracking-wider uppercase">Free to join · Admin-approved for businesses</p>
           </div>
         </div>
       </div>
@@ -171,9 +193,56 @@ export default function RegisterPage() {
           </div>
 
           {/* Heading */}
-          <div className="mb-8">
-            <h1 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-1">Register Your Business</h1>
-            <p className="text-sm text-[hsl(30,10%,48%)]">Join the community and start sharing resources with your neighbors</p>
+          <div className="mb-6">
+            <h1 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-1">
+              {isIndividual ? 'Create your account' : 'Register Your Business'}
+            </h1>
+            <p className="text-sm text-[hsl(30,10%,48%)]">
+              {isIndividual
+                ? 'Join the community to volunteer, share your talents, and connect with neighbors'
+                : 'Join the community and start sharing resources with your neighbors'}
+            </p>
+          </div>
+
+          {/* Account type toggle */}
+          <div className="mb-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-3">
+              I'm signing up as
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleToggleType('business')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded border-2 text-sm font-semibold transition-all cursor-pointer ${
+                  !isIndividual
+                    ? 'border-[hsl(160,25%,24%)] bg-[hsl(160,25%,24%,0.06)] text-[hsl(160,25%,24%)]'
+                    : 'border-[hsl(35,18%,84%)] bg-white text-[hsl(30,10%,48%)] hover:border-[hsl(35,18%,70%)]'
+                }`}
+                aria-pressed={!isIndividual}
+              >
+                <Building2 className="w-4 h-4 flex-shrink-0" />
+                <span className="text-left leading-tight">
+                  A business
+                  <span className="block text-[10px] font-normal text-[hsl(30,10%,55%)] mt-0.5">Shop, restaurant, service</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleType('individual')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded border-2 text-sm font-semibold transition-all cursor-pointer ${
+                  isIndividual
+                    ? 'border-[hsl(160,25%,24%)] bg-[hsl(160,25%,24%,0.06)] text-[hsl(160,25%,24%)]'
+                    : 'border-[hsl(35,18%,84%)] bg-white text-[hsl(30,10%,48%)] hover:border-[hsl(35,18%,70%)]'
+                }`}
+                aria-pressed={isIndividual}
+              >
+                <UserIcon className="w-4 h-4 flex-shrink-0" />
+                <span className="text-left leading-tight">
+                  An individual
+                  <span className="block text-[10px] font-normal text-[hsl(30,10%,55%)] mt-0.5">Volunteer, freelancer, neighbor</span>
+                </span>
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
@@ -191,71 +260,78 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {/* Section: Business Info */}
+            {/* Hidden user_type field for RHF */}
+            <input type="hidden" {...register('user_type')} value={userType} />
+
+            {/* Section: Business Info — only when business */}
+            {!isIndividual && (
+              <>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
+                    Business Information
+                  </p>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="shop_name" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
+                        Business Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="shop_name"
+                        placeholder="e.g. Corner Bakehouse"
+                        {...register('shop_name')}
+                        className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.shop_name ? 'border-red-400' : ''}`}
+                      />
+                      <FieldError message={errors.shop_name?.message} />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="business_type" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
+                        Business Type <span className="text-red-500">*</span>
+                      </Label>
+                      <Controller
+                        name="business_type"
+                        control={control}
+                        render={({ field }) => (
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger id="business_type" className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.business_type ? 'border-red-400' : ''}`}>
+                              <SelectValue placeholder="Select your business type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BUSINESS_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {BUSINESS_TYPE_LABELS[type] ?? type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      <FieldError message={errors.business_type?.message} />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="address" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
+                        Address <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
+                      </Label>
+                      <Input
+                        id="address"
+                        placeholder="123 High Street, Montross"
+                        {...register('address')}
+                        className="h-11 border-[hsl(35,18%,84%)] bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-[hsl(35,18%,84%)]" />
+              </>
+            )}
+
+            {/* Section: Personal Info */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
-                Business Information
-              </p>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="shop_name" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
-                    Business Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="shop_name"
-                    placeholder="e.g. Corner Bakehouse"
-                    {...register('shop_name')}
-                    className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.shop_name ? 'border-red-400' : ''}`}
-                  />
-                  <FieldError message={errors.shop_name?.message} />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="business_type" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
-                    Business Type <span className="text-red-500">*</span>
-                  </Label>
-                  <Controller
-                    name="business_type"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger id="business_type" className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.business_type ? 'border-red-400' : ''}`}>
-                          <SelectValue placeholder="Select your business type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BUSINESS_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {BUSINESS_TYPE_LABELS[type] ?? type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  <FieldError message={errors.business_type?.message} />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="address" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
-                    Address <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
-                  </Label>
-                  <Input
-                    id="address"
-                    placeholder="123 High Street, Montross"
-                    {...register('address')}
-                    className="h-11 border-[hsl(35,18%,84%)] bg-white"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-[hsl(35,18%,84%)]" />
-
-            {/* Section: Owner Info */}
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
-                Owner Details
+                {isIndividual ? 'Your details' : 'Owner Details'}
               </p>
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -279,14 +355,14 @@ export default function RegisterPage() {
                     id="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="jane@yourbusiness.com"
+                    placeholder={isIndividual ? 'jane@example.com' : 'jane@yourbusiness.com'}
                     {...register('email')}
                     className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.email ? 'border-red-400' : ''}`}
                   />
                   <FieldError message={errors.email?.message} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                {isIndividual ? (
                   <div className="space-y-1.5">
                     <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
                       Phone <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
@@ -300,19 +376,35 @@ export default function RegisterPage() {
                     />
                     <FieldError message={errors.phone?.message} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="whatsapp" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
-                      WhatsApp <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(opt.)</span>
-                    </Label>
-                    <Input
-                      id="whatsapp"
-                      type="tel"
-                      placeholder="+1 555 0100"
-                      {...register('whatsapp')}
-                      className="h-11 border-[hsl(35,18%,84%)] bg-white"
-                    />
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
+                        Phone <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
+                      </Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="+1 555 0100"
+                        {...register('phone')}
+                        className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
+                      />
+                      <FieldError message={errors.phone?.message} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="whatsapp" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
+                        WhatsApp <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(opt.)</span>
+                      </Label>
+                      <Input
+                        id="whatsapp"
+                        type="tel"
+                        placeholder="+1 555 0100"
+                        {...register('whatsapp')}
+                        className="h-11 border-[hsl(35,18%,84%)] bg-white"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -445,8 +537,10 @@ export default function RegisterPage() {
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Submitting...
                 </span>
+              ) : isIndividual ? (
+                'Create individual account'
               ) : (
-                'Submit Registration'
+                'Register business'
               )}
             </Button>
 

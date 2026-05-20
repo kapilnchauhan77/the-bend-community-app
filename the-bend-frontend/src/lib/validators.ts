@@ -2,8 +2,9 @@ import { z } from 'zod';
 
 export const registerSchema = z
   .object({
-    shop_name: z.string().min(2, 'Shop name must be at least 2 characters').max(150),
-    business_type: z.string().min(1, 'Please select a business type'),
+    user_type: z.enum(['business', 'individual']).default('business'),
+    shop_name: z.string().max(150).optional().or(z.literal('')),
+    business_type: z.string().optional().or(z.literal('')),
     owner_name: z.string().min(1, 'Name is required').max(100),
     email: z.string().email('Invalid email address'),
     phone: z.string().max(20).optional().or(z.literal('')),
@@ -19,9 +20,30 @@ export const registerSchema = z
       message: 'You must accept the community guidelines',
     }),
   })
-  .refine((data) => data.password === data.confirm_password, {
-    message: 'Passwords do not match',
-    path: ['confirm_password'],
+  .superRefine((data, ctx) => {
+    if (data.password !== data.confirm_password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Passwords do not match',
+        path: ['confirm_password'],
+      });
+    }
+    if (data.user_type === 'business') {
+      if (!data.shop_name || data.shop_name.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Shop name must be at least 2 characters',
+          path: ['shop_name'],
+        });
+      }
+      if (!data.business_type || data.business_type.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Please select a business type',
+          path: ['business_type'],
+        });
+      }
+    }
   });
 
 export const loginSchema = z.object({

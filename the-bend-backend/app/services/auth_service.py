@@ -29,11 +29,37 @@ class AuthService:
         self.shop_repo = ShopRepository(db)
 
     async def register(self, data: RegisterRequest) -> dict:
-        """Register a new shop and its admin user."""
+        """Register a new user.
+
+        Two paths:
+          - user_type == "business" (default): create a User (SHOP_ADMIN) AND a
+            Shop, link them, notify community admins. Existing behavior.
+          - user_type == "individual": create a User (INDIVIDUAL) with shop_id=None.
+            Skip shop creation and skip the community-admin notification — individuals
+            don't require approval.
+        """
         # Check duplicate email
         existing = await self.user_repo.get_by_email(data.email)
         if existing:
             raise ConflictError("Email already registered")
+
+        is_individual = data.user_type == "individual"
+
+        if not is_individual:
+            # Business signup: enforce the business-only fields that the schema
+            # now makes optional. Keeps backward compatibility for older clients
+            # that omitted user_type entirely.
+            missing = [
+                name for name, value in (
+                    ("shop_name", data.shop_name),
+                    ("business_type", data.business_type),
+                    ("address", data.address),
+                ) if value is None or (isinstance(value, str) and not value.strip())
+            ]
+            if missing:
+                raise ConflictError(
+                    f"Missing required business fields: {', '.join(missing)}"
+                )
 
         # Create user
         user = await self.user_repo.create({
@@ -42,10 +68,18 @@ class AuthService:
             "password_hash": hash_password(data.password),
             "name": data.owner_name,
             "phone": data.phone,
-            "role": UserRole.SHOP_ADMIN,
+            "role": UserRole.INDIVIDUAL if is_individual else UserRole.SHOP_ADMIN,
             "tenant_id": self.tenant_id,
             "is_active": True,
         })
+
+        if is_individual:
+            # No shop, no community-admin approval notification.
+            await self.db.flush()
+            return {
+                "message": "Registration successful",
+                "user_id": str(user.id),
+            }
 
         # Create shop
         shop = await self.shop_repo.create({

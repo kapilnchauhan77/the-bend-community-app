@@ -1,10 +1,14 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Literal
 import re
 
 
 class RegisterRequest(BaseModel):
-    shop_name: str = Field(..., min_length=2, max_length=150)
-    business_type: str = Field(..., min_length=1)
+    # Business-only fields are optional at the schema level so individual
+    # sign-ups don't have to send them. AuthService enforces presence when
+    # user_type == "business".
+    shop_name: str | None = Field(None, min_length=2, max_length=150)
+    business_type: str | None = Field(None, min_length=1)
     owner_name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
     phone: str | None = Field(None, max_length=20)
@@ -12,6 +16,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=8)
     address: str | None = None
     guidelines_accepted: bool
+    user_type: Literal["business", "individual"] = "business"
 
     @field_validator("password")
     @classmethod
@@ -105,4 +110,5 @@ class MessageResponse(BaseModel):
 
 class RegisterResponse(BaseModel):
     message: str
-    shop_id: str
+    shop_id: str | None = None
+    user_id: str | None = None

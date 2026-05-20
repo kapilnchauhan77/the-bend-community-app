@@ -3,16 +3,17 @@ import type { AuthTokens } from '@/types';
 
 export const authApi = {
   register: (data: {
-    shop_name: string;
-    business_type: string;
+    user_type?: 'business' | 'individual';
+    shop_name?: string;
+    business_type?: string;
     owner_name: string;
     email: string;
-    phone: string;
+    phone?: string;
     whatsapp?: string;
     password: string;
     address?: string;
     guidelines_accepted: boolean;
-  }) => api.post<{ message: string; shop_id: string }>('/auth/register', data),
+  }) => api.post<{ message: string; shop_id?: string }>('/auth/register', data),
 
   login: (email: string, password: string) =>
     api.post<AuthTokens>('/auth/login', { email, password }),

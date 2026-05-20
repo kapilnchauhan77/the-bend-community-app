@@ -14,4 +14,8 @@ export const messageApi = {
       shop_id: shopId,
       listing_id: listingId,
     }),
+  createDirectThread: (recipientUserId: string) =>
+    api.post<{ id: string; created: boolean }>('/messages/threads', {
+      recipient_user_id: recipientUserId,
+    }),
 };

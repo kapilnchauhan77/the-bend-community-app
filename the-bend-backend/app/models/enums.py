@@ -20,6 +20,7 @@ class UserRole(str, enum.Enum):
     COMMUNITY_ADMIN = "community_admin"
     SHOP_ADMIN = "shop_admin"
     SHOP_EMPLOYEE = "shop_employee"
+    INDIVIDUAL = "individual"
 
 
 class ShopStatus(str, enum.Enum):

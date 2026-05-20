@@ -1,6 +1,6 @@
 import { resolveAssetUrl } from '@/lib/constants';
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   User,
   Bell,
@@ -11,6 +11,11 @@ import {
   Save,
   Phone,
   Camera,
+  HeartHandshake,
+  Star,
+  ChevronDown,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +45,9 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { useAuthStore } from '@/stores/authStore';
 import { uploadApi } from '@/services/uploadApi';
 import { useDarkMode } from '@/hooks/useDarkMode';
+import { volunteerApi } from '@/services/volunteerApi';
+import { talentApi } from '@/services/talentApi';
+import type { Volunteer, Talent } from '@/types/index';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -125,6 +133,368 @@ function AppLinkRow({
   );
 }
 
+// ─── Collapsible community profile block ─────────────────────────────────────
+function CollapsibleBlock({
+  title,
+  icon: Icon,
+  badge,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  icon: React.ElementType;
+  badge?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-[hsl(35,18%,90%)] rounded-xl overflow-hidden bg-[hsl(40,25%,98%)]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[hsl(40,25%,96%)] transition-colors cursor-pointer"
+        aria-expanded={open}
+      >
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: 'hsl(35, 15%, 90%)', color: PRIMARY }}
+        >
+          <Icon size={14} />
+        </div>
+        <span className="flex-1 text-sm font-semibold text-gray-800">{title}</span>
+        {badge && (
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: 'hsl(35, 15%, 90%)', color: 'hsl(160, 25%, 22%)' }}
+          >
+            {badge}
+          </span>
+        )}
+        <ChevronDown
+          size={16}
+          className={`text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="px-4 pb-4 pt-1 border-t border-[hsl(35,18%,90%)]">{children}</div>}
+    </div>
+  );
+}
+
+function VolunteerProfileEditor({
+  profile,
+  onSaved,
+  onDeleted,
+}: {
+  profile: Volunteer;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [name, setName] = useState(profile.name);
+  const [phone, setPhone] = useState(profile.phone ?? '');
+  const [email, setEmail] = useState(profile.email ?? '');
+  const [skills, setSkills] = useState(profile.skills);
+  const [availableTime, setAvailableTime] = useState(profile.available_time);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [savedFlag, setSavedFlag] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      await volunteerApi.update(profile.id, {
+        name,
+        phone: phone || undefined,
+        email: email || undefined,
+        skills,
+        available_time: availableTime,
+      });
+      setSavedFlag(true);
+      setTimeout(() => setSavedFlag(false), 2000);
+      onSaved();
+    } catch (err) {
+      console.error('Failed to update volunteer profile:', err);
+      setError('Could not save changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await volunteerApi.delete(profile.id);
+      onDeleted();
+    } catch (err) {
+      console.error('Failed to delete volunteer profile:', err);
+      setError('Could not delete. Please try again.');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSave} className="space-y-3 pt-3">
+      {error && (
+        <div className="p-2.5 rounded-lg border border-red-200 bg-red-50 text-xs text-red-700">{error}</div>
+      )}
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Name</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-10" required />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Phone</Label>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="h-10" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Email</Label>
+          <Input value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Skills</Label>
+        <textarea
+          value={skills}
+          onChange={(e) => setSkills(e.target.value)}
+          rows={2}
+          className="w-full px-3 py-2 text-sm border border-input bg-background rounded-md ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+          required
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Available time</Label>
+        <Input value={availableTime} onChange={(e) => setAvailableTime(e.target.value)} className="h-10" required />
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button
+          type="submit"
+          disabled={saving}
+          size="sm"
+          className="flex-1 font-semibold text-white"
+          style={{ backgroundColor: PRIMARY }}
+        >
+          {saving ? 'Saving…' : savedFlag ? 'Saved!' : 'Save changes'}
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={deleting}
+              className="border-red-200 text-red-600 hover:bg-red-50"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete volunteer profile?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Your volunteer profile will be removed from the community board. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="rounded-xl text-white font-semibold"
+                style={{ backgroundColor: 'hsl(0, 84%, 60%)' }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </form>
+  );
+}
+
+function TalentProfileEditor({
+  profile,
+  onSaved,
+  onDeleted,
+}: {
+  profile: Talent;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [name, setName] = useState(profile.name);
+  const [phone, setPhone] = useState(profile.phone ?? '');
+  const [email, setEmail] = useState(profile.email ?? '');
+  const [category, setCategory] = useState<Talent['category']>(profile.category);
+  const [skills, setSkills] = useState(profile.skills);
+  const [availableTime, setAvailableTime] = useState(profile.available_time);
+  const [rate, setRate] = useState(String(profile.rate ?? ''));
+  const [rateUnit, setRateUnit] = useState<Talent['rate_unit']>(profile.rate_unit);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [savedFlag, setSavedFlag] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      await talentApi.update(profile.id, {
+        name,
+        phone: phone || undefined,
+        email: email || undefined,
+        category,
+        skills,
+        available_time: availableTime,
+        rate: parseFloat(rate),
+        rate_unit: rateUnit,
+      });
+      setSavedFlag(true);
+      setTimeout(() => setSavedFlag(false), 2000);
+      onSaved();
+    } catch (err) {
+      console.error('Failed to update talent profile:', err);
+      setError('Could not save changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await talentApi.delete(profile.id);
+      onDeleted();
+    } catch (err) {
+      console.error('Failed to delete talent profile:', err);
+      setError('Could not delete. Please try again.');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSave} className="space-y-3 pt-3">
+      {error && (
+        <div className="p-2.5 rounded-lg border border-red-200 bg-red-50 text-xs text-red-700">{error}</div>
+      )}
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Name</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-10" required />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Phone</Label>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="h-10" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Email</Label>
+          <Input value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Category</Label>
+          <Select value={category} onValueChange={(v) => setCategory(v as Talent['category'])}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="freelancer">Freelancer</SelectItem>
+              <SelectItem value="musician">Musician</SelectItem>
+              <SelectItem value="artist">Artist</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Available time</Label>
+          <Input value={availableTime} onChange={(e) => setAvailableTime(e.target.value)} className="h-10" required />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Skills</Label>
+        <textarea
+          value={skills}
+          onChange={(e) => setSkills(e.target.value)}
+          rows={2}
+          className="w-full px-3 py-2 text-sm border border-input bg-background rounded-md ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+          required
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Rate ($)</Label>
+          <Input
+            type="number"
+            min={0}
+            step="0.01"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            className="h-10"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Rate unit</Label>
+          <Select value={rateUnit} onValueChange={(v) => setRateUnit(v as Talent['rate_unit'])}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hr">Per hour</SelectItem>
+              <SelectItem value="gig">Per gig</SelectItem>
+              <SelectItem value="day">Per day</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button
+          type="submit"
+          disabled={saving}
+          size="sm"
+          className="flex-1 font-semibold text-white"
+          style={{ backgroundColor: PRIMARY }}
+        >
+          {saving ? 'Saving…' : savedFlag ? 'Saved!' : 'Save changes'}
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={deleting}
+              className="border-red-200 text-red-600 hover:bg-red-50"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete talent profile?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Your talent profile will be removed from the marketplace. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="rounded-xl text-white font-semibold"
+                style={{ backgroundColor: 'hsl(0, 84%, 60%)' }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </form>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -177,6 +547,42 @@ export default function SettingsPage() {
     logout();
     navigate('/login');
   };
+
+  // ─── My Community Profile state ─────────────────────────────────────────
+  const [volunteerProfile, setVolunteerProfile] = useState<Volunteer | null>(null);
+  const [talentProfile, setTalentProfile] = useState<Talent | null>(null);
+  const [communityLoading, setCommunityLoading] = useState(true);
+
+  // Refresh trigger so child editors can ask parent to re-fetch
+  const [communityRefreshKey, setCommunityRefreshKey] = useState(0);
+  const refreshCommunity = () => setCommunityRefreshKey((k) => k + 1);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setCommunityLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setCommunityLoading(true);
+      try {
+        const [volRes, talRes] = await Promise.all([
+          volunteerApi.list({ limit: '100' }),
+          talentApi.list({ limit: '100' }),
+        ]);
+        if (cancelled) return;
+        const vols: Volunteer[] = volRes.data.items ?? [];
+        const tals: Talent[] = talRes.data.items ?? [];
+        setVolunteerProfile(vols.find((v) => v.user_id === user.id) ?? null);
+        setTalentProfile(tals.find((t) => t.user_id === user.id) ?? null);
+      } catch (err) {
+        console.error('Failed to load community profile:', err);
+      } finally {
+        if (!cancelled) setCommunityLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, communityRefreshKey]);
 
   return (
     <PageLayout>
@@ -302,6 +708,86 @@ export default function SettingsPage() {
                 </>
               )}
             </Button>
+          </SettingsSection>
+
+          {/* ── My Community Profile Section ──────────────────────────────── */}
+          <SettingsSection icon={HeartHandshake} title="My community profile">
+            <p className="text-xs text-gray-500 -mt-1 mb-1">
+              Manage how you appear on the Volunteer board and Talent marketplace.
+            </p>
+
+            {communityLoading ? (
+              <div className="space-y-3">
+                <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
+                <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Volunteer block */}
+                {volunteerProfile ? (
+                  <CollapsibleBlock title="Volunteer profile" icon={HeartHandshake} badge="Active">
+                    <VolunteerProfileEditor
+                      profile={volunteerProfile}
+                      onSaved={refreshCommunity}
+                      onDeleted={refreshCommunity}
+                    />
+                  </CollapsibleBlock>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 border border-dashed border-[hsl(35,18%,84%)] rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: 'hsl(35, 15%, 90%)', color: PRIMARY }}
+                      >
+                        <HeartHandshake size={14} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">Volunteer profile</p>
+                        <p className="text-xs text-gray-500">Offer your time to help local businesses.</p>
+                      </div>
+                    </div>
+                    <Link to="/volunteer" className="flex-shrink-0">
+                      <Button size="sm" variant="outline" className="font-semibold gap-1.5" style={{ borderColor: PRIMARY, color: PRIMARY }}>
+                        <Plus size={14} />
+                        Create
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+
+                {/* Talent block */}
+                {talentProfile ? (
+                  <CollapsibleBlock title="Talent profile" icon={Star} badge="Active">
+                    <TalentProfileEditor
+                      profile={talentProfile}
+                      onSaved={refreshCommunity}
+                      onDeleted={refreshCommunity}
+                    />
+                  </CollapsibleBlock>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 border border-dashed border-[hsl(35,18%,84%)] rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: 'hsl(35, 15%, 90%)', color: PRIMARY }}
+                      >
+                        <Star size={14} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">Talent profile</p>
+                        <p className="text-xs text-gray-500">List yourself as a freelancer, musician, or artist.</p>
+                      </div>
+                    </div>
+                    <Link to="/talent" className="flex-shrink-0">
+                      <Button size="sm" variant="outline" className="font-semibold gap-1.5" style={{ borderColor: PRIMARY, color: PRIMARY }}>
+                        <Plus size={14} />
+                        Create
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
           </SettingsSection>
 
           {/* ── Notifications Section ─────────────────────────────────────── */}

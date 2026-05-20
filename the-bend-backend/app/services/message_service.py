@@ -89,6 +89,31 @@ class MessageService:
         )
         return {"id": str(thread.id), "created": created}
 
+    async def start_direct_thread(self, current_user_id: UUID, recipient_user_id: UUID):
+        """Get or create a direct (no-listing) thread between two users.
+
+        Used by Volunteer/Talent "Message" buttons where there is no listing.
+        Participant order is canonicalized inside message_repo.get_or_create_thread,
+        so (a,b) and (b,a) find the same row.
+        """
+        from app.core.exceptions import NotFoundError
+
+        if current_user_id == recipient_user_id:
+            raise ForbiddenError("Cannot start a thread with yourself")
+
+        # Verify the recipient exists and is active.
+        recipient_result = await self.db.execute(
+            select(User).where(User.id == recipient_user_id)
+        )
+        recipient = recipient_result.scalar_one_or_none()
+        if not recipient or not recipient.is_active:
+            raise NotFoundError("Recipient not found")
+
+        thread, created = await self.message_repo.get_or_create_thread(
+            current_user_id, recipient_user_id, None
+        )
+        return {"id": str(thread.id), "created": created}
+
     async def get_thread_messages(self, thread_id: UUID, user_id: UUID, cursor=None, limit=50):
         if not await self.message_repo.is_participant(thread_id, user_id):
             raise ForbiddenError("Not a participant of this thread")

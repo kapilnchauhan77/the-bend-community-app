@@ -1,5 +1,5 @@
 // Enums
-export type UserRole = 'super_admin' | 'community_admin' | 'shop_admin' | 'shop_employee';
+export type UserRole = 'super_admin' | 'community_admin' | 'shop_admin' | 'shop_employee' | 'individual';
 export type ShopStatus = 'pending' | 'active' | 'suspended';
 export type ListingType = 'offer' | 'request';
 export type ListingCategory = 'staff' | 'materials' | 'equipment';
@@ -136,25 +136,27 @@ export interface AuthTokens {
 export interface Volunteer {
   id: string;
   name: string;
-  phone: string;
-  email?: string;
+  phone?: string | null;
+  email?: string | null;
   skills: string;
   available_time: string;
   photo_url?: string;
+  user_id?: string | null;
   created_at: string;
 }
 
 export interface Talent {
   id: string;
   name: string;
-  phone: string;
-  email?: string;
+  phone?: string | null;
+  email?: string | null;
   category: 'freelancer' | 'musician' | 'artist';
   skills: string;
   available_time: string;
   rate: number;
   rate_unit: 'hr' | 'gig' | 'day';
   photo_url?: string;
+  user_id?: string | null;
   created_at: string;
 }
 
