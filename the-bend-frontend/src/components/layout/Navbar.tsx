@@ -99,7 +99,7 @@ export function Navbar() {
                 <Link to="/messages" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
                   Messages
                 </Link>
-                {user?.role !== 'community_admin' && user?.role !== 'super_admin' && (
+                {user?.role !== 'community_admin' && user?.role !== 'super_admin' && user?.role !== 'individual' && (
                   <Link to="/my-shop" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
                     My Business
                   </Link>
@@ -163,7 +163,7 @@ export function Navbar() {
                       {shop && <p className="text-[10px] text-[hsl(35,45%,42%)] mt-0.5 truncate">{shop.name}</p>}
                     </div>
                     {/* Menu items */}
-                    {user?.role !== 'community_admin' && user?.role !== 'super_admin' && (
+                    {user?.role !== 'community_admin' && user?.role !== 'super_admin' && user?.role !== 'individual' && (
                       <button
                         onClick={() => { setProfileOpen(false); navigate('/my-shop'); }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
@@ -244,7 +244,7 @@ export function Navbar() {
               ...(isAuthenticated
                 ? [
                     { to: '/messages', label: 'Messages' },
-                    ...(user?.role !== 'community_admin' && user?.role !== 'super_admin' ? [{ to: '/my-shop', label: 'My Business' }] : []),
+                    ...(user?.role !== 'community_admin' && user?.role !== 'super_admin' && user?.role !== 'individual' ? [{ to: '/my-shop', label: 'My Business' }] : []),
                     ...(user?.role === 'community_admin' ? [{ to: '/admin', label: 'Admin' }] : []),
                     ...(user?.role === 'super_admin' ? [{ to: '/super-admin', label: 'Super Admin' }] : []),
                   ]

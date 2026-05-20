@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Plus, Calendar, MessageCircle, Store, Shield } from 'lucide-react';
+import { Home, Search, Plus, Calendar, MessageCircle, Store, Shield, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 
 export function BottomNav() {
@@ -8,6 +8,7 @@ export function BottomNav() {
   const { isAuthenticated, user } = useAuthStore();
   const isAdmin = user?.role === 'community_admin';
   const isSuperAdmin = user?.role === 'super_admin';
+  const isIndividual = user?.role === 'individual';
 
   const leftTabs = [
     { icon: Home, label: 'Home', path: '/' },
@@ -20,7 +21,9 @@ export function BottomNav() {
       ? { icon: Shield, label: 'Super', path: '/super-admin' }
       : isAdmin
         ? { icon: Shield, label: 'Admin', path: '/admin' }
-        : { icon: Store, label: 'Business', path: '/my-shop' },
+        : isIndividual
+          ? { icon: User, label: 'Profile', path: '/settings' }
+          : { icon: Store, label: 'Business', path: '/my-shop' },
   ];
 
   return (
