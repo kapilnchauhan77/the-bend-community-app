@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Search, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -65,7 +65,15 @@ export default function BrowsePage() {
   return (
     <PageLayout>
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
-        <h1 className="text-2xl font-bold mb-4">Browse Listings</h1>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h1 className="text-2xl font-bold">Browse Listings</h1>
+          <Button asChild size="sm" style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}>
+            <Link to="/create" className="flex items-center gap-1.5">
+              <Plus className="w-4 h-4" />
+              Post Listing
+            </Link>
+          </Button>
+        </div>
 
         {/* Search */}
         <div className="relative mb-4">
