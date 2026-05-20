@@ -94,50 +94,56 @@ export function ListingCard({ listing }: { listing: Listing }) {
         {/* Description */}
         <p className="text-xs text-[hsl(30,10%,50%)] line-clamp-1 mt-0.5">{listing.description}</p>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[hsl(35,18%,90%)]">
+        {/* Price — its own row so it has room to breathe */}
+        {(() => {
+          const priceText = formatPrice(listing) || '—';
+          const isFree = listing.pricing_type === 'free' || (!listing.pricing_type && listing.is_free);
+          return (
+            <div
+              className={`mt-2 font-serif font-semibold text-base leading-tight ${
+                isFree ? 'text-[hsl(160,25%,28%)]' : 'text-[hsl(30,15%,18%)]'
+              }`}
+              title={priceText}
+            >
+              {priceText}
+            </div>
+          );
+        })()}
+
+        {/* Footer — shop on the left, time/expiry on the right */}
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-[hsl(35,18%,90%)] gap-2">
           {listing.shop ? (
           <Link
             to={`/business/${listing.shop.id}`}
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1.5 group/shop"
+            className="flex items-center gap-1.5 group/shop min-w-0 flex-1"
           >
             {listing.shop.avatar_url ? (
               <img
                 src={resolveAssetUrl(listing.shop.avatar_url)}
                 alt={listing.shop.name}
-                className="w-5 h-5 rounded-full object-cover bg-[hsl(35,15%,90%)]"
+                className="w-5 h-5 rounded-full object-cover bg-[hsl(35,15%,90%)] flex-shrink-0"
                 loading="lazy"
               />
             ) : (
-              <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)]">
+              <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
                 {listing.shop.name.charAt(0)}
               </div>
             )}
-            <span className="text-[11px] text-[hsl(30,10%,45%)] truncate max-w-[100px] group-hover/shop:underline">{listing.shop.name}</span>
+            <span className="text-[11px] text-[hsl(30,10%,45%)] truncate group-hover/shop:underline">{listing.shop.name}</span>
           </Link>
           ) : (
-            <span className="text-[11px] text-[hsl(30,10%,45%)]">Unknown</span>
+            <span className="text-[11px] text-[hsl(30,10%,45%)] flex-1">Unknown</span>
           )}
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-[11px] font-semibold ${
-                (listing.pricing_type === 'free' || (!listing.pricing_type && listing.is_free))
-                  ? 'text-[hsl(160,25%,28%)]'
-                  : 'text-[hsl(30,15%,25%)]'
-              }`}
-              title={formatPrice(listing)}
-            >
-              {formatPrice(listing) || '—'}
-            </span>
-            <span className="flex items-center gap-0.5 text-[10px] text-[hsl(30,10%,60%)]">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="flex items-center gap-0.5 text-[10px] text-[hsl(30,10%,60%)] whitespace-nowrap">
               <Clock className="w-3 h-3" />
               {timeAgo(listing.created_at)}
             </span>
             {(() => {
               const expiry = expiryLabel(listing.expiry_date);
               return expiry ? (
-                <span className={`text-[10px] font-medium ${expiry === 'Expired' ? 'text-red-500' : 'text-amber-600'}`}>
+                <span className={`text-[10px] font-medium whitespace-nowrap ${expiry === 'Expired' ? 'text-red-500' : 'text-amber-600'}`}>
                   {expiry}
                 </span>
               ) : null;
