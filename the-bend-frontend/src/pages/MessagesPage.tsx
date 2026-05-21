@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { messageApi } from '@/services/messageApi';
+import { parseServerDate } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -16,7 +17,7 @@ import type { MessageThread, Message } from '@/types';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatTimeAgo(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseServerDate(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -31,7 +32,7 @@ function formatTimeAgo(dateStr: string): string {
 }
 
 function formatDateLabel(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseServerDate(dateStr);
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
   const yesterday = new Date(now);
@@ -57,7 +58,7 @@ function groupMessagesByDate(messages: Message[]): Array<{ label: string; messag
   const order: string[] = [];
 
   for (const msg of messages) {
-    const day = new Date(msg.created_at).toDateString();
+    const day = parseServerDate(msg.created_at).toDateString();
     if (!groups[day]) {
       groups[day] = [];
       order.push(day);
@@ -156,7 +157,7 @@ function ThreadListItem({
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 
 function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean }) {
-  const time = new Date(message.created_at).toLocaleTimeString('en-US', {
+  const time = parseServerDate(message.created_at).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
