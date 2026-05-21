@@ -746,7 +746,7 @@ export default function SettingsPage() {
                         <p className="text-xs text-gray-500">Offer your time to help local businesses.</p>
                       </div>
                     </div>
-                    <Link to="/volunteer" className="flex-shrink-0">
+                    <Link to="/volunteers" className="flex-shrink-0">
                       <Button size="sm" variant="outline" className="font-semibold gap-1.5" style={{ borderColor: PRIMARY, color: PRIMARY }}>
                         <Plus size={14} />
                         Create
