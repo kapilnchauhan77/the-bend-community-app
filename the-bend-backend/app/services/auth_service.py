@@ -46,14 +46,14 @@ class AuthService:
         is_individual = data.user_type == "individual"
 
         if not is_individual:
-            # Business signup: enforce the business-only fields that the schema
-            # now makes optional. Keeps backward compatibility for older clients
-            # that omitted user_type entirely.
+            # Business signup: shop_name and business_type are still required
+            # (you can't have a business without those). Address is optional —
+            # the form labels it that way and many home-based businesses won't
+            # have a public street address.
             missing = [
                 name for name, value in (
                     ("shop_name", data.shop_name),
                     ("business_type", data.business_type),
-                    ("address", data.address),
                 ) if value is None or (isinstance(value, str) and not value.strip())
             ]
             if missing:
