@@ -11,7 +11,7 @@ export default function SavedListingsPage() {
 
   useEffect(() => {
     listingApi.getSavedListings()
-      .then((res) => setListings(res.data))
+      .then((res) => setListings(res.data?.items ?? []))
       .catch(() => setListings([]))
       .finally(() => setLoading(false));
   }, []);
