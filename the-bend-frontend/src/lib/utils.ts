@@ -14,10 +14,14 @@ export function cn(...inputs: ClassValue[]) {
 export function parseServerDate(value: string | number | Date): Date {
   if (value instanceof Date) return value;
   if (typeof value === 'number') return new Date(value);
-  // If the string already has a tz indicator (Z, +HH:MM, -HH:MM after the time
-  // portion), trust it. Otherwise treat as UTC.
-  const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
-  return new Date(hasTz ? value : value + 'Z');
+  // Backend uses datetime.utcnow() (naive UTC). Some endpoints stringify via
+  // str(dt) which produces "YYYY-MM-DD HH:MM:SS.ffffff" — note the SPACE, not
+  // the ISO 'T'. Browsers don't reliably honor a trailing 'Z' on space-separated
+  // strings (Safari/Firefox parse as local), so normalize the space to 'T'
+  // first, then ensure a tz indicator is present.
+  const normalized = value.replace(' ', 'T');
+  const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized);
+  return new Date(hasTz ? normalized : normalized + 'Z');
 }
 
 /**
