@@ -184,7 +184,10 @@ export default function VolunteerPage() {
   };
 
   const handleDelete = async (v: Volunteer) => {
-    if (!confirm(`Delete your volunteer profile? This cannot be undone.`)) return;
+    const confirmMsg = v.user_id === user?.id
+      ? `Delete your volunteer profile? This cannot be undone.`
+      : `Delete ${v.name}'s volunteer profile? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
     setDeletingId(v.id);
     try {
       await volunteerApi.delete(v.id);
@@ -335,6 +338,7 @@ export default function VolunteerPage() {
                     {(() => {
                       const isOwner = isAuthenticated && user?.id && v.user_id === user.id;
                       const canMessage = isAuthenticated && !!v.user_id && !isOwner;
+                      const isAdmin = user?.role === 'community_admin';
                       if (isOwner) {
                         return (
                           <div className="flex gap-2">
@@ -378,6 +382,17 @@ export default function VolunteerPage() {
                               <MessageSquare className="w-4 h-4 mr-1.5" />
                               {messagingId === v.user_id ? 'Starting...' : 'Message'}
                             </Button>
+                            {isAdmin && (
+                              <Button
+                                type="button"
+                                onClick={() => handleDelete(v)}
+                                variant="outline"
+                                disabled={deletingId === v.id}
+                                className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                             <ShareButton
                               url={`/volunteers#vol-${v.id}`}
                               title={`${v.name} - Community Volunteer`}
@@ -415,6 +430,17 @@ export default function VolunteerPage() {
                               >
                                 Contact via in-app messages
                               </div>
+                            )}
+                            {isAdmin && (
+                              <Button
+                                type="button"
+                                onClick={() => handleDelete(v)}
+                                variant="outline"
+                                disabled={deletingId === v.id}
+                                className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             )}
                             <ShareButton
                               url={`/volunteers#vol-${v.id}`}

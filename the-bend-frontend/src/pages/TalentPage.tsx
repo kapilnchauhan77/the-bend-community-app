@@ -240,7 +240,10 @@ export default function TalentPage() {
   };
 
   const handleDelete = async (t: Talent) => {
-    if (!confirm(`Delete your talent profile? This cannot be undone.`)) return;
+    const confirmMsg = t.user_id === user?.id
+      ? `Delete your talent profile? This cannot be undone.`
+      : `Delete ${t.name}'s talent profile? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
     setDeletingId(t.id);
     try {
       await talentApi.delete(t.id);
@@ -468,6 +471,7 @@ export default function TalentPage() {
                       {(() => {
                         const isOwner = isAuthenticated && user?.id && talent.user_id === user.id;
                         const canMessage = isAuthenticated && !!talent.user_id && !isOwner;
+                        const isAdmin = user?.role === 'community_admin';
                         const showMaskedContact = !canMessage && !isOwner;
                         return (
                           <>
@@ -529,6 +533,17 @@ export default function TalentPage() {
                                   <MessageSquare className="w-4 h-4 mr-1.5" />
                                   {messagingId === talent.user_id ? 'Starting...' : `Message ${talent.name.split(' ')[0]}`}
                                 </Button>
+                                {isAdmin && (
+                                  <Button
+                                    type="button"
+                                    onClick={() => handleDelete(talent)}
+                                    variant="outline"
+                                    disabled={deletingId === talent.id}
+                                    className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 <ShareButton
                                   url={`/talent#talent-${talent.id}`}
                                   title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
@@ -544,6 +559,17 @@ export default function TalentPage() {
                                 >
                                   Book {talent.name.split(' ')[0]}
                                 </Button>
+                                {isAdmin && (
+                                  <Button
+                                    type="button"
+                                    onClick={() => handleDelete(talent)}
+                                    variant="outline"
+                                    disabled={deletingId === talent.id}
+                                    className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 <ShareButton
                                   url={`/talent#talent-${talent.id}`}
                                   title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
