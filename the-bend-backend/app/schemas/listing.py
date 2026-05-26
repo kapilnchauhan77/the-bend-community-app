@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class ListingCreate(BaseModel):
     type: str = Field(..., pattern="^(offer|request)$")
-    category: str = Field(..., pattern="^(staff|materials|equipment)$")
+    category: str = Field(..., pattern="^(staff|materials|equipment|volunteer)$")
     title: str = Field(..., min_length=5, max_length=100)
     description: str = Field(..., min_length=10, max_length=500)
     quantity: str | None = None
@@ -102,6 +102,19 @@ class ShopSummary(BaseModel):
         return str(v)
 
 
+class PostedBySummary(BaseModel):
+    """Identifies the user who posted a listing when there is no shop
+    (e.g. a Volunteer Opportunity posted by an individual)."""
+    id: str
+    name: str
+    model_config = {"from_attributes": True}
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def stringify_id(cls, v):
+        return str(v)
+
+
 class ImageResponse(BaseModel):
     url: str
     thumbnail_url: str | None = None
@@ -109,7 +122,8 @@ class ImageResponse(BaseModel):
 
 class ListingResponse(BaseModel):
     id: str
-    shop: ShopSummary
+    shop: ShopSummary | None = None
+    posted_by: PostedBySummary | None = None
     type: str
     category: str
     title: str
@@ -149,7 +163,7 @@ class ShopDetailSummary(ShopSummary):
 
 
 class ListingDetailResponse(ListingResponse):
-    shop: "ShopDetailSummary"
+    shop: "ShopDetailSummary | None" = None
     viewer_has_interest: bool = False
     views_count: int = 0
 

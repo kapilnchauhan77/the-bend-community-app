@@ -2,7 +2,7 @@
 export type UserRole = 'super_admin' | 'community_admin' | 'shop_admin' | 'shop_employee' | 'individual';
 export type ShopStatus = 'pending' | 'active' | 'suspended';
 export type ListingType = 'offer' | 'request';
-export type ListingCategory = 'staff' | 'materials' | 'equipment';
+export type ListingCategory = 'staff' | 'materials' | 'equipment' | 'volunteer';
 export type UrgencyLevel = 'normal' | 'urgent';
 export type ListingStatus = 'active' | 'fulfilled' | 'expired' | 'deleted';
 export type PricingType = 'free' | 'fixed' | 'hourly' | 'range' | 'custom';
@@ -45,7 +45,11 @@ export interface Listing {
     name: string;
     business_type: string;
     avatar_url?: string;
-  };
+  } | null;
+  posted_by: {
+    id: string;
+    name: string;
+  } | null;
   type: ListingType;
   category: ListingCategory;
   title: string;
@@ -67,11 +71,13 @@ export interface Listing {
 }
 
 export interface ListingDetail extends Listing {
-  shop: Listing['shop'] & {
-    contact_phone: string;
-    whatsapp?: string;
-    address?: string;
-  };
+  shop:
+    | (NonNullable<Listing['shop']> & {
+        contact_phone: string;
+        whatsapp?: string;
+        address?: string;
+      })
+    | null;
   viewer_has_interest: boolean;
   viewer_has_saved: boolean;
   views_count: number;

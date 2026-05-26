@@ -38,6 +38,7 @@ class ListingCategory(str, enum.Enum):
     STAFF = "staff"
     MATERIALS = "materials"
     EQUIPMENT = "equipment"
+    VOLUNTEER = "volunteer"
 
 
 class UrgencyLevel(str, enum.Enum):

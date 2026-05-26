@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.api.deps import get_db
-from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant, Permission
+from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant
 from app.core.privacy import mask_phone
 from app.models.user import User
 from app.models.tenant import Tenant
@@ -14,6 +14,7 @@ from app.services.listing_service import ListingService
 from app.schemas.listing import (
     ListingCreate, ListingUpdate, ListingResponse, ListingDetailResponse,
     ListingListResponse, ShopSummary, ShopDetailSummary, ImageResponse,
+    PostedBySummary,
 )
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
@@ -26,9 +27,25 @@ def get_listing_service(db: AsyncSession = Depends(get_db)) -> ListingService:
 def _serialize_listing(listing, viewer_has_interest: bool = False) -> ListingResponse:
     shop = listing.shop
     images = [ImageResponse(url=img.url, thumbnail_url=img.thumbnail_url) for img in (listing.images or [])]
+
+    # A listing has either a shop OR a personal poster (or, in odd edge cases,
+    # both — for an individual who happens to belong to a shop posting a
+    # volunteer opportunity, we attach to the shop and skip posted_by).
+    shop_summary: ShopSummary | None = None
+    posted_by_summary: PostedBySummary | None = None
+    if shop is not None:
+        shop_summary = ShopSummary(
+            id=str(shop.id), name=shop.name,
+            business_type=shop.business_type, avatar_url=shop.avatar_url,
+        )
+    elif getattr(listing, "posted_by", None) is not None:
+        u = listing.posted_by
+        posted_by_summary = PostedBySummary(id=str(u.id), name=u.name)
+
     return ListingResponse(
         id=str(listing.id),
-        shop=ShopSummary(id=str(shop.id), name=shop.name, business_type=shop.business_type, avatar_url=shop.avatar_url),
+        shop=shop_summary,
+        posted_by=posted_by_summary,
         type=listing.type.value if hasattr(listing.type, "value") else listing.type,
         category=listing.category.value if hasattr(listing.category, "value") else listing.category,
         title=listing.title,
@@ -53,6 +70,7 @@ def _serialize_listing(listing, viewer_has_interest: bool = False) -> ListingRes
 @router.get("", response_model=ListingListResponse)
 async def browse_listings(
     category: str | None = Query(None),
+    exclude_category: str | None = Query(None),
     type: str | None = Query(None),
     urgency: str | None = Query(None),
     is_free: bool | None = Query(None),
@@ -66,8 +84,36 @@ async def browse_listings(
 ):
     tenant_id = tenant.id if tenant else None
     result = await service.browse_listings(
-        category=category, type=type, urgency=urgency,
+        category=category, exclude_category=exclude_category,
+        type=type, urgency=urgency,
         is_free=is_free, search=search, sort=sort,
+        status=status, cursor=cursor, limit=limit,
+        tenant_id=tenant_id,
+    )
+    items = [_serialize_listing(l) for l in result.items]
+    return ListingListResponse(items=items, next_cursor=result.next_cursor, has_more=result.has_more)
+
+
+@router.get("/opportunities", response_model=ListingListResponse)
+async def browse_opportunities(
+    type: str | None = Query(None),
+    urgency: str | None = Query(None),
+    search: str | None = Query(None),
+    sort: str = Query("urgency_desc"),
+    status: str | None = Query(None),
+    cursor: str | None = Query(None),
+    limit: int = Query(20, le=50),
+    service: ListingService = Depends(get_listing_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    """Convenience wrapper that returns only Volunteer Opportunity listings.
+    Shape is identical to /listings; the frontend doesn't need to know the
+    enum value for the volunteer category."""
+    tenant_id = tenant.id if tenant else None
+    result = await service.browse_listings(
+        category="volunteer",
+        type=type, urgency=urgency,
+        is_free=None, search=search, sort=sort,
         status=status, cursor=cursor, limit=limit,
         tenant_id=tenant_id,
     )
@@ -181,9 +227,9 @@ async def get_listing(
         viewer_has_saved = saved_result.scalar_one_or_none() is not None
 
     is_authed = current_user is not None
-    return {
-        **data.model_dump(),
-        "shop": {
+    shop_payload = None
+    if shop is not None:
+        shop_payload = {
             "id": str(shop.id),
             "name": shop.name,
             "business_type": shop.business_type,
@@ -191,7 +237,10 @@ async def get_listing(
             "whatsapp": mask_phone(shop.whatsapp, is_authed),
             "address": shop.address,
             "avatar_url": shop.avatar_url,
-        },
+        }
+    return {
+        **data.model_dump(),
+        "shop": shop_payload,
         "viewer_has_interest": viewer_has_interest,
         "viewer_has_saved": viewer_has_saved,
         "views_count": listing.views_count,
@@ -202,8 +251,11 @@ async def get_listing(
 async def create_listing(
     data: ListingCreate,
     service: ListingService = Depends(get_listing_service),
-    current_user: User = Depends(Permission.require_shop_admin()),
+    current_user: User = Depends(get_current_user),
 ):
+    # Any signed-in user may post a Volunteer Opportunity (incl. individuals
+    # with no shop). For all other categories, the service enforces that the
+    # caller is a shop_admin with a shop.
     listing = await service.create_listing(data, current_user)
     return {"id": str(listing.id), "status": "active"}
 
@@ -223,8 +275,9 @@ async def update_listing(
 async def fulfill_listing(
     listing_id: UUID,
     service: ListingService = Depends(get_listing_service),
-    current_user: User = Depends(Permission.require_shop_admin()),
+    current_user: User = Depends(get_current_user),
 ):
+    # Ownership (shop OR personally-posted) is checked in the service layer.
     listing = await service.fulfill_listing(listing_id, current_user)
     return {"status": "fulfilled", "fulfilled_at": str(listing.fulfilled_at)}
 

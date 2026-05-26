@@ -21,6 +21,7 @@ import {
   ImageOff,
   Bookmark,
   Flag,
+  Heart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,12 +54,14 @@ const categoryIcons = {
   staff: Briefcase,
   materials: Package,
   equipment: Wrench,
+  volunteer: Heart,
 };
 
 const categoryLabels = {
   staff: 'Gigs',
   materials: 'Materials',
   equipment: 'Equipment',
+  volunteer: 'Volunteer',
 };
 
 function formatDate(dateStr: string): string {
@@ -89,7 +92,8 @@ export default function ListingDetailPage() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reported, setReported] = useState(false);
 
-  const isOwner = listing && shop && listing.shop.id === shop.id;
+  const isOwner = !!(listing && shop && listing.shop && listing.shop.id === shop.id);
+  const isVolunteer = listing?.category === 'volunteer';
 
   useEffect(() => {
     if (!id) return;
@@ -279,9 +283,11 @@ export default function ListingDetailPage() {
                   : 'bg-blue-100 text-blue-700'
               }
             >
-              {listing.category === 'staff'
-                ? (listing.type === 'offer' ? 'Hiring' : 'Available')
-                : (listing.type === 'offer' ? 'Offering' : 'Requesting')}
+              {listing.category === 'volunteer'
+                ? 'Seeking Volunteers'
+                : listing.category === 'staff'
+                  ? (listing.type === 'offer' ? 'Hiring' : 'Available')
+                  : (listing.type === 'offer' ? 'Offering' : 'Requesting')}
             </Badge>
             <Badge variant="outline" className="flex items-center gap-1">
               <CategoryIcon size={12} />
@@ -294,21 +300,34 @@ export default function ListingDetailPage() {
             <ShareButton
               url={`/listing/${id}`}
               title={listing.title}
-              description={`${listing.category === 'staff' ? (listing.type === 'offer' ? 'Hiring' : 'Available') : (listing.type === 'offer' ? 'Offering' : 'Requesting')}: ${listing.title} - Community Marketplace`}
+              description={`${
+                listing.category === 'volunteer'
+                  ? 'Volunteer Opportunity'
+                  : listing.category === 'staff'
+                    ? (listing.type === 'offer' ? 'Hiring' : 'Available')
+                    : (listing.type === 'offer' ? 'Offering' : 'Requesting')
+              }: ${listing.title} - Community Marketplace`}
             />
           </div>
 
-          {/* Price */}
-          <div className="flex items-center gap-4 mb-3">
-            <span
-              className={`text-xl font-bold ${
-                (listing.pricing_type === 'free' || (!listing.pricing_type && listing.is_free))
-                  ? 'text-[hsl(160,25%,28%)]'
-                  : 'text-gray-900'
-              }`}
-            >
-              {formatPrice(listing) || '—'}
-            </span>
+          {/* Price (or volunteer pill) */}
+          <div className="flex items-center gap-4 mb-3 flex-wrap">
+            {isVolunteer ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-[hsl(35,15%,94%)] border border-[hsl(35,18%,84%)] text-[hsl(160,25%,24%)]">
+                <Heart className="w-3.5 h-3.5" />
+                Volunteer Opportunity · Free
+              </span>
+            ) : (
+              <span
+                className={`text-xl font-bold ${
+                  (listing.pricing_type === 'free' || (!listing.pricing_type && listing.is_free))
+                    ? 'text-[hsl(160,25%,28%)]'
+                    : 'text-gray-900'
+                }`}
+              >
+                {formatPrice(listing) || '—'}
+              </span>
+            )}
             {listing.quantity && (
               <span className="text-sm text-muted-foreground">
                 {listing.quantity} {listing.unit || 'units'}
@@ -355,65 +374,81 @@ export default function ListingDetailPage() {
 
         <Separator className="mb-5" />
 
-        {/* Shop info card */}
+        {/* Posted-by card — business shop OR community member fallback */}
         <Card className="mb-6 border-gray-200">
           <CardContent className="p-4">
             <h2 className="font-semibold text-gray-900 mb-3">Posted by</h2>
-            <div className="flex items-start gap-3">
-              {/* Avatar */}
-              <Link to={`/business/${listing.shop.id}`} className="flex-shrink-0">
-                {listing.shop.avatar_url ? (
-                  <img
-                    src={resolveAssetUrl(listing.shop.avatar_url)}
-                    alt={listing.shop.name}
-                    className="w-12 h-12 rounded-full object-cover bg-[hsl(35,15%,90%)] hover:opacity-80 transition-opacity"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] hover:opacity-80 transition-opacity">
-                    {listing.shop.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </Link>
-              <div className="flex-1 min-w-0">
-                <Link
-                  to={`/business/${listing.shop.id}`}
-                  className="font-semibold text-gray-900 hover:text-[hsl(35,45%,35%)] hover:underline transition-colors"
-                >
-                  {listing.shop.name}
+            {listing.shop ? (
+              <div className="flex items-start gap-3">
+                {/* Avatar */}
+                <Link to={`/business/${listing.shop.id}`} className="flex-shrink-0">
+                  {listing.shop.avatar_url ? (
+                    <img
+                      src={resolveAssetUrl(listing.shop.avatar_url)}
+                      alt={listing.shop.name}
+                      className="w-12 h-12 rounded-full object-cover bg-[hsl(35,15%,90%)] hover:opacity-80 transition-opacity"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] hover:opacity-80 transition-opacity">
+                      {listing.shop.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                 </Link>
-                <p className="text-sm text-muted-foreground capitalize mb-2">
-                  {listing.shop.business_type}
-                </p>
-                {listing.shop.address && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                    <MapPin size={13} />
-                    {listing.shop.address}
+                <div className="flex-1 min-w-0">
+                  <Link
+                    to={`/business/${listing.shop.id}`}
+                    className="font-semibold text-gray-900 hover:text-[hsl(35,45%,35%)] hover:underline transition-colors"
+                  >
+                    {listing.shop.name}
+                  </Link>
+                  <p className="text-sm text-muted-foreground capitalize mb-2">
+                    {listing.shop.business_type}
                   </p>
-                )}
-                <div className="flex gap-3 mt-2 flex-wrap">
-                  {listing.shop.contact_phone && (
-                    <a
-                      href={`tel:${listing.shop.contact_phone}`}
-                      className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-[hsl(160,25%,24%)] transition-colors"
-                    >
-                      <Phone size={14} />
-                      {listing.shop.contact_phone}
-                    </a>
+                  {listing.shop.address && (
+                    <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                      <MapPin size={13} />
+                      {listing.shop.address}
+                    </p>
                   )}
-                  {listing.shop.whatsapp && (
-                    <a
-                      href={`https://wa.me/${listing.shop.whatsapp.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-sm font-medium text-[hsl(160,25%,24%)] hover:text-[hsl(160,25%,20%)] transition-colors"
-                    >
-                      <MessageCircle size={14} />
-                      WhatsApp
-                    </a>
-                  )}
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    {listing.shop.contact_phone && (
+                      <a
+                        href={`tel:${listing.shop.contact_phone}`}
+                        className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-[hsl(160,25%,24%)] transition-colors"
+                      >
+                        <Phone size={14} />
+                        {listing.shop.contact_phone}
+                      </a>
+                    )}
+                    {listing.shop.whatsapp && (
+                      <a
+                        href={`https://wa.me/${listing.shop.whatsapp.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-sm font-medium text-[hsl(160,25%,24%)] hover:text-[hsl(160,25%,20%)] transition-colors"
+                      >
+                        <MessageCircle size={14} />
+                        WhatsApp
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : listing.posted_by ? (
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
+                  {listing.posted_by.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900">{listing.posted_by.name}</p>
+                  <p className="text-xs font-medium uppercase tracking-wider text-[hsl(35,45%,42%)] mt-0.5">
+                    Community member
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Unknown</p>
+            )}
           </CardContent>
         </Card>
 
@@ -525,22 +560,24 @@ export default function ListingDetailPage() {
               <Star size={16} fill={hasInterest ? 'currentColor' : 'none'} />
               {hasInterest ? "I'm Interested (withdraw)" : "I'm Interested"}
             </Button>
-            <Button
-              variant="outline"
-              className="flex-1 gap-2"
-              onClick={async () => {
-                if (!listing) return;
-                try {
-                  const { data } = await messageApi.startThread(listing.shop.id, listing.id);
-                  navigate(`/messages/${data.id}`);
-                } catch (err) {
-                  console.error('Failed to start thread:', err);
-                }
-              }}
-            >
-              <MessageCircle size={16} />
-              Message Business
-            </Button>
+            {listing.shop && (
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={async () => {
+                  if (!listing || !listing.shop) return;
+                  try {
+                    const { data } = await messageApi.startThread(listing.shop.id, listing.id);
+                    navigate(`/messages/${data.id}`);
+                  } catch (err) {
+                    console.error('Failed to start thread:', err);
+                  }
+                }}
+              >
+                <MessageCircle size={16} />
+                Message Business
+              </Button>
+            )}
             <Button
               variant="outline"
               className="gap-2 cursor-pointer"

@@ -19,6 +19,7 @@ class ListingRepository(BaseRepository[Listing]):
     async def browse(
         self,
         category: str | None = None,
+        exclude_category: str | None = None,
         type: str | None = None,
         urgency: str | None = None,
         is_free: bool | None = None,
@@ -36,7 +37,11 @@ class ListingRepository(BaseRepository[Listing]):
 
         query = (
             select(Listing)
-            .options(selectinload(Listing.shop), selectinload(Listing.images))
+            .options(
+                selectinload(Listing.shop),
+                selectinload(Listing.images),
+                selectinload(Listing.posted_by),
+            )
             .where(Listing.status == status_filter)
         )
 
@@ -46,6 +51,8 @@ class ListingRepository(BaseRepository[Listing]):
         # Filters
         if category:
             query = query.where(Listing.category == category)
+        if exclude_category:
+            query = query.where(Listing.category != exclude_category)
         if type:
             query = query.where(Listing.type == type)
         if urgency:
@@ -109,7 +116,11 @@ class ListingRepository(BaseRepository[Listing]):
     ) -> PaginatedResult:
         query = (
             select(Listing)
-            .options(selectinload(Listing.shop), selectinload(Listing.images))
+            .options(
+                selectinload(Listing.shop),
+                selectinload(Listing.images),
+                selectinload(Listing.posted_by),
+            )
             .where(Listing.shop_id == shop_id)
         )
         if status:
@@ -129,7 +140,11 @@ class ListingRepository(BaseRepository[Listing]):
     async def get_detail(self, listing_id: UUID) -> Listing | None:
         result = await self.session.execute(
             select(Listing)
-            .options(selectinload(Listing.shop), selectinload(Listing.images))
+            .options(
+                selectinload(Listing.shop),
+                selectinload(Listing.images),
+                selectinload(Listing.posted_by),
+            )
             .where(Listing.id == listing_id)
         )
         return result.scalar_one_or_none()

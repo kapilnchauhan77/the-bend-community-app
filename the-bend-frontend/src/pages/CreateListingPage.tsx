@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ import { resolveAssetUrl } from '@/lib/constants';
 const schema = z
   .object({
     type: z.enum(['offer', 'request']),
-    category: z.enum(['staff', 'materials', 'equipment']),
+    category: z.enum(['staff', 'materials', 'equipment', 'volunteer']),
     title: z.string().min(5, 'Title must be at least 5 characters').max(100, 'Title must be under 100 characters'),
     description: z.string().min(10, 'Description must be at least 10 characters').max(500, 'Description must be under 500 characters'),
     quantity: z.string().optional(),
@@ -86,6 +86,8 @@ const urgencyOptions = [
 export default function CreateListingPage() {
   const navigate = useNavigate();
   const { id: editId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const presetCategory = searchParams.get('category');
   const isEdit = Boolean(editId);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -93,6 +95,13 @@ export default function CreateListingPage() {
   const [images, setImages] = useState<{ url: string; thumbnail_url: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEdit);
+
+  const initialCategory: FormData['category'] =
+    presetCategory === 'volunteer' || presetCategory === 'staff' || presetCategory === 'materials' || presetCategory === 'equipment'
+      ? (presetCategory as FormData['category'])
+      : 'materials';
+  const initialType: FormData['type'] = initialCategory === 'volunteer' ? 'request' : 'offer';
+  const initialPricing: FormData['pricing_type'] = 'free';
 
   const {
     register,
@@ -104,10 +113,10 @@ export default function CreateListingPage() {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      type: 'offer',
-      category: 'materials',
+      type: initialType,
+      category: initialCategory,
       urgency: 'normal',
-      pricing_type: 'free',
+      pricing_type: initialPricing,
     },
   });
 
@@ -156,6 +165,16 @@ export default function CreateListingPage() {
   const watchedType = watch('type');
   const watchedUrgency = watch('urgency');
   const watchedPricingType = watch('pricing_type');
+  const watchedCategory = watch('category');
+  const isVolunteer = watchedCategory === 'volunteer';
+
+  // Volunteer opportunities are always free + always a "request" (org seeking help).
+  useEffect(() => {
+    if (isVolunteer) {
+      if (watchedPricingType !== 'free') setValue('pricing_type', 'free');
+      if (watchedType !== 'request') setValue('type', 'request');
+    }
+  }, [isVolunteer, watchedPricingType, watchedType, setValue]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -180,14 +199,17 @@ export default function CreateListingPage() {
     setSubmitting(true);
     setServerError(null);
     try {
+      const isVolunteerCategory = data.category === 'volunteer';
+      const effectivePricingType: FormData['pricing_type'] = isVolunteerCategory ? 'free' : data.pricing_type;
+      const effectiveType: FormData['type'] = isVolunteerCategory ? 'request' : data.type;
       const payload: Record<string, unknown> = {
-        type: data.type,
+        type: effectiveType,
         category: data.category,
         title: data.title,
         description: data.description,
         urgency: data.urgency,
-        pricing_type: data.pricing_type,
-        is_free: data.pricing_type === 'free',
+        pricing_type: effectivePricingType,
+        is_free: effectivePricingType === 'free',
       };
       if (data.quantity) payload.quantity = data.quantity;
       if (data.unit) payload.unit = data.unit;
@@ -195,16 +217,16 @@ export default function CreateListingPage() {
       if (images.length > 0) payload.image_ids = images.map(img => img.url);
 
       // Pricing fields per mode
-      if (data.pricing_type === 'fixed' || data.pricing_type === 'hourly' || data.pricing_type === 'range') {
+      if (effectivePricingType === 'fixed' || effectivePricingType === 'hourly' || effectivePricingType === 'range') {
         payload.price = parseFloat(data.price || '0');
       }
-      if (data.pricing_type === 'range') {
+      if (effectivePricingType === 'range') {
         payload.price_max = parseFloat(data.price_max || '0');
       }
-      if (data.pricing_type === 'hourly' || data.pricing_type === 'range') {
+      if (effectivePricingType === 'hourly' || effectivePricingType === 'range') {
         if (data.price_unit) payload.price_unit = data.price_unit;
       }
-      if (data.pricing_type === 'custom') {
+      if (effectivePricingType === 'custom') {
         payload.price_text = (data.price_text || '').trim();
       }
 
@@ -214,7 +236,10 @@ export default function CreateListingPage() {
         await listingApi.create(payload);
       }
       setSuccess(true);
-      setTimeout(() => navigate(isEdit && editId ? `/listing/${editId}` : '/browse'), 1500);
+      const successDest = isEdit && editId
+        ? `/listing/${editId}`
+        : (isVolunteerCategory ? '/opportunities' : '/browse');
+      setTimeout(() => navigate(successDest), 1500);
     } catch {
       setServerError(isEdit ? 'Failed to update listing. Please try again.' : 'Failed to create listing. Please try again.');
     } finally {
@@ -248,34 +273,36 @@ export default function CreateListingPage() {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Offer / Request toggle */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">What are you doing?</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                {(['offer', 'request'] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setValue('type', t)}
-                    className={`py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
-                      watchedType === t
-                        ? t === 'offer'
-                          ? 'border-[hsl(35,45%,42%)] bg-[hsl(35,15%,94%)] text-[hsl(160,25%,24%)]'
-                          : 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                  >
-                    {t === 'offer'
-                      ? (watch('category') === 'staff' ? 'Hiring' : 'Offering Something')
-                      : (watch('category') === 'staff' ? 'Available for Hire' : 'Requesting Something')}
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Offer / Request toggle — hidden for volunteer opportunities (always "request") */}
+          {!isVolunteer && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">What are you doing?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['offer', 'request'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setValue('type', t)}
+                      className={`py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
+                        watchedType === t
+                          ? t === 'offer'
+                            ? 'border-[hsl(35,45%,42%)] bg-[hsl(35,15%,94%)] text-[hsl(160,25%,24%)]'
+                            : 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {t === 'offer'
+                        ? (watch('category') === 'staff' ? 'Hiring' : 'Offering Something')
+                        : (watch('category') === 'staff' ? 'Available for Hire' : 'Requesting Something')}
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Category */}
           <Card>
@@ -284,7 +311,7 @@ export default function CreateListingPage() {
             </CardHeader>
             <CardContent>
               <Select
-                defaultValue="materials"
+                value={watchedCategory}
                 onValueChange={(v) => setValue('category', v as FormData['category'])}
               >
                 <SelectTrigger>
@@ -294,6 +321,7 @@ export default function CreateListingPage() {
                   <SelectItem value="staff">Gigs</SelectItem>
                   <SelectItem value="materials">Materials</SelectItem>
                   <SelectItem value="equipment">Equipment</SelectItem>
+                  <SelectItem value="volunteer">Volunteer opportunity</SelectItem>
                 </SelectContent>
               </Select>
             </CardContent>
@@ -411,7 +439,8 @@ export default function CreateListingPage() {
             </CardContent>
           </Card>
 
-          {/* Pricing — multi-mode */}
+          {/* Pricing — multi-mode (hidden for volunteer opportunities, which are implicitly free) */}
+          {!isVolunteer && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -590,6 +619,21 @@ export default function CreateListingPage() {
               )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Volunteer free notice (replaces pricing card) */}
+          {isVolunteer && (
+            <Card className="bg-[hsl(35,15%,94%)] border-[hsl(35,18%,84%)]">
+              <CardContent className="pt-4">
+                <p className="text-sm text-[hsl(160,25%,24%)] font-medium">
+                  Volunteer Opportunity · Free
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Volunteer opportunities are always free to post and free to join — no pricing needed.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Expiry date */}
           <Card>
@@ -628,7 +672,9 @@ export default function CreateListingPage() {
                   {isEdit ? 'Saving...' : 'Posting...'}
                 </>
               ) : (
-                isEdit ? 'Save Changes' : 'Post Listing'
+                isEdit
+                  ? 'Save Changes'
+                  : (isVolunteer ? 'Post Volunteer Opportunity' : 'Post Listing')
               )}
             </Button>
           </div>

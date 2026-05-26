@@ -10,6 +10,19 @@ from app.core.exceptions import NotFoundError, ForbiddenError, BusinessRuleViola
 from app.schemas.listing import ListingCreate, ListingUpdate
 
 
+def _user_owns_listing(listing, current_user: User) -> bool:
+    """A user 'owns' a listing if it belongs to their shop OR they personally
+    posted it (posted_by_user_id == user.id)."""
+    if current_user is None:
+        return False
+    if listing.shop_id is not None and current_user.shop_id is not None \
+            and listing.shop_id == current_user.shop_id:
+        return True
+    if listing.posted_by_user_id is not None and listing.posted_by_user_id == current_user.id:
+        return True
+    return False
+
+
 class ListingService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -42,25 +55,50 @@ class ListingService:
         return listing, viewer_has_interest
 
     async def create_listing(self, data: ListingCreate, current_user: User):
-        if not current_user.shop_id:
-            raise ForbiddenError("No shop associated")
+        is_volunteer = data.category == "volunteer"
 
-        # Check urgent listing rate limit
-        if data.urgency == "urgent":
-            urgent_count = await self.listing_repo.count_active_urgent(current_user.shop_id)
+        # Authorization:
+        #  - VOLUNTEER: any signed-in user may post. If they belong to a shop,
+        #    we attach the listing to that shop; otherwise we store the user
+        #    as posted_by_user_id.
+        #  - All other categories: caller must be a shop_admin with a shop.
+        if is_volunteer:
+            shop_id = current_user.shop_id
+            posted_by_user_id = None if shop_id else current_user.id
+        else:
+            if not current_user.shop_id:
+                raise ForbiddenError("No shop associated")
+            if current_user.role.value != "shop_admin":
+                raise ForbiddenError("Only shop admins can post this listing type")
+            shop_id = current_user.shop_id
+            posted_by_user_id = None
+
+        # Check urgent listing rate limit (only meaningful when attached to a shop)
+        if data.urgency == "urgent" and shop_id is not None:
+            urgent_count = await self.listing_repo.count_active_urgent(shop_id)
             if urgent_count >= 3:
                 raise BusinessRuleViolation("Maximum 3 active urgent listings per business")
 
-        # Normalize pricing fields by mode — clear values that don't apply
-        pt = data.pricing_type
-        clean_price = data.price if pt in ("fixed", "hourly", "range") else None
-        clean_price_max = data.price_max if pt == "range" else None
-        clean_price_unit = data.price_unit if pt in ("hourly", "range") else None
-        clean_price_text = data.price_text if pt == "custom" else None
+        # Normalize pricing fields by mode — clear values that don't apply.
+        # Volunteer opportunities are always free; price fields the caller
+        # sent are ignored.
+        if is_volunteer:
+            pt = "free"
+            clean_price = None
+            clean_price_max = None
+            clean_price_unit = None
+            clean_price_text = None
+        else:
+            pt = data.pricing_type
+            clean_price = data.price if pt in ("fixed", "hourly", "range") else None
+            clean_price_max = data.price_max if pt == "range" else None
+            clean_price_unit = data.price_unit if pt in ("hourly", "range") else None
+            clean_price_text = data.price_text if pt == "custom" else None
 
         listing = await self.listing_repo.create({
             "id": uuid4(),
-            "shop_id": current_user.shop_id,
+            "shop_id": shop_id,
+            "posted_by_user_id": posted_by_user_id,
             "tenant_id": current_user.tenant_id,
             "type": data.type,
             "category": data.category,
@@ -100,8 +138,10 @@ class ListingService:
         if not listing:
             raise NotFoundError("Listing")
 
-        # Ownership check
-        if current_user.role.value != "community_admin" and listing.shop_id != current_user.shop_id:
+        # Ownership check: community admins can moderate; otherwise the
+        # caller must either own the listing's shop OR have personally posted
+        # it (posted_by_user_id == user.id).
+        if current_user.role.value != "community_admin" and not _user_owns_listing(listing, current_user):
             raise ForbiddenError("Cannot modify another shop's listing")
 
         update_data = data.model_dump(exclude_unset=True)
@@ -160,7 +200,7 @@ class ListingService:
         listing = await self.listing_repo.get_by_id(listing_id)
         if not listing:
             raise NotFoundError("Listing")
-        if listing.shop_id != current_user.shop_id:
+        if not _user_owns_listing(listing, current_user):
             raise ForbiddenError("Can only fulfill your own listings")
 
         return await self.listing_repo.update(listing_id, {
@@ -172,7 +212,7 @@ class ListingService:
         listing = await self.listing_repo.get_by_id(listing_id)
         if not listing:
             raise NotFoundError("Listing")
-        if current_user.role.value != "community_admin" and listing.shop_id != current_user.shop_id:
+        if current_user.role.value != "community_admin" and not _user_owns_listing(listing, current_user):
             raise ForbiddenError("Cannot delete another shop's listing")
 
         return await self.listing_repo.update(listing_id, {"status": ListingStatus.DELETED})

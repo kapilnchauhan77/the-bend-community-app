@@ -8,6 +8,7 @@ import {
   Store,
   ClipboardList,
   Heart,
+  HandHeart,
   Star,
   ChevronRight,
   TrendingUp,
@@ -34,6 +35,7 @@ const services = [
   { icon: Package, label: 'Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
   { icon: Wrench, label: 'Equipment', desc: 'Borrow or lend tools', href: '/browse?category=equipment' },
   { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
+  { icon: HandHeart, label: 'Volunteer Opportunities', desc: 'Causes & projects that need help', href: '/opportunities' },
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
   { icon: Store, label: 'All Listings', desc: 'Browse the full directory', href: '/browse' },
 ];
@@ -273,13 +275,19 @@ export default function HomePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[hsl(160,20%,22%)] truncate group-hover:text-[hsl(160,25%,18%)] transition-colors">{item.title}</p>
-                        <Link
-                          to={`/business/${item.shop.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-[hsl(160,10%,45%)] truncate hover:underline"
-                        >
-                          {item.shop.name}
-                        </Link>
+                        {item.shop ? (
+                          <Link
+                            to={`/business/${item.shop.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-[hsl(160,10%,45%)] truncate hover:underline"
+                          >
+                            {item.shop.name}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-[hsl(160,10%,45%)] truncate">
+                            {item.posted_by?.name || 'Community member'}
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] text-[hsl(160,10%,55%)] shrink-0 uppercase tracking-wider">
                         {item.category}

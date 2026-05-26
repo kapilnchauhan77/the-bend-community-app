@@ -5,6 +5,9 @@ export const listingApi = {
   browse: (params: Record<string, string | number | boolean | undefined>) =>
     api.get<PaginatedResponse<Listing>>('/listings', { params }),
 
+  getOpportunities: (params: Record<string, string | number | boolean | undefined>) =>
+    api.get<PaginatedResponse<Listing>>('/listings/opportunities', { params }),
+
   getDetail: (id: string) =>
     api.get<ListingDetail>(`/listings/${id}`),
 

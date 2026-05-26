@@ -35,6 +35,7 @@ export function Navbar() {
   const communityLinks = [
     { to: '/directory', label: 'Directory' },
     { to: '/volunteers', label: 'Volunteers' },
+    { to: '/opportunities', label: 'Volunteer Opportunities' },
     { to: '/talent', label: 'Talent' },
     { to: '/about', label: 'About' },
   ];
@@ -239,6 +240,7 @@ export function Navbar() {
               { to: '/events', label: 'Events' },
               { to: '/directory', label: 'Directory' },
               { to: '/volunteers', label: 'Volunteers' },
+              { to: '/opportunities', label: 'Volunteer Opportunities' },
               { to: '/talent', label: 'Talent' },
               { to: '/about', label: 'About' },
               ...(isAuthenticated

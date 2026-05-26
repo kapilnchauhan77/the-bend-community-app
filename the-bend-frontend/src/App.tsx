@@ -16,6 +16,7 @@ import VolunteerPage from '@/pages/VolunteerPage';
 import TalentPage from '@/pages/TalentPage';
 import EventsPage from '@/pages/EventsPage';
 import BrowsePage from '@/pages/BrowsePage';
+import OpportunitiesPage from '@/pages/OpportunitiesPage';
 import ListingDetailPage from '@/pages/ListingDetailPage';
 import CreateListingPage from '@/pages/CreateListingPage';
 import LoginPage from '@/pages/LoginPage';
@@ -65,6 +66,7 @@ function App() {
         {/* Public routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/browse" element={<BrowsePage />} />
+        <Route path="/opportunities" element={<OpportunitiesPage />} />
         <Route path="/listing/:id" element={<ListingDetailPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />

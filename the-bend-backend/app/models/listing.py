@@ -14,7 +14,10 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    shop_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=False)
+    shop_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=True)
+    posted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     type: Mapped[ListingType] = mapped_column(ENUM(ListingType, name="listing_type", create_type=False), nullable=False)
     category: Mapped[ListingCategory] = mapped_column(ENUM(ListingCategory, name="listing_category", create_type=False), nullable=False)
@@ -46,7 +49,10 @@ class Listing(Base):
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    shop: Mapped[Shop] = relationship("Shop", back_populates="listings")
+    shop: Mapped[Shop | None] = relationship("Shop", back_populates="listings")
+    posted_by: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[posted_by_user_id], lazy="select"
+    )
     images: Mapped[list[ListingImage]] = relationship("ListingImage", back_populates="listing", cascade="all, delete-orphan")
     interests: Mapped[list[Interest]] = relationship("Interest", back_populates="listing", cascade="all, delete-orphan")
 
@@ -60,6 +66,7 @@ class Listing(Base):
         Index("idx_listings_expiry", "expiry_date"),
         Index("idx_listings_feed", "status", "urgency", "created_at"),
         Index("idx_listings_tenant_id", "tenant_id"),
+        Index("idx_listings_posted_by_user_id", "posted_by_user_id"),
     )
 
 

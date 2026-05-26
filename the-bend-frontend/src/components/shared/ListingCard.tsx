@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom';
-import { Briefcase, Package, Wrench, Clock } from 'lucide-react';
+import { Briefcase, Package, Wrench, Clock, Heart } from 'lucide-react';
 import { resolveAssetUrl } from '@/lib/constants';
 import { timeAgo, parseServerDate, formatPrice } from '@/lib/utils';
 import type { Listing } from '@/types';
@@ -8,12 +8,14 @@ const categoryIcons = {
   staff: Briefcase,
   materials: Package,
   equipment: Wrench,
+  volunteer: Heart,
 };
 
 const categoryLabels: Record<string, string> = {
   staff: 'Gigs',
   materials: 'Materials',
   equipment: 'Equipment',
+  volunteer: 'Volunteer',
 };
 
 function expiryLabel(dateStr?: string): string | null {
@@ -110,7 +112,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
           );
         })()}
 
-        {/* Footer — shop on the left, time/expiry on the right */}
+        {/* Footer — shop or community-poster on the left, time/expiry on the right */}
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-[hsl(35,18%,90%)] gap-2">
           {listing.shop ? (
           <Link
@@ -132,6 +134,18 @@ export function ListingCard({ listing }: { listing: Listing }) {
             )}
             <span className="text-[11px] text-[hsl(30,10%,45%)] truncate group-hover/shop:underline">{listing.shop.name}</span>
           </Link>
+          ) : listing.posted_by ? (
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
+                {listing.posted_by.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-[11px] text-[hsl(30,10%,45%)] truncate">
+                {listing.posted_by.name}
+              </span>
+              <span className="text-[9px] font-medium uppercase tracking-wider text-[hsl(35,45%,42%)] flex-shrink-0">
+                · Community member
+              </span>
+            </div>
           ) : (
             <span className="text-[11px] text-[hsl(30,10%,45%)] flex-1">Unknown</span>
           )}
