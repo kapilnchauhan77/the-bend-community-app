@@ -37,7 +37,6 @@ const services = [
   { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
   { icon: HandHeart, label: 'Volunteer Opportunities', desc: 'Causes & projects that need help', href: '/opportunities' },
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
-  { icon: Store, label: 'All Listings', desc: 'Browse the full directory', href: '/browse' },
 ];
 
 // Stats fetched from API — see useEffect below
