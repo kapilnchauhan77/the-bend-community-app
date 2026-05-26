@@ -192,7 +192,7 @@ export default function BusinessProfilePage() {
                     {typeLabel}
                   </Badge>
                 </div>
-                <div className="ml-auto flex items-center gap-2">
+                <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
                   <ShareButton url={`/business/${shopId}`} title={shopData.name} />
                   {isAuthenticated && !isOwner && (
                     <>
