@@ -16,16 +16,39 @@ api.{$BASE_DOMAIN} {
 	encode gzip zstd
 }
 
-# Root + all tenant subdomains → frontend (nginx serving Vite SPA)
+# Root + all tenant subdomains → frontend (nginx serving Vite SPA),
+# except social crawlers hitting /listing/{id} get a server-rendered OG
+# preview page from the backend so shared links render as rich cards.
 {$BASE_DOMAIN}, *.{$BASE_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 	}
-	reverse_proxy frontend:80 {
-		header_up Host {host}
-		header_up X-Real-IP {remote}
-		header_up X-Forwarded-For {remote}
-		header_up X-Forwarded-Proto {scheme}
+
+	# Match well-known social-platform crawlers on listing URLs.
+	@og_crawler {
+		header_regexp User-Agent (?i)facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot|pinterest|redditbot|applebot|googlebot|bingbot|embedly|vkshare|w3c_validator|skype|ia_archiver|bitlybot
+		path_regexp listing ^/listing/([^/]+)/?$
 	}
+
+	handle @og_crawler {
+		rewrite * /share/listing/{re.listing.1}
+		reverse_proxy backend:8000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote}
+			header_up X-Forwarded-For {remote}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# Everything else (real users) → SPA, unchanged.
+	handle {
+		reverse_proxy frontend:80 {
+			header_up Host {host}
+			header_up X-Real-IP {remote}
+			header_up X-Forwarded-For {remote}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
 	encode gzip zstd
 }

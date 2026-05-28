@@ -54,6 +54,11 @@ def create_app() -> FastAPI:
     from app.api.v1.router import api_router
     app.include_router(api_router, prefix=settings.API_PREFIX)
 
+    # Open Graph link previews for social crawlers (served outside /api/v1 so
+    # the URL path can match the SPA's /listing/:id structure exactly).
+    from app.api.share import router as share_router
+    app.include_router(share_router)
+
     # Serve uploaded files
     import os
     os.makedirs("uploads/images", exist_ok=True)
