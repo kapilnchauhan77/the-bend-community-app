@@ -436,9 +436,17 @@ export default function ListingDetailPage() {
               </div>
             ) : listing.posted_by ? (
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
-                  {listing.posted_by.name.charAt(0).toUpperCase()}
-                </div>
+                {listing.posted_by.avatar_url ? (
+                  <img
+                    src={resolveAssetUrl(listing.posted_by.avatar_url)}
+                    alt={listing.posted_by.name}
+                    className="w-12 h-12 rounded-full object-cover bg-[hsl(35,15%,90%)] flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-lg font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
+                    {listing.posted_by.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900">{listing.posted_by.name}</p>
                   <p className="text-xs font-medium uppercase tracking-wider text-[hsl(35,45%,42%)] mt-0.5">

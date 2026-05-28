@@ -107,6 +107,7 @@ class PostedBySummary(BaseModel):
     (e.g. a Volunteer Opportunity posted by an individual)."""
     id: str
     name: str
+    avatar_url: str | None = None
     model_config = {"from_attributes": True}
 
     @field_validator("id", mode="before")

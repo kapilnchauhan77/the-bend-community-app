@@ -40,7 +40,9 @@ def _serialize_listing(listing, viewer_has_interest: bool = False) -> ListingRes
         )
     elif getattr(listing, "posted_by", None) is not None:
         u = listing.posted_by
-        posted_by_summary = PostedBySummary(id=str(u.id), name=u.name)
+        posted_by_summary = PostedBySummary(
+            id=str(u.id), name=u.name, avatar_url=u.avatar_url,
+        )
 
     return ListingResponse(
         id=str(listing.id),

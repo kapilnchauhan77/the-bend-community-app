@@ -136,9 +136,18 @@ export function ListingCard({ listing }: { listing: Listing }) {
           </Link>
           ) : listing.posted_by ? (
             <div className="flex items-center gap-1.5 min-w-0 flex-1">
-              <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
-                {listing.posted_by.name.charAt(0).toUpperCase()}
-              </div>
+              {listing.posted_by.avatar_url ? (
+                <img
+                  src={resolveAssetUrl(listing.posted_by.avatar_url)}
+                  alt={listing.posted_by.name}
+                  className="w-5 h-5 rounded-full object-cover bg-[hsl(35,15%,90%)] flex-shrink-0"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center text-[9px] font-bold text-[hsl(160,25%,24%)] flex-shrink-0">
+                  {listing.posted_by.name.charAt(0).toUpperCase()}
+                </div>
+              )}
               <span className="text-[11px] text-[hsl(30,10%,45%)] truncate">
                 {listing.posted_by.name}
               </span>

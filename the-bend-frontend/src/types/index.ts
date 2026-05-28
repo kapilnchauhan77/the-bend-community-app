@@ -49,6 +49,7 @@ export interface Listing {
   posted_by: {
     id: string;
     name: string;
+    avatar_url?: string | null;
   } | null;
   type: ListingType;
   category: ListingCategory;
