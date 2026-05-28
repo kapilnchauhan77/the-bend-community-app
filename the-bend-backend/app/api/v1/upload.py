@@ -17,8 +17,11 @@ file_service = FileService()
 @router.post("/images")
 async def upload_images(
     files: list[UploadFile] = File(...),
-    current_user: User = Depends(Permission.require_shop_admin()),
+    current_user: User = Depends(get_current_user),
 ):
+    # Any signed-in user can upload listing images (individuals post via
+    # the same form as shop_admins; the listing service still gates who
+    # may create listings by category).
     results = await file_service.upload_images(files)
     return {"images": results}
 
