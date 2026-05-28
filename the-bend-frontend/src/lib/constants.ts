@@ -13,16 +13,7 @@ export const CATEGORY_LABELS = {
   equipment: 'Equipment',
 } as const;
 
-export const BUSINESS_TYPES = [
-  'restaurant',
-  'cafe',
-  'retail',
-  'service',
-  'hardware',
-  'deli',
-  'bakery',
-  'other',
-] as const;
+export { BUSINESS_TYPES } from './businessTypes';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 

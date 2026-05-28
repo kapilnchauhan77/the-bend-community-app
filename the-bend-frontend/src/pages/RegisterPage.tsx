@@ -16,21 +16,10 @@ import {
 } from '@/components/ui/select';
 import { authApi } from '@/services/authApi';
 import { registerSchema, type RegisterFormData } from '@/lib/validators';
-import { BUSINESS_TYPES } from '@/lib/constants';
+import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
-
-const BUSINESS_TYPE_LABELS: Record<string, string> = {
-  restaurant: 'Restaurant',
-  cafe: 'Cafe',
-  retail: 'Retail',
-  service: 'Service',
-  hardware: 'Hardware',
-  deli: 'Deli',
-  bakery: 'Bakery',
-  other: 'Other',
-};
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;

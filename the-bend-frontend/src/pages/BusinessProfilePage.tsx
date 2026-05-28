@@ -10,21 +10,11 @@ import { shopApi } from '@/services/shopApi';
 import { messageApi } from '@/services/messageApi';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
+import { businessTypeLabel } from '@/lib/businessTypes';
 import type { Shop, Listing } from '@/types';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
-
-const businessTypeLabels: Record<string, string> = {
-  restaurant: 'Restaurant',
-  cafe: 'Café',
-  retail: 'Retail',
-  service: 'Service',
-  hardware: 'Hardware',
-  deli: 'Deli',
-  bakery: 'Bakery',
-  other: 'Other',
-};
 
 export default function BusinessProfilePage() {
   const { shopId } = useParams<{ shopId: string }>();
@@ -142,7 +132,7 @@ export default function BusinessProfilePage() {
   }
 
   const avatarUrl = resolveAssetUrl(shopData.avatar_url);
-  const typeLabel = businessTypeLabels[shopData.business_type] ?? shopData.business_type;
+  const typeLabel = businessTypeLabel(shopData.business_type);
   const activeListings = listings.filter((l) => l.status === 'active');
 
   return (
@@ -367,7 +357,7 @@ export default function BusinessProfilePage() {
                         className="text-[10px] rounded-sm border-0 px-1.5 py-0"
                         style={{ backgroundColor: 'hsl(35,15%,88%)', color: 'hsl(30,15%,35%)' }}
                       >
-                        {e.endorser.business_type}
+                        {businessTypeLabel(e.endorser.business_type)}
                       </Badge>
                     </div>
                     {e.message && (

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Store, MapPin, Package, Award } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { shopApi } from '@/services/shopApi';
 import { resolveAssetUrl } from '@/lib/constants';
+import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS, businessTypeLabel } from '@/lib/businessTypes';
 import type { Shop } from '@/types';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -13,26 +14,8 @@ const BRONZE = 'hsl(35, 45%, 42%)';
 
 const CATEGORIES = [
   { value: '', label: 'All' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'cafe', label: 'Café' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'service', label: 'Service' },
-  { value: 'hardware', label: 'Hardware' },
-  { value: 'deli', label: 'Deli' },
-  { value: 'bakery', label: 'Bakery' },
-  { value: 'other', label: 'Other' },
+  ...BUSINESS_TYPES.map((slug) => ({ value: slug, label: BUSINESS_TYPE_LABELS[slug] })),
 ];
-
-const businessTypeLabels: Record<string, string> = {
-  restaurant: 'Restaurant',
-  cafe: 'Café',
-  retail: 'Retail',
-  service: 'Service',
-  hardware: 'Hardware',
-  deli: 'Deli',
-  bakery: 'Bakery',
-  other: 'Other',
-};
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -45,10 +28,16 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function DirectoryPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const category = searchParams.get('type') ?? '';
+
+  const setCategory = (value: string) => {
+    setSearchParams(value ? { type: value } : {}, { replace: true });
+  };
 
   const debouncedSearch = useDebounce(search, 350);
 
@@ -109,7 +98,7 @@ export default function DirectoryPage() {
               className="px-3 py-1.5 text-xs font-medium tracking-wider uppercase transition-all cursor-pointer border"
               style={
                 category === cat.value
-                  ? { backgroundColor: BRONZE, color: 'white', borderColor: BRONZE }
+                  ? { backgroundColor: PRIMARY, color: 'white', borderColor: PRIMARY }
                   : { backgroundColor: 'hsl(40,20%,98%)', color: 'hsl(30,10%,40%)', borderColor: 'hsl(35,18%,84%)' }
               }
             >
@@ -129,7 +118,7 @@ export default function DirectoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {shops.map((shop) => {
               const avatarUrl = resolveAssetUrl(shop.avatar_url);
-              const typeLabel = businessTypeLabels[shop.business_type] ?? shop.business_type;
+              const typeLabel = businessTypeLabel(shop.business_type);
               return (
                 <div
                   key={shop.id}
