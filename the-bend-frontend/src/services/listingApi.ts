@@ -38,6 +38,9 @@ export const listingApi = {
   getSavedListings: () =>
     api.get('/listings/saved'),
 
+  getMyListings: () =>
+    api.get('/listings/mine'),
+
   getStories: (params?: Record<string, string>) =>
     api.get('/stories', { params }),
 

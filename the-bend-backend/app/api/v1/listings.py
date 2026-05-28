@@ -121,6 +121,33 @@ async def browse_opportunities(
     return ListingListResponse(items=items, next_cursor=result.next_cursor, has_more=result.has_more)
 
 
+@router.get("/mine", response_model=ListingListResponse)
+async def my_listings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """All listings the current user owns — either via their shop or
+    posted personally as a community member. Returned newest-first."""
+    from sqlalchemy.orm import selectinload
+    from app.models.listing import Listing
+    from sqlalchemy import or_
+
+    conditions = [Listing.posted_by_user_id == current_user.id]
+    if current_user.shop_id:
+        conditions.append(Listing.shop_id == current_user.shop_id)
+
+    query = (
+        select(Listing)
+        .options(selectinload(Listing.shop), selectinload(Listing.images), selectinload(Listing.posted_by))
+        .where(or_(*conditions))
+        .order_by(Listing.created_at.desc())
+        .limit(100)
+    )
+    result = await db.execute(query)
+    items = [_serialize_listing(l) for l in result.scalars().unique().all()]
+    return ListingListResponse(items=items, next_cursor=None, has_more=False)
+
+
 @router.get("/saved")
 async def get_saved_listings(
     cursor: str | None = Query(None),
