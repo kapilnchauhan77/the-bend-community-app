@@ -57,21 +57,14 @@ class ListingService:
     async def create_listing(self, data: ListingCreate, current_user: User):
         is_volunteer = data.category == "volunteer"
 
-        # Authorization:
-        #  - VOLUNTEER: any signed-in user may post. If they belong to a shop,
-        #    we attach the listing to that shop; otherwise we store the user
-        #    as posted_by_user_id.
-        #  - All other categories: caller must be a shop_admin with a shop.
-        if is_volunteer:
-            shop_id = current_user.shop_id
-            posted_by_user_id = None if shop_id else current_user.id
-        else:
-            if not current_user.shop_id:
-                raise ForbiddenError("No shop associated")
-            if current_user.role.value != "shop_admin":
-                raise ForbiddenError("Only shop admins can post this listing type")
-            shop_id = current_user.shop_id
-            posted_by_user_id = None
+        # Authorization: any signed-in user may post any category. If the
+        # caller belongs to a shop, the listing is attached to that shop;
+        # otherwise the user is stamped as posted_by_user_id (a "Community
+        # member" listing). The category-specific UX still distinguishes
+        # volunteer opportunities downstream via pricing normalization
+        # below.
+        shop_id = current_user.shop_id
+        posted_by_user_id = None if shop_id else current_user.id
 
         # Check urgent listing rate limit (only meaningful when attached to a shop)
         if data.urgency == "urgent" and shop_id is not None:

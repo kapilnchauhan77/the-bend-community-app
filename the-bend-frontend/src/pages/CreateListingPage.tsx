@@ -21,7 +21,6 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { listingApi } from '@/services/listingApi';
 import { uploadApi } from '@/services/uploadApi';
 import { resolveAssetUrl } from '@/lib/constants';
-import { useAuthStore } from '@/stores/authStore';
 
 const schema = z
   .object({
@@ -88,11 +87,7 @@ export default function CreateListingPage() {
   const navigate = useNavigate();
   const { id: editId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const { user } = useAuthStore();
-  const isIndividual = user?.role === 'individual';
-  // Individuals can only post Volunteer Opportunities — force the category
-  // even if they hit /create directly (e.g. mobile + button).
-  const presetCategory = isIndividual ? 'volunteer' : searchParams.get('category');
+  const presetCategory = searchParams.get('category');
   const isEdit = Boolean(editId);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -323,17 +318,12 @@ export default function CreateListingPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {!isIndividual && <SelectItem value="staff">Gigs</SelectItem>}
-                  {!isIndividual && <SelectItem value="materials">Materials</SelectItem>}
-                  {!isIndividual && <SelectItem value="equipment">Equipment</SelectItem>}
+                  <SelectItem value="staff">Gigs</SelectItem>
+                  <SelectItem value="materials">Materials</SelectItem>
+                  <SelectItem value="equipment">Equipment</SelectItem>
                   <SelectItem value="volunteer">Volunteer opportunity</SelectItem>
                 </SelectContent>
               </Select>
-              {isIndividual && (
-                <p className="text-xs text-[hsl(30,10%,50%)] mt-2">
-                  Individual accounts post Volunteer Opportunities. Register as a business to post gigs, materials, or equipment.
-                </p>
-              )}
             </CardContent>
           </Card>
 
