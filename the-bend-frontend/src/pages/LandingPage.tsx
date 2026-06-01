@@ -74,7 +74,10 @@ export default function LandingPage() {
   };
   const [upcomingEvents, setUpcomingEvents] = useState<LandingEvent[]>([]);
   useEffect(() => {
-    fetch('https://api.bend.community/api/v1/events/upcoming?limit=4', {
+    // /events lists active events regardless of date so we don't accidentally
+    // render an empty section when the demo data is older than today; the UI
+    // copy ("Real events on real towns") works either way.
+    fetch('https://api.bend.community/api/v1/events?limit=4', {
       headers: { 'X-Tenant-Slug': 'westmoreland' },
     })
       .then((r) => (r.ok ? r.json() : { items: [] }))
