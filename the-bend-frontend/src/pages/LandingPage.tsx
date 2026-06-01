@@ -57,7 +57,6 @@ export default function LandingPage() {
   const phil = useReveal<HTMLDivElement>();
   const what = useReveal<HTMLDivElement>();
   const proof = useReveal<HTMLDivElement>();
-  const events = useReveal<HTMLDivElement>();
   const how = useReveal<HTMLDivElement>();
   const features = useReveal<HTMLDivElement>();
   const cta = useReveal<HTMLDivElement>();
@@ -474,11 +473,14 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────── EVENTS PREVIEW ─────────── */}
+      {/* Skip the IntersectionObserver reveal here: the section is mounted
+          AFTER the events fetch resolves, by which point the user may have
+          already scrolled past — leaving the observer permanently un-fired
+          and the content invisible. Renders fully opaque. */}
       {upcomingEvents.length > 0 && (
         <section
           id="events"
-          ref={events.ref}
-          className={`relative py-24 md:py-28 transition-all duration-1000 ${events.shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+          className="relative py-24 md:py-28"
           style={{ backgroundColor: CREAM }}
         >
           <div className="max-w-[1400px] mx-auto px-6 md:px-10">
