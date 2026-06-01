@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Mail } from 'lucide-react';
+import { ArrowRight, Check, Mail, Calendar, MapPin } from 'lucide-react';
+import { parseServerDate } from '@/lib/utils';
 
 const INK = 'hsl(30, 18%, 14%)';
 const CREAM = 'hsl(40, 30%, 95%)';
@@ -56,9 +57,30 @@ export default function LandingPage() {
   const phil = useReveal<HTMLDivElement>();
   const what = useReveal<HTMLDivElement>();
   const proof = useReveal<HTMLDivElement>();
+  const events = useReveal<HTMLDivElement>();
   const how = useReveal<HTMLDivElement>();
   const features = useReveal<HTMLDivElement>();
   const cta = useReveal<HTMLDivElement>();
+
+  // Pull a few upcoming events from a live community to ground the
+  // landing page in real activity. Fails open — section just renders
+  // nothing if the fetch errors.
+  type LandingEvent = {
+    id: string;
+    title: string;
+    start_date: string;
+    location?: string | null;
+    category?: string | null;
+  };
+  const [upcomingEvents, setUpcomingEvents] = useState<LandingEvent[]>([]);
+  useEffect(() => {
+    fetch('https://api.bend.community/api/v1/events/upcoming?limit=4', {
+      headers: { 'X-Tenant-Slug': 'westmoreland' },
+    })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => setUpcomingEvents(Array.isArray(d?.items) ? d.items : []))
+      .catch(() => setUpcomingEvents([]));
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -447,6 +469,107 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ─────────── EVENTS PREVIEW ─────────── */}
+      {upcomingEvents.length > 0 && (
+        <section
+          id="events"
+          ref={events.ref}
+          className={`relative py-24 md:py-28 transition-all duration-1000 ${events.shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+          style={{ backgroundColor: CREAM }}
+        >
+          <div className="max-w-[1400px] mx-auto px-6 md:px-10">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12 md:mb-14">
+              <div>
+                <div
+                  className="text-[10px] tracking-[0.5em] uppercase mb-6"
+                  style={{ color: BRONZE, fontFamily: 'ui-sans-serif, system-ui' }}
+                >
+                  § What's Happening
+                </div>
+                <h2
+                  className="font-bold leading-[0.95] tracking-[-0.02em]"
+                  style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', color: INK }}
+                >
+                  Real events on <em style={{ color: FOREST }}>real towns.</em>
+                </h2>
+                <p
+                  className="mt-5 max-w-xl text-base md:text-lg"
+                  style={{ color: 'hsl(30, 12%, 32%)', fontFamily: 'ui-sans-serif, system-ui' }}
+                >
+                  A live snapshot from Westmoreland — farmers markets, river cleanups, plant sales, history nights. Every community gets its own calendar.
+                </p>
+              </div>
+              <a
+                href="https://westmoreland.bend.community/events"
+                className="inline-flex items-center gap-2 text-sm tracking-[0.18em] uppercase hover:gap-3 transition-all self-start md:self-end"
+                style={{ color: BRONZE, fontFamily: 'ui-sans-serif, system-ui' }}
+              >
+                View full calendar
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              {upcomingEvents.slice(0, 4).map((ev) => {
+                const d = parseServerDate(ev.start_date);
+                const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+                const day = d.getDate();
+                const time = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                return (
+                  <a
+                    key={ev.id}
+                    href="https://westmoreland.bend.community/events"
+                    className="group block bg-white border border-[hsl(35,18%,84%)] hover:border-[hsl(160,28%,22%)] hover:shadow-lg transition-all duration-200 overflow-hidden"
+                    style={{ borderLeftWidth: '3px', borderLeftColor: FOREST }}
+                  >
+                    <div className="p-5">
+                      <div className="flex items-baseline gap-3 mb-3">
+                        <div
+                          className="text-[10px] tracking-[0.25em] uppercase font-bold"
+                          style={{ color: BRONZE, fontFamily: 'ui-sans-serif, system-ui' }}
+                        >
+                          {month}
+                        </div>
+                        <div
+                          className="font-serif font-bold leading-none"
+                          style={{ color: INK, fontSize: '2rem' }}
+                        >
+                          {day}
+                        </div>
+                      </div>
+                      <h3
+                        className="font-serif font-semibold text-lg leading-snug line-clamp-2 mb-3 group-hover:underline decoration-[hsl(32,48%,44%)] decoration-2 underline-offset-4"
+                        style={{ color: INK }}
+                      >
+                        {ev.title}
+                      </h3>
+                      <div className="space-y-1.5 text-xs" style={{ color: SAGE, fontFamily: 'ui-sans-serif, system-ui' }}>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3 h-3 flex-shrink-0" />
+                          <span>{time}</span>
+                        </div>
+                        {ev.location && (
+                          <div className="flex items-start gap-1.5">
+                            <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                            <span className="line-clamp-1">{ev.location}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        className="mt-4 pt-3 border-t border-[hsl(35,18%,90%)] text-[9px] tracking-[0.25em] uppercase font-medium"
+                        style={{ color: 'hsl(30, 10%, 55%)', fontFamily: 'ui-sans-serif, system-ui' }}
+                      >
+                        Westmoreland
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─────────── HOW IT WORKS ─────────── */}
       <section
