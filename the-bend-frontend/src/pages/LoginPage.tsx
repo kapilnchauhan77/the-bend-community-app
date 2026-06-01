@@ -215,7 +215,7 @@ export default function LoginPage() {
               className="w-full h-11 font-semibold text-sm tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
               onClick={() => navigate('/register')}
             >
-              Register Your Business
+              Register as a Business or Individual
             </Button>
           </form>
 

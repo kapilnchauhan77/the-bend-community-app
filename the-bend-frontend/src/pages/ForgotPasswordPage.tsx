@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
             <p className="text-xs text-[hsl(30,10%,55%)] mb-6 leading-relaxed">
               Don't have an account?{' '}
               <Link to="/register" className="font-semibold hover:underline" style={{ color: BRONZE }}>
-                Register your business
+                Register as a business or individual
               </Link>{' '}
               to get started.
             </p>

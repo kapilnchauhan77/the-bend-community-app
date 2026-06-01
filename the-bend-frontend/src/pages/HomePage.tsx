@@ -391,7 +391,7 @@ export default function HomePage() {
                     className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
                   >
                     <Store className="w-4 h-4" />
-                    Register Your Business
+                    Register as a Business or Individual
                   </Button>
                 )}
                 <Button

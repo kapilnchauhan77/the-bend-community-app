@@ -198,7 +198,7 @@ export default function AboutPage() {
         <div className="bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,84%)] rounded-lg p-8 md:p-10 text-center">
           <h2 className="font-serif text-xl md:text-2xl font-bold text-gray-900 mb-2">Join The Bend Community</h2>
           <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
-            Register your business and start sharing with your neighbors today.
+            Register as a business or individual and start sharing with your neighbors today.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             {!isAuthenticated && (
@@ -207,7 +207,7 @@ export default function AboutPage() {
                 className="font-semibold px-6 h-10 text-white cursor-pointer"
                 style={{ backgroundColor: PRIMARY }}
               >
-                Register Your Business
+                Register as a Business or Individual
               </Button>
             )}
             <Button
