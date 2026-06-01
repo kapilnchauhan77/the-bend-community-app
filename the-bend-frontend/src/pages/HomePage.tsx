@@ -74,8 +74,10 @@ export default function HomePage() {
       .catch(() => setRecentListings([]))
       .finally(() => setLoadingRecent(false));
 
+    // Use /events (any date) instead of /events/upcoming so the widget
+    // surfaces seeded demo data even after its hardcoded dates pass.
     eventApi
-      .getUpcoming(3)
+      .list({ limit: '3' })
       .then((res) => setUpcomingEvents(res.data.items ?? []))
       .catch(() => setUpcomingEvents([]));
 
