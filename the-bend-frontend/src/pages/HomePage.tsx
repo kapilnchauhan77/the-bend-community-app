@@ -253,6 +253,70 @@ export default function HomePage() {
 
           {/* Sidebar */}
           <div className="space-y-8">
+            {/* Upcoming Events widget — top of the sidebar so it sits next
+                to the Community Board, visible without scrolling deep. */}
+            {upcomingEvents.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-[2px]" style={{ backgroundColor: BRONZE }} />
+                    <h2 className="text-lg font-bold font-serif text-[hsl(30,15%,18%)]">
+                      Upcoming Events
+                    </h2>
+                  </div>
+                  <Link
+                    to="/events"
+                    className="text-[11px] tracking-wider uppercase font-medium hover:underline flex items-center gap-1"
+                    style={{ color: BRONZE }}
+                  >
+                    All
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+                <div className="space-y-2">
+                  {upcomingEvents.slice(0, 3).map((event) => {
+                    const d = new Date(event.start_date.replace(' ', 'T'));
+                    const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+                    const day = d.getDate();
+                    return (
+                      <Link
+                        key={event.id}
+                        to="/events"
+                        className="flex items-start gap-3 p-3 border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] hover:border-[hsl(35,45%,42%,0.4)] hover:shadow-sm transition-all cursor-pointer group"
+                      >
+                        <div
+                          className="flex-shrink-0 w-11 flex flex-col items-center justify-center py-1 border-r border-[hsl(35,18%,84%)] pr-3"
+                        >
+                          <div
+                            className="text-[9px] tracking-[0.15em] uppercase font-bold leading-none"
+                            style={{ color: BRONZE }}
+                          >
+                            {month}
+                          </div>
+                          <div
+                            className="font-serif font-bold leading-none mt-1 text-[hsl(30,15%,18%)]"
+                            style={{ fontSize: '1.25rem' }}
+                          >
+                            {day}
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-serif font-semibold text-sm text-[hsl(30,15%,18%)] line-clamp-2 group-hover:text-[hsl(35,45%,35%)] transition-colors leading-snug">
+                            {event.title}
+                          </h3>
+                          {event.location && (
+                            <p className="text-[11px] text-[hsl(30,10%,50%)] mt-0.5 truncate">
+                              {event.location}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Recently Fulfilled */}
             <div>
               <div className="flex items-center gap-3 mb-5">
@@ -346,69 +410,6 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
-
-            {/* Upcoming Events widget — compact list of next 3 */}
-            {upcomingEvents.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-[2px]" style={{ backgroundColor: BRONZE }} />
-                    <h2 className="text-lg font-bold font-serif text-[hsl(30,15%,18%)]">
-                      Upcoming Events
-                    </h2>
-                  </div>
-                  <Link
-                    to="/events"
-                    className="text-[11px] tracking-wider uppercase font-medium hover:underline flex items-center gap-1"
-                    style={{ color: BRONZE }}
-                  >
-                    All
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <div className="space-y-2">
-                  {upcomingEvents.slice(0, 3).map((event) => {
-                    const d = new Date(event.start_date.replace(' ', 'T'));
-                    const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-                    const day = d.getDate();
-                    return (
-                      <Link
-                        key={event.id}
-                        to="/events"
-                        className="flex items-start gap-3 p-3 border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] hover:border-[hsl(35,45%,42%,0.4)] hover:shadow-sm transition-all cursor-pointer group"
-                      >
-                        <div
-                          className="flex-shrink-0 w-11 flex flex-col items-center justify-center py-1 border-r border-[hsl(35,18%,84%)] pr-3"
-                        >
-                          <div
-                            className="text-[9px] tracking-[0.15em] uppercase font-bold leading-none"
-                            style={{ color: BRONZE }}
-                          >
-                            {month}
-                          </div>
-                          <div
-                            className="font-serif font-bold leading-none mt-1 text-[hsl(30,15%,18%)]"
-                            style={{ fontSize: '1.25rem' }}
-                          >
-                            {day}
-                          </div>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-serif font-semibold text-sm text-[hsl(30,15%,18%)] line-clamp-2 group-hover:text-[hsl(35,45%,35%)] transition-colors leading-snug">
-                            {event.title}
-                          </h3>
-                          {event.location && (
-                            <p className="text-[11px] text-[hsl(30,10%,50%)] mt-0.5 truncate">
-                              {event.location}
-                            </p>
-                          )}
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             <SponsorBanner placement="homepage" variant="card" />
           </div>
