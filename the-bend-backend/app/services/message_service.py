@@ -41,10 +41,18 @@ class MessageService:
             )
             last_message = msg_result.scalar_one_or_none()
             if last_message:
+                # Preview text: fall back to a media placeholder when the last
+                # message has no text body but does have an attachment.
+                preview = last_message.content or ""
+                if not preview.strip() and last_message.attachment_url:
+                    preview = "📷 Photo" if last_message.attachment_type == "image" else "🎥 Video"
                 last_msg = {
-                    "content": last_message.content,
+                    "content": preview,
                     "sender_id": str(last_message.sender_id),
                     "created_at": str(last_message.created_at),
+                    "attachment_url": last_message.attachment_url,
+                    "attachment_type": last_message.attachment_type,
+                    "attachment_thumbnail_url": last_message.attachment_thumbnail_url,
                 }
 
             # Get listing info
@@ -127,24 +135,56 @@ class MessageService:
             "sender_id": str(m.sender_id), "content": m.content,
             "read_at": str(m.read_at) if m.read_at else None,
             "created_at": str(m.created_at),
+            "attachment_url": m.attachment_url,
+            "attachment_type": m.attachment_type,
+            "attachment_thumbnail_url": m.attachment_thumbnail_url,
         } for m in result.items]
 
         return {"items": messages, "next_cursor": result.next_cursor, "has_more": result.has_more}
 
-    async def send_message(self, thread_id: UUID, sender_id: UUID, content: str):
+    async def send_message(
+        self,
+        thread_id: UUID,
+        sender_id: UUID,
+        content: str | None,
+        attachment_url: str | None = None,
+        attachment_type: str | None = None,
+        attachment_thumbnail_url: str | None = None,
+    ):
         if not await self.message_repo.is_participant(thread_id, sender_id):
             raise ForbiddenError("Not a participant of this thread")
-        msg = await self.message_repo.create_message(thread_id, sender_id, content)
+        # The DB column is NOT NULL; coerce a missing/whitespace-only body
+        # to an empty string for media-only messages. The schema validator
+        # already guarantees at least one of (content, attachment_url) is set.
+        body = (content or "").strip() if content else ""
+        msg = await self.message_repo.create_message(
+            thread_id,
+            sender_id,
+            body,
+            attachment_url=attachment_url,
+            attachment_type=attachment_type,
+            attachment_thumbnail_url=attachment_thumbnail_url,
+        )
         try:
             thread = await self.message_repo.get_thread_by_id(thread_id)
             if thread:
                 recipient_id = thread.participant_b if thread.participant_a == sender_id else thread.participant_a
+                # Notification body: prefer the text, fall back to a media
+                # placeholder when the message is attachment-only.
+                if body:
+                    notif_body = f"You have a new message: '{body[:50]}{'...' if len(body) > 50 else ''}'"
+                elif attachment_url:
+                    notif_body = (
+                        "You have a new photo" if attachment_type == "image" else "You have a new video"
+                    )
+                else:
+                    notif_body = "You have a new message"
                 notification_service = NotificationService(self.db)
                 await notification_service.notify(
                     user_id=recipient_id,
                     type=NotificationType.NEW_MESSAGE,
                     title="New Message",
-                    body=f"You have a new message: '{content[:50]}{'...' if len(content) > 50 else ''}'",
+                    body=notif_body,
                     data={"thread_id": str(thread_id)},
                 )
         except Exception:

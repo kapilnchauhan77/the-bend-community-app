@@ -65,14 +65,27 @@ async def websocket_chat(websocket: WebSocket):
                 if msg_type == "message":
                     thread_id = message.get("thread_id")
                     content = message.get("content")
-                    if thread_id and content:
+                    # Phase 2: media-only messages are allowed, so require
+                    # EITHER non-empty content OR an attachment_url. Whitespace-
+                    # only content counts as empty (matches the REST validator).
+                    attachment_url = message.get("attachment_url")
+                    attachment_type = message.get("attachment_type")
+                    attachment_thumbnail_url = message.get("attachment_thumbnail_url")
+                    has_text = bool(content) and bool(content.strip())
+                    has_attachment = bool(attachment_url)
+                    if thread_id and (has_text or has_attachment):
                         # Persist message via service
                         from app.database import async_session
                         from app.services.message_service import MessageService
                         async with async_session() as session:
                             service = MessageService(session)
                             msg = await service.send_message(
-                                UUID(thread_id), UUID(user_id), content
+                                UUID(thread_id),
+                                UUID(user_id),
+                                content,
+                                attachment_url=attachment_url,
+                                attachment_type=attachment_type,
+                                attachment_thumbnail_url=attachment_thumbnail_url,
                             )
                             await session.commit()
 
@@ -86,8 +99,11 @@ async def websocket_chat(websocket: WebSocket):
                                         "id": str(msg.id),
                                         "thread_id": thread_id,
                                         "sender_id": user_id,
-                                        "content": content,
+                                        "content": msg.content,
                                         "created_at": str(msg.created_at),
+                                        "attachment_url": msg.attachment_url,
+                                        "attachment_type": msg.attachment_type,
+                                        "attachment_thumbnail_url": msg.attachment_thumbnail_url,
                                     },
                                 })
 

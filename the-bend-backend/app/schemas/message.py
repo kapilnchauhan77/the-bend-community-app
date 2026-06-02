@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, field_validator
+from typing import Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ThreadResponse(BaseModel):
@@ -28,6 +29,10 @@ class MessageResponse(BaseModel):
     content: str
     read_at: datetime | None = None
     created_at: datetime
+    # Phase 2 attachments — null when the message is text-only.
+    attachment_url: str | None = None
+    attachment_type: Literal['image', 'video'] | None = None
+    attachment_thumbnail_url: str | None = None
 
     @field_validator("id", "thread_id", "sender_id", mode="before")
     @classmethod
@@ -41,7 +46,29 @@ class MessageListResponse(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    content: str
+    """Incoming payload for POST /messages/threads/{thread_id}.
+
+    Phase 2: `content` is now optional so a media-only message (just a photo
+    or video) is allowed. We require AT LEAST one of:
+      - non-empty `content` (whitespace-only counts as empty), OR
+      - `attachment_url`
+
+    Both may be present (text + attachment), in which case both are stored.
+    """
+    content: str | None = Field(default=None, max_length=2000)
+    attachment_url: str | None = None
+    attachment_type: Literal['image', 'video'] | None = None
+    attachment_thumbnail_url: str | None = None
+
+    @model_validator(mode="after")
+    def _require_content_or_attachment(self) -> "SendMessageRequest":
+        has_text = bool(self.content and self.content.strip())
+        has_attachment = bool(self.attachment_url)
+        if not (has_text or has_attachment):
+            raise ValueError(
+                "Message must include non-empty content or an attachment_url"
+            )
+        return self
 
 
 class StartThreadRequest(BaseModel):

@@ -1,18 +1,29 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, MessageCircle, Tag } from 'lucide-react';
+import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { messageApi } from '@/services/messageApi';
+import { uploadApi } from '@/services/uploadApi';
 import { parseServerDate } from '@/lib/utils';
+import { resolveAssetUrl } from '@/lib/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { CameraCapture, type CameraResult } from '@/components/shared/CameraCapture';
 import type { MessageThread, Message } from '@/types';
+
+// Local payload type for a media attachment held in composer state before send.
+type PendingAttachment = {
+  url: string;
+  thumbnail_url: string | null;
+  type: 'image' | 'video';
+  duration_ms?: number;
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -88,6 +99,17 @@ function ThreadListItem({
   const initials = getInitials(thread.other_party.shop_name || thread.other_party.name);
   const lastMsg = thread.last_message;
   const isOwnLastMsg = lastMsg?.sender_id === currentUserId;
+  // Phase 2: when the last message is media-only, fall back to a placeholder
+  // so the thread list still shows something meaningful.
+  const lastPreview = (() => {
+    if (!lastMsg) return null;
+    const text = lastMsg.content?.trim();
+    if (text) return text;
+    if (lastMsg.attachment_url) {
+      return lastMsg.attachment_type === 'image' ? '📷 Photo' : '🎥 Video';
+    }
+    return '';
+  })();
 
   return (
     <button
@@ -139,8 +161,8 @@ function ThreadListItem({
               thread.unread_count > 0 ? 'font-medium text-gray-700' : 'text-gray-400'
             }`}
           >
-            {lastMsg
-              ? `${isOwnLastMsg ? 'You: ' : ''}${lastMsg.content}`
+            {lastPreview !== null
+              ? `${isOwnLastMsg ? 'You: ' : ''}${lastPreview}`
               : 'No messages yet'}
           </p>
           {thread.unread_count > 0 && (
@@ -163,25 +185,66 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
     hour12: true,
   });
 
+  const hasAttachment = !!message.attachment_url;
+  const hasText = !!message.content && message.content.trim().length > 0;
+  const resolvedSrc = hasAttachment ? resolveAssetUrl(message.attachment_url) : undefined;
+  const resolvedPoster = message.attachment_thumbnail_url
+    ? resolveAssetUrl(message.attachment_thumbnail_url)
+    : undefined;
+
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1.5`}>
-      <div
-        className={`max-w-[72%] px-3.5 py-2.5 rounded-2xl shadow-sm ${
-          isOwn
-            ? 'text-white rounded-br-sm'
-            : 'bg-white text-gray-800 border border-gray-100 rounded-bl-sm'
-        }`}
-        style={isOwn ? { backgroundColor: 'hsl(160, 25%, 24%)' } : {}}
-      >
-        <p className="text-sm leading-relaxed break-words">{message.content}</p>
-        <p
-          className={`text-[10px] mt-1 ${
-            isOwn ? 'text-[hsl(35,15%,90%)] text-right' : 'text-gray-400'
+    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} mb-1.5`}>
+      {/* Attachment block — sits ABOVE the text bubble (or alone, when text is empty). */}
+      {hasAttachment && resolvedSrc && (
+        <div className={`mb-1 ${hasText ? '' : ''}`}>
+          {message.attachment_type === 'image' ? (
+            <img
+              src={resolvedSrc}
+              alt="Attached photo"
+              className="max-w-[240px] max-h-[300px] rounded-lg cursor-pointer object-cover shadow-sm"
+              onClick={() => window.open(resolvedSrc, '_blank', 'noopener,noreferrer')}
+            />
+          ) : (
+            <video
+              controls
+              preload="metadata"
+              playsInline
+              poster={resolvedPoster}
+              src={resolvedSrc}
+              className="max-w-[280px] max-h-[320px] rounded-lg bg-black shadow-sm"
+            />
+          )}
+        </div>
+      )}
+
+      {/* Text bubble — render only when there's text. The timestamp lives here. */}
+      {hasText && (
+        <div
+          className={`max-w-[72%] px-3.5 py-2.5 rounded-2xl shadow-sm ${
+            isOwn
+              ? 'text-white rounded-br-sm'
+              : 'bg-white text-gray-800 border border-gray-100 rounded-bl-sm'
           }`}
+          style={isOwn ? { backgroundColor: 'hsl(160, 25%, 24%)' } : {}}
         >
+          <p className="text-sm leading-relaxed break-words">{message.content}</p>
+          <p
+            className={`text-[10px] mt-1 ${
+              isOwn ? 'text-[hsl(35,15%,90%)] text-right' : 'text-gray-400'
+            }`}
+          >
+            {time}
+          </p>
+        </div>
+      )}
+
+      {/* Media-only message: show the timestamp underneath the attachment so
+          the reader still has chronological context. */}
+      {hasAttachment && !hasText && (
+        <p className={`text-[10px] mt-0.5 ${isOwn ? 'text-gray-400 text-right' : 'text-gray-400'}`}>
           {time}
         </p>
-      </div>
+      )}
     </div>
   );
 }
@@ -200,13 +263,18 @@ function ChatView({
   messages: Message[];
   currentUserId: string;
   onBack: () => void;
-  onSend: (content: string) => Promise<void>;
+  onSend: (payload: { content?: string; attachment?: PendingAttachment | null }) => Promise<void>;
   loading: boolean;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const grouped = groupMessagesByDate(messages);
 
   useEffect(() => {
@@ -219,13 +287,31 @@ function ChatView({
     inputRef.current?.focus();
   }, [thread.id]);
 
+  // Reset composer state when switching threads.
+  useEffect(() => {
+    setPendingAttachment(null);
+    setAttachmentError(null);
+    setInputValue('');
+  }, [thread.id]);
+
   async function handleSend() {
     const content = inputValue.trim();
-    if (!content || sending) return;
+    const hasText = content.length > 0;
+    const hasAttachment = !!pendingAttachment;
+    if ((!hasText && !hasAttachment) || sending) return;
     setInputValue('');
+    const attachmentToSend = pendingAttachment;
+    setPendingAttachment(null);
     setSending(true);
     try {
-      await onSend(content);
+      await onSend({
+        content: hasText ? content : undefined,
+        attachment: attachmentToSend,
+      });
+    } catch {
+      // On failure, restore the composer state so the user can retry.
+      setInputValue(content);
+      setPendingAttachment(attachmentToSend);
     } finally {
       setSending(false);
     }
@@ -237,6 +323,41 @@ function ChatView({
       handleSend();
     }
   }
+
+  const handleCameraCaptured = useCallback((result: CameraResult) => {
+    setPendingAttachment({
+      url: result.url,
+      thumbnail_url: result.thumbnail_url,
+      type: result.type,
+      duration_ms: result.duration_ms,
+    });
+    setAttachmentError(null);
+    setCameraOpen(false);
+  }, []);
+
+  const handlePickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    setAttachmentError(null);
+    setAttachmentUploading(true);
+    try {
+      const { data } = await uploadApi.uploadMedia(file);
+      setPendingAttachment({
+        url: data.url,
+        thumbnail_url: data.thumbnail_url,
+        type: data.type,
+        duration_ms: data.duration_ms,
+      });
+    } catch (err) {
+      console.error('Attachment upload failed:', err);
+      setAttachmentError('Upload failed. Try a smaller file (max 25 MB, 10 s for video).');
+    } finally {
+      setAttachmentUploading(false);
+    }
+  };
+
+  const sendEnabled = (inputValue.trim().length > 0 || !!pendingAttachment) && !sending;
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -347,30 +468,116 @@ function ChatView({
 
       {/* Input bar */}
       <div className="flex-shrink-0 bg-white border-t px-4 py-3">
+        {/* Pending attachment pill — only shown when something's queued. */}
+        {pendingAttachment && (
+          <div className="mb-2 flex items-center gap-2">
+            <div className="relative inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 pr-7 shadow-sm">
+              <div className="relative w-12 h-12 rounded-md overflow-hidden bg-black flex-shrink-0">
+                {pendingAttachment.thumbnail_url || pendingAttachment.type === 'image' ? (
+                  <img
+                    src={
+                      resolveAssetUrl(
+                        pendingAttachment.thumbnail_url || pendingAttachment.url
+                      ) || ''
+                    }
+                    alt="Attachment preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-800 text-white text-[10px]">
+                    Video
+                  </div>
+                )}
+                {pendingAttachment.type === 'video' && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <Play size={16} className="text-white drop-shadow" />
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-gray-600">
+                {pendingAttachment.type === 'image' ? 'Photo' : 'Video'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingAttachment(null)}
+                aria-label="Remove attachment"
+                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-gray-700/80 hover:bg-gray-900 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {attachmentError && (
+          <p className="mb-2 text-xs text-red-500">{attachmentError}</p>
+        )}
+
         <div className="flex items-center gap-2">
+          {/* Camera button — opens the in-app capture modal. */}
+          <button
+            type="button"
+            onClick={() => setCameraOpen(true)}
+            disabled={sending || attachmentUploading}
+            aria-label="Open camera"
+            className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            <Camera size={18} />
+          </button>
+
+          {/* Paperclip button — triggers the hidden file picker. */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || attachmentUploading}
+            aria-label="Attach file"
+            className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            <Paperclip size={18} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={handlePickFile}
+          />
+
           <Input
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={
+              attachmentUploading ? 'Uploading attachment…' : 'Type a message...'
+            }
             className="flex-1 rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-[hsl(35,45%,42%)] text-sm"
             disabled={sending}
           />
           <Button
             onClick={handleSend}
-            disabled={!inputValue.trim() || sending}
+            disabled={!sendEnabled}
             size="icon"
             className="rounded-full w-10 h-10 flex-shrink-0 transition-all"
             style={{
-              backgroundColor:
-                inputValue.trim() ? 'hsl(160, 25%, 24%)' : 'hsl(35, 25%, 70%)',
+              backgroundColor: sendEnabled
+                ? 'hsl(160, 25%, 24%)'
+                : 'hsl(35, 25%, 70%)',
             }}
           >
             <Send size={16} />
           </Button>
         </div>
       </div>
+
+      {/* In-app camera modal. Mounted in the tree so its lifecycle is tied
+          to the chat view (closing the chat tears it down). */}
+      <CameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCaptured={handleCameraCaptured}
+        mode="both"
+      />
     </div>
   );
 }
@@ -510,29 +717,47 @@ export default function MessagesPage() {
   );
 
   const handleSend = useCallback(
-    async (content: string) => {
+    async (payload: { content?: string; attachment?: PendingAttachment | null }) => {
       if (!activeThread || !user) return;
+      const { content, attachment } = payload;
+      const hasText = !!content && content.trim().length > 0;
+      const hasAttachment = !!attachment;
+      if (!hasText && !hasAttachment) return;
 
-      // Optimistic message
+      // Optimistic message — include attachment fields so the bubble renders
+      // immediately even before the server round-trip completes.
       const optimistic: Message = {
         id: `optimistic-${Date.now()}`,
         thread_id: activeThread.id,
         sender_id: user.id,
-        content,
+        content: hasText ? content! : '',
         created_at: new Date().toISOString(),
+        attachment_url: attachment?.url ?? null,
+        attachment_type: attachment?.type ?? null,
+        attachment_thumbnail_url: attachment?.thumbnail_url ?? null,
       };
       addMessage(optimistic);
 
-      // Update thread preview
+      // Update thread preview — show a placeholder for media-only sends.
+      const previewText = hasText
+        ? content!.trim()
+        : hasAttachment
+          ? attachment!.type === 'image'
+            ? '📷 Photo'
+            : '🎥 Video'
+          : '';
       setThreads(
         threads.map((t) =>
           t.id === activeThread.id
             ? {
                 ...t,
                 last_message: {
-                  content,
+                  content: previewText,
                   sender_id: user.id,
                   created_at: new Date().toISOString(),
+                  attachment_url: attachment?.url ?? null,
+                  attachment_type: attachment?.type ?? null,
+                  attachment_thumbnail_url: attachment?.thumbnail_url ?? null,
                 },
                 last_message_at: new Date().toISOString(),
               }
@@ -541,7 +766,12 @@ export default function MessagesPage() {
       );
 
       try {
-        const { data } = await messageApi.sendMessage(activeThread.id, content);
+        const { data } = await messageApi.sendMessage(activeThread.id, {
+          content: hasText ? content!.trim() : undefined,
+          attachment_url: attachment?.url ?? null,
+          attachment_type: attachment?.type ?? null,
+          attachment_thumbnail_url: attachment?.thumbnail_url ?? null,
+        });
         const real = data as Message;
         // Replace optimistic with real using current store state (not stale closure)
         const current = useMessageStore.getState().messages;
@@ -555,6 +785,8 @@ export default function MessagesPage() {
         // Revert on failure using current store state
         const current = useMessageStore.getState().messages;
         setMessages(current.filter((m) => m.id !== optimistic.id));
+        // Re-throw so ChatView can restore its composer state.
+        throw err;
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

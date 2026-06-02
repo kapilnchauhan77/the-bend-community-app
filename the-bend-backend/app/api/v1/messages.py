@@ -80,13 +80,23 @@ async def send_message(
     service: MessageService = Depends(get_message_service),
     current_user: User = Depends(get_current_user),
 ):
-    msg = await service.send_message(thread_id, current_user.id, data.content)
+    msg = await service.send_message(
+        thread_id,
+        current_user.id,
+        data.content,
+        attachment_url=data.attachment_url,
+        attachment_type=data.attachment_type,
+        attachment_thumbnail_url=data.attachment_thumbnail_url,
+    )
     return {
         "id": str(msg.id),
         "thread_id": str(msg.thread_id),
         "sender_id": str(msg.sender_id),
         "content": msg.content,
         "created_at": str(msg.created_at),
+        "attachment_url": msg.attachment_url,
+        "attachment_type": msg.attachment_type,
+        "attachment_thumbnail_url": msg.attachment_thumbnail_url,
     }
 
 

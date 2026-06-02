@@ -74,9 +74,25 @@ class MessageRepository:
 
         return PaginatedResult(items=messages, next_cursor=next_cursor, has_more=has_more)
 
-    async def create_message(self, thread_id: UUID, sender_id: UUID, content: str) -> Message:
+    async def create_message(
+        self,
+        thread_id: UUID,
+        sender_id: UUID,
+        content: str,
+        attachment_url: str | None = None,
+        attachment_type: str | None = None,
+        attachment_thumbnail_url: str | None = None,
+    ) -> Message:
         from uuid import uuid4
-        msg = Message(id=uuid4(), thread_id=thread_id, sender_id=sender_id, content=content)
+        msg = Message(
+            id=uuid4(),
+            thread_id=thread_id,
+            sender_id=sender_id,
+            content=content,
+            attachment_url=attachment_url,
+            attachment_type=attachment_type,
+            attachment_thumbnail_url=attachment_thumbnail_url,
+        )
         self.session.add(msg)
 
         # Update thread last_message_at

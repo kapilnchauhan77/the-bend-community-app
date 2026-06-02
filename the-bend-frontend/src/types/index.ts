@@ -101,6 +101,9 @@ export interface MessageThread {
     content: string;
     sender_id: string;
     created_at: string;
+    attachment_url?: string | null;
+    attachment_type?: 'image' | 'video' | null;
+    attachment_thumbnail_url?: string | null;
   };
   unread_count: number;
   last_message_at: string;
@@ -113,6 +116,10 @@ export interface Message {
   content: string;
   read_at?: string;
   created_at: string;
+  // Phase 2: optional photo / 9 s video attached to the message.
+  attachment_url?: string | null;
+  attachment_type?: 'image' | 'video' | null;
+  attachment_thumbnail_url?: string | null;
 }
 
 export interface Notification {

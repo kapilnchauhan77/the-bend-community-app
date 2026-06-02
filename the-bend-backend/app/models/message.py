@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Text, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import Text, ForeignKey, Index, UniqueConstraint, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -40,6 +40,14 @@ class Message(Base):
     thread_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("message_threads.id", ondelete="CASCADE"), nullable=False)
     sender_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Phase 2 attachments: a message may carry a single photo or short video
+    # in addition to (or instead of) text. All three columns are nullable so
+    # legacy text-only messages remain valid. `attachment_type` is 'image' or
+    # 'video' — we keep it as a plain VARCHAR rather than a Postgres enum
+    # because we only have two values and migrations stay trivial that way.
+    attachment_url: Mapped[str | None] = mapped_column(String(500))
+    attachment_type: Mapped[str | None] = mapped_column(String(16))
+    attachment_thumbnail_url: Mapped[str | None] = mapped_column(String(500))
     read_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
