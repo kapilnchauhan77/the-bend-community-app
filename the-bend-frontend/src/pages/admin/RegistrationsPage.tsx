@@ -136,6 +136,27 @@ export default function RegistrationsPage() {
     }
   };
 
+  const [clearingPending, setClearingPending] = useState(false);
+  const handleClearAllPending = async () => {
+    const pendings = registrations.filter((r) => r.status === 'pending');
+    if (pendings.length === 0) return;
+    if (!confirm(`Clear all ${pendings.length} pending registration${pendings.length === 1 ? '' : 's'}? Each will be rejected with the reason "Cleared by admin".`)) return;
+    setClearingPending(true);
+    try {
+      // Sequential to keep server load light and surface errors clearly.
+      for (const reg of pendings) {
+        try {
+          await adminApi.rejectRegistration(reg.id, 'Cleared by admin');
+        } catch {
+          // Skip individual failures; the next fetch will reflect what stuck.
+        }
+      }
+      await fetchRegistrations(tab);
+    } finally {
+      setClearingPending(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -147,11 +168,31 @@ export default function RegistrationsPage() {
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as RegistrationStatus)}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="pending">Pending {counts.pending > 0 && <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full">{counts.pending}</span>}</TabsTrigger>
-            <TabsTrigger value="approved">Approved {counts.approved > 0 && <span className="ml-1 text-xs bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)] px-1.5 rounded-full">{counts.approved}</span>}</TabsTrigger>
-            <TabsTrigger value="rejected">Rejected {counts.rejected > 0 && <span className="ml-1 text-xs bg-red-100 text-red-600 px-1.5 rounded-full">{counts.rejected}</span>}</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <TabsList>
+              <TabsTrigger value="pending">Pending {counts.pending > 0 && <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full">{counts.pending}</span>}</TabsTrigger>
+              <TabsTrigger value="approved">Approved {counts.approved > 0 && <span className="ml-1 text-xs bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)] px-1.5 rounded-full">{counts.approved}</span>}</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected {counts.rejected > 0 && <span className="ml-1 text-xs bg-red-100 text-red-600 px-1.5 rounded-full">{counts.rejected}</span>}</TabsTrigger>
+            </TabsList>
+            {tab === 'pending' && registrations.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={clearingPending}
+                onClick={handleClearAllPending}
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+              >
+                {clearingPending ? (
+                  <>
+                    <Loader2 size={14} className="mr-1.5 animate-spin" />
+                    Clearing…
+                  </>
+                ) : (
+                  `Clear all (${registrations.length})`
+                )}
+              </Button>
+            )}
+          </div>
 
           {(['pending', 'approved', 'rejected'] as RegistrationStatus[]).map((status) => (
             <TabsContent key={status} value={status}>
