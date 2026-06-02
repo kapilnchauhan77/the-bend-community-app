@@ -40,6 +40,13 @@ function getIconStyle(type: string): { bg: string; color: string } {
 // ─── Navigate target from notification data ───────────────────────────────────
 function getTargetRoute(n: Notification): string {
   const data = n.data ?? {};
+  // Report notifications land on the flagged-posts admin queue, where
+  // admins review / dismiss / delete the reported listing. Legacy
+  // report notifications (before LISTING_REPORTED existed) reused the
+  // REGISTRATION_SUBMITTED type — fall back to title sniffing so those
+  // still route correctly.
+  if (n.type.includes('listing_reported') || n.type.includes('reported')) return '/admin/flagged';
+  if (n.title && /report/i.test(n.title)) return '/admin/flagged';
   if (n.type.includes('registration_submitted')) return '/admin/registrations';
   if (n.type.includes('registration_approved') || n.type.includes('registration_rejected')) return '/my-shop';
   if (n.type.includes('suspended')) return '/my-shop';

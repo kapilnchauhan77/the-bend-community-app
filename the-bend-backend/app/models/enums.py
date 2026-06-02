@@ -70,6 +70,7 @@ class NotificationType(str, enum.Enum):
     LISTING_EXPIRING = "listing_expiring"
     NEW_URGENT_LISTING = "new_urgent_listing"
     SHOP_SUSPENDED = "shop_suspended"
+    LISTING_REPORTED = "listing_reported"
 
 
 class EventCategory(str, enum.Enum):

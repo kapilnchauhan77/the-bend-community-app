@@ -223,7 +223,7 @@ async def report_listing(
         for admin in admin_result.scalars().all():
             await notification_service.notify(
                 user_id=admin.id,
-                type=NotificationType.REGISTRATION_SUBMITTED,  # Reuse type for now
+                type=NotificationType.LISTING_REPORTED,
                 title="Post Reported",
                 body=f"A listing has been reported as {data.get('reason', 'inappropriate')}: '{listing_id}'",
                 data={"listing_id": str(listing_id)},
