@@ -74,6 +74,8 @@ class ListingCreate(BaseModel):
 
 
 class ListingUpdate(BaseModel):
+    type: str | None = Field(None, pattern="^(offer|request)$")
+    category: str | None = Field(None, pattern="^(staff|materials|equipment|volunteer)$")
     title: str | None = Field(None, min_length=5, max_length=100)
     description: str | None = Field(None, min_length=10, max_length=500)
     quantity: str | None = None
