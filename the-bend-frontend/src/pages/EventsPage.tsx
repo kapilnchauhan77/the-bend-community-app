@@ -628,9 +628,9 @@ export default function EventsPage() {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-semibold text-gray-900">Not-for-Profit Organization</h3>
-                        <span className="text-xl font-bold font-serif" style={{ color: PRIMARY }}>$9.99</span>
+                        <span className="text-xl font-bold font-serif" style={{ color: PRIMARY }}>Free</span>
                       </div>
-                      <p className="text-xs text-gray-500">Reduced rate for registered nonprofits. Documentation of not-for-profit status is required during checkout.</p>
+                      <p className="text-xs text-gray-500">Free for verified nonprofits. Documentation of not-for-profit status is required to qualify.</p>
                     </button>
                   </div>
                 </>
@@ -647,7 +647,7 @@ export default function EventsPage() {
                   </div>
                   <h2 className="text-xl font-bold font-serif text-gray-900 mb-1">Event Details</h2>
                   <p className="text-sm text-gray-500 mb-1">
-                    {postTier === 'nonprofit' ? 'Not-for-Profit' : 'For-Profit'} — <span className="font-semibold" style={{ color: 'hsl(35, 45%, 42%)' }}>{postTier === 'nonprofit' ? '$9.99' : '$19.99'}</span>
+                    {postTier === 'nonprofit' ? 'Not-for-Profit' : 'For-Profit'} — <span className="font-semibold" style={{ color: 'hsl(35, 45%, 42%)' }}>{postTier === 'nonprofit' ? 'Free' : '$19.99'}</span>
                   </p>
 
                   {postError && (
@@ -672,6 +672,11 @@ export default function EventsPage() {
                         const checkoutUrl = res.data?.checkout_url;
                         if (checkoutUrl) {
                           window.location.href = checkoutUrl;
+                        } else if (res.data?.free) {
+                          // Nonprofit free path — no payment needed. Bounce
+                          // to the events page with the existing success
+                          // toast trigger.
+                          window.location.href = '/events?posted=success';
                         }
                       } catch {
                         setPostError('Something went wrong. Please try again.');
@@ -769,7 +774,9 @@ export default function EventsPage() {
                         className="flex-1 h-11 rounded-xl font-semibold text-white cursor-pointer"
                         style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}
                       >
-                        {postSubmitting ? 'Redirecting to Payment...' : `Pay ${postTier === 'nonprofit' ? '$9.99' : '$19.99'} & Submit`}
+                        {postSubmitting
+                          ? (postTier === 'nonprofit' ? 'Submitting...' : 'Redirecting to Payment...')
+                          : (postTier === 'nonprofit' ? 'Submit (Free)' : 'Pay $19.99 & Submit')}
                       </Button>
                     </div>
                     <p className="text-[10px] text-gray-400 text-center">

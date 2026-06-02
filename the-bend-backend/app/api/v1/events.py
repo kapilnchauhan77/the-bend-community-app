@@ -20,7 +20,7 @@ settings = get_settings()
 
 # Event posting prices in cents
 EVENT_PRICE_FORPROFIT = 1999  # $19.99
-EVENT_PRICE_NONPROFIT = 999   # $9.99
+EVENT_PRICE_NONPROFIT = 0     # Free for verified nonprofits
 
 
 class EventSubmitRequest(BaseModel):
@@ -94,7 +94,7 @@ async def event_pricing():
     """Return event posting prices."""
     return {
         "for_profit": {"price_cents": EVENT_PRICE_FORPROFIT, "label": "For-Profit Business", "price": "$19.99"},
-        "nonprofit": {"price_cents": EVENT_PRICE_NONPROFIT, "label": "Not-for-Profit Organization", "price": "$9.99"},
+        "nonprofit": {"price_cents": EVENT_PRICE_NONPROFIT, "label": "Not-for-Profit Organization", "price": "Free"},
     }
 
 
@@ -140,6 +140,14 @@ async def submit_event(
     )
     db.add(event)
     await db.flush()
+
+    # Free path (nonprofits): skip Stripe entirely. Mark the row as paid=True
+    # so the existing community-admin review queue picks it up like any other
+    # paid submission — the only difference is no money changed hands.
+    if price_cents == 0:
+        event.paid = True
+        await db.flush()
+        return {"checkout_url": None, "session_id": None, "price_cents": 0, "free": True}
 
     # Create Stripe checkout session
     stripe.api_key = get_stripe_keys(tenant).secret
