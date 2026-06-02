@@ -71,6 +71,17 @@ export function formatPrice(l: {
 }
 
 /**
+ * Detects whether a media URL points at a video asset by file extension.
+ * Backend `/upload/media` returns `.mp4` / `.webm` (camera capture) and
+ * `.mov` (iOS native capture). Used by listing card + detail page to switch
+ * between <img> and <video> rendering.
+ */
+export function isVideoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /\.(mp4|webm|mov)(\?|$)/i.test(url);
+}
+
+/**
  * Human-readable "time ago" using parseServerDate so cross-timezone clients
  * see correct relative timestamps.
  */

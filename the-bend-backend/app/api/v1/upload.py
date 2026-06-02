@@ -6,7 +6,12 @@ from app.api.deps import get_db
 from app.core.permissions import Permission, get_current_user
 from app.models.user import User
 from app.models.guideline import Guideline
-from app.services.file_service import FileService
+from app.services.file_service import (
+    ALLOWED_IMAGE_MIME_TYPES,
+    ALLOWED_MEDIA_MIME_TYPES,
+    ALLOWED_VIDEO_MIME_TYPES,
+    FileService,
+)
 from sqlalchemy import select, update
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
@@ -74,6 +79,53 @@ async def upload_public_photo(
     if not result:
         raise HTTPException(status_code=400, detail="Upload failed")
     return {"photo_url": result[0]["url"]}
+
+
+@router.post("/media")
+async def upload_media(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Unified upload endpoint for short videos OR photos.
+
+    Auto-detects type from the Content-Type header. Images run through the
+    same Pillow pipeline as /upload/images (full + _thumb). Videos are
+    saved verbatim with a generated poster JPEG. The response shape is the
+    same for both so the frontend can treat listing media uniformly:
+
+        { "url": "...", "thumbnail_url": "..." | null,
+          "type": "image" | "video", "duration_ms": <int, videos only> }
+    """
+    content_type = (file.content_type or "").lower()
+
+    if content_type not in ALLOWED_MEDIA_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported media type: {file.content_type or 'unknown'}",
+        )
+
+    if content_type in ALLOWED_IMAGE_MIME_TYPES:
+        # Image pipeline expects a list; reuse it so behavior matches
+        # /upload/images exactly (EXIF strip, 1600px cap, _thumb sibling).
+        results = await file_service.upload_images([file])
+        if not results:
+            raise HTTPException(status_code=400, detail="Upload failed")
+        first = results[0]
+        return {
+            "url": first["url"],
+            "thumbnail_url": first["thumbnail_url"],
+            "type": "image",
+        }
+
+    # Video branch. upload_video handles size + duration + poster.
+    assert content_type in ALLOWED_VIDEO_MIME_TYPES
+    result = await file_service.upload_video(file)
+    return {
+        "url": result["url"],
+        "thumbnail_url": result["thumbnail_url"],
+        "type": "video",
+        "duration_ms": result["duration_ms"],
+    }
 
 
 @router.post("/avatar")

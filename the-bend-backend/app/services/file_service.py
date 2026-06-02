@@ -6,15 +6,24 @@ Images are processed at upload time:
   - JPEG quality 82 (good balance of size/quality)
   - A separate ~600px thumbnail is generated for cards/list views
 PNGs with transparency keep their format; everything else becomes JPEG.
+
+Videos (short clips captured in-app) are accepted as-is and we generate
+a poster JPEG (1 frame ~0.5s in, scaled to 1280px on the long edge) so
+the frontend has something to show before playback. Duration is probed
+and clips longer than the configured ceiling are rejected.
 """
 import io
+import logging
 import os
 import uuid
 from pathlib import Path
 
+from fastapi import HTTPException, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -22,10 +31,34 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 (UPLOAD_DIR / "images").mkdir(exist_ok=True)
 (UPLOAD_DIR / "guidelines").mkdir(exist_ok=True)
+(UPLOAD_DIR / "videos").mkdir(exist_ok=True)
 
 MAX_FULL_EDGE = 1600        # max width or height for the "full" image
 MAX_THUMB_EDGE = 600        # max width or height for the thumbnail
 JPEG_QUALITY = 82
+
+# Media upload limits (shared by the unified /upload/media endpoint).
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # 25 MB hard ceiling for any single file
+MAX_VIDEO_DURATION_SECONDS = 10.0     # frontend caps at 9s; allow 1s of slop
+
+ALLOWED_IMAGE_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
+ALLOWED_VIDEO_MIME_TYPES = {
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",  # iOS .mov
+}
+ALLOWED_MEDIA_MIME_TYPES = ALLOWED_IMAGE_MIME_TYPES | ALLOWED_VIDEO_MIME_TYPES
+
+# Fallback extension when the upload didn't carry a filename.
+_VIDEO_EXT_BY_MIME = {
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+}
 
 
 def _process_image(content: bytes) -> tuple[bytes, bytes, str]:
@@ -109,4 +142,97 @@ class FileService:
             "file_name": file.filename,
             "file_type": ext.lstrip("."),
             "file_size": len(content),
+        }
+
+    async def upload_video(self, file: UploadFile) -> dict:
+        """Persist a short video and generate a poster JPEG.
+
+        Raises HTTPException(413) if the file exceeds MAX_UPLOAD_BYTES, and
+        HTTPException(422) if the probed duration exceeds the configured
+        ceiling. ffmpeg/ffprobe are required on PATH (installed in the
+        container image); poster generation failures are logged and the
+        endpoint still returns a usable url with thumbnail_url=None.
+        """
+        # ffmpeg-python is a thin wrapper around the ffmpeg/ffprobe CLIs.
+        # Imported lazily so unit tests / image-only paths don't require it.
+        import ffmpeg  # type: ignore
+
+        content = await file.read()
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="File too large (max 25 MB)",
+            )
+
+        # Preserve the original extension when present; otherwise fall back
+        # to a sensible default based on the content type.
+        ext = ""
+        if file.filename:
+            ext = os.path.splitext(file.filename)[1].lower()
+        if not ext:
+            ext = _VIDEO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
+
+        file_id = str(uuid.uuid4())
+        video_path = UPLOAD_DIR / "videos" / f"{file_id}{ext}"
+        poster_path = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
+
+        with open(video_path, "wb") as f:
+            f.write(content)
+
+        # Probe duration. If probing fails we treat the upload as invalid
+        # rather than silently accepting an unbounded clip.
+        try:
+            probe = ffmpeg.probe(str(video_path))
+            duration_str = probe.get("format", {}).get("duration")
+            duration = float(duration_str) if duration_str is not None else 0.0
+        except Exception as exc:  # pragma: no cover - defensive
+            try:
+                video_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            logger.warning("ffprobe failed for upload %s: %s", file_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Could not read video metadata",
+            ) from exc
+
+        if duration > MAX_VIDEO_DURATION_SECONDS:
+            try:
+                video_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Video must be 9 seconds or less",
+            )
+
+        # Poster frame: ~0.5s in, scaled so the long edge is 1280px while
+        # preserving aspect ratio. We snap height to even values to keep
+        # MJPEG happy on odd-height inputs.
+        thumbnail_url: str | None = None
+        try:
+            (
+                ffmpeg
+                .input(str(video_path), ss=0.5)
+                .filter("scale", "if(gt(iw,ih),min(1280,iw),-2)", "if(gt(iw,ih),-2,min(1280,ih))")
+                .output(
+                    str(poster_path),
+                    vframes=1,
+                    format="image2",
+                    vcodec="mjpeg",
+                    **{"q:v": 4},
+                )
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            if poster_path.exists() and poster_path.stat().st_size > 0:
+                thumbnail_url = f"/uploads/videos/{file_id}_poster.jpg"
+        except Exception as exc:
+            logger.warning("Poster generation failed for upload %s: %s", file_id, exc)
+
+        return {
+            "id": file_id,
+            "url": f"/uploads/videos/{file_id}{ext}",
+            "thumbnail_url": thumbnail_url,
+            "duration_ms": int(duration * 1000),
         }

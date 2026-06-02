@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CheckCircle, DollarSign, Tag, Loader2, ImagePlus, X } from 'lucide-react';
+import { CheckCircle, DollarSign, Tag, Loader2, ImagePlus, X, Camera, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +21,8 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { listingApi } from '@/services/listingApi';
 import { uploadApi } from '@/services/uploadApi';
 import { resolveAssetUrl } from '@/lib/constants';
+import { isVideoUrl } from '@/lib/utils';
+import { CameraCapture } from '@/components/shared/CameraCapture';
 
 const schema = z
   .object({
@@ -95,6 +97,7 @@ export default function CreateListingPage() {
   const [images, setImages] = useState<{ url: string; thumbnail_url: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEdit);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const initialCategory: FormData['category'] =
     presetCategory === 'volunteer' || presetCategory === 'staff' || presetCategory === 'materials' || presetCategory === 'equipment'
@@ -372,25 +375,46 @@ export default function CreateListingPage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                {images.map((img, i) => (
-                  <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-[hsl(35,18%,84%)] group">
-                    <img src={resolveAssetUrl(img.url)} alt="" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(i)}
-                      className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    >
-                      <X size={12} className="text-white" />
-                    </button>
-                  </div>
-                ))}
+                {images.map((img, i) => {
+                  const video = isVideoUrl(img.url);
+                  // Videos: render the poster (thumbnail_url) with a small ▶ overlay.
+                  // Listing thumbnails are decorative — playback happens on the detail page.
+                  const thumbSrc = video ? (img.thumbnail_url || img.url) : img.url;
+                  return (
+                    <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-[hsl(35,18%,84%)] group bg-black">
+                      <img src={resolveAssetUrl(thumbSrc)} alt="" className="w-full h-full object-cover" />
+                      {video && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <span className="w-7 h-7 rounded-full bg-black/55 flex items-center justify-center">
+                            <Play size={14} className="text-white ml-0.5" fill="currentColor" />
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(i)}
+                        className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <X size={12} className="text-white" />
+                      </button>
+                    </div>
+                  );
+                })}
                 <label className="w-20 h-20 rounded-lg border-2 border-dashed border-[hsl(35,18%,84%)] flex flex-col items-center justify-center cursor-pointer hover:border-[hsl(35,45%,42%)] transition-colors">
                   <ImagePlus size={20} className="text-[hsl(30,10%,55%)]" />
                   <span className="text-[9px] text-[hsl(30,10%,55%)] mt-1">{uploading ? 'Uploading...' : 'Add'}</span>
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={uploading} />
                 </label>
+                <button
+                  type="button"
+                  onClick={() => setCameraOpen(true)}
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[hsl(35,18%,84%)] flex flex-col items-center justify-center cursor-pointer hover:border-[hsl(35,45%,42%)] transition-colors bg-transparent"
+                >
+                  <Camera size={20} className="text-[hsl(30,10%,55%)]" />
+                  <span className="text-[9px] text-[hsl(30,10%,55%)] mt-1">Camera</span>
+                </button>
               </div>
-              <p className="text-[10px] text-[hsl(30,10%,55%)] mt-2">Up to 5 photos. JPG, PNG accepted.</p>
+              <p className="text-[10px] text-[hsl(30,10%,55%)] mt-2">Up to 5 photos or short videos (≤9 s). JPG, PNG, MP4, WebM accepted.</p>
             </CardContent>
           </Card>
 
@@ -680,6 +704,19 @@ export default function CreateListingPage() {
           </div>
         </form>
       </div>
+      <CameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        mode="both"
+        onCaptured={(result) => {
+          // /upload/media may return thumbnail_url === null for stills — fall back
+          // to the asset URL itself so the thumbnail row always has something to show.
+          setImages((prev) => [
+            ...prev,
+            { url: result.url, thumbnail_url: result.thumbnail_url || result.url },
+          ]);
+        }}
+      />
     </PageLayout>
   );
 }

@@ -36,4 +36,22 @@ export const uploadApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  // Unified image-or-video upload backing the in-app camera flow.
+  // Server enforces 25 MB / 10 s caps; client also caps recording at 9 s.
+  uploadMedia: (file: Blob | File) => {
+    const fd = new FormData();
+    const filename =
+      (file as File).name ||
+      `capture.${file.type === 'video/webm' ? 'webm' : file.type === 'video/mp4' ? 'mp4' : 'jpg'}`;
+    fd.append('file', file, filename);
+    return api.post<{
+      url: string;
+      thumbnail_url: string | null;
+      type: 'image' | 'video';
+      duration_ms?: number;
+    }>('/upload/media', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };

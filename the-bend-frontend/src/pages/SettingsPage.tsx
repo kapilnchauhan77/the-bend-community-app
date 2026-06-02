@@ -47,6 +47,7 @@ import { uploadApi } from '@/services/uploadApi';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { volunteerApi } from '@/services/volunteerApi';
 import { talentApi } from '@/services/talentApi';
+import { CameraCapture } from '@/components/shared/CameraCapture';
 import type { Volunteer, Talent } from '@/types/index';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -507,6 +508,18 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarCameraOpen, setAvatarCameraOpen] = useState(false);
+
+  // Pushes a freshly-uploaded avatar URL into the auth store (and the shop's
+  // avatar mirror, so the header / shop pages refresh immediately). Used by
+  // both the file-picker and the camera capture flows.
+  const applyAvatar = (avatarUrl: string) => {
+    const updatedUser = { ...user!, avatar_url: avatarUrl };
+    const updatedShop = shop ? { ...shop, avatar_url: avatarUrl } : null;
+    const token = localStorage.getItem('access_token') || '';
+    const refreshToken = localStorage.getItem('refresh_token') || '';
+    setAuth(updatedUser, updatedShop, token, refreshToken);
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -514,11 +527,7 @@ export default function SettingsPage() {
     setAvatarUploading(true);
     try {
       const { data } = await uploadApi.uploadAvatar(file);
-      const updatedUser = { ...user!, avatar_url: data.avatar_url };
-      const updatedShop = shop ? { ...shop, avatar_url: data.avatar_url } : null;
-      const token = localStorage.getItem('access_token') || '';
-      const refreshToken = localStorage.getItem('refresh_token') || '';
-      setAuth(updatedUser, updatedShop, token, refreshToken);
+      applyAvatar(data.avatar_url);
     } catch (err) {
       console.error('Avatar upload failed:', err);
     } finally {
@@ -623,13 +632,24 @@ export default function SettingsPage() {
                 {avatarUploading ? (
                   <p className="text-xs text-[hsl(35,45%,42%)] mt-1">Uploading...</p>
                 ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs font-medium mt-1 cursor-pointer hover:underline"
-                    style={{ color: 'hsl(35, 45%, 42%)' }}
-                  >
-                    Change photo
-                  </button>
+                  <div className="mt-1 flex items-center gap-3">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs font-medium cursor-pointer hover:underline"
+                      style={{ color: 'hsl(35, 45%, 42%)' }}
+                    >
+                      Change photo
+                    </button>
+                    <span className="text-xs text-gray-300">·</span>
+                    <button
+                      onClick={() => setAvatarCameraOpen(true)}
+                      className="text-xs font-medium cursor-pointer hover:underline inline-flex items-center gap-1"
+                      style={{ color: 'hsl(35, 45%, 42%)' }}
+                    >
+                      <Camera size={11} />
+                      Use camera
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -919,6 +939,17 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
+      <CameraCapture
+        open={avatarCameraOpen}
+        onClose={() => setAvatarCameraOpen(false)}
+        mode="photo"
+        uploadEndpoint="/upload/avatar"
+        onCaptured={(result) => {
+          // CameraCapture normalises /upload/avatar's `{avatar_url}` shape into
+          // `result.url`, so this just mirrors the file-picker side-effect.
+          applyAvatar(result.url);
+        }}
+      />
     </PageLayout>
   );
 }

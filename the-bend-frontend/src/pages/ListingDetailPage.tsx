@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { resolveAssetUrl } from '@/lib/constants';
-import { timeAgo, parseServerDate, formatPrice } from '@/lib/utils';
+import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -220,15 +220,35 @@ export default function ListingDetailPage() {
           Back
         </button>
 
-        {/* Photo carousel */}
+        {/* Photo / video carousel — mixed media, single nav model */}
         <div className="relative mb-6 rounded-xl overflow-hidden bg-gray-100 aspect-[16/9]">
           {images.length > 0 ? (
             <>
-              <img
-                src={resolveAssetUrl(images[imageIndex].url)}
-                alt={listing.title}
-                className="w-full h-full object-cover"
-              />
+              {(() => {
+                const current = images[imageIndex];
+                if (isVideoUrl(current.url)) {
+                  return (
+                    <video
+                      // `key` forces a fresh element when navigating between
+                      // clips so the previous one stops playing.
+                      key={current.url}
+                      src={resolveAssetUrl(current.url)}
+                      poster={current.thumbnail_url ? resolveAssetUrl(current.thumbnail_url) : undefined}
+                      controls
+                      preload="metadata"
+                      playsInline
+                      className="w-full h-full object-contain bg-black"
+                    />
+                  );
+                }
+                return (
+                  <img
+                    src={resolveAssetUrl(current.url)}
+                    alt={listing.title}
+                    className="w-full h-full object-cover"
+                  />
+                );
+              })()}
               {images.length > 1 && (
                 <>
                   <button

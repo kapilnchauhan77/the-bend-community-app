@@ -1,7 +1,7 @@
 import { useNavigate, Link } from 'react-router-dom';
-import { Briefcase, Package, Wrench, Clock, Heart } from 'lucide-react';
+import { Briefcase, Package, Wrench, Clock, Heart, Play } from 'lucide-react';
 import { resolveAssetUrl } from '@/lib/constants';
-import { timeAgo, parseServerDate, formatPrice } from '@/lib/utils';
+import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
 import type { Listing } from '@/types';
 
 const categoryIcons = {
@@ -45,7 +45,12 @@ export function ListingCard({ listing }: { listing: Listing }) {
   const typeColor = isOffer ? 'text-[hsl(160,25%,28%)]' : 'text-[hsl(220,50%,45%)]';
 
   const cover = listing.images?.[0];
-  const coverUrl = cover?.thumbnail_url || cover?.url;
+  // For videos we always show the poster (thumbnail_url) — never inline-play
+  // on the card. Bandwidth-friendly; the detail page is where the clip lives.
+  const coverIsVideo = isVideoUrl(cover?.url);
+  const coverUrl = coverIsVideo
+    ? (cover?.thumbnail_url || cover?.url)
+    : (cover?.thumbnail_url || cover?.url);
 
   return (
     <div
@@ -61,6 +66,13 @@ export function ListingCard({ listing }: { listing: Listing }) {
             loading="lazy"
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
+          {coverIsVideo && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="w-11 h-11 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                <Play size={20} className="text-white ml-0.5" fill="currentColor" />
+              </span>
+            </div>
+          )}
           {listing.images && listing.images.length > 1 && (
             <span className="absolute bottom-2 right-2 bg-black/55 backdrop-blur-sm text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
               +{listing.images.length - 1}
