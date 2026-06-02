@@ -408,6 +408,7 @@ export default function EventsPage() {
 
   return (
     <PageLayout>
+      <SponsorBanner placement="events" />
       {/* ── Page Header ── */}
       <section className="py-8" style={{ backgroundColor: PRIMARY }}>
         <div className="max-w-7xl mx-auto px-4 md:px-8">
@@ -569,7 +570,6 @@ export default function EventsPage() {
           )}
         </div>
       </section>
-      <SponsorBanner placement="events" />
 
       {/* Success toast */}
       {postSuccess && (
