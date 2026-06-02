@@ -75,7 +75,7 @@ function formatDate(dateStr: string): string {
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, shop } = useAuthStore();
+  const { isAuthenticated, shop, user } = useAuthStore();
 
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -584,6 +584,25 @@ export default function ListingDetailPage() {
               >
                 <MessageCircle size={16} />
                 Message Business
+              </Button>
+            )}
+            {!listing.shop && listing.posted_by && listing.posted_by.id !== user?.id && (
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={async () => {
+                  if (!isAuthenticated) { navigate('/login'); return; }
+                  if (!listing.posted_by) return;
+                  try {
+                    const { data } = await messageApi.createDirectThread(listing.posted_by.id);
+                    navigate(`/messages/${data.id}`);
+                  } catch (err) {
+                    console.error('Failed to start thread:', err);
+                  }
+                }}
+              >
+                <MessageCircle size={16} />
+                Message {listing.posted_by.name.split(' ')[0]}
               </Button>
             )}
             <Button
