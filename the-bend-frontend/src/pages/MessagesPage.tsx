@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play } from 'lucide-react';
+import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -15,13 +15,18 @@ import { useMessageStore } from '@/stores/messageStore';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { CameraCapture, type CameraResult } from '@/components/shared/CameraCapture';
+import {
+  VoiceNoteRecorder,
+  type VoiceNoteResult,
+} from '@/components/shared/VoiceNoteRecorder';
 import type { MessageThread, Message } from '@/types';
 
 // Local payload type for a media attachment held in composer state before send.
+// 'audio' covers in-app voice notes recorded via VoiceNoteRecorder.
 type PendingAttachment = {
   url: string;
   thumbnail_url: string | null;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   duration_ms?: number;
 };
 
@@ -106,7 +111,9 @@ function ThreadListItem({
     const text = lastMsg.content?.trim();
     if (text) return text;
     if (lastMsg.attachment_url) {
-      return lastMsg.attachment_type === 'image' ? '📷 Photo' : '🎥 Video';
+      if (lastMsg.attachment_type === 'image') return '📷 Photo';
+      if (lastMsg.attachment_type === 'audio') return '🎤 Voice note';
+      return '🎥 Video';
     }
     return '';
   })();
@@ -204,6 +211,13 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
               className="max-w-[240px] max-h-[300px] rounded-lg cursor-pointer object-cover shadow-sm"
               onClick={() => window.open(resolvedSrc, '_blank', 'noopener,noreferrer')}
             />
+          ) : message.attachment_type === 'audio' ? (
+            <audio
+              controls
+              preload="metadata"
+              src={resolvedSrc}
+              className="max-w-[280px]"
+            />
           ) : (
             <video
               controls
@@ -270,6 +284,7 @@ function ChatView({
   const [sending, setSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -333,6 +348,17 @@ function ChatView({
     });
     setAttachmentError(null);
     setCameraOpen(false);
+  }, []);
+
+  const handleVoiceCaptured = useCallback((result: VoiceNoteResult) => {
+    setPendingAttachment({
+      url: result.url,
+      thumbnail_url: null,
+      type: 'audio',
+      duration_ms: result.duration_ms,
+    });
+    setAttachmentError(null);
+    setVoiceOpen(false);
   }, []);
 
   const handlePickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -473,7 +499,12 @@ function ChatView({
           <div className="mb-2 flex items-center gap-2">
             <div className="relative inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 pr-7 shadow-sm">
               <div className="relative w-12 h-12 rounded-md overflow-hidden bg-black flex-shrink-0">
-                {pendingAttachment.thumbnail_url || pendingAttachment.type === 'image' ? (
+                {pendingAttachment.type === 'audio' ? (
+                  <div className="w-full h-full flex items-center justify-center bg-[hsl(0,84%,60%)]/15 text-red-400">
+                    <Mic size={18} />
+                  </div>
+                ) : pendingAttachment.thumbnail_url ||
+                  pendingAttachment.type === 'image' ? (
                   <img
                     src={
                       resolveAssetUrl(
@@ -495,7 +526,15 @@ function ChatView({
                 )}
               </div>
               <span className="text-xs text-gray-600">
-                {pendingAttachment.type === 'image' ? 'Photo' : 'Video'}
+                {pendingAttachment.type === 'image'
+                  ? 'Photo'
+                  : pendingAttachment.type === 'audio'
+                    ? `Voice note${
+                        typeof pendingAttachment.duration_ms === 'number'
+                          ? ` (${(pendingAttachment.duration_ms / 1000).toFixed(1)}s)`
+                          : ''
+                      }`
+                    : 'Video'}
               </span>
               <button
                 type="button"
@@ -525,6 +564,17 @@ function ChatView({
             <Camera size={18} />
           </button>
 
+          {/* Mic button — opens the voice-note recorder modal. */}
+          <button
+            type="button"
+            onClick={() => setVoiceOpen(true)}
+            disabled={sending || attachmentUploading}
+            aria-label="Record voice note"
+            className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            <Mic size={18} />
+          </button>
+
           {/* Paperclip button — triggers the hidden file picker. */}
           <button
             type="button"
@@ -538,7 +588,7 @@ function ChatView({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*"
+            accept="image/*,video/*,audio/*"
             className="hidden"
             onChange={handlePickFile}
           />
@@ -577,6 +627,13 @@ function ChatView({
         onClose={() => setCameraOpen(false)}
         onCaptured={handleCameraCaptured}
         mode="both"
+      />
+
+      {/* In-app voice-note recorder. Same lifecycle as CameraCapture. */}
+      <VoiceNoteRecorder
+        open={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onCaptured={handleVoiceCaptured}
       />
     </div>
   );
@@ -744,7 +801,9 @@ export default function MessagesPage() {
         : hasAttachment
           ? attachment!.type === 'image'
             ? '📷 Photo'
-            : '🎥 Video'
+            : attachment!.type === 'audio'
+              ? '🎤 Voice note'
+              : '🎥 Video'
           : '';
       setThreads(
         threads.map((t) =>

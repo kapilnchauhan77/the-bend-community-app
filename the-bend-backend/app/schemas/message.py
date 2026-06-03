@@ -29,9 +29,10 @@ class MessageResponse(BaseModel):
     content: str
     read_at: datetime | None = None
     created_at: datetime
-    # Phase 2 attachments — null when the message is text-only.
+    # Phase 2 + 3 attachments — null when the message is text-only.
+    # 'audio' covers in-app voice notes (9 s cap, recorded via MediaRecorder).
     attachment_url: str | None = None
-    attachment_type: Literal['image', 'video'] | None = None
+    attachment_type: Literal['image', 'video', 'audio'] | None = None
     attachment_thumbnail_url: str | None = None
 
     @field_validator("id", "thread_id", "sender_id", mode="before")
@@ -57,7 +58,7 @@ class SendMessageRequest(BaseModel):
     """
     content: str | None = Field(default=None, max_length=2000)
     attachment_url: str | None = None
-    attachment_type: Literal['image', 'video'] | None = None
+    attachment_type: Literal['image', 'video', 'audio'] | None = None
     attachment_thumbnail_url: str | None = None
 
     @model_validator(mode="after")

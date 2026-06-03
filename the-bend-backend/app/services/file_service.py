@@ -32,6 +32,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 (UPLOAD_DIR / "images").mkdir(exist_ok=True)
 (UPLOAD_DIR / "guidelines").mkdir(exist_ok=True)
 (UPLOAD_DIR / "videos").mkdir(exist_ok=True)
+(UPLOAD_DIR / "audio").mkdir(exist_ok=True)
 
 MAX_FULL_EDGE = 1600        # max width or height for the "full" image
 MAX_THUMB_EDGE = 600        # max width or height for the thumbnail
@@ -40,24 +41,44 @@ JPEG_QUALITY = 82
 # Media upload limits (shared by the unified /upload/media endpoint).
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # 25 MB hard ceiling for any single file
 MAX_VIDEO_DURATION_SECONDS = 10.0     # frontend caps at 9s; allow 1s of slop
+MAX_AUDIO_DURATION_SECONDS = 10.0     # voice notes capped at 9s on the client
 
-ALLOWED_IMAGE_MIME_TYPES = {
+ALLOWED_IMAGE_MIME_TYPES = frozenset({
     "image/jpeg",
     "image/png",
     "image/webp",
-}
-ALLOWED_VIDEO_MIME_TYPES = {
+})
+ALLOWED_VIDEO_MIME_TYPES = frozenset({
     "video/mp4",
     "video/webm",
     "video/quicktime",  # iOS .mov
-}
-ALLOWED_MEDIA_MIME_TYPES = ALLOWED_IMAGE_MIME_TYPES | ALLOWED_VIDEO_MIME_TYPES
+})
+# Voice notes recorded in the messenger. iOS Safari sometimes labels an .m4a
+# recording as "audio/mp4" — we accept that variant so iPhone users aren't
+# blocked. "audio/mpeg" covers .mp3 uploads from the file picker.
+ALLOWED_AUDIO_MIME_TYPES = frozenset({
+    "audio/webm",
+    "audio/mpeg",   # .mp3
+    "audio/mp4",    # iOS Safari sometimes sends this for .m4a
+    "audio/ogg",
+    "audio/wav",
+})
+ALLOWED_MEDIA_MIME_TYPES = (
+    ALLOWED_IMAGE_MIME_TYPES | ALLOWED_VIDEO_MIME_TYPES | ALLOWED_AUDIO_MIME_TYPES
+)
 
 # Fallback extension when the upload didn't carry a filename.
 _VIDEO_EXT_BY_MIME = {
     "video/mp4": ".mp4",
     "video/webm": ".webm",
     "video/quicktime": ".mov",
+}
+_AUDIO_EXT_BY_MIME = {
+    "audio/webm": ".webm",
+    "audio/mpeg": ".mp3",
+    "audio/mp4": ".m4a",
+    "audio/ogg": ".ogg",
+    "audio/wav": ".wav",
 }
 
 
@@ -234,5 +255,72 @@ class FileService:
             "id": file_id,
             "url": f"/uploads/videos/{file_id}{ext}",
             "thumbnail_url": thumbnail_url,
+            "duration_ms": int(duration * 1000),
+        }
+
+    async def upload_audio(self, file: UploadFile) -> dict:
+        """Persist a short voice note and probe its duration.
+
+        Mirrors ``upload_video`` but skips poster generation — audio doesn't
+        have a frame to scrub. Raises HTTPException(413) when the upload
+        exceeds the shared 25 MB cap, and HTTPException(422) when the probed
+        duration exceeds ``MAX_AUDIO_DURATION_SECONDS`` (9 s on the client,
+        1 s of slop for clock drift) or ffprobe cannot read the file.
+        """
+        # ffmpeg-python wraps the ffprobe CLI we already install for video.
+        import ffmpeg  # type: ignore
+
+        content = await file.read()
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="File too large (max 25 MB)",
+            )
+
+        # Preserve the original extension when present; otherwise fall back to
+        # one keyed off the content type. Default to ``.webm`` because that's
+        # what Chrome / Firefox MediaRecorder produces by default.
+        ext = ""
+        if file.filename:
+            ext = os.path.splitext(file.filename)[1].lower()
+        if not ext:
+            ext = _AUDIO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
+
+        file_id = str(uuid.uuid4())
+        audio_path = UPLOAD_DIR / "audio" / f"{file_id}{ext}"
+
+        with open(audio_path, "wb") as f:
+            f.write(content)
+
+        # Probe duration — same shape as video, but reading the "format"
+        # block since audio containers expose duration there too.
+        try:
+            probe = ffmpeg.probe(str(audio_path))
+            duration_str = probe.get("format", {}).get("duration")
+            duration = float(duration_str) if duration_str is not None else 0.0
+        except Exception as exc:  # pragma: no cover - defensive
+            try:
+                audio_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            logger.warning("ffprobe failed for audio upload %s: %s", file_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Could not read audio metadata",
+            ) from exc
+
+        if duration > MAX_AUDIO_DURATION_SECONDS:
+            try:
+                audio_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Audio must be 9 seconds or less",
+            )
+
+        return {
+            "id": file_id,
+            "url": f"/uploads/audio/{file_id}{ext}",
             "duration_ms": int(duration * 1000),
         }

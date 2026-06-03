@@ -7,6 +7,7 @@ from app.core.permissions import Permission, get_current_user
 from app.models.user import User
 from app.models.guideline import Guideline
 from app.services.file_service import (
+    ALLOWED_AUDIO_MIME_TYPES,
     ALLOWED_IMAGE_MIME_TYPES,
     ALLOWED_MEDIA_MIME_TYPES,
     ALLOWED_VIDEO_MIME_TYPES,
@@ -86,15 +87,17 @@ async def upload_media(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
-    """Unified upload endpoint for short videos OR photos.
+    """Unified upload endpoint for short videos, photos, OR voice notes.
 
     Auto-detects type from the Content-Type header. Images run through the
     same Pillow pipeline as /upload/images (full + _thumb). Videos are
-    saved verbatim with a generated poster JPEG. The response shape is the
-    same for both so the frontend can treat listing media uniformly:
+    saved verbatim with a generated poster JPEG. Audio is saved verbatim
+    with no poster (just a duration probe). The response shape is the
+    same for all three so the frontend can treat messenger media uniformly:
 
         { "url": "...", "thumbnail_url": "..." | null,
-          "type": "image" | "video", "duration_ms": <int, videos only> }
+          "type": "image" | "video" | "audio",
+          "duration_ms": <int, audio + video only> }
     """
     content_type = (file.content_type or "").lower()
 
@@ -117,13 +120,23 @@ async def upload_media(
             "type": "image",
         }
 
-    # Video branch. upload_video handles size + duration + poster.
-    assert content_type in ALLOWED_VIDEO_MIME_TYPES
-    result = await file_service.upload_video(file)
+    if content_type in ALLOWED_VIDEO_MIME_TYPES:
+        # Video branch. upload_video handles size + duration + poster.
+        result = await file_service.upload_video(file)
+        return {
+            "url": result["url"],
+            "thumbnail_url": result["thumbnail_url"],
+            "type": "video",
+            "duration_ms": result["duration_ms"],
+        }
+
+    # Audio branch (voice notes). No thumbnail — there's no frame to render.
+    assert content_type in ALLOWED_AUDIO_MIME_TYPES
+    result = await file_service.upload_audio(file)
     return {
         "url": result["url"],
-        "thumbnail_url": result["thumbnail_url"],
-        "type": "video",
+        "thumbnail_url": None,
+        "type": "audio",
         "duration_ms": result["duration_ms"],
     }
 

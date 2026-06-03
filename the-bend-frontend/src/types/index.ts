@@ -102,7 +102,7 @@ export interface MessageThread {
     sender_id: string;
     created_at: string;
     attachment_url?: string | null;
-    attachment_type?: 'image' | 'video' | null;
+    attachment_type?: 'image' | 'video' | 'audio' | null;
     attachment_thumbnail_url?: string | null;
   };
   unread_count: number;
@@ -116,9 +116,9 @@ export interface Message {
   content: string;
   read_at?: string;
   created_at: string;
-  // Phase 2: optional photo / 9 s video attached to the message.
+  // Phase 2 + 3: optional photo, 9 s video, or 9 s voice note on the message.
   attachment_url?: string | null;
-  attachment_type?: 'image' | 'video' | null;
+  attachment_type?: 'image' | 'video' | 'audio' | null;
   attachment_thumbnail_url?: string | null;
 }
 

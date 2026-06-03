@@ -45,7 +45,12 @@ class MessageService:
                 # message has no text body but does have an attachment.
                 preview = last_message.content or ""
                 if not preview.strip() and last_message.attachment_url:
-                    preview = "📷 Photo" if last_message.attachment_type == "image" else "🎥 Video"
+                    if last_message.attachment_type == "image":
+                        preview = "📷 Photo"
+                    elif last_message.attachment_type == "audio":
+                        preview = "🎤 Voice note"
+                    else:
+                        preview = "🎥 Video"
                 last_msg = {
                     "content": preview,
                     "sender_id": str(last_message.sender_id),
@@ -174,9 +179,12 @@ class MessageService:
                 if body:
                     notif_body = f"You have a new message: '{body[:50]}{'...' if len(body) > 50 else ''}'"
                 elif attachment_url:
-                    notif_body = (
-                        "You have a new photo" if attachment_type == "image" else "You have a new video"
-                    )
+                    if attachment_type == "image":
+                        notif_body = "You have a new photo"
+                    elif attachment_type == "audio":
+                        notif_body = "You have a new voice note"
+                    else:
+                        notif_body = "You have a new video"
                 else:
                     notif_body = "You have a new message"
                 notification_service = NotificationService(self.db)
