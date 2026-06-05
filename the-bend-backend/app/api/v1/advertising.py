@@ -14,6 +14,7 @@ from app.models.tenant import Tenant
 from app.models.ad_pricing import AdPricing
 from app.models.sponsor import Sponsor
 from app.middleware.tenant import get_frontend_url as _frontend_url
+from app.services.discount_code_service import DiscountCodeService
 
 router = APIRouter(prefix="/advertising", tags=["Advertising"])
 settings = get_settings()
@@ -27,6 +28,7 @@ class AdOrderRequest(BaseModel):
     logo_url: str | None = None
     contact_email: str
     contact_name: str
+    coupon_code: str | None = None
 
 
 @router.get("/pricing")
@@ -69,6 +71,24 @@ async def create_checkout(
     if not pricing:
         raise HTTPException(status_code=404, detail="Pricing plan not found")
 
+    # Resolve optional admin-issued sponsor coupon BEFORE creating the sponsor row
+    # so we can stamp coupon_code_id on insert and avoid a follow-up UPDATE.
+    applied_code = None
+    effective_cents = pricing.price_cents
+    if data.coupon_code:
+        coupon_service = DiscountCodeService(db)
+        applied_code = await coupon_service.lookup_sponsor_code(
+            data.coupon_code, tenant.id if tenant else None
+        )
+        if not applied_code:
+            raise HTTPException(status_code=400, detail="Coupon is not valid")
+        if applied_code.discount_type == "percentage":
+            effective_cents = int(
+                pricing.price_cents * (100 - applied_code.discount_value) / 100
+            )
+        else:  # flat (cents)
+            effective_cents = max(0, pricing.price_cents - applied_code.discount_value)
+
     # Create sponsor record (inactive until paid + approved)
     sponsor = Sponsor(
         id=uuid4(),
@@ -84,9 +104,22 @@ async def create_checkout(
         contact_name=data.contact_name,
         pricing_id=pricing.id,
         tenant_id=tenant.id if tenant else None,
+        coupon_code_id=applied_code.id if applied_code else None,
     )
     db.add(sponsor)
     await db.flush()
+
+    # Fully-discounted path: skip Stripe entirely. Mirrors the nonprofit-free
+    # event submit flow — sponsor is marked paid=True so the admin queue sees
+    # it, approved stays False so it still requires human review, and the
+    # coupon's usage_count is incremented right now (no webhook will fire).
+    if effective_cents == 0:
+        sponsor.paid = True
+        if applied_code is not None:
+            coupon_service = DiscountCodeService(db)
+            await coupon_service.mark_used(applied_code.id)
+        await db.flush()
+        return {"checkout_url": None, "session_id": None, "free": True}
 
     # Create Stripe checkout session
     stripe.api_key = get_stripe_keys(tenant).secret
@@ -96,7 +129,7 @@ async def create_checkout(
         line_items=[{
             "price_data": {
                 "currency": "usd",
-                "unit_amount": pricing.price_cents,
+                "unit_amount": effective_cents,
                 "product_data": {
                     "name": f"Ad Placement: {pricing.name}",
                     "description": f"{pricing.duration_days}-day ad on The Bend Community - {pricing.placement} page",
@@ -111,11 +144,24 @@ async def create_checkout(
         metadata={
             "sponsor_id": str(sponsor.id),
             "pricing_id": str(pricing.id),
+            "coupon_code_id": str(applied_code.id) if applied_code else None,
         },
     )
 
     # Save stripe session ID
     sponsor.stripe_session_id = session.id
+
+    # Trade-off: the existing sponsor webhook handler (above, this file)
+    # only flips paid=True and does not call mark_used on coupons, and we
+    # do not want to expand its surface area in this change. Apply the
+    # optimistic increment now so usage_count tracks reality even on the
+    # paid path. Risk: if the user abandons checkout, the coupon's
+    # usage_count drifts up by one. We accept that for simplicity; a
+    # future webhook pass can move this into checkout.session.completed.
+    if applied_code is not None:
+        coupon_service = DiscountCodeService(db)
+        await coupon_service.mark_used(applied_code.id)
+
     await db.flush()
 
     return {"checkout_url": session.url, "session_id": session.id}

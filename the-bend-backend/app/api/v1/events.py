@@ -35,6 +35,7 @@ class EventSubmitRequest(BaseModel):
     nonprofit_doc_url: str | None = None
     submitted_by_name: str
     submitted_by_email: str
+    coupon_code: str | None = None
 
 
 def get_service(db: AsyncSession = Depends(get_db)):
@@ -113,6 +114,25 @@ async def submit_event(
     price_cents = EVENT_PRICE_NONPROFIT if data.is_nonprofit else EVENT_PRICE_FORPROFIT
     price_label = "Not-for-Profit" if data.is_nonprofit else "For-Profit"
 
+    # Apply a platform-issued event coupon (admin-minted, coupon_type='event').
+    # Reduces price_cents in cents; usage is bumped right after creation when
+    # the discount actually lands (free path skips Stripe → bump immediately;
+    # paid path bumps when we know the checkout was set up successfully).
+    applied_coupon = None
+    if data.coupon_code:
+        from app.services.discount_code_service import DiscountCodeService
+        from fastapi import HTTPException
+        dc_service = DiscountCodeService(db)
+        applied_coupon = await dc_service.lookup_event_code(
+            data.coupon_code, tenant.id if tenant else None,
+        )
+        if not applied_coupon:
+            raise HTTPException(status_code=400, detail="Coupon is not valid")
+        if applied_coupon.discount_type == "percentage":
+            price_cents = int(price_cents * (100 - applied_coupon.discount_value) / 100)
+        else:
+            price_cents = max(0, price_cents - applied_coupon.discount_value)
+
     # Parse category
     try:
         cat = EventCategory(data.category)
@@ -146,8 +166,16 @@ async def submit_event(
     # paid submission — the only difference is no money changed hands.
     if price_cents == 0:
         event.paid = True
+        if applied_coupon is not None:
+            # We've already validated this row above; mark_used does its own
+            # SELECT FOR UPDATE + bounds re-check before bumping.
+            await dc_service.mark_used(applied_coupon.id)
         await db.flush()
-        return {"checkout_url": None, "session_id": None, "price_cents": 0, "free": True}
+        return {
+            "checkout_url": None, "session_id": None,
+            "price_cents": 0, "free": True,
+            "coupon_code": applied_coupon.code if applied_coupon else None,
+        }
 
     # Create Stripe checkout session
     stripe.api_key = get_stripe_keys(tenant).secret
@@ -172,13 +200,24 @@ async def submit_event(
         metadata={
             "event_id": str(event.id),
             "type": "event_posting",
+            "coupon_code_id": str(applied_coupon.id) if applied_coupon else "",
         },
     )
 
     event.stripe_session_id = session.id
+    # Optimistic redemption — bump usage now that the Stripe session is set
+    # up. Same trade-off as the sponsor checkout path: we don't currently
+    # process webhooks for these flows, so we accept a small drift if the
+    # user abandons before paying.
+    if applied_coupon is not None:
+        await dc_service.mark_used(applied_coupon.id)
     await db.flush()
 
-    return {"checkout_url": session.url, "session_id": session.id, "price_cents": price_cents}
+    return {
+        "checkout_url": session.url, "session_id": session.id,
+        "price_cents": price_cents,
+        "coupon_code": applied_coupon.code if applied_coupon else None,
+    }
 
 
 CONNECTOR_PRICE = 39900  # $399.00

@@ -17,6 +17,7 @@ export const eventApi = {
     end_date?: string; location?: string; category?: string;
     image_url?: string; is_nonprofit: boolean; nonprofit_doc_url?: string;
     submitted_by_name: string; submitted_by_email: string;
+    coupon_code?: string;
   }) =>
     api.post('/events/submit', data),
 

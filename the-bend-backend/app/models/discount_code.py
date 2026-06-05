@@ -42,6 +42,13 @@ class DiscountCode(Base):
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # 'shop_promo' (default — owner is a shop or individual) or 'sponsor'
+    # (tenant-admin-issued coupon redeemed at sponsor-slot checkout; both
+    # owner columns are NULL on sponsor rows).
+    coupon_type: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="shop_promo"
+    )
+
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -49,6 +56,7 @@ class DiscountCode(Base):
         Index("idx_discount_codes_owner_shop", "owner_shop_id"),
         Index("idx_discount_codes_owner_user", "owner_user_id"),
         Index("idx_discount_codes_tenant_id", "tenant_id"),
+        Index("idx_discount_codes_coupon_type", "coupon_type"),
         # Code is unique PER OWNER (one shop's SPRING20 != another's SPRING20).
         # Two partial unique indexes since only one owner column is non-null per row.
         Index(

@@ -34,8 +34,17 @@ class Sponsor(Base):
     pricing_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
 
+    # Optional admin-issued coupon applied at checkout.
+    # ON DELETE SET NULL so removing a coupon never wipes sponsor history.
+    coupon_code_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("discount_codes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     __table_args__ = (
         Index("idx_sponsors_active", "is_active"),
         Index("idx_sponsors_placement", "placement"),
         Index("idx_sponsors_tenant_id", "tenant_id"),
+        Index("idx_sponsors_coupon_code", "coupon_code_id"),
     )

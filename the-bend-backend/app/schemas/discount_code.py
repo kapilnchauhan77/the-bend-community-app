@@ -12,6 +12,7 @@ class DiscountCodeBase(BaseModel):
     discount_value: int = Field(..., gt=0)
     expiry_date: datetime | None = None
     max_uses: int | None = Field(None, gt=0)
+    coupon_type: Literal["shop_promo", "sponsor", "event"] = "shop_promo"
 
     @field_validator("discount_value")
     @classmethod
@@ -44,6 +45,7 @@ class DiscountCodeUpdate(BaseModel):
     expiry_date: datetime | None = None
     max_uses: int | None = Field(None, gt=0)
     is_active: bool | None = None
+    coupon_type: Literal["shop_promo", "sponsor", "event"] | None = None
 
     @field_validator("discount_value")
     @classmethod

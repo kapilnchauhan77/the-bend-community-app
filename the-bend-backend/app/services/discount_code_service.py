@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AppException,
+    BusinessRuleViolation,
     ConflictError,
     ForbiddenError,
     NotFoundError,
@@ -57,6 +58,52 @@ class DiscountCodeService:
     # -------- core CRUD --------
 
     async def create(self, data: DiscountCodeCreate, current_user: User) -> DiscountCode:
+        # Platform-level coupons (sponsor + event slots) live at the tenant
+        # level — only community/super admins can mint them, both owner_*
+        # columns stay NULL, and the dedupe key is
+        # (coupon_type, tenant_id, lower(code)) since the partial unique
+        # indexes only cover owner-scoped codes.
+        if data.coupon_type in ("sponsor", "event"):
+            if current_user.role not in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN):
+                raise ForbiddenError("Only community admins can create platform coupons")
+
+            tenant_id = current_user.tenant_id
+            dup_query = select(DiscountCode).where(
+                DiscountCode.coupon_type == data.coupon_type,
+                func.lower(DiscountCode.code) == data.code.lower(),
+            )
+            if tenant_id is None:
+                dup_query = dup_query.where(DiscountCode.tenant_id.is_(None))
+            else:
+                dup_query = dup_query.where(DiscountCode.tenant_id == tenant_id)
+            existing = (await self.db.execute(dup_query)).scalar_one_or_none()
+            if existing is not None:
+                raise BusinessRuleViolation(
+                    f"A {data.coupon_type} coupon with that code already exists in this tenant"
+                )
+
+            row = DiscountCode(
+                id=uuid4(),
+                owner_shop_id=None,
+                owner_user_id=None,
+                tenant_id=tenant_id,
+                code=data.code,
+                name=data.name,
+                description=data.description,
+                discount_type=data.discount_type,
+                discount_value=data.discount_value,
+                expiry_date=data.expiry_date,
+                max_uses=data.max_uses,
+                usage_count=0,
+                is_active=True,
+                coupon_type=data.coupon_type,
+            )
+            self.db.add(row)
+            await self.db.flush()
+            await self.db.refresh(row)
+            return row
+
+        # --- shop_promo path (unchanged behaviour) ---
         owner_shop_id, owner_user_id = self._owner_for_user(current_user)
 
         # Service-level XOR guard. (DB-level guard is the two partial-uniques + nullability.)
@@ -87,6 +134,7 @@ class DiscountCodeService:
             max_uses=data.max_uses,
             usage_count=0,
             is_active=True,
+            coupon_type="shop_promo",
         )
         self.db.add(row)
         await self.db.flush()
@@ -99,10 +147,29 @@ class DiscountCodeService:
             clauses.append(DiscountCode.owner_shop_id == current_user.shop_id)
         clauses.append(DiscountCode.owner_user_id == current_user.id)
 
+        # Community / super admins also see every platform coupon (sponsor
+        # OR event) scoped to their tenant. Those rows have NULL owner
+        # columns so they would not otherwise match the owner-keyed clauses
+        # above.
+        if current_user.role in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN):
+            platform_clause = DiscountCode.coupon_type.in_(("sponsor", "event"))
+            if current_user.tenant_id is None:
+                platform_clause = and_(platform_clause, DiscountCode.tenant_id.is_(None))
+            else:
+                platform_clause = and_(
+                    platform_clause, DiscountCode.tenant_id == current_user.tenant_id
+                )
+            clauses.append(platform_clause)
+
         query = (
             select(DiscountCode)
             .where(or_(*clauses))
-            .order_by(DiscountCode.created_at.desc())
+            # Surface admin-issued platform coupons first, then personal codes,
+            # each group ordered newest-first.
+            .order_by(
+                DiscountCode.coupon_type.in_(("sponsor", "event")).desc(),
+                DiscountCode.created_at.desc(),
+            )
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -190,6 +257,47 @@ class DiscountCodeService:
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def _lookup_platform_code(
+        self, coupon_type: str, code: str, tenant_id: UUID | None
+    ) -> DiscountCode | None:
+        if not code or not code.strip():
+            return None
+
+        now = datetime.utcnow()
+        query = select(DiscountCode).where(
+            DiscountCode.coupon_type == coupon_type,
+            DiscountCode.is_active.is_(True),
+            func.lower(DiscountCode.code) == code.strip().lower(),
+            or_(DiscountCode.expiry_date.is_(None), DiscountCode.expiry_date > now),
+            or_(
+                DiscountCode.max_uses.is_(None),
+                DiscountCode.usage_count < DiscountCode.max_uses,
+            ),
+        )
+        # Tenant scoping: codes carry the issuing admin's tenant_id (which
+        # may itself be NULL for a single-tenant deployment). We match
+        # NULL-to-NULL explicitly so the public endpoint can't leak a
+        # tenant-scoped coupon to an unscoped request.
+        if tenant_id is None:
+            query = query.where(DiscountCode.tenant_id.is_(None))
+        else:
+            query = query.where(DiscountCode.tenant_id == tenant_id)
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def lookup_sponsor_code(
+        self, code: str, tenant_id: UUID | None
+    ) -> DiscountCode | None:
+        """Return a redeemable sponsor coupon by code (case-insensitive)."""
+        return await self._lookup_platform_code("sponsor", code, tenant_id)
+
+    async def lookup_event_code(
+        self, code: str, tenant_id: UUID | None
+    ) -> DiscountCode | None:
+        """Return a redeemable event-posting coupon by code (case-insensitive)."""
+        return await self._lookup_platform_code("event", code, tenant_id)
 
     async def mark_used(self, code_id: UUID) -> DiscountCode:
         """Atomically increment usage_count. Raises 410 GONE if exhausted/expired."""

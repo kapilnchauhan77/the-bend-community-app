@@ -353,6 +353,7 @@ export default function EventsPage() {
   const [docUploading, setDocUploading] = useState(false);
   const [postSubmitting, setPostSubmitting] = useState(false);
   const [postError, setPostError] = useState('');
+  const [couponCode, setCouponCode] = useState('');
   const [postSuccess, setPostSuccess] = useState(false);
 
   // Check for success return from Stripe
@@ -668,6 +669,7 @@ export default function EventsPage() {
                           ...postForm,
                           is_nonprofit: postTier === 'nonprofit',
                           nonprofit_doc_url: nonprofitDocUrl || undefined,
+                          coupon_code: couponCode.trim() || undefined,
                         });
                         const checkoutUrl = res.data?.checkout_url;
                         if (checkoutUrl) {
@@ -765,6 +767,21 @@ export default function EventsPage() {
                         )}
                       </div>
                     )}
+
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Coupon code <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <Input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="e.g. SUMMER250"
+                        className="rounded-xl h-11 uppercase tracking-wider"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Have a promo code from the Westmoreland County Museum or another community partner? Enter it here.
+                      </p>
+                    </div>
 
                     <div className="flex gap-3 pt-2">
                       <Button type="button" variant="outline" onClick={() => setShowPostForm(false)} className="flex-1 h-11 rounded-xl cursor-pointer">

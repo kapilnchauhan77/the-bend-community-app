@@ -1,10 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.permissions import get_current_user
+from app.core.permissions import get_current_tenant, get_current_user
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.discount_code import (
     DiscountCodeCreate,
@@ -14,6 +16,10 @@ from app.schemas.discount_code import (
 from app.services.discount_code_service import DiscountCodeService
 
 router = APIRouter(prefix="/discount-codes", tags=["Discount Codes"])
+
+
+class SponsorCodeLookupRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=40)
 
 
 def get_service(db: AsyncSession = Depends(get_db)) -> DiscountCodeService:
@@ -89,3 +95,36 @@ async def list_discount_codes_for_user(
     """Public list of active, unexpired, non-exhausted codes posted by a user."""
     rows = await service.list_for_user(user_id)
     return [DiscountCodeResponse.model_validate(r).model_dump() for r in rows]
+
+
+@router.post("/sponsor-lookup")
+async def lookup_sponsor_code(
+    body: SponsorCodeLookupRequest,
+    service: DiscountCodeService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    """Public lookup for a sponsor-slot coupon by code.
+
+    Tenant is resolved from request state (the same path used by the rest
+    of the public sponsor flow). Returns the coupon when redeemable, or
+    404 when missing / inactive / expired / exhausted / wrong tenant.
+    No auth required — the sponsor checkout flow itself is public.
+    """
+    row = await service.lookup_sponsor_code(body.code, tenant.id if tenant else None)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Code not found or no longer valid")
+    return DiscountCodeResponse.model_validate(row).model_dump()
+
+
+@router.post("/event-lookup")
+async def lookup_event_code(
+    body: SponsorCodeLookupRequest,
+    service: DiscountCodeService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    """Public lookup for an event-posting coupon by code. Mirrors
+    /sponsor-lookup but filters coupon_type='event'."""
+    row = await service.lookup_event_code(body.code, tenant.id if tenant else None)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Code not found or no longer valid")
+    return DiscountCodeResponse.model_validate(row).model_dump()

@@ -702,6 +702,55 @@ async def clear_dummy_data():
             print(f"  - {email} ({role_val})")
 
 
+async def seed_summer250_coupon():
+    """Seed the SUMMER250 event coupon for the Westmoreland County Museum's
+    America's 250th programming — 100% off event posting, capped at 100
+    redemptions. Idempotent: leaves an existing row alone (including any
+    usage_count already accumulated)."""
+    async with async_session() as session:
+        from sqlalchemy import select
+        from app.models.discount_code import DiscountCode
+        from app.models.tenant import Tenant
+
+        tenant_result = await session.execute(
+            select(Tenant).where(Tenant.slug == "westmoreland")
+        )
+        tenant = tenant_result.scalar_one_or_none()
+        if tenant is None:
+            print("SUMMER250: westmoreland tenant missing, skipping")
+            return
+
+        existing = await session.execute(
+            select(DiscountCode).where(
+                DiscountCode.code == "SUMMER250",
+                DiscountCode.coupon_type == "event",
+                DiscountCode.tenant_id == tenant.id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            print("SUMMER250 coupon already exists")
+            return
+
+        session.add(DiscountCode(
+            id=uuid4(),
+            owner_shop_id=None,
+            owner_user_id=None,
+            tenant_id=tenant.id,
+            code="SUMMER250",
+            name="Westmoreland Museum — America's 250th",
+            description="Free event posting for 250th-anniversary programming. Run by the Westmoreland County Museum.",
+            discount_type="percentage",
+            discount_value=100,
+            expiry_date=None,
+            max_uses=100,
+            usage_count=0,
+            is_active=True,
+            coupon_type="event",
+        ))
+        await session.commit()
+        print("Seeded SUMMER250 coupon (100 uses, 100% off event posting)")
+
+
 async def main():
     await ensure_default_tenant()
     await create_super_admin()
@@ -718,6 +767,7 @@ async def main():
     await seed_blacksburg()
     await seed_new_kent()
     await seed_alexandria()
+    await seed_summer250_coupon()
 
 
 async def fix_logo_extensions():
