@@ -295,3 +295,22 @@ export interface SuccessStory {
   is_featured: boolean;
   created_at: string;
 }
+
+// Discount codes — either personally owned (community member) or shop-owned.
+// `discount_value` is a percentage (1-100) when discount_type === 'percentage',
+// and a flat amount in CENTS when discount_type === 'flat'.
+export interface DiscountCode {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  discount_type: 'percentage' | 'flat';
+  discount_value: number;
+  expiry_date?: string | null;
+  max_uses?: number | null;
+  usage_count: number;
+  is_active: boolean;
+  owner_shop_id?: string | null;
+  owner_user_id?: string | null;
+  created_at: string;
+}

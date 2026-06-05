@@ -23,6 +23,7 @@ from app.models.saved_listing import SavedListing
 from app.models.success_story import SuccessStory
 from app.models.report import Report
 from app.models.endorsement import Endorsement
+from app.models.discount_code import DiscountCode
 
 __all__ = [
     "UserRole", "ShopStatus", "ListingType", "ListingCategory",
@@ -39,4 +40,5 @@ __all__ = [
     "SuccessStory",
     "Report",
     "Endorsement",
+    "DiscountCode",
 ]

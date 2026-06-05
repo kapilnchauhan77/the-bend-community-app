@@ -1,6 +1,6 @@
 import { resolveAssetUrl } from '@/lib/constants';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Menu, X, ChevronDown, Settings, LogOut, User as UserIcon, Store, Bookmark, Moon, Sun, Package } from 'lucide-react';
+import { Bell, Menu, X, ChevronDown, Settings, LogOut, User as UserIcon, Store, Bookmark, Moon, Sun, Package, Tag } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
@@ -180,6 +180,15 @@ export function Navbar() {
                       >
                         <Package size={15} />
                         My Listings
+                      </button>
+                    )}
+                    {user?.role !== 'community_admin' && user?.role !== 'super_admin' && (
+                      <button
+                        onClick={() => { setProfileOpen(false); navigate('/my-discount-codes'); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
+                      >
+                        <Tag size={15} />
+                        Discount Codes
                       </button>
                     )}
                     <button

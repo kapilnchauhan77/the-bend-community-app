@@ -185,6 +185,20 @@ async def get_shop_listings(
 
 
 # Endorsement endpoints
+@router.get("/shops/{shop_id}/discount-codes")
+async def get_shop_discount_codes(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public list of active, unexpired, non-exhausted discount codes for a shop."""
+    from app.schemas.discount_code import DiscountCodeResponse
+    from app.services.discount_code_service import DiscountCodeService
+
+    service = DiscountCodeService(db)
+    rows = await service.list_for_shop(shop_id)
+    return [DiscountCodeResponse.model_validate(r).model_dump() for r in rows]
+
+
 @router.get("/shops/{shop_id}/endorsements")
 async def get_endorsements(
     shop_id: UUID,

@@ -19,6 +19,7 @@ from app.api.v1.digest import router as digest_router
 from app.api.v1.super_admin import router as super_admin_router
 from app.api.v1.tenant import router as tenant_router
 from app.api.v1.referrals import router as referrals_router
+from app.api.v1.discount_codes import router as discount_codes_router
 
 api_router = APIRouter()
 
@@ -40,6 +41,7 @@ api_router.include_router(digest_router)
 api_router.include_router(super_admin_router)
 api_router.include_router(tenant_router)
 api_router.include_router(referrals_router)
+api_router.include_router(discount_codes_router)
 
 
 @api_router.get("/health")

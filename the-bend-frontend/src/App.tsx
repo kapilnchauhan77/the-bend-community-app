@@ -50,6 +50,7 @@ import ReferralsKanbanPage from '@/pages/super-admin/ReferralsKanbanPage';
 import ReferralsPage from '@/pages/admin/ReferralsPage';
 import SavedListingsPage from '@/pages/SavedListingsPage';
 import MyListingsPage from '@/pages/MyListingsPage';
+import MyDiscountCodesPage from '@/pages/MyDiscountCodesPage';
 import { ProtectedRoute } from '@/components/shared/ProtectedRoute';
 import { RoleGuard } from '@/components/shared/RoleGuard';
 
@@ -95,6 +96,7 @@ function App() {
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/saved" element={<ProtectedRoute><SavedListingsPage /></ProtectedRoute>} />
         <Route path="/my-listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
+        <Route path="/my-discount-codes" element={<ProtectedRoute><MyDiscountCodesPage /></ProtectedRoute>} />
 
         {/* Admin routes */}
         <Route path="/admin" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><DashboardPage /></RoleGuard></ProtectedRoute>} />

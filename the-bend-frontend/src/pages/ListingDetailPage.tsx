@@ -42,8 +42,10 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { ShareButton } from '@/components/shared/ShareButton';
 import { listingApi } from '@/services/listingApi';
 import { messageApi } from '@/services/messageApi';
+import { discountCodeApi } from '@/services/discountCodeApi';
+import { DiscountCodesList } from '@/components/shared/DiscountCodesList';
 import { useAuthStore } from '@/stores/authStore';
-import type { ListingDetail } from '@/types';
+import type { ListingDetail, DiscountCode } from '@/types';
 
 const urgencyStyles = {
   normal: { badge: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400', label: 'Normal' },
@@ -91,6 +93,7 @@ export default function ListingDetailPage() {
   const [reportDetails, setReportDetails] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reported, setReported] = useState(false);
+  const [posterDiscountCodes, setPosterDiscountCodes] = useState<DiscountCode[]>([]);
 
   const isOwner = !!(listing && shop && listing.shop && listing.shop.id === shop.id);
   const isVolunteer = listing?.category === 'volunteer';
@@ -99,6 +102,21 @@ export default function ListingDetailPage() {
     if (!id) return;
     loadListing();
   }, [id]);
+
+  // Fetch discount codes for community-member-posted listings only.
+  // Shop-owned listings surface codes on the business profile page instead.
+  useEffect(() => {
+    if (!listing) return;
+    if (listing.shop) {
+      setPosterDiscountCodes([]);
+      return;
+    }
+    if (!listing.posted_by) return;
+    discountCodeApi
+      .listForUser(listing.posted_by.id)
+      .then((res) => setPosterDiscountCodes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setPosterDiscountCodes([]));
+  }, [listing]);
 
   async function loadListing() {
     setLoading(true);
@@ -479,6 +497,19 @@ export default function ListingDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Discount codes from the community member who posted (no shop) */}
+        {!listing.shop && listing.posted_by && posterDiscountCodes.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-[2px]" style={{ backgroundColor: 'hsl(35, 45%, 42%)' }} />
+              <h2 className="text-lg font-bold font-serif text-[hsl(30,15%,18%)] tracking-wide">
+                Discount Codes from {listing.posted_by.name.split(' ')[0]}
+              </h2>
+            </div>
+            <DiscountCodesList codes={posterDiscountCodes} />
+          </div>
+        )}
 
         {/* Success alert */}
         {interestSuccess && (

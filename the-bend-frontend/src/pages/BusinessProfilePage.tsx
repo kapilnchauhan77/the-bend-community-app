@@ -8,10 +8,12 @@ import { ListingCard } from '@/components/shared/ListingCard';
 import { ShareButton } from '@/components/shared/ShareButton';
 import { shopApi } from '@/services/shopApi';
 import { messageApi } from '@/services/messageApi';
+import { discountCodeApi } from '@/services/discountCodeApi';
+import { DiscountCodesList } from '@/components/shared/DiscountCodesList';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { businessTypeLabel } from '@/lib/businessTypes';
-import type { Shop, Listing } from '@/types';
+import type { Shop, Listing, DiscountCode } from '@/types';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -37,6 +39,7 @@ export default function BusinessProfilePage() {
   const [endorseMessage, setEndorseMessage] = useState('');
   const [showEndorseForm, setShowEndorseForm] = useState(false);
   const [endorsementCount, setEndorsementCount] = useState(0);
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
 
   const isOwner = myShop && shopData && myShop.id === shopData.id;
 
@@ -49,13 +52,15 @@ export default function BusinessProfilePage() {
       shopApi.getShop(shopId),
       shopApi.getShopListings(shopId),
       shopApi.getEndorsements(shopId),
+      discountCodeApi.listForShop(shopId).catch(() => ({ data: [] as DiscountCode[] })),
     ])
-      .then(([shopRes, listingsRes, endorseRes]) => {
+      .then(([shopRes, listingsRes, endorseRes, discountRes]) => {
         setShopData(shopRes.data);
         setListings(listingsRes.data.items ?? listingsRes.data ?? []);
         setEndorsements(endorseRes.data.items ?? []);
         setEndorsementCount(endorseRes.data.count ?? 0);
         setHasEndorsed(shopRes.data.viewer_has_endorsed ?? false);
+        setDiscountCodes(Array.isArray(discountRes.data) ? discountRes.data : []);
       })
       .catch(() => setError('Could not load this business profile.'))
       .finally(() => setLoading(false));
@@ -373,6 +378,20 @@ export default function BusinessProfilePage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Discount codes */}
+        {discountCodes.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-8 h-[2px]" style={{ backgroundColor: BRONZE }} />
+              <h2 className="text-xl font-bold font-serif text-[hsl(30,15%,18%)] tracking-wide">Discount Codes</h2>
+              <span className="text-xs text-[hsl(30,10%,55%)] bg-[hsl(35,15%,90%)] px-2 py-0.5 rounded-full font-medium">
+                {discountCodes.length}
+              </span>
+            </div>
+            <DiscountCodesList codes={discountCodes} />
           </div>
         )}
 
