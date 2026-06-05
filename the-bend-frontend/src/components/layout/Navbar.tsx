@@ -66,6 +66,9 @@ export function Navbar() {
             <Link to="/browse" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
               Browse
             </Link>
+            <Link to="/bender" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
+              Bender
+            </Link>
             <Link to="/events" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
               Events
             </Link>
@@ -255,6 +258,7 @@ export function Navbar() {
             {[
               { to: '/', label: 'Home' },
               { to: '/browse', label: 'Browse' },
+              { to: '/bender', label: 'Bender' },
               { to: '/events', label: 'Events' },
               { to: '/directory', label: 'Directory' },
               { to: '/volunteers', label: 'Volunteers' },

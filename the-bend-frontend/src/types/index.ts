@@ -296,6 +296,37 @@ export interface SuccessStory {
   created_at: string;
 }
 
+// Bender — Instagram-style community feed.
+// Author may be an individual OR a shop-affiliated user — when shop_id/shop_name
+// are present the UI shows the shop name as the headline, the personal name is the fallback.
+export interface BenderAuthor {
+  id: string;
+  name: string;
+  avatar_url?: string | null;
+  shop_id?: string | null;
+  shop_name?: string | null;
+}
+
+export interface BenderPost {
+  id: string;
+  author: BenderAuthor;
+  caption: string | null;
+  media_url: string | null;
+  media_thumbnail_url: string | null;
+  media_type: 'image' | 'video' | null;
+  like_count: number;
+  comment_count: number;
+  viewer_has_liked: boolean;
+  created_at: string;
+}
+
+export interface BenderComment {
+  id: string;
+  author: BenderAuthor;
+  content: string;
+  created_at: string;
+}
+
 // Discount codes — either personally owned (community member) or shop-owned.
 // `discount_value` is a percentage (1-100) when discount_type === 'percentage',
 // and a flat amount in CENTS when discount_type === 'flat'.

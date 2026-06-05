@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Plus, Calendar, MessageCircle, Store, Shield, User } from 'lucide-react';
+import { Home, Plus, Sparkles, MessageCircle, Store, Shield, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 
 export function BottomNav() {
@@ -12,7 +12,7 @@ export function BottomNav() {
 
   const leftTabs = [
     { icon: Home, label: 'Home', path: '/' },
-    { icon: Calendar, label: 'Events', path: '/events' },
+    { icon: Sparkles, label: 'Bender', path: '/bender' },
   ];
 
   const rightTabs = [

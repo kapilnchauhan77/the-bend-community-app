@@ -51,6 +51,7 @@ import ReferralsPage from '@/pages/admin/ReferralsPage';
 import SavedListingsPage from '@/pages/SavedListingsPage';
 import MyListingsPage from '@/pages/MyListingsPage';
 import MyDiscountCodesPage from '@/pages/MyDiscountCodesPage';
+import BenderPage from '@/pages/BenderPage';
 import { ProtectedRoute } from '@/components/shared/ProtectedRoute';
 import { RoleGuard } from '@/components/shared/RoleGuard';
 
@@ -78,6 +79,7 @@ function App() {
         <Route path="/volunteers" element={<VolunteerPage />} />
         <Route path="/talent" element={<TalentPage />} />
         <Route path="/events" element={<EventsPage />} />
+        <Route path="/bender" element={<BenderPage />} />
         <Route path="/advertise" element={<AdvertisePage />} />
         <Route path="/advertise/success" element={<AdvertisePage />} />
         <Route path="/guidelines" element={<GuidelinesViewPage />} />
