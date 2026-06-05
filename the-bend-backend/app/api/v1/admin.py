@@ -320,7 +320,16 @@ async def admin_create_sponsor(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    sponsor = Sponsor(id=uuid4(), **data.model_dump(), tenant_id=_.tenant_id)
+    # Admin-created sponsors skip the paid/approval pipeline — they're
+    # comp slots the community admin chooses to grant, so they go live
+    # immediately and surface in the "Active" tab.
+    sponsor = Sponsor(
+        id=uuid4(),
+        **data.model_dump(),
+        tenant_id=_.tenant_id,
+        paid=True,
+        approved=True,
+    )
     db.add(sponsor)
     await db.flush()
     return {"id": str(sponsor.id), "name": sponsor.name}

@@ -106,6 +106,43 @@ export default function SponsorsPage() {
 
   // Edit dialog
   const [editTarget, setEditTarget] = useState<Sponsor | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    description: '',
+    website_url: '',
+    logo_url: '',
+    placement: 'homepage' as Placement,
+    is_active: true,
+  });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const handleCreate = async () => {
+    setCreateError('');
+    if (!createForm.name.trim()) {
+      setCreateError('Name is required.');
+      return;
+    }
+    setCreating(true);
+    try {
+      await sponsorApi.adminCreate({
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || undefined,
+        website_url: createForm.website_url.trim() || undefined,
+        logo_url: createForm.logo_url.trim() || undefined,
+        placement: createForm.placement,
+        is_active: createForm.is_active,
+      });
+      setCreateOpen(false);
+      setCreateForm({ name: '', description: '', website_url: '', logo_url: '', placement: 'homepage', is_active: true });
+      await fetchSponsors();
+    } catch {
+      setCreateError('Failed to create sponsor. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
   const [editForm, setEditForm] = useState<EditFormData>(EMPTY_EDIT_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -228,16 +265,26 @@ export default function SponsorsPage() {
               Review payments, approve sponsors, and manage active placements
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchSponsors}
-            disabled={loading}
-            className="gap-1.5"
-          >
-            {loading ? <Loader2 size={14} className="animate-spin" /> : null}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchSponsors}
+              disabled={loading}
+              className="gap-1.5"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : null}
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => { setCreateError(''); setCreateOpen(true); }}
+              className="text-white"
+              style={{ backgroundColor: PRIMARY }}
+            >
+              + New Sponsor
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -577,6 +624,109 @@ export default function SponsorsPage() {
                   Saving…
                 </span>
               ) : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Dialog (admin-comp sponsor) */}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) setCreateOpen(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Sponsor</DialogTitle>
+            <DialogDescription>
+              Add a comp sponsor — skips Stripe checkout and goes live immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-name">Name *</Label>
+              <Input
+                id="cr-name"
+                value={createForm.name}
+                onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Sponsor name"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-desc">Description</Label>
+              <Input
+                id="cr-desc"
+                value={createForm.description}
+                onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Short description"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-logo">Logo URL</Label>
+              <Input
+                id="cr-logo"
+                value={createForm.logo_url}
+                onChange={(e) => setCreateForm((f) => ({ ...f, logo_url: e.target.value }))}
+                placeholder="/uploads/images/... or https://..."
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-url">Website URL</Label>
+              <Input
+                id="cr-url"
+                value={createForm.website_url}
+                onChange={(e) => setCreateForm((f) => ({ ...f, website_url: e.target.value }))}
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cr-placement">Placement</Label>
+              <Select
+                value={createForm.placement}
+                onValueChange={(v) => setCreateForm((f) => ({ ...f, placement: v as Placement }))}
+              >
+                <SelectTrigger id="cr-placement">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLACEMENTS.map((p) => (
+                    <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="cr-active"
+                checked={createForm.is_active}
+                onCheckedChange={(checked) =>
+                  setCreateForm((f) => ({ ...f, is_active: checked === true }))
+                }
+              />
+              <Label htmlFor="cr-active" className="cursor-pointer">Active</Label>
+            </div>
+
+            {createError && <p className="text-xs text-red-500">{createError}</p>}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="text-white"
+              style={{ backgroundColor: PRIMARY }}
+              onClick={handleCreate}
+              disabled={creating}
+            >
+              {creating ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Creating…
+                </span>
+              ) : 'Create Sponsor'}
             </Button>
           </DialogFooter>
         </DialogContent>
