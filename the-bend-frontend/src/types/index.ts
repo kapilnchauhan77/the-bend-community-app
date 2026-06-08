@@ -343,5 +343,6 @@ export interface DiscountCode {
   is_active: boolean;
   owner_shop_id?: string | null;
   owner_user_id?: string | null;
+  coupon_type?: 'shop_promo' | 'sponsor' | 'event';
   created_at: string;
 }

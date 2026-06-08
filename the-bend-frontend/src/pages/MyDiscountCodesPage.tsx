@@ -26,12 +26,14 @@ import {
 import { PageLayout } from '@/components/layout/PageLayout';
 import { discountCodeApi } from '@/services/discountCodeApi';
 import { parseServerDate } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
 import type { DiscountCode } from '@/types';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
 
 type DiscountType = 'percentage' | 'flat';
+type CouponType = 'shop_promo' | 'sponsor' | 'event';
 
 interface FormState {
   code: string;
@@ -45,6 +47,7 @@ interface FormState {
   expiry_date: string; // YYYY-MM-DD (date picker format) or ''
   max_uses: string;    // empty = unlimited
   is_active: boolean;
+  coupon_type: CouponType;
 }
 
 const EMPTY_FORM: FormState = {
@@ -57,6 +60,7 @@ const EMPTY_FORM: FormState = {
   expiry_date: '',
   max_uses: '',
   is_active: true,
+  coupon_type: 'shop_promo',
 };
 
 // "2026-12-31T23:59:59" — match backend's naive-UTC ISO format (no tz suffix).
@@ -95,6 +99,9 @@ function statusLabel(c: DiscountCode): { label: string; cls: string } {
 }
 
 export default function MyDiscountCodesPage() {
+  const { user } = useAuthStore();
+  const isPlatformAdmin = user?.role === 'community_admin' || user?.role === 'super_admin';
+
   const [codes, setCodes] = useState<DiscountCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -139,6 +146,7 @@ export default function MyDiscountCodesPage() {
       expiry_date: c.expiry_date ? isoToDateInput(c.expiry_date) : '',
       max_uses: c.max_uses != null ? String(c.max_uses) : '',
       is_active: c.is_active,
+      coupon_type: (c.coupon_type ?? 'shop_promo') as CouponType,
     });
     setModalOpen(true);
   }
@@ -185,6 +193,10 @@ export default function MyDiscountCodesPage() {
         discount_value,
         expiry_date: form.expiry_date ? dateToEndOfDayIso(form.expiry_date) : null,
         max_uses: form.max_uses !== '' ? Math.round(Number(form.max_uses)) : null,
+        // Only admins can mint sponsor/event coupons — the server enforces
+        // the same rule, this is just to avoid sending an irrelevant field
+        // for regular users.
+        coupon_type: isPlatformAdmin ? form.coupon_type : 'shop_promo',
       };
       if (editing) {
         await discountCodeApi.update(editing.id, { ...payload, is_active: form.is_active });
@@ -382,6 +394,43 @@ export default function MyDiscountCodesPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-1">
+            {/* Type — admins only, hidden in edit mode so coupon_type stays
+                stable for the lifetime of a code. */}
+            {isPlatformAdmin && !editing && (
+              <div className="space-y-1.5">
+                <Label className="text-xs uppercase tracking-wider">Type</Label>
+                <div className="flex gap-1 rounded-md border border-[hsl(35,18%,84%)] bg-[hsl(35,15%,96%)] p-1">
+                  {(['shop_promo', 'sponsor', 'event'] as const).map((t) => {
+                    const label =
+                      t === 'shop_promo' ? 'My code'
+                      : t === 'sponsor' ? 'Sponsor coupon'
+                      : 'Event coupon';
+                    const selected = form.coupon_type === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, coupon_type: t }))}
+                        className={`flex-1 text-xs font-medium py-1.5 rounded transition-colors cursor-pointer ${
+                          selected ? 'text-white' : 'text-[hsl(30,15%,30%)] hover:bg-[hsl(35,15%,92%)]'
+                        }`}
+                        style={selected ? { backgroundColor: PRIMARY } : {}}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-[hsl(30,10%,55%)]">
+                  {form.coupon_type === 'shop_promo'
+                    ? 'A personal promo you share with your own customers.'
+                    : form.coupon_type === 'sponsor'
+                    ? 'Platform coupon redeemed at sponsor-slot checkout.'
+                    : 'Platform coupon redeemed when posting events.'}
+                </p>
+              </div>
+            )}
+
             {/* Code */}
             <div className="space-y-1.5">
               <Label htmlFor="dc-code" className="text-xs uppercase tracking-wider">
