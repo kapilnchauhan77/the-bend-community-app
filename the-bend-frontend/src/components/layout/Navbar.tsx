@@ -185,15 +185,13 @@ export function Navbar() {
                         My Listings
                       </button>
                     )}
-                    {user?.role !== 'community_admin' && user?.role !== 'super_admin' && (
-                      <button
-                        onClick={() => { setProfileOpen(false); navigate('/my-discount-codes'); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
-                      >
-                        <Tag size={15} />
-                        Discount Codes
-                      </button>
-                    )}
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate('/my-discount-codes'); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
+                    >
+                      <Tag size={15} />
+                      Discount Codes
+                    </button>
                     <button
                       onClick={() => { setProfileOpen(false); navigate('/saved'); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[hsl(30,10%,40%)] hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer text-left"
