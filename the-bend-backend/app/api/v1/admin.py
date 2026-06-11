@@ -98,6 +98,41 @@ async def reactivate_shop(
     return {"id": str(shop.id), "status": "active"}
 
 
+@router.get("/individuals")
+async def get_individuals(
+    status: str | None = Query(None),
+    search: str | None = Query(None),
+    cursor: str | None = Query(None),
+    limit: int = Query(20, le=50),
+    service: AdminService = Depends(get_admin_service),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    service.tenant_id = current_user.tenant_id
+    return await service.get_individuals(status, search, cursor, limit)
+
+
+@router.post("/individuals/{user_id}/suspend")
+async def suspend_individual(
+    user_id: UUID, data: SuspendRequest,
+    service: AdminService = Depends(get_admin_service),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    service.tenant_id = current_user.tenant_id
+    user = await service.suspend_individual(user_id, data.reason)
+    return {"id": str(user.id), "is_active": user.is_active}
+
+
+@router.post("/individuals/{user_id}/reactivate")
+async def reactivate_individual(
+    user_id: UUID,
+    service: AdminService = Depends(get_admin_service),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    service.tenant_id = current_user.tenant_id
+    user = await service.reactivate_individual(user_id)
+    return {"id": str(user.id), "is_active": user.is_active}
+
+
 @router.get("/listings")
 async def get_all_listings(
     status: str | None = Query(None),

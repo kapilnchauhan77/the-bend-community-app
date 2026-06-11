@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,9 +7,11 @@ from sqlalchemy import select, func
 from app.models.shop import Shop
 from app.models.listing import Listing
 from app.models.user import User
-from app.models.enums import ShopStatus, ListingStatus, UrgencyLevel, ListingCategory, NotificationType
+from app.models.enums import ShopStatus, ListingStatus, UrgencyLevel, ListingCategory, NotificationType, UserRole
 from app.core.exceptions import NotFoundError
 from app.services.notification_service import NotificationService
+
+logger = logging.getLogger(__name__)
 
 
 class AdminService:
@@ -228,6 +231,65 @@ class AdminService:
         shop.status = ShopStatus.ACTIVE
         await self.db.flush()
         return shop
+
+    async def get_individuals(self, status=None, search=None, cursor=None, limit=20):
+        from sqlalchemy import or_
+        query = (
+            select(User)
+            .where(User.role == UserRole.INDIVIDUAL, self._tenant_filter(User))
+            .order_by(User.created_at.desc())
+        )
+        if status == 'active':
+            query = query.where(User.is_active.is_(True))
+        elif status == 'suspended':
+            query = query.where(User.is_active.is_(False))
+        if search:
+            term = f"%{search}%"
+            query = query.where(or_(User.name.ilike(term), User.email.ilike(term)))
+        query = query.limit(limit)
+        result = await self.db.execute(query)
+        users = result.scalars().all()
+        items = []
+        for u in users:
+            count_result = await self.db.execute(
+                select(func.count())
+                .select_from(Listing)
+                .where(Listing.posted_by_user_id == u.id)
+            )
+            items.append({
+                "id": str(u.id), "name": u.name, "email": u.email,
+                "phone": u.phone, "avatar_url": u.avatar_url,
+                "is_active": u.is_active, "created_at": str(u.created_at),
+                "listings_count": count_result.scalar_one(),
+            })
+        return {"items": items, "next_cursor": None, "has_more": False}
+
+    async def _get_individual(self, user_id: UUID) -> User:
+        query = select(User).where(
+            User.id == user_id,
+            User.role == UserRole.INDIVIDUAL,
+            self._tenant_filter(User),
+        )
+        result = await self.db.execute(query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise NotFoundError("User")
+        return user
+
+    async def suspend_individual(self, user_id: UUID, reason: str):
+        user = await self._get_individual(user_id)
+        user.is_active = False
+        await self.db.flush()
+        # No notification: a suspended user can't log in to read it. Reason is
+        # accepted for parity/audit and logged only (no User field stores it).
+        logger.info("Individual %s suspended. Reason: %s", user_id, reason)
+        return user
+
+    async def reactivate_individual(self, user_id: UUID):
+        user = await self._get_individual(user_id)
+        user.is_active = True
+        await self.db.flush()
+        return user
 
     async def get_all_listings(self, status=None, category=None, urgency=None, shop_id=None, search=None, cursor=None, limit=20):
         query = select(Listing).where(self._tenant_filter(Listing)).order_by(Listing.created_at.desc())

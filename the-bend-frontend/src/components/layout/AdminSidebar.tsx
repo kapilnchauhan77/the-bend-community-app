@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Store, FileText, Upload, BarChart3, Calendar, Link2, Megaphone, DollarSign, Settings, Flag, Gift } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Store, Users, FileText, Upload, BarChart3, Calendar, Link2, Megaphone, DollarSign, Settings, Flag, Gift } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
   { icon: ClipboardList, label: 'Registrations', path: '/admin/registrations' },
   { icon: Store, label: 'Businesses', path: '/admin/shops' },
+  { icon: Users, label: 'Individuals', path: '/admin/individuals' },
   { icon: FileText, label: 'Listings', path: '/admin/listings' },
   { icon: Upload, label: 'Guidelines', path: '/admin/guidelines' },
   { icon: BarChart3, label: 'Reports', path: '/admin/reports' },

@@ -30,6 +30,7 @@ import SettingsPage from '@/pages/SettingsPage';
 import DashboardPage from '@/pages/admin/DashboardPage';
 import RegistrationsPage from '@/pages/admin/RegistrationsPage';
 import ShopsPage from '@/pages/admin/ShopsPage';
+import IndividualsPage from '@/pages/admin/IndividualsPage';
 import ListingsPage from '@/pages/admin/ListingsPage';
 import GuidelinesPage from '@/pages/admin/GuidelinesPage';
 import ReportsPage from '@/pages/admin/ReportsPage';
@@ -104,6 +105,7 @@ function App() {
         <Route path="/admin" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><DashboardPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/registrations" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><RegistrationsPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/shops" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><ShopsPage /></RoleGuard></ProtectedRoute>} />
+        <Route path="/admin/individuals" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><IndividualsPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/listings" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><ListingsPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/guidelines" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><GuidelinesPage /></RoleGuard></ProtectedRoute>} />
         <Route path="/admin/reports" element={<ProtectedRoute><RoleGuard allowedRoles={['community_admin', 'super_admin']}><ReportsPage /></RoleGuard></ProtectedRoute>} />
