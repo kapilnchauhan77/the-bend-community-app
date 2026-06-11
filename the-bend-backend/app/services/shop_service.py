@@ -27,6 +27,25 @@ class ShopService:
         if current_user.role.value != "community_admin" and shop.admin_user_id != current_user.id:
             raise ForbiddenError("Cannot modify another shop")
         update_data = {k: v for k, v in data.items() if v is not None}
+
+        # If the address changed, re-geocode best-effort and update lat/lng in the
+        # same write. Never fail the update if geocoding fails.
+        new_address = update_data.get("address")
+        if new_address is not None and new_address != shop.address:
+            try:
+                from app.services.geocode_service import geocode_address
+                coords = await geocode_address(new_address)
+                if coords:
+                    update_data["latitude"], update_data["longitude"] = coords
+                else:
+                    update_data["latitude"] = None
+                    update_data["longitude"] = None
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Geocoding shop %s on update failed: %s", shop_id, exc
+                )
+
         return await self.shop_repo.update(shop_id, update_data)
 
     async def get_employees(self, shop_id: UUID, current_user: User) -> list:

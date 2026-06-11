@@ -98,6 +98,21 @@ class AuthService:
 
         # Link user to shop
         user.shop_id = shop.id
+
+        # Best-effort geocode of the shop address so it can appear on maps.
+        # Never fail registration if geocoding fails.
+        if data.address and data.address.strip():
+            try:
+                from app.services.geocode_service import geocode_address
+                coords = await geocode_address(data.address)
+                if coords:
+                    shop.latitude, shop.longitude = coords
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Geocoding shop %s at registration failed: %s", shop.id, exc
+                )
+
         await self.db.flush()
 
         try:

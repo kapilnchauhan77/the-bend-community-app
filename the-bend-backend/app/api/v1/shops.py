@@ -237,6 +237,80 @@ async def get_endorsements(
     return {"items": items, "count": len(items)}
 
 
+@router.get("/shops/{shop_id}/endorsement-map")
+async def get_endorsement_map(
+    shop_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Map data for a business and the nearby businesses that endorse it (public).
+
+    Returns the center shop plus endorsers that have coordinates and are within
+    50 miles, sorted nearest-first. If the center shop has no coordinates, the
+    endorsers list is empty so the frontend can hide the map.
+    """
+    from sqlalchemy import select
+    from app.models.endorsement import Endorsement
+    from app.models.shop import Shop
+    from app.models.enums import ShopStatus
+    from app.core.exceptions import AppException
+    from app.services.geocode_service import haversine_miles
+
+    MAX_DISTANCE_MILES = 50.0
+
+    center = await db.get(Shop, shop_id)
+    if not center:
+        raise AppException(status_code=404, message="Business not found")
+
+    center_payload = {
+        "id": str(center.id),
+        "name": center.name,
+        "latitude": center.latitude,
+        "longitude": center.longitude,
+        "avatar_url": center.avatar_url,
+        "address": center.address,
+    }
+
+    # No center coords -> frontend hides the map; return empty endorsers.
+    if center.latitude is None or center.longitude is None:
+        return {"center": center_payload, "endorsers": []}
+
+    # Join Endorsement -> endorser Shop, only endorsers with coords and ACTIVE status.
+    result = await db.execute(
+        select(Shop)
+        .join(Endorsement, Endorsement.endorser_shop_id == Shop.id)
+        .where(
+            Endorsement.endorsed_shop_id == shop_id,
+            Shop.latitude.isnot(None),
+            Shop.longitude.isnot(None),
+            Shop.status == ShopStatus.ACTIVE,
+        )
+    )
+    endorser_shops = result.scalars().all()
+
+    endorsers = []
+    for endorser in endorser_shops:
+        distance = haversine_miles(
+            center.latitude, center.longitude,
+            endorser.latitude, endorser.longitude,
+        )
+        if distance > MAX_DISTANCE_MILES:
+            continue
+        endorsers.append({
+            "id": str(endorser.id),
+            "name": endorser.name,
+            "latitude": endorser.latitude,
+            "longitude": endorser.longitude,
+            "avatar_url": endorser.avatar_url,
+            "business_type": endorser.business_type,
+            "address": endorser.address,
+            "distance_miles": round(distance, 1),
+        })
+
+    endorsers.sort(key=lambda e: e["distance_miles"])
+
+    return {"center": center_payload, "endorsers": endorsers}
+
+
 @router.post("/shops/{shop_id}/endorse", status_code=status.HTTP_201_CREATED)
 async def endorse_shop(
     shop_id: UUID,

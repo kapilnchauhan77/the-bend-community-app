@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapPin, Phone, MessageCircle, Store, Calendar, Package, ThumbsUp, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { businessTypeLabel } from '@/lib/businessTypes';
 import type { Shop, Listing, DiscountCode } from '@/types';
+
+const EndorsementMap = lazy(() => import('@/components/shared/EndorsementMap'));
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -393,6 +395,13 @@ export default function BusinessProfilePage() {
             </div>
             <DiscountCodesList codes={discountCodes} />
           </div>
+        )}
+
+        {/* Local Supporters map (lazy-loaded; renders nothing unless there are nearby endorsers) */}
+        {shopId && (
+          <Suspense fallback={null}>
+            <EndorsementMap shopId={shopId} shopName={shopData.name} />
+          </Suspense>
         )}
 
         {/* Active listings */}

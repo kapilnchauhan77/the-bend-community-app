@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, Text, ForeignKey, Index
+from sqlalchemy import String, Boolean, Text, ForeignKey, Index, Float
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, ENUM
@@ -17,6 +17,8 @@ class Shop(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     business_type: Mapped[str] = mapped_column(String(50), nullable=False)
     address: Mapped[str | None] = mapped_column(String(255))
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
     contact_phone: Mapped[str | None] = mapped_column(String(20))
     whatsapp: Mapped[str | None] = mapped_column(String(20))
     avatar_url: Mapped[str | None] = mapped_column(String(500))
