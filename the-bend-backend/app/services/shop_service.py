@@ -26,15 +26,41 @@ class ShopService:
             raise NotFoundError("Shop")
         if current_user.role.value != "community_admin" and shop.admin_user_id != current_user.id:
             raise ForbiddenError("Cannot modify another shop")
+
+        # `regeocode` is a control flag, not a column. Capture it, then drop it so
+        # it never reaches the repository write.
+        regeocode = bool(data.pop("regeocode", False))
+
+        # Whether the client explicitly supplied a manual pin. We check the raw
+        # `data` (which is `model_dump(exclude_unset=True)`) for the *presence* of
+        # both coordinate keys with real values — a manual pin always wins.
+        manual_pin = (
+            data.get("latitude") is not None and data.get("longitude") is not None
+        )
+
         update_data = {k: v for k, v in data.items() if v is not None}
 
-        # If the address changed, re-geocode best-effort and update lat/lng in the
-        # same write. Never fail the update if geocoding fails.
-        new_address = update_data.get("address")
-        if new_address is not None and new_address != shop.address:
+        # Coordinate precedence:
+        #   1. Manual pin present  -> use lat/lng verbatim, skip geocoding.
+        #   2. regeocode == True   -> geocode the (new or existing) address,
+        #                             overwriting lat/lng (None result clears them).
+        #   3. address present and changed -> geocode as before.
+        # All geocode calls are best-effort: never fail the update on error.
+        if manual_pin:
+            # Coordinates already in update_data; nothing else to do.
+            pass
+        elif regeocode:
+            # Drop any stray coordinate keys so they don't shadow the geocode result.
+            update_data.pop("latitude", None)
+            update_data.pop("longitude", None)
+            address_to_geocode = update_data.get("address", shop.address)
             try:
                 from app.services.geocode_service import geocode_address
-                coords = await geocode_address(new_address)
+                coords = (
+                    await geocode_address(address_to_geocode)
+                    if address_to_geocode
+                    else None
+                )
                 if coords:
                     update_data["latitude"], update_data["longitude"] = coords
                 else:
@@ -43,8 +69,24 @@ class ShopService:
             except Exception as exc:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Geocoding shop %s on update failed: %s", shop_id, exc
+                    "Re-geocoding shop %s on update failed: %s", shop_id, exc
                 )
+        else:
+            new_address = update_data.get("address")
+            if new_address is not None and new_address != shop.address:
+                try:
+                    from app.services.geocode_service import geocode_address
+                    coords = await geocode_address(new_address)
+                    if coords:
+                        update_data["latitude"], update_data["longitude"] = coords
+                    else:
+                        update_data["latitude"] = None
+                        update_data["longitude"] = None
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Geocoding shop %s on update failed: %s", shop_id, exc
+                    )
 
         return await self.shop_repo.update(shop_id, update_data)
 

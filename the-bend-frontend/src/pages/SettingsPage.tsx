@@ -1,5 +1,5 @@
 import { resolveAssetUrl } from '@/lib/constants';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   User,
@@ -16,6 +16,8 @@ import {
   ChevronDown,
   Trash2,
   Plus,
+  Store,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,13 +46,19 @@ import {
 import { PageLayout } from '@/components/layout/PageLayout';
 import { useAuthStore } from '@/stores/authStore';
 import { uploadApi } from '@/services/uploadApi';
+import { shopApi } from '@/services/shopApi';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { volunteerApi } from '@/services/volunteerApi';
 import { talentApi } from '@/services/talentApi';
 import { CameraCapture } from '@/components/shared/CameraCapture';
-import type { Volunteer, Talent } from '@/types/index';
+import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
+import type { Volunteer, Talent, Shop } from '@/types/index';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
+
+// Lazy-load the Leaflet map editor so the heavy map bundle only loads when a
+// business owner actually opens Settings.
+const LocationPinEditor = lazy(() => import('@/components/shared/LocationPinEditor'));
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 function SettingsSection({
@@ -496,6 +504,287 @@ function TalentProfileEditor({
   );
 }
 
+// ─── Business Information editor ──────────────────────────────────────────────
+// Renders inside the "Business Information" section for shop owners. Fetches the
+// full shop (incl. lat/lng) on mount for prefill, lets the owner edit text fields
+// and fine-tune the map pin, then saves via PUT /shops/{id}.
+function BusinessInfoEditor({ shopId }: { shopId: string }) {
+  const { user, shop, setAuth } = useAuthStore();
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  // Editable text fields.
+  const [name, setName] = useState('');
+  const [businessType, setBusinessType] = useState('');
+  const [address, setAddress] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+
+  // Map pin. `pin` is the owner's chosen coordinates (manual drag/drop). When the
+  // owner clicks "Reset pin to address" we flag a re-geocode instead of sending
+  // coordinates. `pinDirty` tracks whether the owner touched the pin this session.
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [pinDirty, setPinDirty] = useState(false);
+  const [resetToAddress, setResetToAddress] = useState(false);
+
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  // Prefill from the full shop record on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const { data } = await shopApi.getShop(shopId);
+        const s = data as Shop;
+        if (cancelled) return;
+        setName(s.name ?? '');
+        setBusinessType(s.business_type ?? '');
+        setAddress(s.address ?? '');
+        setContactPhone(s.contact_phone ?? '');
+        setWhatsapp(s.whatsapp ?? '');
+        if (s.latitude != null && s.longitude != null) {
+          setPin({ lat: s.latitude, lng: s.longitude });
+        } else {
+          setPin(null);
+        }
+      } catch (err) {
+        console.error('Failed to load business info:', err);
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId]);
+
+  // Owner moved/placed the pin: adopt the new coordinates and cancel any pending
+  // "reset to address" intent.
+  const handlePinChange = (lat: number, lng: number) => {
+    setPin({ lat, lng });
+    setPinDirty(true);
+    setResetToAddress(false);
+  };
+
+  // Owner wants the pin to follow their typed address instead of a manual point.
+  const handleResetPin = () => {
+    setPin(null);
+    setPinDirty(false);
+    setResetToAddress(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name,
+        business_type: businessType,
+        address,
+        contact_phone: contactPhone,
+        whatsapp,
+      };
+
+      // Coordinate intent — manual pin wins; otherwise an explicit reset asks the
+      // backend to re-geocode the address.
+      if (pinDirty && pin) {
+        payload.latitude = pin.lat;
+        payload.longitude = pin.lng;
+      } else if (resetToAddress) {
+        payload.regeocode = true;
+      }
+
+      await shopApi.updateShop(shopId, payload);
+
+      // Re-fetch so local state (and the pin) reflect any server-side geocoding.
+      const { data } = await shopApi.getShop(shopId);
+      const s = data as Shop;
+      setName(s.name ?? '');
+      setBusinessType(s.business_type ?? '');
+      setAddress(s.address ?? '');
+      setContactPhone(s.contact_phone ?? '');
+      setWhatsapp(s.whatsapp ?? '');
+      setPin(s.latitude != null && s.longitude != null ? { lat: s.latitude, lng: s.longitude } : null);
+      setPinDirty(false);
+      setResetToAddress(false);
+
+      // Mirror a changed business name into the auth store so the header/shop
+      // pages refresh immediately (same setAuth pattern the avatar flow uses).
+      if (shop && s.name && s.name !== shop.name) {
+        const token = localStorage.getItem('access_token') || '';
+        const refreshToken = localStorage.getItem('refresh_token') || '';
+        setAuth(user!, { ...shop, name: s.name }, token, refreshToken);
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      console.error('Failed to update business info:', err);
+      setError('Could not save changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
+        <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
+        <div className="h-40 bg-gray-100 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <p className="text-sm text-red-600">
+        Could not load your business details. Please refresh and try again.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSave} className="space-y-4">
+      {error && (
+        <div className="p-2.5 rounded-lg border border-red-200 bg-red-50 text-xs text-red-700">{error}</div>
+      )}
+
+      {/* Business name */}
+      <div className="space-y-1.5">
+        <Label htmlFor="biz-name" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Business Name
+        </Label>
+        <Input id="biz-name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+
+      {/* Business type */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Business Type</Label>
+        <Select value={businessType} onValueChange={setBusinessType}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a type" />
+          </SelectTrigger>
+          <SelectContent>
+            {BUSINESS_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {BUSINESS_TYPE_LABELS[t] ?? t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Address */}
+      <div className="space-y-1.5">
+        <Label htmlFor="biz-address" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Address
+        </Label>
+        <div className="relative">
+          <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <Input
+            id="biz-address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="123 Main St, Town, VA"
+            className="pl-9"
+          />
+        </div>
+        <p className="text-[11px] text-gray-400">
+          Changing your address automatically updates your map pin.
+        </p>
+      </div>
+
+      {/* Contact phone + WhatsApp */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="biz-phone" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Contact Phone
+          </Label>
+          <Input
+            id="biz-phone"
+            type="tel"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+            placeholder="+1 (555) 000-0000"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="biz-whatsapp" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            WhatsApp
+          </Label>
+          <Input
+            id="biz-whatsapp"
+            type="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            placeholder="+1 (555) 000-0000"
+          />
+        </div>
+      </div>
+
+      {/* Location pin */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Location Pin</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResetPin}
+            className="h-7 text-[11px] font-semibold"
+            style={{ borderColor: PRIMARY, color: PRIMARY }}
+          >
+            Reset pin to address
+          </Button>
+        </div>
+        {resetToAddress && (
+          <p className="text-[11px] text-[hsl(35,45%,42%)]">
+            Your pin will be re-placed from your address when you save.
+          </p>
+        )}
+        <Suspense fallback={null}>
+          <LocationPinEditor
+            lat={pin?.lat ?? null}
+            lng={pin?.lng ?? null}
+            onChange={handlePinChange}
+          />
+        </Suspense>
+      </div>
+
+      {/* Save */}
+      <Button
+        type="submit"
+        disabled={saving}
+        size="sm"
+        className="w-full font-semibold gap-2 text-white"
+        style={{ backgroundColor: PRIMARY }}
+      >
+        {saving ? (
+          <>
+            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            Saving…
+          </>
+        ) : saved ? (
+          <span className="text-white">Saved!</span>
+        ) : (
+          <>
+            <Save size={14} />
+            Save Changes
+          </>
+        )}
+      </Button>
+    </form>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -534,6 +823,17 @@ export default function SettingsPage() {
       setAvatarUploading(false);
     }
   };
+
+  // Scroll the Business Information section into view when arriving via the
+  // /settings#business deep link (e.g. "Edit Business" on the shop page).
+  useEffect(() => {
+    if (!shop || window.location.hash !== '#business') return;
+    const el = document.getElementById('business');
+    if (el) {
+      // Defer to next frame so the section has rendered before we scroll.
+      requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  }, [shop]);
 
   // Notification preferences
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -729,6 +1029,18 @@ export default function SettingsPage() {
               )}
             </Button>
           </SettingsSection>
+
+          {/* ── Business Information Section ──────────────────────────────── */}
+          {shop && (
+            <div id="business" className="scroll-mt-20">
+              <SettingsSection icon={Store} title="Business Information">
+                <p className="text-xs text-gray-500 -mt-1 mb-1">
+                  Update your business details and fine-tune your location on the map.
+                </p>
+                <BusinessInfoEditor shopId={shop.id} />
+              </SettingsSection>
+            </div>
+          )}
 
           {/* ── My Community Profile Section ──────────────────────────────── */}
           <SettingsSection icon={HeartHandshake} title="My community profile">

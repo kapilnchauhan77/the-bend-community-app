@@ -23,6 +23,8 @@ export interface Shop {
   name: string;
   business_type: string;
   address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   contact_phone?: string;
   whatsapp?: string;
   status: ShopStatus;

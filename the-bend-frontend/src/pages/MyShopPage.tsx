@@ -274,7 +274,7 @@ export default function MyShopPage() {
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => navigate('/settings')}
+                  onClick={() => navigate('/settings#business')}
                 >
                   <Edit size={14} />
                   Edit Business

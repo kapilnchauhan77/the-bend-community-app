@@ -7,6 +7,8 @@ class ShopResponse(BaseModel):
     name: str
     business_type: str
     address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     contact_phone: str
     whatsapp: str | None = None
     status: str
@@ -30,6 +32,9 @@ class ShopUpdateRequest(BaseModel):
     address: str | None = None
     contact_phone: str | None = None
     whatsapp: str | None = None
+    latitude: float | None = Field(None, ge=-90, le=90)
+    longitude: float | None = Field(None, ge=-180, le=180)
+    regeocode: bool = False
 
 
 class EmployeeCreate(BaseModel):
