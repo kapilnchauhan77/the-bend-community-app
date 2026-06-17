@@ -26,12 +26,22 @@ class TenantReferral(Base):
     referred_message: Mapped[str | None] = mapped_column(Text)
 
     status: Mapped[ReferralStatus] = mapped_column(
-        ENUM(ReferralStatus, name="referral_status"),
+        ENUM(
+            ReferralStatus,
+            name="referral_status",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False, default=ReferralStatus.PENDING,
     )
 
     reward_type: Mapped[ReferralRewardType] = mapped_column(
-        ENUM(ReferralRewardType, name="referral_reward_type"),
+        ENUM(
+            ReferralRewardType,
+            name="referral_reward_type",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False, default=ReferralRewardType.FREE_MONTHS,
     )
     reward_amount: Mapped[int | None] = mapped_column(Integer)
