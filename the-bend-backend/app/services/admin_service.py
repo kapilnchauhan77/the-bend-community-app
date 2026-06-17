@@ -190,10 +190,26 @@ class AdminService:
             query = query.where(Shop.name.ilike(f"%{search}%"))
         query = query.limit(limit)
         result = await self.db.execute(query)
-        shops = [{
-            "id": str(s.id), "name": s.name, "business_type": s.business_type,
-            "status": s.status.value, "created_at": str(s.created_at),
-        } for s in result.scalars().all()]
+        shops = []
+        for s in result.scalars().all():
+            admin = None
+            if s.admin_user_id:
+                admin_result = await self.db.execute(
+                    select(User).where(User.id == s.admin_user_id)
+                )
+                admin = admin_result.scalar_one_or_none()
+            count_result = await self.db.execute(
+                select(func.count()).select_from(Listing).where(Listing.shop_id == s.id)
+            )
+            shops.append({
+                "id": str(s.id), "name": s.name, "business_type": s.business_type,
+                "status": s.status.value, "created_at": str(s.created_at),
+                "admin_name": admin.name if admin else None,
+                "admin_email": admin.email if admin else None,
+                "address": s.address,
+                "contact_phone": s.contact_phone,
+                "listing_count": count_result.scalar_one(),
+            })
         return {"items": shops, "next_cursor": None, "has_more": False}
 
     async def suspend_shop(self, shop_id: UUID, reason: str):
