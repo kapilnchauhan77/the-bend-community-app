@@ -36,6 +36,10 @@ class ConnectorService:
                 event_data["connector_id"] = connector_id
                 event_data["source"] = connector.name
                 event_data["category"] = connector.category.value if hasattr(connector.category, "value") else connector.category
+                # Scope synced events to the connector's tenant — otherwise they
+                # land with tenant_id=NULL and never appear in the tenant's
+                # Events list (which filters by tenant_id).
+                event_data["tenant_id"] = connector.tenant_id
                 await self.event_repo.create(event_data)
                 saved += 1
 
