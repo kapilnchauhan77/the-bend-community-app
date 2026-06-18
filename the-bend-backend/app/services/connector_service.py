@@ -107,7 +107,24 @@ class ConnectorService:
             resp = await client.get(url)
             resp.raise_for_status()
 
-        cal = Calendar.from_ical(resp.text)
+        body = resp.text
+        # Guard: many calendar "feed" URLs are actually HTML landing pages
+        # (e.g. CivicPlus county sites where iCalendar.aspx serves a chooser
+        # page, not an .ics file). Parsing that silently yields zero VEVENTs
+        # and looks like a successful empty sync — confusing the admin. Detect
+        # it and raise a clear, actionable error instead.
+        content_type = (resp.headers.get("content-type") or "").lower()
+        if "BEGIN:VCALENDAR" not in body:
+            hint = " (the URL returned an HTML page, not an .ics feed)" if (
+                "text/html" in content_type or body.lstrip()[:15].lower().startswith("<!doctype")
+                or body.lstrip()[:6].lower() == "<html>"
+            ) else ""
+            raise ValueError(
+                f"Response is not a valid iCalendar feed{hint}. "
+                "Check that the URL points directly to an .ics file."
+            )
+
+        cal = Calendar.from_ical(body)
         events = []
         now = datetime.utcnow()
 
