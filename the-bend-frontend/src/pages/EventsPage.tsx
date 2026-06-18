@@ -96,8 +96,15 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function EventCard({ event }: { event: CommunityEvent }) {
   const cat = getCategoryConfig(event.category);
+  const openSource = () => {
+    if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
+  };
   return (
-    <Card id={`event-${event.id}`} className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group">
+    <Card
+      id={`event-${event.id}`}
+      onClick={event.source_url ? openSource : undefined}
+      className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${event.source_url ? 'cursor-pointer' : ''}`}
+    >
       {event.image_url && (
         <div className="relative h-40 overflow-hidden">
           <img
@@ -146,16 +153,19 @@ function EventCard({ event }: { event: CommunityEvent }) {
             {event.source}
           </span>
           <div className="flex items-center gap-2">
-            <ShareButton
-              url={`/events#event-${event.id}`}
-              title={event.title}
-              description={`${event.title} - ${formatEventDate(event.start_date, event.end_date)}${event.location ? ' at ' + event.location : ''}`}
-            />
+            <span onClick={(e) => e.stopPropagation()}>
+              <ShareButton
+                url={`/events#event-${event.id}`}
+                title={event.title}
+                description={`${event.title} - ${formatEventDate(event.start_date, event.end_date)}${event.location ? ' at ' + event.location : ''}`}
+              />
+            </span>
             {event.source_url && (
               <a
                 href={event.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="text-[10px] font-medium hover:underline"
                 style={{ color: PRIMARY }}
               >
@@ -173,8 +183,14 @@ function EventCard({ event }: { event: CommunityEvent }) {
 
 function MiniEventRow({ event }: { event: CommunityEvent }) {
   const cat = getCategoryConfig(event.category);
+  const openSource = () => {
+    if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
+  };
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0">
+    <div
+      onClick={event.source_url ? openSource : undefined}
+      className={`flex items-start gap-3 py-3 border-b border-gray-100 last:border-0 ${event.source_url ? 'cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors' : ''}`}
+    >
       <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${cat.dot}`} />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">{event.title}</p>
@@ -184,15 +200,9 @@ function MiniEventRow({ event }: { event: CommunityEvent }) {
         </p>
       </div>
       {event.source_url && (
-        <a
-          href={event.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[10px] font-medium flex-shrink-0 mt-1"
-          style={{ color: PRIMARY }}
-        >
+        <span className="text-[10px] font-medium flex-shrink-0 mt-1" style={{ color: PRIMARY }}>
           →
-        </a>
+        </span>
       )}
     </div>
   );
