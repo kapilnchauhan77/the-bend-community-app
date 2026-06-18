@@ -8,6 +8,20 @@ from app.repositories.event_repo import EventRepository, ConnectorRepository
 from app.models.enums import ConnectorType
 
 
+# Some public calendar hosts (e.g. CivicPlus county sites behind Cloudflare
+# "Bot Fight Mode") reject requests that don't look like a real calendar
+# client and return an HTML challenge instead of the .ics. Every legitimate
+# subscriber (Google/Apple/Outlook Calendar) sends a browser-style User-Agent,
+# so we do the same — this is feed subscription, not detection evasion.
+_FEED_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/calendar,application/rss+xml,text/html;q=0.9,*/*;q=0.8",
+}
+
+
 class ConnectorService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -103,7 +117,7 @@ class ConnectorService:
         """Parse an ICS calendar feed."""
         from icalendar import Calendar
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=_FEED_HEADERS) as client:
             resp = await client.get(url)
             resp.raise_for_status()
 
@@ -135,10 +149,10 @@ class ConnectorService:
             dtstart = component.get("dtstart")
             dtend = component.get("dtend")
             summary = str(component.get("summary", ""))
-            description = str(component.get("description", ""))
+            description = str(component.get("description", "")).strip()
             location = str(component.get("location", ""))
-            uid = str(component.get("uid", ""))
-            url_prop = str(component.get("url", ""))
+            uid = str(component.get("uid", "")).strip()
+            url_prop = str(component.get("url", "")).strip()
 
             if not summary or not dtstart:
                 continue
@@ -157,13 +171,34 @@ class ConnectorService:
                 if not isinstance(end, datetime):
                     end = datetime.combine(end, datetime.min.time())
 
+            # Dedup keys on source_url, so it MUST be unique per event. Many
+            # ASP.NET/CivicPlus calendars set the iCal URL property to the
+            # shared *feed* URL (identical on every VEVENT) while the real
+            # per-event link lives in DESCRIPTION — using the feed URL collapses
+            # the whole feed into a single saved event. Prefer a real per-event
+            # http(s) link, then namespace by the canonical per-event UID so two
+            # events can never share a key even if the feed reuses one URL.
+            event_link = next(
+                (s for s in (url_prop, description)
+                 if s.lower().startswith(("http://", "https://"))),
+                "",
+            )
+            if uid:
+                source_url = f"{event_link}#uid={uid}" if event_link else f"uid:{uid}"
+            else:
+                source_url = event_link or None
+
+            # If DESCRIPTION is just the event's own URL (common in CivicPlus
+            # exports), don't echo it back as body text.
+            desc_out = None if (description and description == event_link) else (description or None)
+
             events.append({
                 "title": summary.strip(),
-                "description": description.strip() if description else None,
+                "description": desc_out,
                 "start_date": start,
                 "end_date": end,
                 "location": location.strip() if location else None,
-                "source_url": url_prop.strip() or uid.strip() or None,
+                "source_url": source_url,
                 "status": "active",
             })
 
@@ -173,7 +208,7 @@ class ConnectorService:
         """Parse an RSS/Atom feed for event-like entries."""
         import feedparser
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=_FEED_HEADERS) as client:
             resp = await client.get(url)
             resp.raise_for_status()
 
@@ -228,7 +263,7 @@ class ConnectorService:
         desc_sel = config.get("description_selector", "p")
         link_sel = config.get("link_selector", "a")
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=_FEED_HEADERS) as client:
             resp = await client.get(url)
             resp.raise_for_status()
 
