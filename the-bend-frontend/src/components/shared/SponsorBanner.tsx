@@ -102,7 +102,9 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         <div
           className="sponsor-marquee flex gap-3 md:gap-4 hover:[animation-play-state:paused]"
           style={{
-            animation: `marquee ${sponsors.length * 3}s linear infinite`,
+            // ~6s per sponsor so the strip scrolls slowly enough to read each
+            // one now that there are more partners (was 3s).
+            animation: `marquee ${sponsors.length * 6}s linear infinite`,
           }}
         >
           {doubled.map((s, i) => (
@@ -138,12 +140,13 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
 function SponsorCardCarousel({ sponsors }: { sponsors: Sponsor[] }) {
   const [index, setIndex] = useState(0);
 
-  // Auto-rotate every 4 seconds
+  // Auto-rotate every 8 seconds — longer dwell so each partner is readable
+  // now that there are more sponsors (was 4s).
   useEffect(() => {
     if (sponsors.length <= 1) return;
     const timer = setInterval(() => {
       setIndex(i => (i + 1) % sponsors.length);
-    }, 4000);
+    }, 8000);
     return () => clearInterval(timer);
   }, [sponsors.length]);
 

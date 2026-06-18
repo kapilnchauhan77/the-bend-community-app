@@ -5,11 +5,20 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { useDarkMode } from '@/hooks/useDarkMode';
+import { useTenant } from '@/context/TenantContext';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 
 export function Navbar() {
   const { isAuthenticated, user, shop, logout } = useAuthStore();
+  const tenant = useTenant();
+  // City label shown beside the logo (e.g. "Westmoreland"), derived from the
+  // tenant slug so it works for every county version without extra config.
+  const cityName = (tenant.slug || '')
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
   const navigate = useNavigate();
   const { isDark, toggle: toggleDark } = useDarkMode();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -56,6 +65,14 @@ export function Navbar() {
               <span className="text-[15px] font-semibold font-serif text-[hsl(30,15%,18%)] tracking-wide block">THE BEND</span>
               <span className="text-[9px] tracking-[0.3em] uppercase text-[hsl(30,10%,48%)]">Community</span>
             </div>
+            {cityName && (
+              <>
+                <span className="w-px h-7 bg-[hsl(35,18%,80%)] mx-0.5" aria-hidden="true" />
+                <span className="text-[15px] font-semibold font-serif tracking-wide" style={{ color: BRONZE }}>
+                  {cityName}
+                </span>
+              </>
+            )}
           </Link>
 
           {/* Desktop nav — consolidated */}

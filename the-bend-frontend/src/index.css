@@ -837,3 +837,21 @@ html.dark [role="checkbox"][data-state="checked"] {
 .sponsor-marquee {
   will-change: transform;
 }
+
+/* ── Date/time inputs ──
+   The native WebKit calendar/clock picker icon sits flush against the right
+   edge, where our rounded-xl inputs clip and crowd it. Inset it from the
+   corner and give it a consistent, clickable affordance. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  margin-left: 0.25rem;
+  margin-right: 0.35rem;
+  opacity: 0.55;
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
