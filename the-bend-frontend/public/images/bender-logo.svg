@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 100" fill="none" role="img" aria-label="Bender">
+  <title>Bender</title>
+  <g stroke="#9B733B" stroke-width="8">
+    <rect x="4" y="4" width="92" height="92"/>
+    <rect x="120" y="4" width="92" height="92"/>
+    <rect x="236" y="4" width="92" height="92"/>
+    <rect x="352" y="4" width="92" height="92"/>
+    <rect x="468" y="4" width="92" height="92" stroke-dasharray="16 11"/>
+    <rect x="584" y="4" width="92" height="92" stroke-dasharray="16 11"/>
+  </g>
+  <g fill="#9B733B" font-family="'Cormorant Garamond', Georgia, 'Times New Roman', serif" font-size="62" font-weight="600" text-anchor="middle" dominant-baseline="central">
+    <text x="50"  y="52">B</text>
+    <text x="166" y="52">E</text>
+    <text x="282" y="52">N</text>
+    <text x="398" y="52">D</text>
+    <text x="514" y="52" font-style="italic">E</text>
+    <text x="630" y="52" font-style="italic">R</text>
+  </g>
+</svg>

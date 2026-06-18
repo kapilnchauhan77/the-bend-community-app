@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CameraCapture, type CameraResult } from '@/components/shared/CameraCapture';
+import { BenderLogo } from '@/components/shared/BenderLogo';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
@@ -888,11 +889,8 @@ export default function BenderPage() {
         {/* Sticky page header */}
         <div className="sticky top-14 z-30 bg-[hsl(40,20%,98%)] border-b border-[hsl(35,18%,88%)] md:rounded-t-lg md:border md:border-b-[hsl(35,18%,88%)]">
           <div className="flex items-center justify-between px-4 py-3">
-            <h1
-              className="font-serif text-[22px] font-semibold text-[hsl(30,15%,18%)]"
-              style={{ letterSpacing: '0.01em' }}
-            >
-              Bender
+            <h1 aria-label="Bender" style={{ color: BRONZE }}>
+              <BenderLogo className="h-7 w-auto" />
             </h1>
             {isAuthenticated && (
               <button
