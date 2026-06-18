@@ -57,18 +57,20 @@ export function Navbar() {
       <header className="sticky top-0 z-50 w-full bg-[hsl(40,20%,98%)] border-b border-[hsl(35,18%,84%)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between h-14 px-4 md:px-8">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <div className="w-9 h-9 border-2 border-[hsl(35,45%,42%)] flex items-center justify-center transition-colors group-hover:bg-[hsl(35,45%,42%)]">
+          <Link to="/" className="flex items-center gap-2 md:gap-3 min-w-0 group">
+            <div className="w-9 h-9 shrink-0 border-2 border-[hsl(35,45%,42%)] flex items-center justify-center transition-colors group-hover:bg-[hsl(35,45%,42%)]">
               <span className="text-sm font-bold font-serif text-[hsl(35,45%,42%)] group-hover:text-white transition-colors" style={{ letterSpacing: '0.05em' }}>B</span>
             </div>
-            <div className="leading-none">
+            {/* Full wordmark on desktop; on mobile we collapse to the mark + city
+                to keep the header from overflowing narrow phones. */}
+            <div className="leading-none hidden md:block shrink-0">
               <span className="text-[15px] font-semibold font-serif text-[hsl(30,15%,18%)] tracking-wide block">THE BEND</span>
               <span className="text-[9px] tracking-[0.3em] uppercase text-[hsl(30,10%,48%)]">Community</span>
             </div>
             {cityName && (
               <>
-                <span className="w-px h-7 bg-[hsl(35,18%,80%)] mx-0.5" aria-hidden="true" />
-                <span className="text-[15px] font-semibold font-serif tracking-wide" style={{ color: BRONZE }}>
+                <span className="hidden md:block w-px h-7 bg-[hsl(35,18%,80%)] mx-0.5 shrink-0" aria-hidden="true" />
+                <span className="text-[15px] font-semibold font-serif tracking-wide truncate min-w-0" style={{ color: BRONZE }}>
                   {cityName}
                 </span>
               </>
