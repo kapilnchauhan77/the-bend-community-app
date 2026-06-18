@@ -99,7 +99,11 @@ async def upload_media(
           "type": "image" | "video" | "audio",
           "duration_ms": <int, audio + video only> }
     """
-    content_type = (file.content_type or "").lower()
+    # Strip MIME parameters before matching. Browser MediaRecorder reports
+    # codec-qualified types like "audio/webm;codecs=opus" and
+    # "video/webm;codecs=vp8,opus"; our allow-lists key on the base type, so
+    # comparing the full string would 415 every recorded voice note / video.
+    content_type = (file.content_type or "").lower().split(";")[0].strip()
 
     if content_type not in ALLOWED_MEDIA_MIME_TYPES:
         raise HTTPException(
