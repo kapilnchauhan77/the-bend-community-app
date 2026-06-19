@@ -11,6 +11,7 @@ import { uploadApi } from '@/services/uploadApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ShareButton } from '@/components/shared/ShareButton';
+import { EventThumb } from '@/components/shared/EventThumb';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -105,28 +106,19 @@ function EventCard({ event }: { event: CommunityEvent }) {
       onClick={event.source_url ? openSource : undefined}
       className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${event.source_url ? 'cursor-pointer' : ''}`}
     >
-      {event.image_url && (
-        <div className="relative h-40 overflow-hidden">
-          <img
-            src={event.image_url}
-            alt={event.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-          {event.is_featured && (
-            <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
-              <Star className="w-3 h-3 text-white fill-white" />
-            </div>
-          )}
-        </div>
-      )}
+      <div className="relative">
+        <EventThumb event={event} className="h-40 rounded-t-2xl" />
+        {event.is_featured && (
+          <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
+            <Star className="w-3 h-3 text-white fill-white" />
+          </div>
+        )}
+      </div>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <Badge className={`text-xs rounded-full border-0 font-medium ${cat.color}`}>
             {cat.label}
           </Badge>
-          {!event.image_url && event.is_featured && (
-            <Star className="w-4 h-4 text-amber-400 fill-amber-400 flex-shrink-0" />
-          )}
         </div>
 
         <h3 className="font-serif font-bold text-gray-900 text-base leading-tight mb-1 line-clamp-2">
