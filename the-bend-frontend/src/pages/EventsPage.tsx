@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, Calendar, List, ArrowDownUp, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, Calendar, List, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -62,6 +62,10 @@ function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate();
 }
 
+function isRecentlyPosted(e: CommunityEvent): boolean {
+  return Date.now() - parseDate(e.created_at).getTime() <= 7 * 24 * 3600 * 1000;
+}
+
 // ─── Calendar grid generator ──────────────────────────────────────────────────
 
 function getCalendarDays(year: number, month: number): { date: Date; inMonth: boolean }[] {
@@ -108,6 +112,11 @@ function EventCard({ event }: { event: CommunityEvent }) {
     >
       <div className="relative">
         <EventThumb event={event} className="h-40 rounded-t-2xl" />
+        {isRecentlyPosted(event) && (
+          <span className="absolute top-2 left-2 bg-[hsl(35,45%,42%)] text-white text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full">
+            New
+          </span>
+        )}
         {event.is_featured && (
           <div className="absolute top-2 right-2 bg-amber-400 rounded-full p-1">
             <Star className="w-3 h-3 text-white fill-white" />
@@ -200,6 +209,44 @@ function MiniEventRow({ event }: { event: CommunityEvent }) {
   );
 }
 
+// ─── Day Cell Thumbnail Carousel ──────────────────────────────────────────────
+
+function DayCellCarousel({ events, phase }: { events: CommunityEvent[]; phase: number }) {
+  const [idx, setIdx] = useState(0);
+
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  const animate = events.length > 1 && !reduce;
+
+  useEffect(() => {
+    if (!animate) return;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const startDelay = (phase % 5) * 500;
+    const timeout = setTimeout(() => {
+      interval = setInterval(() => {
+        setIdx(i => (i + 1) % events.length);
+      }, 2600);
+    }, startDelay);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [animate, events.length, phase]);
+
+  const current = events[idx % events.length] ?? events[0];
+
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <EventThumb event={current} className="absolute inset-0 h-full w-full" />
+      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/55 to-transparent" />
+      {events.length > 1 && (
+        <span className="absolute bottom-0.5 right-0.5 text-[9px] text-white px-1.5 rounded-full bg-black/45 leading-tight">
+          {events.length}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Calendar View ────────────────────────────────────────────────────────────
 
 function CalendarView({ events }: { events: CommunityEvent[] }) {
@@ -265,47 +312,35 @@ function CalendarView({ events }: { events: CommunityEvent[] }) {
             const isToday = isSameDay(date, today);
             const isSelected = selectedDay && isSameDay(date, selectedDay);
 
+            const showCarousel = inMonth && dayEvents.length > 0;
+
             return (
               <button
                 key={idx}
                 onClick={() => setSelectedDay(date)}
                 className={[
-                  'relative min-h-[60px] md:min-h-[80px] p-1.5 border-b border-r border-gray-50 text-left transition-colors cursor-pointer',
+                  'relative overflow-hidden min-h-[60px] md:min-h-[80px] p-1.5 border-b border-r border-gray-50 text-left transition-colors cursor-pointer',
                   !inMonth ? 'bg-gray-50' : 'hover:bg-[hsl(160,25%,97%)]',
                   isSelected ? 'bg-[hsl(160,25%,95%)]' : '',
                 ].join(' ')}
                 aria-label={date.toLocaleDateString()}
               >
+                {showCarousel && (
+                  <DayCellCarousel events={dayEvents} phase={idx} />
+                )}
+
                 <span
                   className={[
-                    'inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium',
+                    'relative z-10 inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium',
                     isToday ? 'text-white font-bold' : '',
                     isSelected && !isToday ? 'ring-2 ring-offset-1' : '',
                     !inMonth ? 'text-gray-300' : 'text-gray-700',
+                    showCarousel && !isToday ? 'bg-white/80' : '',
                   ].join(' ')}
                   style={isToday ? { backgroundColor: PRIMARY } : isSelected ? { ringColor: PRIMARY } : {}}
                 >
                   {date.getDate()}
                 </span>
-
-                {/* Event dots */}
-                {dayEvents.length > 0 && (
-                  <div className="flex flex-wrap gap-0.5 mt-1">
-                    {dayEvents.slice(0, 3).map(e => {
-                      const cat = getCategoryConfig(e.category);
-                      return (
-                        <span
-                          key={e.id}
-                          className={`w-1.5 h-1.5 rounded-full ${cat.dot}`}
-                          title={e.title}
-                        />
-                      );
-                    })}
-                    {dayEvents.length > 3 && (
-                      <span className="text-[9px] text-gray-400 leading-none mt-0.5">+{dayEvents.length - 3}</span>
-                    )}
-                  </div>
-                )}
               </button>
             );
           })}
@@ -335,11 +370,11 @@ function CalendarView({ events }: { events: CommunityEvent[] }) {
 
 export default function EventsPage() {
   const navigate = useNavigate();
-  const [view, setView] = useState<'list' | 'calendar'>(window.location.hash ? 'list' : 'calendar');
+  const [view, setView] = useState<'list' | 'calendar'>('list');
   const [category, setCategory] = useState<string | null>(null);
   const [events, setEvents] = useState<CommunityEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortDesc, setSortDesc] = useState(true);
+  const [listMode, setListMode] = useState<'upcoming' | 'recent' | 'all'>('upcoming');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -374,7 +409,7 @@ export default function EventsPage() {
 
   useEffect(() => {
     setLoading(true);
-    const params: Record<string, string> = { limit: '100' };
+    const params: Record<string, string> = { limit: '300' };
     if (category) params.category = category;
     if (debouncedSearch) params.search = debouncedSearch;
     eventApi.list(params)
@@ -403,11 +438,25 @@ export default function EventsPage() {
     }
   }, []);
 
-  const sortedEvents = [...events].sort((a, b) => {
-    const da = parseDate(a.start_date).getTime();
-    const db = parseDate(b.start_date).getTime();
-    return sortDesc ? db - da : da - db;
-  });
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const byStartAsc = (a: CommunityEvent, b: CommunityEvent) =>
+    parseDate(a.start_date).getTime() - parseDate(b.start_date).getTime();
+
+  const displayedEvents: CommunityEvent[] = (() => {
+    if (listMode === 'upcoming') {
+      return [...events]
+        .filter(e => parseDate(e.start_date) >= startOfToday)
+        .sort(byStartAsc);
+    }
+    if (listMode === 'recent') {
+      return [...events].sort(
+        (a, b) => parseDate(b.created_at).getTime() - parseDate(a.created_at).getTime()
+      );
+    }
+    return [...events].sort(byStartAsc);
+  })();
 
   return (
     <PageLayout>
@@ -478,14 +527,26 @@ export default function EventsPage() {
                 </button>
               </div>
               {view === 'list' && (
-                <button
-                  onClick={() => setSortDesc(s => !s)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer"
-                  title={sortDesc ? 'Newest first' : 'Oldest first'}
-                >
-                  <ArrowDownUp className="w-3.5 h-3.5" />
-                  {sortDesc ? 'Newest' : 'Oldest'}
-                </button>
+                <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1">
+                  {([
+                    { value: 'upcoming', label: 'Upcoming' },
+                    { value: 'recent', label: 'Recently Added' },
+                    { value: 'all', label: 'All' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setListMode(opt.value)}
+                      className={[
+                        'px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer',
+                        listMode === opt.value
+                          ? 'bg-white shadow text-gray-900'
+                          : 'text-gray-500 hover:text-gray-700',
+                      ].join(' ')}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -553,17 +614,21 @@ export default function EventsPage() {
               ))}
             </div>
           ) : view === 'list' ? (
-            sortedEvents.length === 0 ? (
+            displayedEvents.length === 0 ? (
               <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
                 <Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 text-sm mb-1">No events found</p>
                 <p className="text-gray-400 text-xs">
-                  {category ? 'Try a different category or check back later.' : 'Check back soon for upcoming events!'}
+                  {listMode === 'upcoming'
+                    ? 'No upcoming events — switch to All or check back soon.'
+                    : category
+                      ? 'Try a different category or check back later.'
+                      : 'Check back soon for upcoming events!'}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {sortedEvents.map(event => (
+                {displayedEvents.map(event => (
                   <EventCard key={event.id} event={event} />
                 ))}
               </div>
