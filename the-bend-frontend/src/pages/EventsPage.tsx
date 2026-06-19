@@ -63,7 +63,8 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function isRecentlyPosted(e: CommunityEvent): boolean {
-  return Date.now() - parseDate(e.created_at).getTime() <= 7 * 24 * 3600 * 1000;
+  return e.source === 'manual'
+    && Date.now() - parseDate(e.created_at).getTime() <= 7 * 24 * 3600 * 1000;
 }
 
 // ─── Calendar grid generator ──────────────────────────────────────────────────
