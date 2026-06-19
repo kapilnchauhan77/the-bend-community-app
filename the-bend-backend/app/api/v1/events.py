@@ -67,7 +67,7 @@ async def list_events(
     start_before: str | None = Query(None),
     search: str | None = Query(None),
     cursor: str | None = Query(None),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, le=500),
     service: EventService = Depends(get_service),
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
