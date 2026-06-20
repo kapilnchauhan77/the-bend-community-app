@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, Calendar, List, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, ChevronDown, Calendar, List, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -151,9 +151,11 @@ function EventCard({ event }: { event: CommunityEvent }) {
         )}
 
         <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100 truncate max-w-[50%]">
-            {event.source}
-          </span>
+          {event.source && event.source !== 'manual' ? (
+            <span className="text-[10px] text-gray-400 truncate max-w-[55%]">{event.source}</span>
+          ) : (
+            <span />
+          )}
           <div className="flex items-center gap-2">
             <span onClick={(e) => e.stopPropagation()}>
               <ShareButton
@@ -498,17 +500,15 @@ export default function EventsPage() {
       {/* ── Controls Bar ── */}
       <section className="border-b border-gray-100 bg-white sticky top-14 z-30">
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-3">
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-            {/* View toggle + Sort */}
-            <div className="flex items-center gap-2 self-start">
-              <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1">
+          <div className="flex flex-col gap-2.5">
+            {/* Row 1 — view toggle + search */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1 shrink-0">
                 <button
                   onClick={() => setView('list')}
                   className={[
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer',
-                    view === 'list'
-                      ? 'bg-white shadow text-gray-900'
-                      : 'text-gray-500 hover:text-gray-700',
+                    view === 'list' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700',
                   ].join(' ')}
                 >
                   <List className="w-3.5 h-3.5" />
@@ -518,20 +518,32 @@ export default function EventsPage() {
                   onClick={() => setView('calendar')}
                   className={[
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer',
-                    view === 'calendar'
-                      ? 'bg-white shadow text-gray-900'
-                      : 'text-gray-500 hover:text-gray-700',
+                    view === 'calendar' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700',
                   ].join(' ')}
                 >
                   <Calendar className="w-3.5 h-3.5" />
                   Calendar
                 </button>
               </div>
+              <div className="relative flex-1 min-w-0 max-w-xs sm:max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search events..."
+                  className="pl-10 pr-4 h-9 w-full text-sm border border-[hsl(35,18%,84%)] bg-white rounded-full focus:outline-none focus:ring-1 focus:ring-[hsl(35,45%,42%)]"
+                />
+              </div>
+            </div>
+
+            {/* Row 2 — list mode + category dropdown */}
+            <div className="flex items-center gap-2 flex-wrap">
               {view === 'list' && (
                 <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1">
                   {([
                     { value: 'upcoming', label: 'Upcoming' },
-                    { value: 'recent', label: 'Recently Added' },
+                    { value: 'recent', label: 'Recent' },
                     { value: 'all', label: 'All' },
                   ] as const).map(opt => (
                     <button
@@ -539,9 +551,7 @@ export default function EventsPage() {
                       onClick={() => setListMode(opt.value)}
                       className={[
                         'px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer',
-                        listMode === opt.value
-                          ? 'bg-white shadow text-gray-900'
-                          : 'text-gray-500 hover:text-gray-700',
+                        listMode === opt.value ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700',
                       ].join(' ')}
                     >
                       {opt.label}
@@ -549,48 +559,23 @@ export default function EventsPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Search input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search events..."
-                className="pl-10 pr-4 h-9 w-full sm:w-64 text-sm border border-[hsl(35,18%,84%)] bg-white rounded focus:outline-none focus:ring-1 focus:ring-[hsl(35,45%,42%)]"
-              />
-            </div>
-
-            {/* Category filters */}
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setCategory(null)}
-                className={[
-                  'px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer border',
-                  category === null
-                    ? 'text-white border-transparent'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300',
-                ].join(' ')}
-                style={category === null ? { backgroundColor: PRIMARY, borderColor: PRIMARY } : {}}
-              >
-                All
-              </button>
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat.value}
-                  onClick={() => setCategory(cat.value)}
+              <div className="relative">
+                <select
+                  value={category ?? ''}
+                  onChange={(e) => setCategory(e.target.value || null)}
+                  aria-label="Filter by category"
                   className={[
-                    'px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer border',
-                    category === cat.value
-                      ? `${cat.color} border-transparent`
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300',
+                    'appearance-none h-9 rounded-full border bg-white pl-3.5 pr-9 text-xs font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-[hsl(35,45%,42%)]',
+                    category ? 'border-[hsl(35,45%,42%)] text-gray-900' : 'border-gray-200 text-gray-600',
                   ].join(' ')}
                 >
-                  {cat.label}
-                </button>
-              ))}
+                  <option value="">All categories</option>
+                  {CATEGORIES.map(cat => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
             </div>
           </div>
         </div>
