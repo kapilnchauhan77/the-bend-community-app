@@ -454,9 +454,12 @@ export default function EventsPage() {
         .sort(byStartAsc);
     }
     if (listMode === 'recent') {
-      return [...events].sort(
-        (a, b) => parseDate(b.created_at).getTime() - parseDate(a.created_at).getTime()
-      );
+      // "Recent" surfaces what the community has posted lately. Feed-imported
+      // events (county / Local Scoop) bulk-sync with fresh created_at and would
+      // bury genuine community submissions, so scope this view to manual posts.
+      return [...events]
+        .filter(e => e.source === 'manual')
+        .sort((a, b) => parseDate(b.created_at).getTime() - parseDate(a.created_at).getTime());
     }
     return [...events].sort(byStartAsc);
   })();
@@ -607,9 +610,11 @@ export default function EventsPage() {
                 <p className="text-gray-400 text-xs">
                   {listMode === 'upcoming'
                     ? 'No upcoming events — switch to All or check back soon.'
-                    : category
-                      ? 'Try a different category or check back later.'
-                      : 'Check back soon for upcoming events!'}
+                    : listMode === 'recent'
+                      ? 'No community-posted events yet — switch to All to browse everything.'
+                      : category
+                        ? 'Try a different category or check back later.'
+                        : 'Check back soon for upcoming events!'}
                 </p>
               </div>
             ) : (
