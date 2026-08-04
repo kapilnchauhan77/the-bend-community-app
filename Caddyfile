@@ -2,10 +2,20 @@
 	email {$ACME_EMAIL}
 }
 
+# Redirect www.<apex> → <apex> (covered by the *.bend.community wildcard cert)
+www.{$BASE_DOMAIN} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		key_type rsa2048
+	}
+	redir https://{$BASE_DOMAIN}{uri} permanent
+}
+
 # API on api.bend.community → backend
 api.{$BASE_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		key_type rsa2048
 	}
 	reverse_proxy backend:8000 {
 		header_up Host {host}
@@ -22,6 +32,7 @@ api.{$BASE_DOMAIN} {
 {$BASE_DOMAIN}, *.{$BASE_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		key_type rsa2048
 	}
 
 	# Match well-known social-platform crawlers on listing URLs.
