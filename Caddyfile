@@ -7,11 +7,12 @@ www.{$BASE_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		key_type rsa2048
-		# Accept legacy TLS for old Windows/IE clients (weakens security for all
-		# visitors — deliberate tradeoff). Modern AEAD suites are listed first so
-		# up-to-date clients still get forward-secret GCM/ChaCha; the CBC/3DES
-		# suites exist only so TLS 1.0/1.1 clients can complete a handshake.
-		protocols tls1.0 tls1.3
+		# Broaden compatibility for older-but-not-ancient clients. Caddy/Go no
+		# longer support TLS 1.0/1.1 at all, so 1.2 is the lowest possible floor.
+		# Modern AEAD suites are listed first (up-to-date clients keep forward-
+		# secret GCM/ChaCha); the CBC/3DES suites let TLS 1.2 clients that lack
+		# AES-GCM still complete a handshake. Deliberate, mild security tradeoff.
+		protocols tls1.2 tls1.3
 		ciphers TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
 	}
 	redir https://{$BASE_DOMAIN}{uri} permanent
@@ -22,11 +23,12 @@ api.{$BASE_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		key_type rsa2048
-		# Accept legacy TLS for old Windows/IE clients (weakens security for all
-		# visitors — deliberate tradeoff). Modern AEAD suites are listed first so
-		# up-to-date clients still get forward-secret GCM/ChaCha; the CBC/3DES
-		# suites exist only so TLS 1.0/1.1 clients can complete a handshake.
-		protocols tls1.0 tls1.3
+		# Broaden compatibility for older-but-not-ancient clients. Caddy/Go no
+		# longer support TLS 1.0/1.1 at all, so 1.2 is the lowest possible floor.
+		# Modern AEAD suites are listed first (up-to-date clients keep forward-
+		# secret GCM/ChaCha); the CBC/3DES suites let TLS 1.2 clients that lack
+		# AES-GCM still complete a handshake. Deliberate, mild security tradeoff.
+		protocols tls1.2 tls1.3
 		ciphers TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
 	}
 	reverse_proxy backend:8000 {
@@ -45,11 +47,12 @@ api.{$BASE_DOMAIN} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		key_type rsa2048
-		# Accept legacy TLS for old Windows/IE clients (weakens security for all
-		# visitors — deliberate tradeoff). Modern AEAD suites are listed first so
-		# up-to-date clients still get forward-secret GCM/ChaCha; the CBC/3DES
-		# suites exist only so TLS 1.0/1.1 clients can complete a handshake.
-		protocols tls1.0 tls1.3
+		# Broaden compatibility for older-but-not-ancient clients. Caddy/Go no
+		# longer support TLS 1.0/1.1 at all, so 1.2 is the lowest possible floor.
+		# Modern AEAD suites are listed first (up-to-date clients keep forward-
+		# secret GCM/ChaCha); the CBC/3DES suites let TLS 1.2 clients that lack
+		# AES-GCM still complete a handshake. Deliberate, mild security tradeoff.
+		protocols tls1.2 tls1.3
 		ciphers TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
 	}
 
