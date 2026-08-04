@@ -36,6 +36,7 @@ services:
   backend:
     build:
       context: ./the-bend-backend
+    image: bend-backend:latest
     restart: unless-stopped
     command: ["./railway-start.sh"]
     env_file: .env
@@ -83,8 +84,7 @@ services:
     networks: [bend]
 
   celery-worker:
-    build:
-      context: ./the-bend-backend
+    image: bend-backend:latest
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
     env_file: .env
@@ -103,8 +103,7 @@ services:
     networks: [bend]
 
   celery-beat:
-    build:
-      context: ./the-bend-backend
+    image: bend-backend:latest
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info"]
     env_file: .env
