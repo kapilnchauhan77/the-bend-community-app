@@ -1,3 +1,4 @@
+import types
 from uuid import uuid4
 
 import pytest
@@ -5,6 +6,7 @@ from pydantic import ValidationError
 from app.schemas.message import SendMessageRequest
 from app.services.message_service import MessageService
 from app.core.exceptions import ValidationError as AppValidationError
+from app.api.v1.messages import send_message
 
 
 def test_reference_only_is_valid():
@@ -59,3 +61,102 @@ async def test_malformed_reference_id_raises_app_validation_error_not_value_erro
             reference_type="listing",
             reference_id="not-a-uuid",
         )
+
+
+class _FakeThreadWithTenant:
+    def __init__(self, tenant_id=None):
+        self.tenant_id = tenant_id
+
+
+class _FakeMessage:
+    """Minimal stand-in for the Message model attributes the send_message
+    ROUTE handler reads when assembling its response dict."""
+
+    def __init__(self, reference_type=None, reference_id=None):
+        self.id = uuid4()
+        self.thread_id = uuid4()
+        self.sender_id = uuid4()
+        self.content = ""
+        self.created_at = "2024-01-01T00:00:00"
+        self.attachment_url = None
+        self.attachment_type = None
+        self.attachment_thumbnail_url = None
+        self.reference_type = reference_type
+        self.reference_id = reference_id
+
+
+class _FakeRepoForRoute:
+    def __init__(self, thread):
+        self._thread = thread
+
+    async def get_thread_by_id(self, thread_id):
+        return self._thread
+
+
+class _FakeServiceForRoute:
+    """Stand-in for MessageService used to exercise the send_message ROUTE
+    handler's response shape directly, without needing a real DB session."""
+
+    def __init__(self, msg, thread):
+        self.db = object()
+        self.message_repo = _FakeRepoForRoute(thread)
+        self._msg = msg
+
+    async def send_message(self, *args, **kwargs):
+        return self._msg
+
+
+async def test_send_route_response_includes_hydrated_reference(monkeypatch):
+    """Regression test for the review finding: POST /messages/threads/{id}
+    must return the just-sent message WITH a hydrated `reference` card —
+    same shape as GET /messages/threads/{id} — otherwise the sender's own
+    reference card disappears from the chat until reload.
+
+    Fails against the pre-fix route: the old handler never added a
+    `reference` key to the returned dict at all, so `result["reference"]`
+    raised KeyError.
+    """
+    shop_id = uuid4()
+    msg = _FakeMessage(reference_type="shop", reference_id=shop_id)
+    thread = _FakeThreadWithTenant(tenant_id=None)
+    service = _FakeServiceForRoute(msg, thread)
+    current_user = types.SimpleNamespace(id=uuid4())
+    data = SendMessageRequest(reference_type="shop", reference_id=str(shop_id))
+
+    async def fake_resolve_reference(db, tenant_id, reference_type, reference_id):
+        return {"type": "shop", "id": str(reference_id), "title": "Test Shop"}
+
+    monkeypatch.setattr(
+        "app.services.reference_service.resolve_reference",
+        fake_resolve_reference,
+    )
+
+    result = await send_message(
+        thread_id=uuid4(),
+        data=data,
+        service=service,
+        current_user=current_user,
+    )
+
+    assert "reference" in result
+    assert result["reference"] == {"type": "shop", "id": str(shop_id), "title": "Test Shop"}
+
+
+async def test_send_route_response_reference_is_explicit_none_without_reference():
+    """A plain text send (no reference) must still return an explicit
+    `reference: None` key so the frontend response shape matches GET."""
+    msg = _FakeMessage(reference_type=None, reference_id=None)
+    thread = _FakeThreadWithTenant(tenant_id=None)
+    service = _FakeServiceForRoute(msg, thread)
+    current_user = types.SimpleNamespace(id=uuid4())
+    data = SendMessageRequest(content="hello")
+
+    result = await send_message(
+        thread_id=uuid4(),
+        data=data,
+        service=service,
+        current_user=current_user,
+    )
+
+    assert "reference" in result
+    assert result["reference"] is None

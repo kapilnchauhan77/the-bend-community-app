@@ -106,6 +106,7 @@ export interface MessageThread {
     attachment_url?: string | null;
     attachment_type?: 'image' | 'video' | 'audio' | null;
     attachment_thumbnail_url?: string | null;
+    reference_type?: string | null;
   };
   unread_count: number;
   last_message_at: string;

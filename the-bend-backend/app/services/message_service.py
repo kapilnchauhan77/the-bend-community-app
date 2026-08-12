@@ -226,7 +226,7 @@ class MessageService:
                     else:
                         notif_body = "You have a new video"
                 elif ref_type:
-                    notif_body = "You have a new message"
+                    notif_body = f"Shared a {ref_type}"
                 else:
                     notif_body = "You have a new message"
                 notification_service = NotificationService(self.db)

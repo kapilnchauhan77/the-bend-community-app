@@ -6,7 +6,7 @@ from app.api.deps import get_db
 from app.core.permissions import get_current_user, get_current_tenant
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services.message_service import MessageService
+from app.services.message_service import MessageService, build_message_reference
 from app.schemas.message import SendMessageRequest, StartThreadRequest
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
@@ -91,6 +91,8 @@ async def send_message(
         reference_type=data.reference_type,
         reference_id=data.reference_id,
     )
+    thread = await service.message_repo.get_thread_by_id(thread_id)
+    tenant_id = thread.tenant_id if thread else None
     return {
         "id": str(msg.id),
         "thread_id": str(msg.thread_id),
@@ -100,6 +102,7 @@ async def send_message(
         "attachment_url": msg.attachment_url,
         "attachment_type": msg.attachment_type,
         "attachment_thumbnail_url": msg.attachment_thumbnail_url,
+        "reference": await build_message_reference(service.db, tenant_id, msg),
     }
 
 
