@@ -117,7 +117,7 @@ async def search_references(db, tenant_id, q, type_filter=None) -> list[dict]:
         rows = (await db.execute(select(Shop).where(Shop.tenant_id == tenant_id, Shop.name.ilike(like)).limit(8))).scalars().all()
         out += [_shop_card(o) for o in rows]
     if "user" in types_:
-        rows = (await db.execute(select(User).where(User.name.ilike(like)).limit(8))).scalars().all()
+        rows = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.name.ilike(like)).limit(8))).scalars().all()
         out += [_user_card(o) for o in rows]
     if "bender" in types_:
         rows = (await db.execute(select(BenderPost).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like)).limit(8))).scalars().all()
