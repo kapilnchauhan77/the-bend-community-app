@@ -295,9 +295,9 @@ function ChatView({
   }) => Promise<void>;
   loading: boolean;
   // A reference pre-attached via navigation state (e.g. from a "Send in a
-  // message" button on an entity page). Applied once when this thread mounts
-  // — see the thread-reset effect below — then reported back as consumed so
-  // the parent clears it and it doesn't reapply on a later thread switch.
+  // message" button on an entity page). Applied by the dedicated effect
+  // below whenever this becomes a new non-null value, then reported back as
+  // consumed so the parent clears it and it doesn't reapply later.
   initialPendingReference?: ReferenceCard | null;
   onInitialReferenceConsumed?: () => void;
 }) {
@@ -325,20 +325,39 @@ function ChatView({
     inputRef.current?.focus();
   }, [thread.id]);
 
-  // Reset composer state when switching threads. If a reference was handed
-  // in via navigation state for this thread, seed the composer with it (once)
-  // and tell the parent it's been applied so a later thread switch doesn't
-  // re-attach it.
+  // Reset composer state when switching threads.
   useEffect(() => {
     setPendingAttachment(null);
-    setPendingReference(initialPendingReference ?? null);
+    setPendingReference(null);
     setAttachmentError(null);
     setInputValue('');
-    if (initialPendingReference) {
-      onInitialReferenceConsumed?.();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread.id]);
+
+  // Apply a reference handed in via navigation state (e.g. a "Send in a
+  // message" button on an entity page) whenever the parent supplies one.
+  // This is intentionally a SEPARATE effect from the thread-reset effect
+  // above, keyed on `initialPendingReference` itself rather than `thread.id`:
+  // when the target thread is already the active thread (the Zustand
+  // `activeThread` persists across route changes), `thread.id` never changes
+  // across this mount at all, so an effect keyed only on `thread.id` would
+  // never see the reference the parent supplies a beat later. Keying on the
+  // value itself means it's applied the moment it arrives, regardless of
+  // whether the thread was already active or just became active.
+  //
+  // Clearing any pending media attachment mirrors the mutual exclusion the
+  // reference-picker modal's own select handler already enforces. This
+  // applies once per non-null value — the parent nulls it out afterward via
+  // `onInitialReferenceConsumed`, at which point this effect re-runs (because
+  // its dependency changed) but no-ops on the null guard, so there's no
+  // re-apply loop.
+  useEffect(() => {
+    if (!initialPendingReference) return;
+    setPendingReference(initialPendingReference);
+    setPendingAttachment(null);
+    setAttachmentError(null);
+    onInitialReferenceConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPendingReference]);
 
   async function handleSend() {
     const content = inputValue.trim();
