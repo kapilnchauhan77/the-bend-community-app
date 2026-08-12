@@ -47,6 +47,9 @@ function getTargetRoute(n: Notification): string {
   // still route correctly.
   if (n.type.includes('listing_reported') || n.type.includes('reported')) return '/admin/flagged';
   if (n.title && /report/i.test(n.title)) return '/admin/flagged';
+  // Sponsor-approval notifications reuse the REGISTRATION_SUBMITTED type but
+  // carry a sponsor_id — route them to the sponsor queue, not shop registrations.
+  if (data.sponsor_id) return '/admin/sponsors';
   if (n.type.includes('registration_submitted')) return '/admin/registrations';
   if (n.type.includes('registration_approved') || n.type.includes('registration_rejected')) return '/my-shop';
   if (n.type.includes('suspended')) return '/my-shop';

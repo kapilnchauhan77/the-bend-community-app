@@ -31,6 +31,45 @@ class AdOrderRequest(BaseModel):
     coupon_code: str | None = None
 
 
+async def _mark_paid_and_notify(db: AsyncSession, sponsor: Sponsor, pricing: "AdPricing | None" = None) -> bool:
+    """Mark a sponsor paid and notify community admins it awaits approval.
+
+    Idempotent: returns True only on the unpaid->paid transition, so the Stripe
+    webhook and the success-page verification can both call it without sending
+    duplicate notifications. The sponsor flow previously created no admin
+    notification at all, so nobody was alerted when a sponsor paid.
+    """
+    if sponsor.paid:
+        return False
+    sponsor.paid = True
+    if pricing is not None and sponsor.starts_at is None:
+        sponsor.starts_at = datetime.utcnow()
+        sponsor.expires_at = datetime.utcnow() + timedelta(days=pricing.duration_days)
+
+    from app.models.user import User
+    from app.models.enums import UserRole, NotificationType
+    from app.services.notification_service import NotificationService
+
+    admin_q = select(User).where(
+        User.role == UserRole.COMMUNITY_ADMIN, User.is_active == True
+    )
+    if sponsor.tenant_id:
+        admin_q = admin_q.where(User.tenant_id == sponsor.tenant_id)
+    admins = (await db.execute(admin_q)).scalars().all()
+
+    notifier = NotificationService(db)
+    for admin in admins:
+        await notifier.notify(
+            user_id=admin.id,
+            type=NotificationType.REGISTRATION_SUBMITTED,
+            title="New Sponsor Awaiting Approval",
+            body=f"{sponsor.name} has paid for a {sponsor.placement} ad placement and is awaiting your approval.",
+            data={"sponsor_id": str(sponsor.id), "placement": sponsor.placement},
+        )
+    await db.flush()
+    return True
+
+
 @router.get("/pricing")
 async def list_pricing(
     db: AsyncSession = Depends(get_db),
@@ -114,7 +153,8 @@ async def create_checkout(
     # it, approved stays False so it still requires human review, and the
     # coupon's usage_count is incremented right now (no webhook will fire).
     if effective_cents == 0:
-        sponsor.paid = True
+        # Free comp still requires human approval — mark paid + notify admins.
+        await _mark_paid_and_notify(db, sponsor, pricing)
         if applied_code is not None:
             coupon_service = DiscountCodeService(db)
             await coupon_service.mark_used(applied_code.id)
@@ -236,25 +276,30 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
             sponsor = result.scalar_one_or_none()
             if sponsor:
-                sponsor.paid = True
                 sponsor.stripe_payment_intent = session.get("payment_intent")
-
-                # Get pricing for duration
+                pricing = None
                 if pricing_id:
                     pricing_result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_id))
                     pricing = pricing_result.scalar_one_or_none()
-                    if pricing:
-                        sponsor.starts_at = datetime.utcnow()
-                        sponsor.expires_at = datetime.utcnow() + timedelta(days=pricing.duration_days)
-
-                await db.flush()
+                # Marks paid + notifies admins; idempotent with the success-page path.
+                await _mark_paid_and_notify(db, sponsor, pricing)
 
     return {"status": "ok"}
 
 
 @router.get("/status/{session_id}")
-async def check_status(session_id: str, db: AsyncSession = Depends(get_db)):
-    """Check payment status for a checkout session."""
+async def check_status(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    """Check payment status for a checkout session.
+
+    Doubles as a webhook-independent fallback: if the sponsor isn't marked paid
+    yet, verify the session directly with Stripe and, if payment succeeded, mark
+    it paid and notify admins. This guarantees a paid sponsor reaches the admin's
+    "Pending Approval" queue even when the Stripe webhook never arrives.
+    """
     result = await db.execute(
         select(Sponsor).where(Sponsor.stripe_session_id == session_id)
     )
@@ -262,7 +307,24 @@ async def check_status(session_id: str, db: AsyncSession = Depends(get_db)):
     if not sponsor:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    if not sponsor.paid:
+        try:
+            stripe.api_key = get_stripe_keys(tenant).secret
+            checkout = stripe.checkout.Session.retrieve(session_id)
+            if checkout.get("payment_status") == "paid":
+                pricing = None
+                if sponsor.pricing_id:
+                    pr = await db.execute(select(AdPricing).where(AdPricing.id == sponsor.pricing_id))
+                    pricing = pr.scalar_one_or_none()
+                sponsor.stripe_payment_intent = checkout.get("payment_intent")
+                await _mark_paid_and_notify(db, sponsor, pricing)
+        except Exception:
+            # Never fail the status check on a Stripe hiccup; the webhook is the
+            # primary path and the next poll will retry.
+            pass
+
     return {
+        "status": "paid" if sponsor.paid else "pending",
         "paid": sponsor.paid,
         "approved": sponsor.approved,
         "is_active": sponsor.is_active,
