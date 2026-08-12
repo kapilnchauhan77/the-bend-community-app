@@ -161,14 +161,19 @@ class MessageService:
         if not await self.message_repo.is_participant(thread_id, sender_id):
             raise ForbiddenError("Not a participant of this thread")
 
-        from uuid import UUID as _UUID
         ref_type = ref_id = None
         if reference_type and reference_id:
             from app.services.reference_service import resolve_reference
             from app.core.exceptions import ValidationError as AppValidationError
             thread = await self.message_repo.get_thread_by_id(thread_id)
             tenant_id = thread.tenant_id if thread else None
-            ref_id = reference_id if isinstance(reference_id, _UUID) else _UUID(str(reference_id))
+            if isinstance(reference_id, UUID):
+                ref_id = reference_id
+            else:
+                try:
+                    ref_id = UUID(str(reference_id))
+                except (ValueError, AttributeError, TypeError):
+                    raise AppValidationError("Referenced item is unavailable")
             card = await resolve_reference(self.db, tenant_id, reference_type, ref_id)
             if card is None:
                 raise AppValidationError("Referenced item is unavailable")
