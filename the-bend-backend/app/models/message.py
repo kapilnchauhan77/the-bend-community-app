@@ -48,6 +48,11 @@ class Message(Base):
     attachment_url: Mapped[str | None] = mapped_column(String(500))
     attachment_type: Mapped[str | None] = mapped_column(String(16))
     attachment_thumbnail_url: Mapped[str | None] = mapped_column(String(500))
+    # A message may reference one community entity (listing/shop/bender/user),
+    # rendered as a preview card. Polymorphic + FK-less so a reference degrades
+    # gracefully if the target is later deleted. Mirrors the attachment_* pattern.
+    reference_type: Mapped[str | None] = mapped_column(String(16))
+    reference_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     read_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
