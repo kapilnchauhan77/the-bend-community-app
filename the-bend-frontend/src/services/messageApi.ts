@@ -1,10 +1,13 @@
 import api from './api';
+import type { ReferenceCard } from '../types';
 
 export type SendMessagePayload = {
   content?: string;
   attachment_url?: string | null;
   attachment_type?: 'image' | 'video' | null;
   attachment_thumbnail_url?: string | null;
+  reference_type?: string;
+  reference_id?: string;
 };
 
 export const messageApi = {
@@ -33,5 +36,9 @@ export const messageApi = {
   createDirectThread: (recipientUserId: string) =>
     api.post<{ id: string; created: boolean }>('/messages/threads', {
       recipient_user_id: recipientUserId,
+    }),
+  referenceSearch: (q: string, type?: string) =>
+    api.get<{ items: ReferenceCard[] }>('/messages/reference-search', {
+      params: { q, ...(type ? { type } : {}) },
     }),
 };

@@ -111,6 +111,16 @@ export interface MessageThread {
   last_message_at: string;
 }
 
+export interface ReferenceCard {
+  type: 'listing' | 'shop' | 'bender' | 'user';
+  id: string;
+  title?: string;
+  subtitle?: string;
+  image_url?: string | null;
+  url?: string | null;
+  unavailable?: boolean;
+}
+
 export interface Message {
   id: string;
   thread_id: string;
@@ -122,6 +132,8 @@ export interface Message {
   attachment_url?: string | null;
   attachment_type?: 'image' | 'video' | 'audio' | null;
   attachment_thumbnail_url?: string | null;
+  // Phase 4: optional entity reference card (listing/shop/bender/user) attached to the message.
+  reference?: ReferenceCard | null;
 }
 
 export interface Notification {
