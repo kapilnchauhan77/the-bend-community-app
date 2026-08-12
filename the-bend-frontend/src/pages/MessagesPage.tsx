@@ -19,6 +19,7 @@ import {
   VoiceNoteRecorder,
   type VoiceNoteResult,
 } from '@/components/shared/VoiceNoteRecorder';
+import { MessageReferenceCard } from '@/components/features/messages/MessageReferenceCard';
 import type { MessageThread, Message } from '@/types';
 
 // Local payload type for a media attachment held in composer state before send.
@@ -228,6 +229,13 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
               className="max-w-[280px] max-h-[320px] rounded-lg bg-black shadow-sm"
             />
           )}
+        </div>
+      )}
+
+      {/* Reference card — links back to a listing/shop/bender/user shared in this message. */}
+      {message.reference && (
+        <div className="mb-1 max-w-[240px]">
+          <MessageReferenceCard card={message.reference} />
         </div>
       )}
 
