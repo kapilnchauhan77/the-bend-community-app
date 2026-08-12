@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.permissions import get_current_user
+from app.core.permissions import get_current_user, get_current_tenant
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.services.message_service import MessageService
 from app.schemas.message import SendMessageRequest, StartThreadRequest
@@ -100,6 +101,19 @@ async def send_message(
         "attachment_type": msg.attachment_type,
         "attachment_thumbnail_url": msg.attachment_thumbnail_url,
     }
+
+
+@router.get("/reference-search")
+async def reference_search(
+    q: str,
+    type: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    from app.services.reference_service import search_references
+    items = await search_references(db, tenant.id if tenant else None, q, type)
+    return {"items": items}
 
 
 @router.get("/unread-count")

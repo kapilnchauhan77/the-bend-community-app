@@ -23,6 +23,50 @@ def _tenant_ok(obj_tenant_id, tenant_id) -> bool:
     return obj_tenant_id == tenant_id
 
 
+def _listing_card(obj) -> dict:
+    imgs = sorted(obj.images or [], key=lambda i: i.sort_order)
+    image_url = (imgs[0].thumbnail_url or imgs[0].url) if imgs else None
+    return {
+        "type": "listing", "id": str(obj.id), "title": obj.title,
+        "subtitle": f"{obj.category.value} · {obj.urgency.value}",
+        "image_url": image_url, "url": f"/listing/{obj.id}",
+    }
+
+
+def _shop_card(obj) -> dict:
+    return {
+        "type": "shop", "id": str(obj.id), "title": obj.name,
+        "subtitle": obj.business_type, "image_url": obj.avatar_url,
+        "url": f"/business/{obj.id}",
+    }
+
+
+def _user_card(obj) -> dict:
+    subtitle = obj.role.value.replace("_", " ").title()
+    return {
+        "type": "user", "id": str(obj.id), "title": obj.name,
+        "subtitle": subtitle, "image_url": obj.avatar_url,
+        "url": f"/business/{obj.shop_id}" if obj.shop_id else None,
+    }
+
+
+def _bender_card(obj, author) -> dict:
+    caption = (obj.caption or "").strip()
+    title = (caption[:80] + "…") if len(caption) > 80 else (caption or "Bender post")
+    return {
+        "type": "bender", "id": str(obj.id), "title": title,
+        "subtitle": author.name if author else "",
+        "image_url": obj.media_thumbnail_url or obj.media_url,
+        "url": f"/bender?post={obj.id}",
+    }
+
+
+async def _bender_card_async(db, obj) -> dict:
+    author = await db.execute(select(User).where(User.id == obj.author_user_id))
+    author = author.scalar_one_or_none()
+    return _bender_card(obj, author)
+
+
 async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: UUID) -> dict | None:
     if ref_type not in REFERENCE_TYPES:
         return None
@@ -34,49 +78,48 @@ async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: U
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
             return None
-        imgs = sorted(obj.images or [], key=lambda i: i.sort_order)
-        image_url = (imgs[0].thumbnail_url or imgs[0].url) if imgs else None
-        return {
-            "type": "listing", "id": str(obj.id), "title": obj.title,
-            "subtitle": f"{obj.category.value} · {obj.urgency.value}",
-            "image_url": image_url, "url": f"/listing/{obj.id}",
-        }
+        return _listing_card(obj)
 
     if ref_type == "shop":
         res = await db.execute(select(Shop).where(Shop.id == ref_id))
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
             return None
-        return {
-            "type": "shop", "id": str(obj.id), "title": obj.name,
-            "subtitle": obj.business_type, "image_url": obj.avatar_url,
-            "url": f"/business/{obj.id}",
-        }
+        return _shop_card(obj)
 
     if ref_type == "bender":
         res = await db.execute(select(BenderPost).where(BenderPost.id == ref_id))
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
             return None
-        author = await db.execute(select(User).where(User.id == obj.author_user_id))
-        author = author.scalar_one_or_none()
-        caption = (obj.caption or "").strip()
-        title = (caption[:80] + "…") if len(caption) > 80 else (caption or "Bender post")
-        return {
-            "type": "bender", "id": str(obj.id), "title": title,
-            "subtitle": author.name if author else "",
-            "image_url": obj.media_thumbnail_url or obj.media_url,
-            "url": f"/bender?post={obj.id}",
-        }
+        return await _bender_card_async(db, obj)
 
     # user
     res = await db.execute(select(User).where(User.id == ref_id))
     obj = res.scalar_one_or_none()
     if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
         return None
-    subtitle = obj.role.value.replace("_", " ").title()
-    return {
-        "type": "user", "id": str(obj.id), "title": obj.name,
-        "subtitle": subtitle, "image_url": obj.avatar_url,
-        "url": f"/business/{obj.shop_id}" if obj.shop_id else None,
-    }
+    return _user_card(obj)
+
+
+async def search_references(db, tenant_id, q, type_filter=None) -> list[dict]:
+    q = (q or "").strip()
+    if not q:
+        return []
+    like = f"%{q}%"
+    out = []
+    types_ = [type_filter] if type_filter in REFERENCE_TYPES else list(REFERENCE_TYPES)
+    if "listing" in types_:
+        rows = (await db.execute(select(Listing).options(selectinload(Listing.images))
+                .where(Listing.tenant_id == tenant_id, Listing.title.ilike(like)).limit(8))).scalars().all()
+        out += [_listing_card(o) for o in rows]
+    if "shop" in types_:
+        rows = (await db.execute(select(Shop).where(Shop.tenant_id == tenant_id, Shop.name.ilike(like)).limit(8))).scalars().all()
+        out += [_shop_card(o) for o in rows]
+    if "user" in types_:
+        rows = (await db.execute(select(User).where(User.name.ilike(like)).limit(8))).scalars().all()
+        out += [_user_card(o) for o in rows]
+    if "bender" in types_:
+        rows = (await db.execute(select(BenderPost).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like)).limit(8))).scalars().all()
+        out += [await _bender_card_async(db, o) for o in rows]
+    return out
