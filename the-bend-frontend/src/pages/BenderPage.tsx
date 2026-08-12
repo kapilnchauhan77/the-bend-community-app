@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Heart,
   MessageCircle,
@@ -323,6 +323,7 @@ function BenderPostCard({
   currentUserId,
   isCommunityAdmin,
   isAuthenticated,
+  isHighlighted,
   onDelete,
   onPatch,
 }: {
@@ -330,6 +331,7 @@ function BenderPostCard({
   currentUserId: string | null;
   isCommunityAdmin: boolean;
   isAuthenticated: boolean;
+  isHighlighted?: boolean;
   onDelete: (id: string) => void;
   onPatch: (id: string, patch: Partial<BenderPost>) => void;
 }) {
@@ -410,7 +412,11 @@ function BenderPostCard({
   return (
     <article
       id={`post-${post.id}`}
-      className="bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden mb-3"
+      className={`bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden mb-3 transition-shadow duration-300 ${
+        isHighlighted
+          ? 'ring-2 ring-offset-2 ring-[hsl(35,45%,42%)]'
+          : ''
+      }`}
     >
       {/* Header row */}
       <div className="flex items-center gap-2 px-3 py-2">
@@ -809,6 +815,7 @@ function BenderComposer({
 // ============================================================================
 export default function BenderPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthStore();
   const [posts, setPosts] = useState<BenderPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -816,8 +823,13 @@ export default function BenderPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const feedTopRef = useRef<HTMLDivElement>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks which `?post=` id we've already scrolled to, so re-renders (e.g.
+  // more pages loading) don't keep re-scrolling once the target was found.
+  const focusedPostRef = useRef<string | null>(null);
 
   const isCommunityAdmin = user?.role === 'community_admin';
 
@@ -868,6 +880,33 @@ export default function BenderPage() {
     obs.observe(node);
     return () => obs.disconnect();
   }, [cursor, hasMore, loading, loadingMore, fetchPage]);
+
+  // Deep-link focus — a bender reference card in a message links to
+  // `/bender?post={id}`. Once the feed has loaded and the target post is
+  // actually in the DOM, scroll it into view and briefly ring-highlight it.
+  // If the id isn't in the loaded set (later page, or deleted), no-op — we
+  // don't force-paginate to find it.
+  const focusPostId = searchParams.get('post');
+  useEffect(() => {
+    if (!focusPostId || loading) return;
+    if (focusedPostRef.current === focusPostId) return;
+    const el = document.getElementById(`post-${focusPostId}`);
+    if (!el) return;
+    focusedPostRef.current = focusPostId;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedPostId(focusPostId);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedPostId(null);
+    }, 2000);
+  }, [focusPostId, posts, loading]);
+
+  // Clear any pending highlight timeout on unmount.
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    };
+  }, []);
 
   const handleComposerClick = useCallback(() => {
     if (!isAuthenticated) {
@@ -964,6 +1003,7 @@ export default function BenderPage() {
                   currentUserId={user?.id ?? null}
                   isCommunityAdmin={isCommunityAdmin}
                   isAuthenticated={isAuthenticated}
+                  isHighlighted={post.id === highlightedPostId}
                   onDelete={handleDelete}
                   onPatch={handlePatch}
                 />
