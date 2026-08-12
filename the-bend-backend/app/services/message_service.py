@@ -12,6 +12,16 @@ from app.core.exceptions import ForbiddenError
 from app.services.notification_service import NotificationService
 
 
+async def build_message_reference(db, tenant_id, m):
+    if not m.reference_type or not m.reference_id:
+        return None
+    from app.services.reference_service import resolve_reference
+    card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id)
+    if card is None:
+        return {"type": m.reference_type, "id": str(m.reference_id), "unavailable": True}
+    return card
+
+
 class MessageService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -51,6 +61,8 @@ class MessageService:
                         preview = "🎤 Voice note"
                     else:
                         preview = "🎥 Video"
+                elif not preview.strip() and last_message.reference_type:
+                    preview = f"🔗 Shared a {last_message.reference_type}"
                 last_msg = {
                     "content": preview,
                     "sender_id": str(last_message.sender_id),
@@ -58,6 +70,7 @@ class MessageService:
                     "attachment_url": last_message.attachment_url,
                     "attachment_type": last_message.attachment_type,
                     "attachment_thumbnail_url": last_message.attachment_thumbnail_url,
+                    "reference_type": last_message.reference_type,
                 }
 
             # Get listing info
@@ -134,6 +147,9 @@ class MessageService:
         # Mark as read
         await self.message_repo.mark_thread_read(thread_id, user_id)
 
+        thread = await self.message_repo.get_thread_by_id(thread_id)
+        tenant_id = thread.tenant_id if thread else None
+
         result = await self.message_repo.get_thread_messages(thread_id, cursor, limit)
         messages = [{
             "id": str(m.id), "thread_id": str(m.thread_id),
@@ -143,6 +159,7 @@ class MessageService:
             "attachment_url": m.attachment_url,
             "attachment_type": m.attachment_type,
             "attachment_thumbnail_url": m.attachment_thumbnail_url,
+            "reference": await build_message_reference(self.db, tenant_id, m),
         } for m in result.items]
 
         return {"items": messages, "next_cursor": result.next_cursor, "has_more": result.has_more}

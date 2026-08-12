@@ -34,6 +34,7 @@ class MessageResponse(BaseModel):
     attachment_url: str | None = None
     attachment_type: Literal['image', 'video', 'audio'] | None = None
     attachment_thumbnail_url: str | None = None
+    reference: dict | None = None
 
     @field_validator("id", "thread_id", "sender_id", mode="before")
     @classmethod
