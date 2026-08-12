@@ -87,6 +87,8 @@ async def send_message(
         attachment_url=data.attachment_url,
         attachment_type=data.attachment_type,
         attachment_thumbnail_url=data.attachment_thumbnail_url,
+        reference_type=data.reference_type,
+        reference_id=data.reference_id,
     )
     return {
         "id": str(msg.id),

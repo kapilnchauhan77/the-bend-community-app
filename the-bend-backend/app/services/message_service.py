@@ -155,9 +155,25 @@ class MessageService:
         attachment_url: str | None = None,
         attachment_type: str | None = None,
         attachment_thumbnail_url: str | None = None,
+        reference_type: str | None = None,
+        reference_id=None,
     ):
         if not await self.message_repo.is_participant(thread_id, sender_id):
             raise ForbiddenError("Not a participant of this thread")
+
+        from uuid import UUID as _UUID
+        ref_type = ref_id = None
+        if reference_type and reference_id:
+            from app.services.reference_service import resolve_reference
+            from app.core.exceptions import ValidationError as AppValidationError
+            thread = await self.message_repo.get_thread_by_id(thread_id)
+            tenant_id = thread.tenant_id if thread else None
+            ref_id = reference_id if isinstance(reference_id, _UUID) else _UUID(str(reference_id))
+            card = await resolve_reference(self.db, tenant_id, reference_type, ref_id)
+            if card is None:
+                raise AppValidationError("Referenced item is unavailable")
+            ref_type = reference_type
+
         # The DB column is NOT NULL; coerce a missing/whitespace-only body
         # to an empty string for media-only messages. The schema validator
         # already guarantees at least one of (content, attachment_url) is set.
@@ -169,6 +185,8 @@ class MessageService:
             attachment_url=attachment_url,
             attachment_type=attachment_type,
             attachment_thumbnail_url=attachment_thumbnail_url,
+            reference_type=ref_type,
+            reference_id=ref_id,
         )
         try:
             thread = await self.message_repo.get_thread_by_id(thread_id)
@@ -185,6 +203,8 @@ class MessageService:
                         notif_body = "You have a new voice note"
                     else:
                         notif_body = "You have a new video"
+                elif ref_type:
+                    notif_body = "You have a new message"
                 else:
                     notif_body = "You have a new message"
                 notification_service = NotificationService(self.db)
