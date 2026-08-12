@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play, Mic, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -281,6 +281,8 @@ function ChatView({
   onBack,
   onSend,
   loading,
+  initialPendingReference,
+  onInitialReferenceConsumed,
 }: {
   thread: MessageThread;
   messages: Message[];
@@ -292,6 +294,12 @@ function ChatView({
     reference?: ReferenceCard | null;
   }) => Promise<void>;
   loading: boolean;
+  // A reference pre-attached via navigation state (e.g. from a "Send in a
+  // message" button on an entity page). Applied once when this thread mounts
+  // — see the thread-reset effect below — then reported back as consumed so
+  // the parent clears it and it doesn't reapply on a later thread switch.
+  initialPendingReference?: ReferenceCard | null;
+  onInitialReferenceConsumed?: () => void;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -317,12 +325,19 @@ function ChatView({
     inputRef.current?.focus();
   }, [thread.id]);
 
-  // Reset composer state when switching threads.
+  // Reset composer state when switching threads. If a reference was handed
+  // in via navigation state for this thread, seed the composer with it (once)
+  // and tell the parent it's been applied so a later thread switch doesn't
+  // re-attach it.
   useEffect(() => {
     setPendingAttachment(null);
-    setPendingReference(null);
+    setPendingReference(initialPendingReference ?? null);
     setAttachmentError(null);
     setInputValue('');
+    if (initialPendingReference) {
+      onInitialReferenceConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread.id]);
 
   async function handleSend() {
@@ -781,7 +796,27 @@ function ThreadListPanel({
 export default function MessagesPage() {
   const { threadId: urlThreadId } = useParams<{ threadId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
+
+  // A reference pre-attached via a "Send in a message" button on an entity
+  // page, carried here as `location.state.pendingReference` ({type, id}).
+  // We only have the type+id (not a full card), so a minimal ReferenceCard is
+  // built — the chip renders from title||type, and the full card comes back
+  // from the server after send. Consumed once by ChatView, then cleared here.
+  const [navPendingReference, setNavPendingReference] = useState<ReferenceCard | null>(null);
+
+  useEffect(() => {
+    const navState = location.state as { pendingReference?: { type: string; id: string } } | null;
+    const pending = navState?.pendingReference;
+    if (pending?.type && pending?.id) {
+      setNavPendingReference({ type: pending.type as ReferenceCard['type'], id: pending.id });
+      // Clear the nav state so a refresh or re-navigation to this URL doesn't
+      // re-attach the reference.
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const {
     threads,
@@ -975,6 +1010,8 @@ export default function MessagesPage() {
                 onBack={handleBack}
                 onSend={handleSend}
                 loading={messagesLoading}
+                initialPendingReference={navPendingReference}
+                onInitialReferenceConsumed={() => setNavPendingReference(null)}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full bg-gray-50">
@@ -1011,6 +1048,8 @@ export default function MessagesPage() {
               onBack={handleBack}
               onSend={handleSend}
               loading={messagesLoading}
+              initialPendingReference={navPendingReference}
+              onInitialReferenceConsumed={() => setNavPendingReference(null)}
             />
           ) : null}
         </div>

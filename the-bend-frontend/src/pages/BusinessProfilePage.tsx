@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
 import { ShareButton } from '@/components/shared/ShareButton';
+import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { shopApi } from '@/services/shopApi';
 import { messageApi } from '@/services/messageApi';
 import { discountCodeApi } from '@/services/discountCodeApi';
@@ -191,6 +192,15 @@ export default function BusinessProfilePage() {
                 </div>
                 <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
                   <ShareButton url={`/business/${shopId}`} title={shopData.name} />
+                  {isAuthenticated && shopId && (
+                    <ShareToMessageButton
+                      refType="shop"
+                      refId={shopId}
+                      size="sm"
+                      label="Send in a message"
+                      className="text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]"
+                    />
+                  )}
                   {isAuthenticated && !isOwner && (
                     <>
                       <Button

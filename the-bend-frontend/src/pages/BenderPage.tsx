@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CameraCapture, type CameraResult } from '@/components/shared/CameraCapture';
 import { BenderLogo } from '@/components/shared/BenderLogo';
+import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
@@ -491,9 +492,20 @@ function BenderPostCard({
             </span>
           )}
         </button>
+        {isAuthenticated && (
+          <ShareToMessageButton
+            refType="bender"
+            refId={post.id}
+            iconOnly
+            iconSize={20}
+            variant="ghost"
+            className="ml-auto h-auto w-auto p-0 text-[hsl(30,15%,18%)] hover:bg-transparent hover:text-[hsl(160,25%,24%)]"
+            label="Send in a message"
+          />
+        )}
         <button
           onClick={handleShare}
-          className="ml-auto cursor-pointer"
+          className={isAuthenticated ? 'cursor-pointer' : 'ml-auto cursor-pointer'}
           aria-label="Share"
         >
           <Share2 size={20} className="text-[hsl(30,15%,18%)]" />
