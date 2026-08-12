@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import {
   Dialog,
@@ -85,6 +85,9 @@ export function ReferencePickerModal({
   const [results, setResults] = useState<ReferenceCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Monotonic counter guarding against out-of-order responses: a slow
+  // response for an older query must not overwrite a newer query's results.
+  const requestIdRef = useRef(0);
 
   // Reset composer-local state whenever the modal is (re)opened.
   useEffect(() => {
@@ -97,12 +100,18 @@ export function ReferencePickerModal({
   }, [open]);
 
   // Debounced search — fires ~250ms after the user stops typing, or
-  // immediately when the type filter changes.
+  // immediately when the type filter changes. Guarded against out-of-order
+  // responses: each search gets a sequence id, and a response is only
+  // applied if it's still the most recent request in flight (a slow
+  // response for a stale query must not clobber newer results). The
+  // debounce timer itself is also cleared on unmount/query-change so no
+  // stray search fires after the component is gone or inputs changed again.
   useEffect(() => {
     if (!open) return;
 
     const q = query.trim();
     if (!q) {
+      requestIdRef.current += 1;
       setResults([]);
       setLoading(false);
       setError(null);
@@ -111,20 +120,28 @@ export function ReferencePickerModal({
 
     setLoading(true);
     setError(null);
+    const requestId = ++requestIdRef.current;
     const timer = setTimeout(async () => {
       try {
         const { data } = await messageApi.referenceSearch(q, activeType);
+        if (requestIdRef.current !== requestId) return; // stale response — a newer search superseded it
         setResults(data.items ?? []);
       } catch (err) {
+        if (requestIdRef.current !== requestId) return;
         console.error('Reference search failed:', err);
         setError('Search failed. Try again.');
       } finally {
-        setLoading(false);
+        if (requestIdRef.current === requestId) setLoading(false);
       }
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
   }, [query, activeType, open]);
+
+  // Defensive filter: the search endpoint should only ever return live
+  // rows, but skip rendering any `unavailable` card should one slip through
+  // rather than offering it as a selectable result.
+  const visibleResults = results.filter((card) => !card.unavailable);
 
   function handleSelect(card: ReferenceCard) {
     if (card.unavailable) return;
@@ -162,7 +179,16 @@ export function ReferencePickerModal({
               key={filter.label}
               variant={activeType === filter.value ? 'default' : 'outline'}
               className="cursor-pointer select-none"
+              role="button"
+              tabIndex={0}
+              aria-pressed={activeType === filter.value}
               onClick={() => setActiveType(filter.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setActiveType(filter.value);
+                }
+              }}
             >
               {filter.label}
             </Badge>
@@ -178,10 +204,10 @@ export function ReferencePickerModal({
             <p className="py-6 text-center text-sm text-gray-400">
               Start typing to search.
             </p>
-          ) : results.length === 0 ? (
+          ) : visibleResults.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-400">No results found.</p>
           ) : (
-            results.map((card) => (
+            visibleResults.map((card) => (
               <ReferenceResultRow
                 key={`${card.type}-${card.id}`}
                 card={card}
