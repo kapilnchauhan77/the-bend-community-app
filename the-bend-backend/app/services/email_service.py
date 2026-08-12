@@ -1,5 +1,12 @@
-"""Email service - uses SendGrid in production, logs in development."""
+"""Email service.
+
+Sends via Resend (preferred) or SendGrid (fallback), and logs to the console
+in development when no provider key is configured. Provider errors are logged
+with the provider's response body so failures are never silent — a dead
+provider previously returned False and callers proceeded as if the mail sent.
+"""
 import logging
+import httpx
 from app.config import get_settings
 
 settings = get_settings()
@@ -8,14 +15,48 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
-        self.api_key = settings.SENDGRID_API_KEY
+        self.resend_api_key = settings.RESEND_API_KEY
+        self.sendgrid_api_key = settings.SENDGRID_API_KEY
         self.from_email = settings.EMAIL_FROM
         self.from_name = settings.EMAIL_FROM_NAME
 
-    def _send(self, to_email: str, subject: str, body: str):
-        if not self.api_key:
-            logger.info(f"[DEV EMAIL] To: {to_email} | Subject: {subject} | Body: {body[:100]}...")
+    @property
+    def _from(self) -> str:
+        return f"{self.from_name} <{self.from_email}>"
+
+    def _send(self, to_email: str, subject: str, body: str) -> bool:
+        if self.resend_api_key:
+            return self._send_resend(to_email, subject, body)
+        if self.sendgrid_api_key:
+            return self._send_sendgrid(to_email, subject, body)
+        logger.info(f"[DEV EMAIL] To: {to_email} | Subject: {subject} | Body: {body[:100]}...")
+        return False
+
+    def _send_resend(self, to_email: str, subject: str, body: str) -> bool:
+        try:
+            resp = httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {self.resend_api_key}"},
+                json={
+                    "from": self._from,
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": body,
+                },
+                timeout=15.0,
+            )
+            if resp.status_code in (200, 201, 202):
+                print(f"[EMAIL] Sent via Resend: {subject} -> {to_email}")
+                return True
+            logger.error(
+                f"Resend failed to send to {to_email}: HTTP {resp.status_code} {resp.text[:300]}"
+            )
             return False
+        except Exception as e:
+            logger.error(f"Resend error sending to {to_email}: {e}")
+            return False
+
+    def _send_sendgrid(self, to_email: str, subject: str, body: str) -> bool:
         try:
             from sendgrid import SendGridAPIClient
             from sendgrid.helpers.mail import Mail
@@ -25,12 +66,17 @@ class EmailService:
                 subject=subject,
                 html_content=body,
             )
-            sg = SendGridAPIClient(self.api_key)
+            sg = SendGridAPIClient(self.sendgrid_api_key)
             response = sg.send(message)
-            print(f"[EMAIL] Sent: {subject} -> {to_email} (status: {response.status_code})")
-            return response.status_code in (200, 201, 202)
+            if response.status_code in (200, 201, 202):
+                print(f"[EMAIL] Sent via SendGrid: {subject} -> {to_email}")
+                return True
+            logger.error(
+                f"SendGrid failed to send to {to_email}: HTTP {response.status_code} {getattr(response, 'body', b'')[:300]}"
+            )
+            return False
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {e}")
+            logger.error(f"SendGrid error sending to {to_email}: {e}")
             return False
 
     def send_registration_confirmation(self, to_email: str, shop_name: str):

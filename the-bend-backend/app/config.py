@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     S3_BUCKET: str = "thebend-uploads"
 
-    # Email (SendGrid)
+    # Email — Resend is preferred; SendGrid kept as fallback if its key is set
+    RESEND_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@thebend.app"
     EMAIL_FROM_NAME: str = "The Bend"
