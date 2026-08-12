@@ -34,6 +34,7 @@ class MessageResponse(BaseModel):
     attachment_url: str | None = None
     attachment_type: Literal['image', 'video', 'audio'] | None = None
     attachment_thumbnail_url: str | None = None
+    reference: dict | None = None
 
     @field_validator("id", "thread_id", "sender_id", mode="before")
     @classmethod
@@ -60,15 +61,22 @@ class SendMessageRequest(BaseModel):
     attachment_url: str | None = None
     attachment_type: Literal['image', 'video', 'audio'] | None = None
     attachment_thumbnail_url: str | None = None
+    reference_type: Literal['listing', 'shop', 'bender', 'user'] | None = None
+    reference_id: str | None = None
 
     @model_validator(mode="after")
     def _require_content_or_attachment(self) -> "SendMessageRequest":
         has_text = bool(self.content and self.content.strip())
         has_attachment = bool(self.attachment_url)
-        if not (has_text or has_attachment):
-            raise ValueError(
-                "Message must include non-empty content or an attachment_url"
-            )
+        has_reference = bool(self.reference_type and self.reference_id)
+        if self.reference_type and not self.reference_id:
+            raise ValueError("reference_id is required when reference_type is set")
+        if self.reference_id and not self.reference_type:
+            raise ValueError("reference_type is required when reference_id is set")
+        if has_attachment and has_reference:
+            raise ValueError("A message cannot have both an attachment and a reference")
+        if not (has_text or has_attachment or has_reference):
+            raise ValueError("Message must include content, an attachment_url, or a reference")
         return self
 
 

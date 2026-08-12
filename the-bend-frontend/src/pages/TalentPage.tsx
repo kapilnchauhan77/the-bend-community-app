@@ -27,6 +27,7 @@ import { uploadApi } from '@/services/uploadApi';
 import { messageApi } from '@/services/messageApi';
 import { useAuthStore } from '@/stores/authStore';
 import { ShareButton } from '@/components/shared/ShareButton';
+import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { resolveAssetUrl } from '@/lib/constants';
 import type { Talent } from '@/types/index';
 
@@ -520,6 +521,16 @@ export default function TalentPage() {
                                   title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
                                   description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
                                 />
+                                {talent.user_id && (
+                                  <ShareToMessageButton
+                                    refType="user"
+                                    refId={talent.user_id}
+                                    iconOnly
+                                    variant="outline"
+                                    className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
+                                    label="Send in a message"
+                                  />
+                                )}
                               </div>
                             ) : canMessage ? (
                               <div className="flex gap-2">
@@ -549,6 +560,16 @@ export default function TalentPage() {
                                   title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
                                   description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
                                 />
+                                {talent.user_id && (
+                                  <ShareToMessageButton
+                                    refType="user"
+                                    refId={talent.user_id}
+                                    iconOnly
+                                    variant="outline"
+                                    className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
+                                    label="Send in a message"
+                                  />
+                                )}
                               </div>
                             ) : (
                               <div className="flex gap-2">
@@ -575,6 +596,16 @@ export default function TalentPage() {
                                   title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
                                   description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
                                 />
+                                {talent.user_id && (
+                                  <ShareToMessageButton
+                                    refType="user"
+                                    refId={talent.user_id}
+                                    iconOnly
+                                    variant="outline"
+                                    className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
+                                    label="Send in a message"
+                                  />
+                                )}
                               </div>
                             )}
                           </>

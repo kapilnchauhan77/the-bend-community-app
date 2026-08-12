@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play, Mic } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play, Mic, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -19,7 +19,9 @@ import {
   VoiceNoteRecorder,
   type VoiceNoteResult,
 } from '@/components/shared/VoiceNoteRecorder';
-import type { MessageThread, Message } from '@/types';
+import { MessageReferenceCard } from '@/components/features/messages/MessageReferenceCard';
+import { ReferencePickerModal } from '@/components/features/messages/ReferencePickerModal';
+import type { MessageThread, Message, ReferenceCard } from '@/types';
 
 // Local payload type for a media attachment held in composer state before send.
 // 'audio' covers in-app voice notes recorded via VoiceNoteRecorder.
@@ -231,6 +233,13 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
         </div>
       )}
 
+      {/* Reference card — links back to a listing/shop/bender/user shared in this message. */}
+      {message.reference && (
+        <div className="mb-1 max-w-[240px]">
+          <MessageReferenceCard card={message.reference} />
+        </div>
+      )}
+
       {/* Text bubble — render only when there's text. The timestamp lives here. */}
       {hasText && (
         <div
@@ -272,17 +281,31 @@ function ChatView({
   onBack,
   onSend,
   loading,
+  initialPendingReference,
+  onInitialReferenceConsumed,
 }: {
   thread: MessageThread;
   messages: Message[];
   currentUserId: string;
   onBack: () => void;
-  onSend: (payload: { content?: string; attachment?: PendingAttachment | null }) => Promise<void>;
+  onSend: (payload: {
+    content?: string;
+    attachment?: PendingAttachment | null;
+    reference?: ReferenceCard | null;
+  }) => Promise<void>;
   loading: boolean;
+  // A reference pre-attached via navigation state (e.g. from a "Send in a
+  // message" button on an entity page). Applied by the dedicated effect
+  // below whenever this becomes a new non-null value, then reported back as
+  // consumed so the parent clears it and it doesn't reapply later.
+  initialPendingReference?: ReferenceCard | null;
+  onInitialReferenceConsumed?: () => void;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [pendingReference, setPendingReference] = useState<ReferenceCard | null>(null);
+  const [referenceModalOpen, setReferenceModalOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
@@ -305,31 +328,71 @@ function ChatView({
   // Reset composer state when switching threads.
   useEffect(() => {
     setPendingAttachment(null);
+    setPendingReference(null);
     setAttachmentError(null);
     setInputValue('');
   }, [thread.id]);
+
+  // Apply a reference handed in via navigation state (e.g. a "Send in a
+  // message" button on an entity page) whenever the parent supplies one.
+  // This is intentionally a SEPARATE effect from the thread-reset effect
+  // above, keyed on `initialPendingReference` itself rather than `thread.id`:
+  // when the target thread is already the active thread (the Zustand
+  // `activeThread` persists across route changes), `thread.id` never changes
+  // across this mount at all, so an effect keyed only on `thread.id` would
+  // never see the reference the parent supplies a beat later. Keying on the
+  // value itself means it's applied the moment it arrives, regardless of
+  // whether the thread was already active or just became active.
+  //
+  // Clearing any pending media attachment mirrors the mutual exclusion the
+  // reference-picker modal's own select handler already enforces. This
+  // applies once per non-null value — the parent nulls it out afterward via
+  // `onInitialReferenceConsumed`, at which point this effect re-runs (because
+  // its dependency changed) but no-ops on the null guard, so there's no
+  // re-apply loop.
+  useEffect(() => {
+    if (!initialPendingReference) return;
+    setPendingReference(initialPendingReference);
+    setPendingAttachment(null);
+    setAttachmentError(null);
+    onInitialReferenceConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPendingReference]);
 
   async function handleSend() {
     const content = inputValue.trim();
     const hasText = content.length > 0;
     const hasAttachment = !!pendingAttachment;
-    if ((!hasText && !hasAttachment) || sending) return;
+    const hasReference = !!pendingReference;
+    if ((!hasText && !hasAttachment && !hasReference) || sending) return;
     setInputValue('');
     const attachmentToSend = pendingAttachment;
+    const referenceToSend = pendingReference;
     setPendingAttachment(null);
+    setPendingReference(null);
     setSending(true);
     try {
       await onSend({
         content: hasText ? content : undefined,
         attachment: attachmentToSend,
+        reference: referenceToSend,
       });
     } catch {
       // On failure, restore the composer state so the user can retry.
       setInputValue(content);
       setPendingAttachment(attachmentToSend);
+      setPendingReference(referenceToSend);
     } finally {
       setSending(false);
     }
+  }
+
+  // Reference picker: on select, store the card as the pending reference and
+  // clear any pending media attachment — the backend rejects sending both.
+  function handleReferenceSelected(card: ReferenceCard) {
+    setPendingReference(card);
+    setPendingAttachment(null);
+    setAttachmentError(null);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -346,6 +409,7 @@ function ChatView({
       type: result.type,
       duration_ms: result.duration_ms,
     });
+    setPendingReference(null);
     setAttachmentError(null);
     setCameraOpen(false);
   }, []);
@@ -357,6 +421,7 @@ function ChatView({
       type: 'audio',
       duration_ms: result.duration_ms,
     });
+    setPendingReference(null);
     setAttachmentError(null);
     setVoiceOpen(false);
   }, []);
@@ -375,6 +440,7 @@ function ChatView({
         type: data.type,
         duration_ms: data.duration_ms,
       });
+      setPendingReference(null);
     } catch (err) {
       console.error('Attachment upload failed:', err);
       setAttachmentError('Upload failed. Try a smaller file (max 25 MB, 10 s for video).');
@@ -383,7 +449,8 @@ function ChatView({
     }
   };
 
-  const sendEnabled = (inputValue.trim().length > 0 || !!pendingAttachment) && !sending;
+  const sendEnabled =
+    (inputValue.trim().length > 0 || !!pendingAttachment || !!pendingReference) && !sending;
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -548,38 +615,76 @@ function ChatView({
           </div>
         )}
 
+        {/* Pending reference chip — only shown when a reference is queued.
+            Mutually exclusive with the media attachment pill above: the
+            backend rejects sending both, so selecting a reference clears any
+            pending attachment (and vice versa). */}
+        {pendingReference && (
+          <div className="mb-2 flex items-center gap-2">
+            <div className="relative inline-flex max-w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-3 pr-7 shadow-sm">
+              <Tag size={14} className="flex-shrink-0 text-gray-400" />
+              <span className="truncate text-xs text-gray-600">
+                {pendingReference.title || 'Reference'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingReference(null)}
+                aria-label="Remove reference"
+                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-gray-700/80 hover:bg-gray-900 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {attachmentError && (
           <p className="mb-2 text-xs text-red-500">{attachmentError}</p>
         )}
 
         <div className="flex items-center gap-2">
-          {/* Camera button — opens the in-app capture modal. */}
+          {/* Reference button — opens the search modal. Disabled while a
+              media attachment is pending (mutual exclusion). */}
+          <button
+            type="button"
+            onClick={() => setReferenceModalOpen(true)}
+            disabled={sending || attachmentUploading || !!pendingAttachment}
+            aria-label="Attach reference"
+            className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            <Plus size={18} />
+          </button>
+
+          {/* Camera button — opens the in-app capture modal. Disabled while
+              a reference is pending (mutual exclusion). */}
           <button
             type="button"
             onClick={() => setCameraOpen(true)}
-            disabled={sending || attachmentUploading}
+            disabled={sending || attachmentUploading || !!pendingReference}
             aria-label="Open camera"
             className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
           >
             <Camera size={18} />
           </button>
 
-          {/* Mic button — opens the voice-note recorder modal. */}
+          {/* Mic button — opens the voice-note recorder modal. Disabled
+              while a reference is pending (mutual exclusion). */}
           <button
             type="button"
             onClick={() => setVoiceOpen(true)}
-            disabled={sending || attachmentUploading}
+            disabled={sending || attachmentUploading || !!pendingReference}
             aria-label="Record voice note"
             className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
           >
             <Mic size={18} />
           </button>
 
-          {/* Paperclip button — triggers the hidden file picker. */}
+          {/* Paperclip button — triggers the hidden file picker. Disabled
+              while a reference is pending (mutual exclusion). */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={sending || attachmentUploading}
+            disabled={sending || attachmentUploading || !!pendingReference}
             aria-label="Attach file"
             className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-[hsl(160,25%,24%)] hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
           >
@@ -634,6 +739,13 @@ function ChatView({
         open={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         onCaptured={handleVoiceCaptured}
+      />
+
+      {/* Reference search modal — same lifecycle as the media pickers. */}
+      <ReferencePickerModal
+        open={referenceModalOpen}
+        onOpenChange={setReferenceModalOpen}
+        onSelect={handleReferenceSelected}
       />
     </div>
   );
@@ -703,7 +815,27 @@ function ThreadListPanel({
 export default function MessagesPage() {
   const { threadId: urlThreadId } = useParams<{ threadId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
+
+  // A reference pre-attached via a "Send in a message" button on an entity
+  // page, carried here as `location.state.pendingReference` ({type, id}).
+  // We only have the type+id (not a full card), so a minimal ReferenceCard is
+  // built — the chip renders from title||type, and the full card comes back
+  // from the server after send. Consumed once by ChatView, then cleared here.
+  const [navPendingReference, setNavPendingReference] = useState<ReferenceCard | null>(null);
+
+  useEffect(() => {
+    const navState = location.state as { pendingReference?: { type: string; id: string } } | null;
+    const pending = navState?.pendingReference;
+    if (pending?.type && pending?.id) {
+      setNavPendingReference({ type: pending.type as ReferenceCard['type'], id: pending.id });
+      // Clear the nav state so a refresh or re-navigation to this URL doesn't
+      // re-attach the reference.
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const {
     threads,
@@ -774,15 +906,21 @@ export default function MessagesPage() {
   );
 
   const handleSend = useCallback(
-    async (payload: { content?: string; attachment?: PendingAttachment | null }) => {
+    async (payload: {
+      content?: string;
+      attachment?: PendingAttachment | null;
+      reference?: ReferenceCard | null;
+    }) => {
       if (!activeThread || !user) return;
-      const { content, attachment } = payload;
+      const { content, attachment, reference } = payload;
       const hasText = !!content && content.trim().length > 0;
       const hasAttachment = !!attachment;
-      if (!hasText && !hasAttachment) return;
+      const hasReference = !!reference;
+      if (!hasText && !hasAttachment && !hasReference) return;
 
-      // Optimistic message — include attachment fields so the bubble renders
-      // immediately even before the server round-trip completes.
+      // Optimistic message — include attachment/reference fields so the
+      // bubble renders immediately even before the server round-trip
+      // completes.
       const optimistic: Message = {
         id: `optimistic-${Date.now()}`,
         thread_id: activeThread.id,
@@ -792,10 +930,11 @@ export default function MessagesPage() {
         attachment_url: attachment?.url ?? null,
         attachment_type: attachment?.type ?? null,
         attachment_thumbnail_url: attachment?.thumbnail_url ?? null,
+        reference: reference ?? null,
       };
       addMessage(optimistic);
 
-      // Update thread preview — show a placeholder for media-only sends.
+      // Update thread preview — show a placeholder for media-only/reference-only sends.
       const previewText = hasText
         ? content!.trim()
         : hasAttachment
@@ -804,7 +943,9 @@ export default function MessagesPage() {
             : attachment!.type === 'audio'
               ? '🎤 Voice note'
               : '🎥 Video'
-          : '';
+          : hasReference
+            ? reference!.title || 'Shared a reference'
+            : '';
       setThreads(
         threads.map((t) =>
           t.id === activeThread.id
@@ -830,6 +971,9 @@ export default function MessagesPage() {
           attachment_url: attachment?.url ?? null,
           attachment_type: attachment?.type ?? null,
           attachment_thumbnail_url: attachment?.thumbnail_url ?? null,
+          ...(hasReference
+            ? { reference_type: reference!.type, reference_id: reference!.id }
+            : {}),
         });
         const real = data as Message;
         // Replace optimistic with real using current store state (not stale closure)
@@ -885,6 +1029,8 @@ export default function MessagesPage() {
                 onBack={handleBack}
                 onSend={handleSend}
                 loading={messagesLoading}
+                initialPendingReference={navPendingReference}
+                onInitialReferenceConsumed={() => setNavPendingReference(null)}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full bg-gray-50">
@@ -921,6 +1067,8 @@ export default function MessagesPage() {
               onBack={handleBack}
               onSend={handleSend}
               loading={messagesLoading}
+              initialPendingReference={navPendingReference}
+              onInitialReferenceConsumed={() => setNavPendingReference(null)}
             />
           ) : null}
         </div>

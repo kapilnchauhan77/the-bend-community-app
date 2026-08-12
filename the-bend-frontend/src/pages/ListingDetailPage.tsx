@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ShareButton } from '@/components/shared/ShareButton';
+import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { listingApi } from '@/services/listingApi';
 import { messageApi } from '@/services/messageApi';
 import { discountCodeApi } from '@/services/discountCodeApi';
@@ -166,7 +167,9 @@ export default function ListingDetailPage() {
         await listingApi.saveListing(id!);
         setHasSaved(true);
       }
-    } catch { }
+    } catch {
+      // silently fail
+    }
   }
 
   async function handleFulfill() {
@@ -335,17 +338,28 @@ export default function ListingDetailPage() {
 
           <div className="flex items-center justify-between gap-2 mb-2">
             <h1 className="text-2xl font-bold text-gray-900">{listing.title}</h1>
-            <ShareButton
-              url={`/listing/${id}`}
-              title={listing.title}
-              description={`${
-                listing.category === 'volunteer'
-                  ? 'Volunteer Opportunity'
-                  : listing.category === 'staff'
-                    ? (listing.type === 'offer' ? 'Hiring' : 'Available')
-                    : (listing.type === 'offer' ? 'Offering' : 'Requesting')
-              }: ${listing.title} - Community Marketplace`}
-            />
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <ShareButton
+                url={`/listing/${id}`}
+                title={listing.title}
+                description={`${
+                  listing.category === 'volunteer'
+                    ? 'Volunteer Opportunity'
+                    : listing.category === 'staff'
+                      ? (listing.type === 'offer' ? 'Hiring' : 'Available')
+                      : (listing.type === 'offer' ? 'Offering' : 'Requesting')
+                }: ${listing.title} - Community Marketplace`}
+              />
+              {isAuthenticated && (
+                <ShareToMessageButton
+                  refType="listing"
+                  refId={listing.id}
+                  size="sm"
+                  label="Send in a message"
+                  className="text-xs text-[hsl(30,10%,45%)] hover:text-[hsl(35,45%,42%)] border-[hsl(35,18%,84%)] hover:border-[hsl(35,45%,42%)]"
+                />
+              )}
+            </div>
           </div>
 
           {/* Price (or volunteer pill) */}
@@ -727,7 +741,9 @@ export default function ListingDetailPage() {
                       try {
                         await listingApi.reportListing(id!, { reason: reportReason, details: reportDetails || undefined });
                         setReported(true);
-                      } catch {}
+                      } catch {
+                        // silently fail
+                      }
                       setReportSubmitting(false);
                     }}
                   >

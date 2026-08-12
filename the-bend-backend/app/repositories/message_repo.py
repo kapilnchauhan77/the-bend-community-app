@@ -82,6 +82,8 @@ class MessageRepository:
         attachment_url: str | None = None,
         attachment_type: str | None = None,
         attachment_thumbnail_url: str | None = None,
+        reference_type: str | None = None,
+        reference_id: UUID | None = None,
     ) -> Message:
         from uuid import uuid4
         msg = Message(
@@ -92,6 +94,8 @@ class MessageRepository:
             attachment_url=attachment_url,
             attachment_type=attachment_type,
             attachment_thumbnail_url=attachment_thumbnail_url,
+            reference_type=reference_type,
+            reference_id=reference_id,
         )
         self.session.add(msg)
 
