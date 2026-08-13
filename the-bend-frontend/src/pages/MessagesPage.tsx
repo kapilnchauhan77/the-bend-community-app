@@ -894,7 +894,10 @@ export default function MessagesPage() {
       try {
         const { data } = await messageApi.getThreadMessages(thread.id);
         const msgs: Message[] = Array.isArray(data) ? data : (data as { items: Message[] }).items ?? [];
-        setMessages(msgs);
+        // The API returns newest-first (created_at DESC for cursor paging);
+        // reverse to chronological order so the oldest sits at the top and the
+        // newest at the bottom — matching optimistic sends, which append.
+        setMessages([...msgs].reverse());
       } catch (err) {
         console.error('Failed to load messages:', err);
       } finally {
