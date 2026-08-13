@@ -140,15 +140,19 @@ class MessageService:
         )
         return {"id": str(thread.id), "created": created}
 
-    async def get_thread_messages(self, thread_id: UUID, user_id: UUID, cursor=None, limit=50):
+    async def get_thread_messages(self, thread_id: UUID, user_id: UUID, cursor=None, limit=50, caller_tenant_id=None):
         if not await self.message_repo.is_participant(thread_id, user_id):
             raise ForbiddenError("Not a participant of this thread")
 
         # Mark as read
         await self.message_repo.mark_thread_read(thread_id, user_id)
 
+        # Resolve references against the caller's tenant (what the viewer can
+        # see) rather than the thread's tenant_id, which is NULL on legacy /
+        # direct threads and would otherwise render valid references as
+        # "unavailable". Fall back to the thread's tenant only if unknown.
         thread = await self.message_repo.get_thread_by_id(thread_id)
-        tenant_id = thread.tenant_id if thread else None
+        tenant_id = caller_tenant_id if caller_tenant_id is not None else (thread.tenant_id if thread else None)
 
         result = await self.message_repo.get_thread_messages(thread_id, cursor, limit)
         messages = [{
@@ -174,6 +178,7 @@ class MessageService:
         attachment_thumbnail_url: str | None = None,
         reference_type: str | None = None,
         reference_id=None,
+        caller_tenant_id=None,
     ):
         if not await self.message_repo.is_participant(thread_id, sender_id):
             raise ForbiddenError("Not a participant of this thread")
@@ -182,8 +187,10 @@ class MessageService:
         if reference_type and reference_id:
             from app.services.reference_service import resolve_reference
             from app.core.exceptions import ValidationError as AppValidationError
+            # Scope to the sender's tenant (consistent with reference-search),
+            # not the thread's tenant_id which is NULL on legacy/direct threads.
             thread = await self.message_repo.get_thread_by_id(thread_id)
-            tenant_id = thread.tenant_id if thread else None
+            tenant_id = caller_tenant_id if caller_tenant_id is not None else (thread.tenant_id if thread else None)
             if isinstance(reference_id, UUID):
                 ref_id = reference_id
             else:

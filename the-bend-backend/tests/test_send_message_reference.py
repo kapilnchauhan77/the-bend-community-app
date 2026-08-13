@@ -120,7 +120,7 @@ async def test_send_route_response_includes_hydrated_reference(monkeypatch):
     msg = _FakeMessage(reference_type="shop", reference_id=shop_id)
     thread = _FakeThreadWithTenant(tenant_id=None)
     service = _FakeServiceForRoute(msg, thread)
-    current_user = types.SimpleNamespace(id=uuid4())
+    current_user = types.SimpleNamespace(id=uuid4(), tenant_id=uuid4())
     data = SendMessageRequest(reference_type="shop", reference_id=str(shop_id))
 
     async def fake_resolve_reference(db, tenant_id, reference_type, reference_id):
@@ -148,7 +148,7 @@ async def test_send_route_response_reference_is_explicit_none_without_reference(
     msg = _FakeMessage(reference_type=None, reference_id=None)
     thread = _FakeThreadWithTenant(tenant_id=None)
     service = _FakeServiceForRoute(msg, thread)
-    current_user = types.SimpleNamespace(id=uuid4())
+    current_user = types.SimpleNamespace(id=uuid4(), tenant_id=uuid4())
     data = SendMessageRequest(content="hello")
 
     result = await send_message(
@@ -160,3 +160,58 @@ async def test_send_route_response_reference_is_explicit_none_without_reference(
 
     assert "reference" in result
     assert result["reference"] is None
+
+
+# --- Regression: reference must resolve against the CALLER's tenant, not the
+#     thread's tenant_id (which is NULL on legacy/direct threads). ---
+import types
+import uuid
+import pytest
+from app.services import message_service as _ms
+from app.services import reference_service as _rs
+
+
+@pytest.mark.asyncio
+async def test_send_resolves_reference_against_caller_tenant_not_thread(monkeypatch):
+    caller_tenant = uuid.uuid4()
+    ref_id = uuid.uuid4()
+    captured = {}
+
+    class _Thread:
+        tenant_id = None  # the bug condition: legacy/direct thread
+        participant_a = uuid.uuid4()
+        participant_b = uuid.uuid4()
+
+    class _Repo:
+        async def is_participant(self, t, u):
+            return True
+
+        async def get_thread_by_id(self, t):
+            return _Thread()
+
+        async def create_message(self, thread_id, sender_id, body, **kw):
+            return types.SimpleNamespace(
+                id=uuid.uuid4(), thread_id=thread_id, sender_id=sender_id,
+                content=body, created_at="now", read_at=None,
+                attachment_url=None, attachment_type=None, attachment_thumbnail_url=None,
+                reference_type=kw.get("reference_type"), reference_id=kw.get("reference_id"),
+            )
+
+    async def _fake_resolve(db, tenant_id, rtype, rid):
+        captured["tenant_id"] = tenant_id
+        # Only the caller's tenant can see the listing; thread tenant (None) cannot.
+        return {"type": "listing", "id": str(rid)} if tenant_id == caller_tenant else None
+
+    monkeypatch.setattr(_rs, "resolve_reference", _fake_resolve)
+
+    svc = _ms.MessageService(db=object())
+    svc.message_repo = _Repo()
+
+    # Must NOT raise (would raise ValidationError if resolved against thread tenant None).
+    msg = await svc.send_message(
+        uuid.uuid4(), uuid.uuid4(), "hi",
+        reference_type="listing", reference_id=str(ref_id),
+        caller_tenant_id=caller_tenant,
+    )
+    assert captured["tenant_id"] == caller_tenant  # not None (thread tenant)
+    assert msg.reference_type == "listing"

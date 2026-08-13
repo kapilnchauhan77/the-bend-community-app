@@ -71,7 +71,7 @@ async def get_thread_messages(
     service: MessageService = Depends(get_message_service),
     current_user: User = Depends(get_current_user),
 ):
-    return await service.get_thread_messages(thread_id, current_user.id, cursor, limit)
+    return await service.get_thread_messages(thread_id, current_user.id, cursor, limit, caller_tenant_id=current_user.tenant_id)
 
 
 @router.post("/threads/{thread_id}")
@@ -90,9 +90,11 @@ async def send_message(
         attachment_thumbnail_url=data.attachment_thumbnail_url,
         reference_type=data.reference_type,
         reference_id=data.reference_id,
+        caller_tenant_id=current_user.tenant_id,
     )
-    thread = await service.message_repo.get_thread_by_id(thread_id)
-    tenant_id = thread.tenant_id if thread else None
+    # Hydrate the reference against the sender's tenant (same scope used for
+    # validation + search), not thread.tenant_id which is NULL on legacy threads.
+    tenant_id = current_user.tenant_id
     return {
         "id": str(msg.id),
         "thread_id": str(msg.thread_id),
