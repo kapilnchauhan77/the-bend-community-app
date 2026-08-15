@@ -90,10 +90,19 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 my-8">
-      <p className="text-[10px] tracking-[0.2em] uppercase text-[hsl(30,10%,55%)] font-medium mb-3">
-        Community Partners{' '}
-        <a href="/advertise" target="_blank" rel="noopener noreferrer" className="normal-case tracking-normal hover:underline" style={{ color: 'hsl(35, 45%, 42%)' }}>(Partner with us)</a>
-      </p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[hsl(30,10%,55%)]">
+          Community Partners
+        </p>
+        <a
+          href="/advertise"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-8 items-center justify-center border border-[hsl(35,28%,74%)] bg-[hsl(40,20%,98%)] px-3 text-[10px] font-semibold tracking-[0.06em] text-[hsl(35,45%,36%)] transition-colors hover:border-[hsl(35,40%,55%)] hover:bg-[hsl(38,28%,94%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(35,45%,42%)] focus-visible:ring-offset-2"
+        >
+          Partner with us
+        </a>
+      </div>
       <div className="overflow-hidden relative">
         {/* Fade edges — uses CSS var for dark mode compat */}
         <div className="absolute left-0 top-0 bottom-0 w-8 z-10 pointer-events-none" style={{ background: 'linear-gradient(to right, var(--fade-bg, hsl(40,25%,96%)), transparent)' }} />
