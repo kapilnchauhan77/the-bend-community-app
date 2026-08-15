@@ -282,6 +282,7 @@ function ChatView({
   onSend,
   loading,
   initialPendingReference,
+  initialPendingMessage,
   onInitialReferenceConsumed,
 }: {
   thread: MessageThread;
@@ -299,6 +300,7 @@ function ChatView({
   // below whenever this becomes a new non-null value, then reported back as
   // consumed so the parent clears it and it doesn't reapply later.
   initialPendingReference?: ReferenceCard | null;
+  initialPendingMessage?: string;
   onInitialReferenceConsumed?: () => void;
 }) {
   const [inputValue, setInputValue] = useState('');
@@ -353,8 +355,10 @@ function ChatView({
   useEffect(() => {
     if (!initialPendingReference) return;
     setPendingReference(initialPendingReference);
+    setInputValue(initialPendingMessage ?? '');
     setPendingAttachment(null);
     setAttachmentError(null);
+    inputRef.current?.focus();
     onInitialReferenceConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPendingReference]);
@@ -819,17 +823,23 @@ export default function MessagesPage() {
   const { user } = useAuthStore();
 
   // A reference pre-attached via a "Send in a message" button on an entity
-  // page, carried here as `location.state.pendingReference` ({type, id}).
+  // page, carried here as `location.state.pendingReference` ({type, id}) with
+  // an editable default message for the composer.
   // We only have the type+id (not a full card), so a minimal ReferenceCard is
   // built — the chip renders from title||type, and the full card comes back
   // from the server after send. Consumed once by ChatView, then cleared here.
   const [navPendingReference, setNavPendingReference] = useState<ReferenceCard | null>(null);
+  const [navPendingMessage, setNavPendingMessage] = useState('');
 
   useEffect(() => {
-    const navState = location.state as { pendingReference?: { type: string; id: string } } | null;
+    const navState = location.state as {
+      pendingReference?: { type: string; id: string };
+      pendingMessage?: string;
+    } | null;
     const pending = navState?.pendingReference;
     if (pending?.type && pending?.id) {
       setNavPendingReference({ type: pending.type as ReferenceCard['type'], id: pending.id });
+      setNavPendingMessage(navState?.pendingMessage?.trim() ?? '');
       // Clear the nav state so a refresh or re-navigation to this URL doesn't
       // re-attach the reference.
       navigate(location.pathname, { replace: true, state: {} });
@@ -1033,7 +1043,11 @@ export default function MessagesPage() {
                 onSend={handleSend}
                 loading={messagesLoading}
                 initialPendingReference={navPendingReference}
-                onInitialReferenceConsumed={() => setNavPendingReference(null)}
+                initialPendingMessage={navPendingMessage}
+                onInitialReferenceConsumed={() => {
+                  setNavPendingReference(null);
+                  setNavPendingMessage('');
+                }}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full bg-gray-50">
@@ -1071,7 +1085,11 @@ export default function MessagesPage() {
               onSend={handleSend}
               loading={messagesLoading}
               initialPendingReference={navPendingReference}
-              onInitialReferenceConsumed={() => setNavPendingReference(null)}
+              initialPendingMessage={navPendingMessage}
+              onInitialReferenceConsumed={() => {
+                setNavPendingReference(null);
+                setNavPendingMessage('');
+              }}
             />
           ) : null}
         </div>

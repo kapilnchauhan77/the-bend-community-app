@@ -16,6 +16,13 @@ import type { MessageThread, ReferenceCard } from '@/types';
 
 const DEBOUNCE_MS = 250;
 
+const DEFAULT_SHARE_MESSAGE: Record<ReferenceCard['type'], string> = {
+  listing: 'I wanted to share this listing with you.',
+  shop: 'I wanted to share this business with you.',
+  bender: 'I wanted to share this post with you.',
+  user: 'I wanted to share this profile with you.',
+};
+
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -202,7 +209,10 @@ export function ShareToMessageButton({
   function goToThread(threadId: string) {
     setOpen(false);
     navigate(`/messages/${threadId}`, {
-      state: { pendingReference: { type: refType, id: refId } },
+      state: {
+        pendingReference: { type: refType, id: refId },
+        pendingMessage: DEFAULT_SHARE_MESSAGE[refType],
+      },
     });
   }
 
