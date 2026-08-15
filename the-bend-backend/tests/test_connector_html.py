@@ -92,6 +92,34 @@ def test_dcr_parser_marks_cancelled_events_and_deduplicates_detail_links():
     assert events[0]["description"].startswith("This event has been canceled.")
 
 
+def test_dcr_parser_handles_split_time_and_park_location_fields():
+    html = _results_page(
+        1,
+        """
+          <article class="event-card">
+            <h3>Campfire Kickoff</h3>
+            <p class="date">
+              <span>July 24, 2026.</span><span>7:00</span><span>p.m.</span>
+              <span>-</span><span>8:00</span><span>p.m.</span>
+            </p>
+            <p>Westmoreland State Park</p>
+            <p>Campground A</p>
+            <p>Start your weekend off right with s'mores and more!</p>
+            <a href="/state-parks/event?id=campfire-kickoff">View Details</a>
+          </article>
+        """,
+    )
+
+    events, _ = _parse_dcr_event_page(html, DCR_URL)
+
+    assert events[0]["start_date"] == datetime(2026, 7, 24, 19, 0)
+    assert events[0]["end_date"] == datetime(2026, 7, 24, 20, 0)
+    assert events[0]["location"] == "Westmoreland State Park, Campground A"
+    assert events[0]["description"] == (
+        "Start your weekend off right with s'mores and more!"
+    )
+
+
 def test_dcr_parser_skips_cards_without_a_real_date_or_detail_link():
     html = _results_page(
         2,

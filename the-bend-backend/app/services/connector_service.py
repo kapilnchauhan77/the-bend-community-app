@@ -139,13 +139,23 @@ def _dcr_content_lines(block) -> list[str]:
 
 
 def _find_dcr_date_lines(lines: list[str]) -> tuple[int, int] | None:
-    # A page can place the date and time in separate elements, so inspect a
-    # short rolling window as well as individual lines.
+    # DCR places the date, each time, each meridiem, and the range dash in
+    # separate elements. Prefer the full range window so none of those tokens
+    # leak into the location/description fields.
+    single_time_fallback = None
     for start_index in range(len(lines)):
-        for end_index in range(start_index, min(start_index + 3, len(lines))):
-            if _parse_dcr_date_range(" ".join(lines[start_index:end_index + 1])):
-                return start_index, end_index
-    return None
+        for end_index in range(start_index, min(start_index + 7, len(lines))):
+            parsed_range = _parse_dcr_date_range(
+                " ".join(lines[start_index:end_index + 1])
+            )
+            if parsed_range:
+                single_time_fallback = single_time_fallback or (
+                    start_index,
+                    end_index,
+                )
+                if parsed_range[1] is not None:
+                    return start_index, end_index
+    return single_time_fallback
 
 
 def _is_dcr_chrome_line(value: str) -> bool:
@@ -155,7 +165,7 @@ def _is_dcr_chrome_line(value: str) -> bool:
         or _looks_like_results_summary(value)
         or normalized.startswith("park:")
         or normalized.startswith("image:")
-        or normalized in {"view details", "details", "refine list"}
+        or normalized in {"-", "\u2013", "\u2014", "view details", "details", "refine list"}
     )
 
 
@@ -214,7 +224,15 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
             if not _is_dcr_chrome_line(line) and line != title
         ]
         location = content_after_date[0] if content_after_date else None
-        description_lines = content_after_date[1:] if len(content_after_date) > 1 else []
+        location_line_count = 1 if location else 0
+        if (
+            location
+            and location.lower().endswith("state park")
+            and len(content_after_date) > 1
+        ):
+            location = f"{location}, {content_after_date[1]}"
+            location_line_count = 2
+        description_lines = content_after_date[location_line_count:]
         cancelled = any(
             "canceled" in line.lower() or "cancelled" in line.lower()
             for line in lines
