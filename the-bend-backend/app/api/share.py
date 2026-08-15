@@ -25,7 +25,7 @@ from app.models.listing import Listing
 router = APIRouter(prefix="/share", tags=["Share"])
 
 _WS_RE = re.compile(r"\s+")
-_DEFAULT_IMAGE_PATH = "/icons/icon-512.png"
+_DEFAULT_IMAGE_PATH = "/images/the-bend-community-preview-v2.png"
 _DEFAULT_SITE_NAME = "The Bend Community"
 _DEFAULT_DESCRIPTION = "Share staff, materials & equipment with your neighbors."
 
@@ -73,11 +73,14 @@ def _render(
     <meta property="og:title" content="{t}">
     <meta property="og:description" content="{d}">
     <meta property="og:image" content="{img}">
+    <meta property="og:image:secure_url" content="{img}">
+    <meta property="og:image:alt" content="{s}">
     <meta property="og:url" content="{url}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{t}">
     <meta name="twitter:description" content="{d}">
     <meta name="twitter:image" content="{img}">
+    <meta name="twitter:image:alt" content="{s}">
     <link rel="canonical" href="{url}">
     <meta http-equiv="refresh" content="0; url={url}">
     <script>location.replace({url!r});</script>

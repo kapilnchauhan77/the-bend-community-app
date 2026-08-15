@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">The Bend Community</title>
+  <desc id="description">The Bend Community full wordmark on a warm ivory background.</desc>
+
+  <rect width="1200" height="630" fill="#faf8f3"/>
+  <rect width="1200" height="22" fill="#2d5649"/>
+  <rect y="22" width="1200" height="5" fill="#a77b38"/>
+  <rect y="603" width="1200" height="27" fill="#2d5649"/>
+
+  <g transform="translate(178 199)">
+    <rect x="0" y="0" width="178" height="178" fill="none" stroke="#a77b38" stroke-width="5"/>
+    <text x="89" y="126" text-anchor="middle" font-family="Georgia" font-size="112" font-weight="700" fill="#a77b38">B</text>
+
+    <line x1="226" y1="0" x2="226" y2="178" stroke="#d9d0c3" stroke-width="3"/>
+
+    <text x="282" y="78" font-family="Georgia" font-size="78" font-weight="700" letter-spacing="2" fill="#332b26">THE BEND</text>
+    <text x="287" y="137" font-family="Arial" font-size="27" font-weight="600" letter-spacing="14" fill="#806d59">COMMUNITY</text>
+  </g>
+
+  <text x="600" y="497" text-anchor="middle" font-family="Arial" font-size="20" font-weight="600" letter-spacing="7" fill="#2d5649">LOCAL CONNECTIONS · SHARED RESOURCES</text>
+</svg>
