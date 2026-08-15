@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant, Permission
 from app.core.privacy import mask_phone
 from app.models.user import User
@@ -254,14 +255,13 @@ async def get_endorsement_map(
     from app.models.endorsement import Endorsement
     from app.models.shop import Shop
     from app.models.enums import ShopStatus
-    from app.core.exceptions import AppException
     from app.services.geocode_service import haversine_miles
 
     MAX_DISTANCE_MILES = 50.0
 
     center = await db.get(Shop, shop_id)
     if not center:
-        raise AppException(status_code=404, message="Business not found")
+        raise NotFoundError("Business")
 
     center_payload = {
         "id": str(center.id),
@@ -318,23 +318,22 @@ async def endorse_shop(
     shop_id: UUID,
     data: EndorseRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(Permission.require_shop_admin()),
 ):
     """Endorse another business. Must be a shop admin."""
     from app.models.endorsement import Endorsement
     from app.models.shop import Shop
-    from app.core.exceptions import AppException
 
     if not current_user.shop_id:
-        raise AppException(status_code=403, message="You must have a business to endorse others")
+        raise ForbiddenError("You must have a business to endorse others")
 
     if str(current_user.shop_id) == str(shop_id):
-        raise AppException(status_code=400, message="You cannot endorse your own business")
+        raise ValidationError("You cannot endorse your own business")
 
     # Check target shop exists
     target = await db.get(Shop, shop_id)
     if not target:
-        raise AppException(status_code=404, message="Business not found")
+        raise NotFoundError("Business")
 
     # Check not already endorsed
     from sqlalchemy import select
@@ -345,7 +344,7 @@ async def endorse_shop(
         )
     )
     if existing.scalar_one_or_none():
-        raise AppException(status_code=409, message="You have already endorsed this business")
+        raise ConflictError("You have already endorsed this business")
 
     endorsement = Endorsement(
         endorser_shop_id=current_user.shop_id,
@@ -362,15 +361,14 @@ async def endorse_shop(
 async def withdraw_endorsement(
     shop_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(Permission.require_shop_admin()),
 ):
     """Withdraw an endorsement."""
-    from sqlalchemy import select, delete
+    from sqlalchemy import select
     from app.models.endorsement import Endorsement
-    from app.core.exceptions import AppException
 
     if not current_user.shop_id:
-        raise AppException(status_code=403, message="You must have a business")
+        raise ForbiddenError("You must have a business")
 
     result = await db.execute(
         select(Endorsement).where(
@@ -380,7 +378,7 @@ async def withdraw_endorsement(
     )
     endorsement = result.scalar_one_or_none()
     if not endorsement:
-        raise AppException(status_code=404, message="Endorsement not found")
+        raise NotFoundError("Endorsement")
 
     await db.delete(endorsement)
     await db.commit()

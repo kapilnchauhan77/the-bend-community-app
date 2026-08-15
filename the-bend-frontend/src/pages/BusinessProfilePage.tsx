@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import type { AxiosError } from 'axios';
 import { MapPin, Phone, MessageCircle, Store, Calendar, Package, ThumbsUp, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,15 @@ const EndorsementMap = lazy(() => import('@/components/shared/EndorsementMap'));
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
 
+type ApiErrorResponse = {
+  error?: { message?: string };
+};
+
+function endorsementErrorMessage(error: unknown): string {
+  const apiMessage = (error as AxiosError<ApiErrorResponse>)?.response?.data?.error?.message;
+  return apiMessage || 'Could not update this endorsement. Please try again.';
+}
+
 export default function BusinessProfilePage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
@@ -40,6 +50,7 @@ export default function BusinessProfilePage() {
   const [hasEndorsed, setHasEndorsed] = useState(false);
   const [endorseLoading, setEndorseLoading] = useState(false);
   const [endorseMessage, setEndorseMessage] = useState('');
+  const [endorseError, setEndorseError] = useState<string | null>(null);
   const [showEndorseForm, setShowEndorseForm] = useState(false);
   const [endorsementCount, setEndorsementCount] = useState(0);
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
@@ -72,11 +83,12 @@ export default function BusinessProfilePage() {
   async function handleEndorse() {
     if (!shopId) return;
     setEndorseLoading(true);
+    setEndorseError(null);
     try {
       if (hasEndorsed) {
         await shopApi.withdrawEndorsement(shopId);
         setHasEndorsed(false);
-        setEndorsementCount((c) => c - 1);
+        setEndorsementCount((c) => Math.max(0, c - 1));
         setEndorsements((prev) => prev.filter((e) => e.endorser.id !== myShop?.id));
       } else {
         await shopApi.endorse(shopId, endorseMessage || undefined);
@@ -85,11 +97,13 @@ export default function BusinessProfilePage() {
         setShowEndorseForm(false);
         setEndorseMessage('');
         // Reload endorsements to show the new one
-        const { data } = await shopApi.getEndorsements(shopId);
-        setEndorsements(data.items ?? []);
+        const refreshResponse = await shopApi.getEndorsements(shopId).catch(() => null);
+        if (refreshResponse) {
+          setEndorsements(refreshResponse.data.items ?? []);
+        }
       }
-    } catch {
-      // silently fail
+    } catch (error) {
+      setEndorseError(endorsementErrorMessage(error));
     } finally {
       setEndorseLoading(false);
     }
@@ -203,27 +217,30 @@ export default function BusinessProfilePage() {
                   )}
                   {isAuthenticated && !isOwner && (
                     <>
-                      <Button
-                        size="sm"
-                        disabled={endorseLoading}
-                        onClick={() => {
-                          if (hasEndorsed) {
-                            handleEndorse();
-                          } else {
-                            setShowEndorseForm(!showEndorseForm);
-                          }
-                        }}
-                        variant={hasEndorsed ? 'default' : 'outline'}
-                        className={`text-xs tracking-wider uppercase cursor-pointer ${
-                          hasEndorsed
-                            ? 'text-white'
-                            : 'border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]'
-                        }`}
-                        style={hasEndorsed ? { backgroundColor: PRIMARY } : {}}
-                      >
-                        <ThumbsUp className="w-3.5 h-3.5 mr-1.5" fill={hasEndorsed ? 'currentColor' : 'none'} />
-                        {hasEndorsed ? 'Endorsed' : 'Endorse'}
-                      </Button>
+                      {myShop && (
+                        <Button
+                          size="sm"
+                          disabled={endorseLoading}
+                          onClick={() => {
+                            setEndorseError(null);
+                            if (hasEndorsed) {
+                              handleEndorse();
+                            } else {
+                              setShowEndorseForm(!showEndorseForm);
+                            }
+                          }}
+                          variant={hasEndorsed ? 'default' : 'outline'}
+                          className={`text-xs tracking-wider uppercase cursor-pointer ${
+                            hasEndorsed
+                              ? 'text-white'
+                              : 'border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]'
+                          }`}
+                          style={hasEndorsed ? { backgroundColor: PRIMARY } : {}}
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5 mr-1.5" fill={hasEndorsed ? 'currentColor' : 'none'} />
+                          {hasEndorsed ? 'Endorsed' : 'Endorse'}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         disabled={messagingLoading}
@@ -274,6 +291,12 @@ export default function BusinessProfilePage() {
             </div>
           </div>
 
+          {endorseError && !showEndorseForm && (
+            <p role="alert" className="mt-4 text-sm text-red-700">
+              {endorseError}
+            </p>
+          )}
+
           {/* Endorse form (inline) */}
           {showEndorseForm && (
             <div className="mt-4 pt-4 border-t border-[hsl(35,18%,88%)]">
@@ -285,6 +308,11 @@ export default function BusinessProfilePage() {
                 rows={2}
                 className="w-full px-3 py-2 text-sm border border-[hsl(35,18%,84%)] rounded resize-none mb-2 bg-white"
               />
+              {endorseError && (
+                <p role="alert" className="mb-2 text-sm text-red-700">
+                  {endorseError}
+                </p>
+              )}
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -299,7 +327,7 @@ export default function BusinessProfilePage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => { setShowEndorseForm(false); setEndorseMessage(''); }}
+                  onClick={() => { setShowEndorseForm(false); setEndorseMessage(''); setEndorseError(null); }}
                   className="text-xs cursor-pointer"
                 >
                   Cancel
