@@ -120,6 +120,31 @@ def test_dcr_parser_handles_split_time_and_park_location_fields():
     )
 
 
+def test_dcr_parser_preserves_plain_text_title_before_split_date():
+    html = _results_page(
+        1,
+        """
+          <article class="event-card">
+            <div>Campfire Kickoff</div>
+            <div>July 24, 2026.</div><div>7:00</div><div>p.m.</div>
+            <div>-</div><div>8:00</div><div>p.m.</div>
+            <div>Westmoreland State Park</div>
+            <div>Campground A</div>
+            <div>Start your weekend off right with s'mores and more!</div>
+            <a href="/state-parks/event?id=campfire-kickoff">View Details</a>
+          </article>
+        """,
+    )
+
+    events, _ = _parse_dcr_event_page(html, DCR_URL)
+
+    assert len(events) == 1
+    assert events[0]["title"] == "Campfire Kickoff"
+    assert events[0]["start_date"] == datetime(2026, 7, 24, 19, 0)
+    assert events[0]["end_date"] == datetime(2026, 7, 24, 20, 0)
+    assert events[0]["location"] == "Westmoreland State Park, Campground A"
+
+
 def test_dcr_parser_skips_cards_without_a_real_date_or_detail_link():
     html = _results_page(
         2,

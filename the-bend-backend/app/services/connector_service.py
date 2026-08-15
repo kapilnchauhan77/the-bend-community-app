@@ -144,6 +144,12 @@ def _find_dcr_date_lines(lines: list[str]) -> tuple[int, int] | None:
     # leak into the location/description fields.
     single_time_fallback = None
     for start_index in range(len(lines)):
+        # The rolling window must begin on the date itself. Real DCR cards
+        # render the title as plain text immediately before it; accepting a
+        # window that merely *contains* a date consumes that title and leaves
+        # the card with no usable heading.
+        if not _DCR_DATE_RE.search(lines[start_index]):
+            continue
         for end_index in range(start_index, min(start_index + 7, len(lines))):
             parsed_range = _parse_dcr_date_range(
                 " ".join(lines[start_index:end_index + 1])
