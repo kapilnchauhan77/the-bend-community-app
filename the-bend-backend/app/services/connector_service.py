@@ -1,6 +1,10 @@
-import httpx
+import re
+from datetime import datetime, timedelta, timezone
+from math import ceil
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+
+import httpx
 from dateutil import parser as dateutil_parser
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +24,228 @@ _FEED_HEADERS = {
     ),
     "Accept": "text/calendar,application/rss+xml,text/html;q=0.9,*/*;q=0.8",
 }
+
+_DCR_HOSTS = {"dcr.virginia.gov", "www.dcr.virginia.gov"}
+_DCR_RESULTS_COUNT_RE = re.compile(
+    r"\(\s*(?P<count>\d+)\s*\)\s*events?\s+found", re.IGNORECASE
+)
+_DCR_DATE_RE = re.compile(
+    r"(?P<date>[A-Z][a-z]{2,8}\.?\s+\d{1,2},\s+\d{4})\.?(?=\s|$)",
+    re.IGNORECASE,
+)
+_DCR_TIME_TOKEN = r"\d{1,2}(?::\d{2})?\s*[ap]\.?(?:m)\.?"
+_DCR_TIME_RANGE_RE = re.compile(
+    rf"(?P<start>{_DCR_TIME_TOKEN})\s*(?:-|\u2013|\u2014|to)\s*"
+    rf"(?P<end>{_DCR_TIME_TOKEN})",
+    re.IGNORECASE,
+)
+_DCR_SINGLE_TIME_RE = re.compile(rf"(?P<start>{_DCR_TIME_TOKEN})", re.IGNORECASE)
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _looks_like_results_summary(title: str) -> bool:
+    normalized = _normalize_text(title).lower()
+    return "events found" in normalized and "between" in normalized
+
+
+def _is_dcr_events_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.hostname in _DCR_HOSTS and parsed.path.rstrip("/") == "/state-parks/events"
+
+
+def _parse_dcr_date_range(text: str) -> tuple[datetime, datetime | None] | None:
+    """Parse DCR's local date/time format without inventing a missing date."""
+    normalized = _normalize_text(text)
+    date_match = _DCR_DATE_RE.search(normalized)
+    if not date_match:
+        return None
+
+    time_text = normalized[date_match.end():]
+    range_match = _DCR_TIME_RANGE_RE.search(time_text)
+    single_match = _DCR_SINGLE_TIME_RE.search(time_text)
+    if not range_match and not single_match:
+        # DCR occasionally lists all-day events with a date but no time.
+        if "all day" not in time_text.lower():
+            return None
+        start = dateutil_parser.parse(date_match.group("date"), fuzzy=True)
+        return start.replace(tzinfo=None), None
+
+    def normalize_meridiem(value: str) -> str:
+        return re.sub(r"\.", "", value).upper()
+
+    start_time = normalize_meridiem((range_match or single_match).group("start"))
+    start = dateutil_parser.parse(
+        f"{date_match.group('date')} {start_time}", fuzzy=True
+    ).replace(tzinfo=None)
+
+    end = None
+    if range_match:
+        end_time = normalize_meridiem(range_match.group("end"))
+        end = dateutil_parser.parse(
+            f"{date_match.group('date')} {end_time}", fuzzy=True
+        ).replace(tzinfo=None)
+        if end < start:
+            end += timedelta(days=1)
+
+    return start, end
+
+
+def _is_details_link(element) -> bool:
+    text = _normalize_text(element.get_text(" ", strip=True)).lower()
+    return "detail" in text and ("view" in text or text == "details")
+
+
+def _find_dcr_event_block(details_link):
+    """Find the smallest ancestor that contains one detail link and a date."""
+    candidate = details_link.parent
+    for _ in range(8):
+        if candidate is None:
+            return None
+        block_text = candidate.get_text(" ", strip=True)
+        details_links = [
+            link for link in candidate.find_all("a", href=True)
+            if _is_details_link(link)
+        ]
+        event_headings = [
+            heading
+            for heading in candidate.find_all(["h2", "h3", "h4", "h5", "h6"])
+            if not _is_dcr_chrome_line(heading.get_text(" ", strip=True))
+        ]
+        if (
+            len(details_links) == 1
+            and len(event_headings) <= 1
+            and _parse_dcr_date_range(block_text)
+        ):
+            return candidate
+        # Do not climb out of a semantic card, or into a results-level wrapper
+        # containing multiple titles. That could pair one card's detail link
+        # with a date from a neighboring card.
+        if candidate.name in {"article", "li"} or len(event_headings) > 1:
+            return None
+        candidate = candidate.parent
+    return None
+
+
+def _dcr_content_lines(block) -> list[str]:
+    lines = []
+    for value in block.get_text("\n", strip=True).splitlines():
+        normalized = _normalize_text(value)
+        if normalized and (not lines or normalized != lines[-1]):
+            lines.append(normalized)
+    return lines
+
+
+def _find_dcr_date_lines(lines: list[str]) -> tuple[int, int] | None:
+    # A page can place the date and time in separate elements, so inspect a
+    # short rolling window as well as individual lines.
+    for start_index in range(len(lines)):
+        for end_index in range(start_index, min(start_index + 3, len(lines))):
+            if _parse_dcr_date_range(" ".join(lines[start_index:end_index + 1])):
+                return start_index, end_index
+    return None
+
+
+def _is_dcr_chrome_line(value: str) -> bool:
+    normalized = value.lower()
+    return (
+        not normalized
+        or _looks_like_results_summary(value)
+        or normalized.startswith("park:")
+        or normalized.startswith("image:")
+        or normalized in {"view details", "details", "refine list"}
+    )
+
+
+def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | None]:
+    """Parse one rendered DCR results page into real event cards."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    page_text = soup.get_text(" ", strip=True)
+    count_match = _DCR_RESULTS_COUNT_RE.search(page_text)
+    reported_count = int(count_match.group("count")) if count_match else None
+    events = []
+    seen_urls = set()
+
+    for details_link in soup.find_all("a", href=True):
+        if not _is_details_link(details_link):
+            continue
+
+        source_url = urljoin(page_url, details_link["href"])
+        if urlparse(source_url).scheme not in {"http", "https"} or source_url in seen_urls:
+            continue
+
+        block = _find_dcr_event_block(details_link)
+        if block is None:
+            continue
+
+        parsed_range = _parse_dcr_date_range(block.get_text(" ", strip=True))
+        lines = _dcr_content_lines(block)
+        date_lines = _find_dcr_date_lines(lines)
+        if parsed_range is None or date_lines is None:
+            continue
+
+        date_start_index, date_end_index = date_lines
+        title = None
+        for heading in block.find_all(["h2", "h3", "h4", "h5", "h6"]):
+            heading_text = _normalize_text(heading.get_text(" ", strip=True))
+            if heading_text and not _is_dcr_chrome_line(heading_text):
+                title = heading_text
+                break
+
+        if not title:
+            for line in reversed(lines[:date_start_index]):
+                if (
+                    not _is_dcr_chrome_line(line)
+                    and "cancelled" not in line.lower()
+                    and "canceled" not in line.lower()
+                ):
+                    title = line
+                    break
+
+        if not title or _looks_like_results_summary(title):
+            continue
+
+        content_after_date = [
+            line for line in lines[date_end_index + 1:]
+            if not _is_dcr_chrome_line(line) and line != title
+        ]
+        location = content_after_date[0] if content_after_date else None
+        description_lines = content_after_date[1:] if len(content_after_date) > 1 else []
+        cancelled = any(
+            "canceled" in line.lower() or "cancelled" in line.lower()
+            for line in lines
+        )
+        description = " ".join(description_lines).strip() or None
+        if cancelled and (not description or "cancel" not in description.lower()):
+            description = f"This event has been canceled. {description or ''}".strip()
+
+        start_date, end_date = parsed_range
+        events.append({
+            "title": title[:255],
+            "description": description[:2000] if description else None,
+            "start_date": start_date,
+            "end_date": end_date,
+            "location": location[:255] if location else None,
+            "source_url": source_url,
+            "status": "cancelled" if cancelled else "active",
+        })
+        seen_urls.add(source_url)
+
+    return events, reported_count
+
+
+def _dcr_page_url(url: str, page_number: int) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if page_number <= 1:
+        query.pop("cp", None)
+    else:
+        query["cp"] = str(page_number)
+    return urlunparse(parsed._replace(query=urlencode(query)))
 
 
 class ConnectorService:
@@ -267,6 +493,41 @@ class ConnectorService:
             resp = await client.get(url)
             resp.raise_for_status()
 
+            if _is_dcr_events_url(url):
+                first_events, reported_count = _parse_dcr_event_page(resp.text, url)
+                if reported_count is None:
+                    raise ValueError(
+                        "The DCR page did not include an event result count; its markup may have changed."
+                    )
+                if reported_count == 0:
+                    return []
+                if not first_events:
+                    raise ValueError(
+                        f"DCR reported {reported_count} events, but no valid event cards could be parsed."
+                    )
+
+                all_events = {event["source_url"]: event for event in first_events}
+                page_count = ceil(reported_count / len(first_events))
+                if page_count > 50:
+                    raise ValueError(
+                        f"DCR results require {page_count} pages, exceeding the safe sync limit."
+                    )
+
+                for page_number in range(2, page_count + 1):
+                    page_url = _dcr_page_url(url, page_number)
+                    page_resp = await client.get(page_url)
+                    page_resp.raise_for_status()
+                    page_events, _ = _parse_dcr_event_page(page_resp.text, page_url)
+                    for event in page_events:
+                        all_events[event["source_url"]] = event
+
+                if len(all_events) != reported_count:
+                    raise ValueError(
+                        f"DCR reported {reported_count} events, but only "
+                        f"{len(all_events)} unique event cards were parsed. No events were saved."
+                    )
+                return list(all_events.values())
+
         soup = BeautifulSoup(resp.text, "lxml")
         events = []
 
@@ -274,8 +535,8 @@ class ConnectorService:
         title_elements = soup.select(title_sel)
 
         for title_el in title_elements:
-            title = title_el.get_text(strip=True)
-            if not title:
+            title = title_el.get_text(" ", strip=True)
+            if not title or _looks_like_results_summary(title):
                 continue
 
             # Look for sibling/parent context
@@ -283,30 +544,36 @@ class ConnectorService:
 
             # Date
             date_el = parent.select_one(date_sel)
-            start_date = datetime.utcnow()
+            start_date = None
             if date_el:
-                date_text = date_el.get("datetime", "") or date_el.get_text(strip=True)
+                date_text = date_el.get("datetime", "") or date_el.get_text(" ", strip=True)
                 if date_text:
                     try:
                         start_date = dateutil_parser.parse(date_text, fuzzy=True)
                         if start_date.tzinfo:
                             start_date = start_date.replace(tzinfo=None)
                     except (ValueError, OverflowError):
-                        pass
+                        start_date = None
+
+            # Never turn a heading or results summary into an event by silently
+            # assigning the current time when the source has no parseable date.
+            if start_date is None:
+                continue
 
             # Description
             desc_el = parent.select_one(desc_sel)
-            description = desc_el.get_text(strip=True) if desc_el else None
+            description = desc_el.get_text(" ", strip=True) if desc_el else None
 
             # Link
             link_el = parent.select_one(link_sel) if link_sel != title_sel else title_el
             source_url = None
             if link_el and link_el.get("href"):
-                href = link_el["href"]
-                if href.startswith("/"):
-                    from urllib.parse import urljoin
-                    href = urljoin(url, href)
-                source_url = href
+                source_url = urljoin(url, link_el["href"])
+
+            # HTML imports are deduplicated by source_url. Saving a linkless
+            # card would create a duplicate on every scheduled sync.
+            if not source_url or urlparse(source_url).scheme not in {"http", "https"}:
+                continue
 
             events.append({
                 "title": title[:255],
