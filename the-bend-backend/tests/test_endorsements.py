@@ -4,7 +4,7 @@ import uuid
 import pytest
 
 from app.api.v1.shops import EndorseRequest, endorse_shop, withdraw_endorsement
-from app.core.exceptions import ForbiddenError, ValidationError
+from app.core.exceptions import ValidationError
 
 
 class _Result:
@@ -20,6 +20,7 @@ class _FakeDB:
         self.target = target
         self.existing = existing
         self.added = None
+        self.deleted = None
         self.committed = False
 
     async def get(self, _model, _object_id):
@@ -31,22 +32,32 @@ class _FakeDB:
     def add(self, obj):
         self.added = obj
 
-    async def delete(self, _obj):
-        pass
+    async def delete(self, obj):
+        self.deleted = obj
 
     async def commit(self):
         self.committed = True
 
 
 @pytest.mark.asyncio
-async def test_endorse_requires_a_business_account():
-    user = types.SimpleNamespace(shop_id=None)
+async def test_individual_can_endorse_a_business():
+    user_id = uuid.uuid4()
+    endorsed_shop_id = uuid.uuid4()
+    user = types.SimpleNamespace(id=user_id, shop_id=None)
+    db = _FakeDB(target=types.SimpleNamespace(id=endorsed_shop_id))
 
-    with pytest.raises(ForbiddenError) as exc_info:
-        await endorse_shop(uuid.uuid4(), EndorseRequest(), _FakeDB(), user)
+    result = await endorse_shop(
+        endorsed_shop_id,
+        EndorseRequest(message="A neighborhood favorite"),
+        db,
+        user,
+    )
 
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail["error"]["message"] == "You must have a business to endorse others"
+    assert result["status"] == "endorsed"
+    assert db.committed is True
+    assert db.added.endorser_shop_id is None
+    assert db.added.endorser_user_id == user_id
+    assert db.added.endorsed_shop_id == endorsed_shop_id
 
 
 @pytest.mark.asyncio
@@ -79,16 +90,19 @@ async def test_business_can_endorse_another_business():
     assert result["id"]
     assert db.committed is True
     assert db.added.endorser_shop_id == endorser_shop_id
+    assert db.added.endorser_user_id is None
     assert db.added.endorsed_shop_id == endorsed_shop_id
     assert db.added.message == "Great community partner"
 
 
 @pytest.mark.asyncio
-async def test_withdraw_requires_a_business_account():
-    user = types.SimpleNamespace(shop_id=None)
+async def test_individual_can_withdraw_an_endorsement():
+    endorsement = types.SimpleNamespace(id=uuid.uuid4())
+    user = types.SimpleNamespace(id=uuid.uuid4(), shop_id=None)
+    db = _FakeDB(existing=endorsement)
 
-    with pytest.raises(ForbiddenError) as exc_info:
-        await withdraw_endorsement(uuid.uuid4(), _FakeDB(), user)
+    result = await withdraw_endorsement(uuid.uuid4(), db, user)
 
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail["error"]["message"] == "You must have a business"
+    assert result["status"] == "withdrawn"
+    assert db.deleted is endorsement
+    assert db.committed is True

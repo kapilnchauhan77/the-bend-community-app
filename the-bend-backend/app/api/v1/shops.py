@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant, Permission
 from app.core.privacy import mask_phone
 from app.models.user import User
@@ -122,10 +122,15 @@ async def get_shop(
     endorsement_count = 0
     from sqlalchemy import select, func
     from app.models.endorsement import Endorsement
-    if current_user and current_user.shop_id:
+    if current_user:
+        actor_filter = (
+            Endorsement.endorser_shop_id == current_user.shop_id
+            if current_user.shop_id
+            else Endorsement.endorser_user_id == current_user.id
+        )
         e_result = await db.execute(
             select(Endorsement).where(
-                Endorsement.endorser_shop_id == current_user.shop_id,
+                actor_filter,
                 Endorsement.endorsed_shop_id == shop_id,
             )
         )
@@ -219,12 +224,14 @@ async def get_endorsements(
     )
     endorsements = result.scalars().all()
 
-    # Load endorser shop info
+    # Load either the endorsing business or the endorsing community member.
     items = []
     for e in endorsements:
-        shop_result = await db.execute(select(Shop).where(Shop.id == e.endorser_shop_id))
-        endorser = shop_result.scalar_one_or_none()
-        if endorser:
+        if e.endorser_shop_id:
+            shop_result = await db.execute(select(Shop).where(Shop.id == e.endorser_shop_id))
+            endorser = shop_result.scalar_one_or_none()
+            if not endorser:
+                continue
             items.append({
                 "id": str(e.id),
                 "message": e.message,
@@ -234,6 +241,24 @@ async def get_endorsements(
                     "name": endorser.name,
                     "business_type": endorser.business_type,
                     "avatar_url": endorser.avatar_url,
+                    "kind": "business",
+                },
+            })
+        elif e.endorser_user_id:
+            user_result = await db.execute(select(User).where(User.id == e.endorser_user_id))
+            endorser = user_result.scalar_one_or_none()
+            if not endorser:
+                continue
+            items.append({
+                "id": str(e.id),
+                "message": e.message,
+                "created_at": str(e.created_at),
+                "endorser": {
+                    "id": str(endorser.id),
+                    "name": endorser.name,
+                    "business_type": "individual",
+                    "avatar_url": endorser.avatar_url,
+                    "kind": "individual",
                 },
             })
 
@@ -318,16 +343,13 @@ async def endorse_shop(
     shop_id: UUID,
     data: EndorseRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(Permission.require_shop_admin()),
+    current_user: User = Depends(get_current_user),
 ):
-    """Endorse another business. Must be a shop admin."""
+    """Endorse a business as the viewer's business or individual account."""
     from app.models.endorsement import Endorsement
     from app.models.shop import Shop
 
-    if not current_user.shop_id:
-        raise ForbiddenError("You must have a business to endorse others")
-
-    if str(current_user.shop_id) == str(shop_id):
+    if current_user.shop_id and str(current_user.shop_id) == str(shop_id):
         raise ValidationError("You cannot endorse your own business")
 
     # Check target shop exists
@@ -337,9 +359,14 @@ async def endorse_shop(
 
     # Check not already endorsed
     from sqlalchemy import select
+    actor_filter = (
+        Endorsement.endorser_shop_id == current_user.shop_id
+        if current_user.shop_id
+        else Endorsement.endorser_user_id == current_user.id
+    )
     existing = await db.execute(
         select(Endorsement).where(
-            Endorsement.endorser_shop_id == current_user.shop_id,
+            actor_filter,
             Endorsement.endorsed_shop_id == shop_id,
         )
     )
@@ -348,6 +375,7 @@ async def endorse_shop(
 
     endorsement = Endorsement(
         endorser_shop_id=current_user.shop_id,
+        endorser_user_id=None if current_user.shop_id else current_user.id,
         endorsed_shop_id=shop_id,
         message=data.message,
     )
@@ -361,18 +389,20 @@ async def endorse_shop(
 async def withdraw_endorsement(
     shop_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(Permission.require_shop_admin()),
+    current_user: User = Depends(get_current_user),
 ):
     """Withdraw an endorsement."""
     from sqlalchemy import select
     from app.models.endorsement import Endorsement
 
-    if not current_user.shop_id:
-        raise ForbiddenError("You must have a business")
-
+    actor_filter = (
+        Endorsement.endorser_shop_id == current_user.shop_id
+        if current_user.shop_id
+        else Endorsement.endorser_user_id == current_user.id
+    )
     result = await db.execute(
         select(Endorsement).where(
-            Endorsement.endorser_shop_id == current_user.shop_id,
+            actor_filter,
             Endorsement.endorsed_shop_id == shop_id,
         )
     )

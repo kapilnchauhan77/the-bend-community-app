@@ -34,7 +34,7 @@ function endorsementErrorMessage(error: unknown): string {
 export default function BusinessProfilePage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, shop: myShop } = useAuthStore();
+  const { isAuthenticated, shop: myShop, user } = useAuthStore();
 
   const [shopData, setShopData] = useState<Shop | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -45,7 +45,13 @@ export default function BusinessProfilePage() {
     id: string;
     message: string | null;
     created_at: string;
-    endorser: { id: string; name: string; business_type: string; avatar_url: string | null };
+    endorser: {
+      id: string;
+      name: string;
+      business_type: string;
+      avatar_url: string | null;
+      kind: 'business' | 'individual';
+    };
   }>>([]);
   const [hasEndorsed, setHasEndorsed] = useState(false);
   const [endorseLoading, setEndorseLoading] = useState(false);
@@ -56,6 +62,7 @@ export default function BusinessProfilePage() {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
 
   const isOwner = myShop && shopData && myShop.id === shopData.id;
+  const viewerEndorserId = myShop?.id ?? user?.id;
 
   useEffect(() => {
     if (!shopId) return;
@@ -89,7 +96,7 @@ export default function BusinessProfilePage() {
         await shopApi.withdrawEndorsement(shopId);
         setHasEndorsed(false);
         setEndorsementCount((c) => Math.max(0, c - 1));
-        setEndorsements((prev) => prev.filter((e) => e.endorser.id !== myShop?.id));
+        setEndorsements((prev) => prev.filter((e) => e.endorser.id !== viewerEndorserId));
       } else {
         await shopApi.endorse(shopId, endorseMessage || undefined);
         setHasEndorsed(true);
@@ -217,30 +224,28 @@ export default function BusinessProfilePage() {
                   )}
                   {isAuthenticated && !isOwner && (
                     <>
-                      {myShop && (
-                        <Button
-                          size="sm"
-                          disabled={endorseLoading}
-                          onClick={() => {
-                            setEndorseError(null);
-                            if (hasEndorsed) {
-                              handleEndorse();
-                            } else {
-                              setShowEndorseForm(!showEndorseForm);
-                            }
-                          }}
-                          variant={hasEndorsed ? 'default' : 'outline'}
-                          className={`text-xs tracking-wider uppercase cursor-pointer ${
-                            hasEndorsed
-                              ? 'text-white'
-                              : 'border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]'
-                          }`}
-                          style={hasEndorsed ? { backgroundColor: PRIMARY } : {}}
-                        >
-                          <ThumbsUp className="w-3.5 h-3.5 mr-1.5" fill={hasEndorsed ? 'currentColor' : 'none'} />
-                          {hasEndorsed ? 'Endorsed' : 'Endorse'}
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        disabled={endorseLoading}
+                        onClick={() => {
+                          setEndorseError(null);
+                          if (hasEndorsed) {
+                            handleEndorse();
+                          } else {
+                            setShowEndorseForm(!showEndorseForm);
+                          }
+                        }}
+                        variant={hasEndorsed ? 'default' : 'outline'}
+                        className={`text-xs tracking-wider uppercase cursor-pointer ${
+                          hasEndorsed
+                            ? 'text-white'
+                            : 'border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]'
+                        }`}
+                        style={hasEndorsed ? { backgroundColor: PRIMARY } : {}}
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5 mr-1.5" fill={hasEndorsed ? 'currentColor' : 'none'} />
+                        {hasEndorsed ? 'Endorsed' : 'Endorse'}
+                      </Button>
                       <Button
                         size="sm"
                         disabled={messagingLoading}
@@ -369,54 +374,69 @@ export default function BusinessProfilePage() {
               </span>
             </div>
             <div className="space-y-3">
-              {endorsements.map((e) => (
-                <div
-                  key={e.id}
-                  className="border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] p-4 flex gap-3"
-                >
-                  <Link to={`/business/${e.endorser.id}`} className="flex-shrink-0">
-                    {e.endorser.avatar_url ? (
-                      <img
-                        src={resolveAssetUrl(e.endorser.avatar_url)}
-                        alt={e.endorser.name}
-                        className="w-10 h-10 rounded-full object-cover border border-[hsl(35,18%,84%)]"
-                      />
-                    ) : (
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold font-serif border border-[hsl(35,18%,84%)] text-white"
-                        style={{ backgroundColor: PRIMARY }}
-                      >
-                        {e.endorser.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Link
-                        to={`/business/${e.endorser.id}`}
-                        className="font-semibold text-sm text-[hsl(30,15%,18%)] hover:text-[hsl(35,45%,35%)] transition-colors"
-                      >
-                        {e.endorser.name}
-                      </Link>
-                      <Badge
-                        className="text-[10px] rounded-sm border-0 px-1.5 py-0"
-                        style={{ backgroundColor: 'hsl(35,15%,88%)', color: 'hsl(30,15%,35%)' }}
-                      >
-                        {businessTypeLabel(e.endorser.business_type)}
-                      </Badge>
-                    </div>
-                    {e.message && (
-                      <p className="text-sm text-[hsl(30,10%,40%)] mt-1 leading-relaxed italic font-serif">
-                        &ldquo;{e.message}&rdquo;
-                      </p>
-                    )}
-                    <p className="text-[10px] text-[hsl(30,10%,55%)] mt-1.5 uppercase tracking-wider">
-                      {new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
+              {endorsements.map((e) => {
+                const isBusinessEndorser = e.endorser.kind === 'business';
+                const avatar = e.endorser.avatar_url ? (
+                  <img
+                    src={resolveAssetUrl(e.endorser.avatar_url)}
+                    alt={e.endorser.name}
+                    className="w-10 h-10 rounded-full object-cover border border-[hsl(35,18%,84%)]"
+                  />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold font-serif border border-[hsl(35,18%,84%)] text-white"
+                    style={{ backgroundColor: PRIMARY }}
+                  >
+                    {e.endorser.name.charAt(0).toUpperCase()}
                   </div>
-                  <ThumbsUp className="w-4 h-4 text-[hsl(35,45%,42%)] flex-shrink-0 mt-1" />
-                </div>
-              ))}
+                );
+
+                return (
+                  <div
+                    key={e.id}
+                    className="border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] p-4 flex gap-3"
+                  >
+                    {isBusinessEndorser ? (
+                      <Link to={`/business/${e.endorser.id}`} className="flex-shrink-0">
+                        {avatar}
+                      </Link>
+                    ) : (
+                      <div className="flex-shrink-0">{avatar}</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isBusinessEndorser ? (
+                          <Link
+                            to={`/business/${e.endorser.id}`}
+                            className="font-semibold text-sm text-[hsl(30,15%,18%)] hover:text-[hsl(35,45%,35%)] transition-colors"
+                          >
+                            {e.endorser.name}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-sm text-[hsl(30,15%,18%)]">
+                            {e.endorser.name}
+                          </span>
+                        )}
+                        <Badge
+                          className="text-[10px] rounded-sm border-0 px-1.5 py-0"
+                          style={{ backgroundColor: 'hsl(35,15%,88%)', color: 'hsl(30,15%,35%)' }}
+                        >
+                          {isBusinessEndorser ? businessTypeLabel(e.endorser.business_type) : 'Community Member'}
+                        </Badge>
+                      </div>
+                      {e.message && (
+                        <p className="text-sm text-[hsl(30,10%,40%)] mt-1 leading-relaxed italic font-serif">
+                          &ldquo;{e.message}&rdquo;
+                        </p>
+                      )}
+                      <p className="text-[10px] text-[hsl(30,10%,55%)] mt-1.5 uppercase tracking-wider">
+                        {new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <ThumbsUp className="w-4 h-4 text-[hsl(35,45%,42%)] flex-shrink-0 mt-1" />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
