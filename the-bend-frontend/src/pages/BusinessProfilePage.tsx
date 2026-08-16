@@ -1,9 +1,19 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { AxiosError } from 'axios';
-import { MapPin, Phone, MessageCircle, Store, Calendar, Package, ThumbsUp, Award } from 'lucide-react';
+import { MapPin, Phone, MessageCircle, Store, Calendar, Package, ThumbsUp, Award, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
 import { ShareButton } from '@/components/shared/ShareButton';
@@ -58,6 +68,7 @@ export default function BusinessProfilePage() {
   const [endorseMessage, setEndorseMessage] = useState('');
   const [endorseError, setEndorseError] = useState<string | null>(null);
   const [showEndorseForm, setShowEndorseForm] = useState(false);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
   const [endorsementCount, setEndorsementCount] = useState(0);
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
 
@@ -68,6 +79,7 @@ export default function BusinessProfilePage() {
     if (!shopId) return;
     setLoading(true);
     setError(null);
+    setShowWithdrawConfirm(false);
 
     Promise.all([
       shopApi.getShop(shopId),
@@ -92,22 +104,41 @@ export default function BusinessProfilePage() {
     setEndorseLoading(true);
     setEndorseError(null);
     try {
-      if (hasEndorsed) {
-        await shopApi.withdrawEndorsement(shopId);
-        setHasEndorsed(false);
-        setEndorsementCount((c) => Math.max(0, c - 1));
-        setEndorsements((prev) => prev.filter((e) => e.endorser.id !== viewerEndorserId));
+      await shopApi.endorse(shopId, endorseMessage || undefined);
+      setHasEndorsed(true);
+      setEndorsementCount((c) => c + 1);
+      setShowEndorseForm(false);
+      setEndorseMessage('');
+      // Reload endorsements to show the new one.
+      const refreshResponse = await shopApi.getEndorsements(shopId).catch(() => null);
+      if (refreshResponse) {
+        setEndorsements(refreshResponse.data.items ?? []);
+        setEndorsementCount(refreshResponse.data.count ?? 0);
+      }
+    } catch (error) {
+      setEndorseError(endorsementErrorMessage(error));
+    } finally {
+      setEndorseLoading(false);
+    }
+  }
+
+  async function handleWithdrawEndorsement() {
+    if (!shopId) return;
+    setEndorseLoading(true);
+    setEndorseError(null);
+    try {
+      await shopApi.withdrawEndorsement(shopId);
+      setHasEndorsed(false);
+      setShowWithdrawConfirm(false);
+
+      // Refresh from the server so the card and count cannot drift apart.
+      const refreshResponse = await shopApi.getEndorsements(shopId).catch(() => null);
+      if (refreshResponse) {
+        setEndorsements(refreshResponse.data.items ?? []);
+        setEndorsementCount(refreshResponse.data.count ?? 0);
       } else {
-        await shopApi.endorse(shopId, endorseMessage || undefined);
-        setHasEndorsed(true);
-        setEndorsementCount((c) => c + 1);
-        setShowEndorseForm(false);
-        setEndorseMessage('');
-        // Reload endorsements to show the new one
-        const refreshResponse = await shopApi.getEndorsements(shopId).catch(() => null);
-        if (refreshResponse) {
-          setEndorsements(refreshResponse.data.items ?? []);
-        }
+        setEndorsementCount((count) => Math.max(0, count - 1));
+        setEndorsements((items) => items.filter((item) => item.endorser.id !== viewerEndorserId));
       }
     } catch (error) {
       setEndorseError(endorsementErrorMessage(error));
@@ -230,21 +261,21 @@ export default function BusinessProfilePage() {
                         onClick={() => {
                           setEndorseError(null);
                           if (hasEndorsed) {
-                            handleEndorse();
+                            setShowWithdrawConfirm(true);
                           } else {
                             setShowEndorseForm(!showEndorseForm);
                           }
                         }}
-                        variant={hasEndorsed ? 'default' : 'outline'}
-                        className={`text-xs tracking-wider uppercase cursor-pointer ${
-                          hasEndorsed
-                            ? 'text-white'
-                            : 'border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]'
-                        }`}
-                        style={hasEndorsed ? { backgroundColor: PRIMARY } : {}}
+                        variant="outline"
+                        aria-label={hasEndorsed ? `Remove your endorsement of ${shopData.name}` : `Endorse ${shopData.name}`}
+                        className="text-xs tracking-wider uppercase cursor-pointer border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)]"
                       >
-                        <ThumbsUp className="w-3.5 h-3.5 mr-1.5" fill={hasEndorsed ? 'currentColor' : 'none'} />
-                        {hasEndorsed ? 'Endorsed' : 'Endorse'}
+                        {hasEndorsed ? (
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                        ) : (
+                          <ThumbsUp className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        {hasEndorsed ? 'Remove endorsement' : 'Endorse'}
                       </Button>
                       <Button
                         size="sm"
@@ -376,6 +407,7 @@ export default function BusinessProfilePage() {
             <div className="space-y-3">
               {endorsements.map((e) => {
                 const isBusinessEndorser = e.endorser.kind === 'business';
+                const isViewerEndorsement = hasEndorsed && e.endorser.id === viewerEndorserId;
                 const avatar = e.endorser.avatar_url ? (
                   <img
                     src={resolveAssetUrl(e.endorser.avatar_url)}
@@ -433,13 +465,52 @@ export default function BusinessProfilePage() {
                         {new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
                     </div>
-                    <ThumbsUp className="w-4 h-4 text-[hsl(35,45%,42%)] flex-shrink-0 mt-1" />
+                    {isViewerEndorsement ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEndorseError(null);
+                          setShowWithdrawConfirm(true);
+                        }}
+                        disabled={endorseLoading}
+                        aria-label={`Remove your endorsement of ${shopData.name}`}
+                        className="h-8 px-2 text-xs text-red-700 hover:bg-red-50 hover:text-red-800 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Remove</span>
+                      </Button>
+                    ) : (
+                      <ThumbsUp className="w-4 h-4 text-[hsl(35,45%,42%)] flex-shrink-0 mt-1" />
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
         )}
+
+        <AlertDialog open={showWithdrawConfirm} onOpenChange={setShowWithdrawConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove your endorsement?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Your endorsement of {shopData.name} will be removed. You can endorse this business again later.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={endorseLoading}>Keep endorsement</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleWithdrawEndorsement}
+                disabled={endorseLoading}
+                className="bg-red-700 hover:bg-red-800 text-white"
+              >
+                {endorseLoading ? 'Removing…' : 'Remove endorsement'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Discount codes */}
         {discountCodes.length > 0 && (
