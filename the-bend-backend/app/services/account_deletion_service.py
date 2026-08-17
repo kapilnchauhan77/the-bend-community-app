@@ -70,7 +70,11 @@ class AccountDeletionService:
         self.db.add(deletion)
         locked.is_active = False
         await self.db.execute(update(RefreshSession).where(RefreshSession.user_id == user.id, RefreshSession.revoked_at.is_(None)).values(revoked_at=now))
-        await self.db.execute(update(DeviceInstallation).where(DeviceInstallation.user_id == user.id, DeviceInstallation.tenant_id == user.tenant_id).values(enabled=False, provider_token="revoked:" + str(user.id), revocation_secret_hash="revoked"))
+        installations = (await self.db.execute(select(DeviceInstallation).where(DeviceInstallation.user_id == user.id, DeviceInstallation.tenant_id == user.tenant_id))).scalars().all()
+        for installation in installations:
+            installation.enabled = False
+            installation.provider_token = f"revoked:{installation.id}"
+            installation.revocation_secret_hash = "revoked"
         await self.db.flush()
         await self.db.commit()
         try:
@@ -122,7 +126,8 @@ class AccountDeletionService:
             await self.db.commit()
             try:
                 from app.services.email_service import email_service
-                email_service.send_registration_confirmation(address, "Deleted member")
+                if not email_service.send_account_deletion_confirmation(address):
+                    raise RuntimeError("delivery failed")
             except Exception:
                 row.last_error_code = "confirmation_delivery_failed"
                 row.status = "pending"
@@ -176,7 +181,11 @@ class AccountDeletionService:
     async def reconcile_pending(self, limit: int = 100) -> int:
         """Durable queue repair for committed locks whose enqueue failed."""
         from app.workers.account_tasks import erase_account
-        rows = (await self.db.execute(select(AccountDeletion).where(AccountDeletion.status == "pending", AccountDeletion.available_at <= datetime.utcnow()).order_by(AccountDeletion.created_at).limit(limit))).scalars().all()
+        now = datetime.utcnow()
+        rows = (await self.db.execute(select(AccountDeletion).where(AccountDeletion.status == "pending", AccountDeletion.available_at <= now, (AccountDeletion.claimed_at.is_(None) | (AccountDeletion.claimed_at < now - timedelta(minutes=5)))).order_by(AccountDeletion.created_at).with_for_update(skip_locked=True).limit(limit))).scalars().all()
+        for row in rows:
+            row.claimed_at = now
+        await self.db.commit()
         for row in rows:
             erase_account.delay(str(row.id))
         return len(rows)

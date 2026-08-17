@@ -83,6 +83,10 @@ class EmailService:
         self._send(to_email, "Registration Received — The Bend",
             f"<h2>Welcome to The Bend!</h2><p>Your registration for <strong>{shop_name}</strong> has been received. The community admin will review your application shortly.</p>")
 
+    def send_account_deletion_confirmation(self, to_email: str) -> bool:
+        return bool(self._send(to_email, "Account deletion complete — The Bend",
+            "<h2>Account deletion complete</h2><p>Your Bend account and personal data have been removed.</p>"))
+
     def send_approval_email(self, to_email: str, shop_name: str):
         self._send(to_email, "You're In! — The Bend",
             f"<h2>Congratulations!</h2><p>Your shop <strong>{shop_name}</strong> has been approved. <a href='http://localhost:5173/login'>Log in</a> to start sharing resources with your neighbors.</p>")

@@ -53,12 +53,27 @@ async def websocket_chat(websocket: WebSocket):
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
+    from app.database import async_session
+    from app.models.user import User
+    from sqlalchemy import select
+    async with async_session() as auth_session:
+        current = (await auth_session.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))).scalar_one_or_none()
+    if current is None:
+        await websocket.close(code=4003, reason="Account disabled")
+        return
+
     await manager.connect(user_id, websocket)
 
     try:
         while True:
             data = await websocket.receive_text()
             try:
+                async with async_session() as auth_session:
+                    current = (await auth_session.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))).scalar_one_or_none()
+                if current is None:
+                    await websocket.close(code=4003, reason="Account disabled")
+                    manager.disconnect(user_id, websocket)
+                    return
                 message = json.loads(data)
                 msg_type = message.get("type")
 

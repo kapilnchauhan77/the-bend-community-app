@@ -43,6 +43,21 @@ def test_owned_upload_guard_rejects_legacy_and_traversal_paths():
     assert AccountDeletionService.safe_owned_upload(f"uploads/users/{user_id}/../other/avatar.png", user_id=user_id) is None
 
 
+def test_runtime_password_hash_supports_long_input_and_normal_bcrypt():
+    from app.core.security import hash_password, verify_password
+    for password in ("Correct1", "x" * 200):
+        encoded = hash_password(password)
+        assert verify_password(password, encoded)
+        assert not verify_password(password + "!", encoded)
+    short = hash_password("x" * 72)
+    assert not verify_password("x" * 73, short)
+
+
+def test_deletion_email_has_dedicated_template_contract():
+    from app.services.email_service import EmailService
+    assert callable(EmailService.send_account_deletion_confirmation)
+
+
 @pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm

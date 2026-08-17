@@ -50,7 +50,7 @@ async def test_two_isolated_alembic_schemas_can_migrate_concurrently():
         results = await asyncio.gather(*(migrate(schema) for schema in schemas))
         assert all(result.returncode == 0 for result in results), [result.stderr for result in results]
         public = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
-        assert "nat004" in public
+        assert "nat005" in public
     finally:
         async with engine.begin() as db:
             for schema in schemas:
@@ -164,7 +164,7 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
         await db.execute(text(f'CREATE SCHEMA "{schema}"'))
     try:
         current = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
-        assert "nat004" in current, current
+        assert "nat005" in current, current
         alembic("upgrade","nat003")
         async with async_session() as db:
             await db.execute(text(f'SET search_path TO "{schema}"'))
@@ -190,4 +190,4 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
         async with engine.begin() as cleanup:
             await cleanup.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         public_current = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
-        assert "nat004" in public_current, public_current
+        assert "nat005" in public_current, public_current

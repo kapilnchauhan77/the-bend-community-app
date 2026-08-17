@@ -158,6 +158,9 @@ async def upload_avatar(
         raise HTTPException(status_code=400, detail="Upload failed")
 
     avatar_url = result[0]["url"]
+    from app.models.account_deletion import AccountOwnedUpload
+    if current_user.tenant_id:
+        db.add(AccountOwnedUpload(user_id=current_user.id, tenant_id=current_user.tenant_id, path=avatar_url))
 
     # Update user avatar
     current_user.avatar_url = avatar_url

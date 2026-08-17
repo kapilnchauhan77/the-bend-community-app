@@ -3,6 +3,9 @@ from uuid import UUID
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import bcrypt
+import base64
+import hashlib
 
 from app.config import get_settings
 from app.core.exceptions import UnauthorizedError
@@ -19,12 +22,26 @@ RESET_TOKEN_TYPE = "reset"
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    if len(password.encode("utf-8")) > 72:
+        digest = hashlib.sha256(password.encode("utf-8")).digest()
+        return "$bcrypt-sha256$" + bcrypt.hashpw(base64.urlsafe_b64encode(digest), bcrypt.gensalt()).decode()
+    try:
+        return pwd_context.hash(password)
+    except (ValueError, AttributeError):
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    if hashed_password.startswith("$bcrypt-sha256$"):
+        digest = hashlib.sha256(plain_password.encode("utf-8")).digest()
+        return bcrypt.checkpw(base64.urlsafe_b64encode(digest), hashed_password.removeprefix("$bcrypt-sha256$").encode())
+    if len(plain_password.encode("utf-8")) > 72:
+        return False
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (ValueError, AttributeError):
+        return bcrypt.checkpw(plain_password.encode("utf-8")[:72], hashed_password.encode())
 
 
 def create_access_token(

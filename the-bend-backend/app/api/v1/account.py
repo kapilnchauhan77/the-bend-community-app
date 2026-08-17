@@ -13,7 +13,7 @@ router = APIRouter(prefix="/account/deletion", tags=["Account"])
 
 @router.post("/confirm", response_model=AccountDeletionConfirmation)
 async def confirm(data: AccountDeletionConfirm, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user), tenant: Tenant | None = Depends(get_current_tenant)):
-    if tenant is not None and current_user.tenant_id != tenant.id:
+    if tenant is None or current_user.tenant_id != tenant.id:
         from app.core.exceptions import NotFoundError
         raise NotFoundError("Deletion status")
     from app.workers.account_tasks import erase_account
@@ -23,5 +23,8 @@ async def confirm(data: AccountDeletionConfirm, db: AsyncSession = Depends(get_d
 
 @router.get("/status", response_model=AccountDeletionStatus)
 async def status(receipt: str = Query(..., min_length=1, max_length=256), db: AsyncSession = Depends(get_db), tenant: Tenant | None = Depends(get_current_tenant)):
+    if tenant is None:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Deletion status")
     row = await AccountDeletionService(db).status(receipt, tenant.id if tenant else None)
     return {"status": row.status, "requested_at": row.created_at, "completed_at": row.completed_at}
