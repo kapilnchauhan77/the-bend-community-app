@@ -139,7 +139,7 @@ async def test_westmoreland_fanout_filters_and_is_concurrently_idempotent():
             await db.flush()
         other = Tenant(id=uuid4(), slug=f"task4-other-{uuid4().hex[:10]}", subdomain=f"task4-other-{uuid4().hex[:10]}", display_name="Other")
         author_id, shop_admin_id, eligible_id, inactive_id, other_id = [uuid4() for _ in range(5)]
-        shop_id, listing_id = uuid4(), uuid4()
+        shop_id, listing_id, shop_listing_id = uuid4(), uuid4(), uuid4()
         db.add(other)
         db.add_all([
             User(id=author_id, tenant_id=tenant.id, email=f"task4-a-{author_id}@example.test", password_hash="x", name="Author", role=UserRole.INDIVIDUAL),
@@ -153,6 +153,7 @@ async def test_westmoreland_fanout_filters_and_is_concurrently_idempotent():
         await db.flush()
         (await db.execute(select(User).where(User.id == shop_admin_id))).scalar_one().shop_id = shop_id
         db.add(Listing(id=listing_id, tenant_id=tenant.id, posted_by_user_id=author_id, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Urgent", description="x", urgency=UrgencyLevel.URGENT, status=ListingStatus.ACTIVE, pricing_type=PricingType.FREE, is_free=True))
+        db.add(Listing(id=shop_listing_id, tenant_id=tenant.id, shop_id=shop_id, posted_by_user_id=None, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Shop urgent", description="x", urgency=UrgencyLevel.URGENT, status=ListingStatus.ACTIVE, pricing_type=PricingType.FREE, is_free=True))
         await db.commit()
     try:
         async with async_session() as db:
@@ -179,11 +180,24 @@ async def test_westmoreland_fanout_filters_and_is_concurrently_idempotent():
             payload = build_native_payload(by_user[eligible_id])
             assert "_idempotency_key" not in payload
             assert payload["target_type"] == "listing" and payload["target_id"] == str(listing_id)
+        async with async_session() as db:
+            shop_listing = (await db.execute(select(Listing).where(Listing.id == shop_listing_id))).scalar_one()
+            await queue_urgent_listing_notifications(db, shop_listing)
+            await db.commit()
+        async with async_session() as db:
+            shop_rows = (await db.execute(select(Notification).where(Notification.tenant_id == tenant.id, Notification.type == NotificationType.NEW_URGENT_LISTING, Notification.data["target_id"].astext == str(shop_listing_id)))).scalars().all()
+            shop_users = {row.user_id for row in shop_rows}
+            assert shop_admin_id not in shop_users and eligible_id in shop_users
+            assert len([row for row in shop_rows if row.user_id == eligible_id]) == 1
+            assert len((await db.execute(select(NotificationOutbox).where(NotificationOutbox.notification_id.in_([row.id for row in shop_rows])))).scalars().all()) == len(shop_rows)
     finally:
         async with async_session() as db:
             await db.execute(delete(NotificationOutbox).where(NotificationOutbox.notification_id.in_(select(Notification.id).where(Notification.data["target_id"].astext == str(listing_id)))))
             await db.execute(delete(Notification).where(Notification.data["target_id"].astext == str(listing_id)))
+            await db.execute(delete(NotificationOutbox).where(NotificationOutbox.notification_id.in_(select(Notification.id).where(Notification.data["target_id"].astext == str(shop_listing_id)))))
+            await db.execute(delete(Notification).where(Notification.data["target_id"].astext == str(shop_listing_id)))
             await db.execute(delete(Listing).where(Listing.id == listing_id))
+            await db.execute(delete(Listing).where(Listing.id == shop_listing_id))
             await db.execute(delete(Shop).where(Shop.id == shop_id))
             await db.execute(delete(User).where(User.id.in_([author_id, shop_admin_id, eligible_id, inactive_id, other_id])))
             await db.execute(delete(Tenant).where(Tenant.id == other.id))
@@ -209,3 +223,42 @@ async def test_scheduled_expiration_rolls_back_on_fanout_failure(monkeypatch, do
     async with async_session() as db:
         listing = (await db.execute(select(Listing).where(Listing.id == ids["listing"]))).scalar_one()
         assert listing.urgency == UrgencyLevel.NORMAL
+
+
+@pytest.mark.asyncio
+async def test_scheduled_expiration_success_commits_urgent_fanout():
+    await engine.dispose()
+    async with async_session() as db:
+        tenant = (await db.execute(select(Tenant).where(Tenant.slug == "westmoreland"))).scalar_one_or_none()
+        owns_tenant = tenant is None
+        if tenant is None:
+            tenant = Tenant(id=uuid4(), slug="westmoreland", subdomain=f"task4-success-{uuid4().hex[:10]}", display_name="Westmoreland")
+            db.add(tenant)
+            await db.flush()
+        author_id, eligible_id, listing_id = uuid4(), uuid4(), uuid4()
+        db.add_all([
+            User(id=author_id, tenant_id=tenant.id, email=f"task4-exp-a-{author_id}@example.test", password_hash="x", name="Author", role=UserRole.INDIVIDUAL),
+            User(id=eligible_id, tenant_id=tenant.id, email=f"task4-exp-e-{eligible_id}@example.test", password_hash="x", name="Eligible", role=UserRole.INDIVIDUAL),
+        ])
+        await db.flush()
+        db.add(Listing(id=listing_id, tenant_id=tenant.id, posted_by_user_id=author_id, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Expiring", description="x", urgency=UrgencyLevel.NORMAL, status=ListingStatus.ACTIVE, expiry_date=datetime.utcnow() + timedelta(hours=1), pricing_type=PricingType.FREE, is_free=True))
+        await db.commit()
+    try:
+        await scheduled_tasks._check_expiring()
+        async with async_session() as db:
+            listing = (await db.execute(select(Listing).where(Listing.id == listing_id))).scalar_one()
+            assert listing.urgency == UrgencyLevel.URGENT
+            rows = (await db.execute(select(Notification).where(Notification.tenant_id == tenant.id, Notification.type == NotificationType.NEW_URGENT_LISTING, Notification.data["target_id"].astext == str(listing_id)))).scalars().all()
+            assert author_id not in {row.user_id for row in rows}
+            assert eligible_id in {row.user_id for row in rows}
+            assert len((await db.execute(select(NotificationOutbox).where(NotificationOutbox.notification_id.in_([row.id for row in rows])))).scalars().all()) == len(rows)
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(NotificationOutbox).where(NotificationOutbox.notification_id.in_(select(Notification.id).where(Notification.data["target_id"].astext == str(listing_id)))))
+            await db.execute(delete(Notification).where(Notification.data["target_id"].astext == str(listing_id)))
+            await db.execute(delete(Listing).where(Listing.id == listing_id))
+            await db.execute(delete(User).where(User.id.in_([author_id, eligible_id]), User.tenant_id == tenant.id))
+            if owns_tenant:
+                await db.execute(delete(Tenant).where(Tenant.id == tenant.id, Tenant.slug == "westmoreland"))
+            await db.commit()
+        await engine.dispose()
