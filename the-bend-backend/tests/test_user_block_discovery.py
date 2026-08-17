@@ -400,6 +400,11 @@ async def test_safety_api_real_asgi_ownership_and_safe_invalid_targets():
                 current["user"] = await db.get(User, ids["caller_b"])
                 caller_b_list = await client.get("/api/v1/safety/blocks")
                 caller_b_delete = await client.delete(f"/api/v1/safety/blocks/{ids['active']}")
+                preserved = (await db.execute(select(UserBlock).where(
+                    UserBlock.tenant_id == ids["tenant"],
+                    UserBlock.blocker_id == ids["caller_a"],
+                    UserBlock.blocked_id == ids["active"],
+                ))).scalar_one()
                 current["user"] = await db.get(User, ids["caller_a"])
                 caller_a_delete_1 = await client.delete(f"/api/v1/safety/blocks/{ids['active']}")
                 caller_a_delete_2 = await client.delete(f"/api/v1/safety/blocks/{ids['active']}")
@@ -409,6 +414,7 @@ async def test_safety_api_real_asgi_ownership_and_safe_invalid_targets():
             assert created.status_code == 201
             assert caller_b_list.json()["items"] == []
             assert caller_b_delete.status_code == 204
+            assert preserved.blocker_id == ids["caller_a"] and preserved.blocked_id == ids["active"]
             assert caller_a_delete_1.status_code == caller_a_delete_2.status_code == 204
             assert (await db.execute(select(UserBlock).where(UserBlock.tenant_id == ids["tenant"]))).scalars().all() == []
             assert len({(response.status_code, response.text) for response in invalid}) == 1
