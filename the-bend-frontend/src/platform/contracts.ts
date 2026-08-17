@@ -33,7 +33,8 @@ export interface PushRegistration { installationId: string; platform: 'ios' | 'a
 export type PushCategory = 'message_received' | 'listing_interest_received' | 'registration_decision' | 'urgent_listing_published';
 export interface CachedContent { key: string; kind: 'listing' | 'business' | 'event' | 'bender'; entityId: string; cachedAt: string; payload: unknown; imagePath: string | null; sizeBytes: number; }
 export interface RemoveListener { remove(): Promise<void>; }
-export interface PushService { explainAndRequest(): Promise<'granted' | 'denied' | 'prompt'>; register(session: AuthSnapshot): Promise<void>; unregister(mode: 'online' | 'offline'): Promise<void>; addTapListener(handler: (target: DeepLinkTarget) => void): Promise<RemoveListener>; }
+export interface PushForegroundEvent { target: DeepLinkTarget | null; suppressed: boolean; data: Record<string, unknown>; }
+export interface PushService { explainAndRequest(): Promise<'granted' | 'denied' | 'prompt'>; register(session: AuthSnapshot): Promise<void>; unregister(mode: 'online' | 'offline'): Promise<void>; addTapListener(handler: (target: DeepLinkTarget) => void): Promise<RemoveListener>; openSystemSettings?(): Promise<void>; setActiveConversation?(id: string | null): void; addForegroundListener?(handler: (event: PushForegroundEvent) => void): Promise<RemoveListener>; }
 export interface DeepLinkService { parse(url: string): DeepLinkTarget | null; addListener(handler: (target: DeepLinkTarget) => void): Promise<RemoveListener>; }
 export interface BrowserService { open(url: string): Promise<void>; close(): Promise<void>; }
 export interface MediaSelection { blob: Blob; localUri: string; mimeType: string; filename: string; }

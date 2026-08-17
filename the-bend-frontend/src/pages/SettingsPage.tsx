@@ -54,6 +54,9 @@ import { CameraCapture } from '@/components/shared/CameraCapture';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 import type { Volunteer, Talent, Shop } from '@/types/index';
 import { sessionManager } from '@/auth/sessionManager';
+import { notificationApi } from '@/services/notificationApi';
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -95,11 +98,13 @@ function SwitchRow({
   description,
   checked,
   onCheckedChange,
+  disabled = false,
 }: {
   label: string;
   description?: string;
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-0.5">
@@ -107,7 +112,7 @@ function SwitchRow({
         <p className="text-sm font-medium text-gray-800">{label}</p>
         {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch disabled={disabled} checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }
@@ -843,6 +848,26 @@ export default function SettingsPage() {
   const [materialsAlerts, setMaterialsAlerts] = useState(true);
   const [equipmentAlerts, setEquipmentAlerts] = useState(false);
   const [urgencyThreshold, setUrgencyThreshold] = useState<string>('normal');
+  const [pushPermission, setPushPermission] = useState<'granted' | 'denied' | 'prompt'>('granted');
+
+  useEffect(() => {
+    let cancelled = false;
+    notificationApi.getPreferences().then(({ data }) => {
+      if (cancelled || !data) return;
+      setPushEnabled(Boolean(data.push_enabled));
+      setGigAlerts(Boolean(data.message_received));
+      setMaterialsAlerts(Boolean(data.listing_interest_received));
+      setEquipmentAlerts(Boolean(data.registration_decision));
+      setUrgencyThreshold(data.urgent_listing_published ? 'normal' : 'urgent');
+    }).catch(() => {});
+    if (Capacitor.isNativePlatform()) PushNotifications.checkPermissions().then(({ receive }) => { if (!cancelled) setPushPermission(receive === 'granted' ? 'granted' : receive === 'denied' ? 'denied' : 'prompt') }).catch(() => {});
+    return () => { cancelled = true };
+  }, []);
+
+  const updatePushPreferences = async (next: Partial<{ push_enabled: boolean; message_received: boolean; listing_interest_received: boolean; registration_decision: boolean; urgent_listing_published: boolean }>) => {
+    const current = { push_enabled: pushEnabled, message_received: gigAlerts, listing_interest_received: materialsAlerts, registration_decision: equipmentAlerts, urgent_listing_published: urgencyThreshold === 'normal', ...next };
+    await notificationApi.updatePreferences(current).catch(() => {});
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -1129,8 +1154,14 @@ export default function SettingsPage() {
               label="Push Notifications"
               description="Receive alerts on this device"
               checked={pushEnabled}
-              onCheckedChange={setPushEnabled}
+              onCheckedChange={(value) => { setPushEnabled(value); void updatePushPreferences({ push_enabled: value }) }}
             />
+            {Capacitor.isNativePlatform() && pushPermission === 'denied' && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                Push is disabled in system settings. Re-enable it in App settings to receive alerts.
+                <Button type="button" variant="outline" size="sm" className="mt-2 h-8" onClick={() => { window.location.href = Capacitor.getPlatform() === 'ios' ? 'app-settings:' : 'intent:#Intent;action=android.settings.APP_NOTIFICATION_SETTINGS;S.android.provider.extra.APP_PACKAGE=community.bend.westmoreland;end' }}>Open App Settings</Button>
+              </div>
+            )}
             <Separator />
             <SwitchRow
               label="Email Notifications"
@@ -1150,19 +1181,22 @@ export default function SettingsPage() {
                   label="Gig Alerts"
                   description="New gig postings and availability"
                   checked={gigAlerts}
-                  onCheckedChange={setGigAlerts}
+                  onCheckedChange={(value) => { setGigAlerts(value); void updatePushPreferences({ message_received: value }) }}
+                  disabled={pushPermission === 'denied'}
                 />
                 <SwitchRow
                   label="Materials"
                   description="Flour, dairy, produce and more"
                   checked={materialsAlerts}
-                  onCheckedChange={setMaterialsAlerts}
+                  onCheckedChange={(value) => { setMaterialsAlerts(value); void updatePushPreferences({ listing_interest_received: value }) }}
+                  disabled={pushPermission === 'denied'}
                 />
                 <SwitchRow
                   label="Equipment"
                   description="Mixers, ovens, and tools"
                   checked={equipmentAlerts}
-                  onCheckedChange={setEquipmentAlerts}
+                  onCheckedChange={(value) => { setEquipmentAlerts(value); void updatePushPreferences({ registration_decision: value }) }}
+                  disabled={pushPermission === 'denied'}
                 />
               </div>
             </div>

@@ -22,6 +22,8 @@ import {
 import { MessageReferenceCard } from '@/components/features/messages/MessageReferenceCard';
 import { ReferencePickerModal } from '@/components/features/messages/ReferencePickerModal';
 import type { MessageThread, Message, ReferenceCard } from '@/types';
+import { usePlatformServices } from '@/platform/createPlatformServices';
+import { notificationApi } from '@/services/notificationApi';
 
 // Local payload type for a media attachment held in composer state before send.
 // 'audio' covers in-app voice notes recorded via VoiceNoteRecorder.
@@ -821,6 +823,7 @@ export default function MessagesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
+  const platformServices = usePlatformServices();
 
   // A reference pre-attached via a "Send in a message" button on an entity
   // page, carried here as `location.state.pendingReference` ({type, id}) with
@@ -862,6 +865,12 @@ export default function MessagesPage() {
 
   // On mobile, show chat panel only when a thread is selected
   const [showChat, setShowChat] = useState(false);
+
+  useEffect(() => {
+    platformServices.push.setActiveConversation?.(activeThread?.id ?? null);
+    const foreground = platformServices.push.addForegroundListener?.(() => { void notificationApi.getUnreadCount() });
+    return () => { platformServices.push.setActiveConversation?.(null); void foreground?.then((listener) => listener.remove()) };
+  }, [activeThread?.id, platformServices]);
 
   // Fetch threads on mount
   useEffect(() => {

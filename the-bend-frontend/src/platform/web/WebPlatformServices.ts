@@ -8,6 +8,9 @@ class WebPushService implements PushService {
   async register(_session: AuthSnapshot) { void _session; return undefined }
   async unregister(_mode: 'online' | 'offline') { void _mode; return undefined }
   async addTapListener(_handler: (target: import('../contracts').DeepLinkTarget) => void) { void _handler; return removed }
+  async openSystemSettings() { return undefined }
+  setActiveConversation(_id: string | null) { void _id }
+  async addForegroundListener(_handler: (event: import('../contracts').PushForegroundEvent) => void) { void _handler; return removed }
 }
 
 class WebDeepLinkService implements DeepLinkService {
