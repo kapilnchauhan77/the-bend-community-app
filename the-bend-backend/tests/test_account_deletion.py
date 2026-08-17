@@ -290,6 +290,68 @@ async def test_erasure_does_not_delete_cross_tenant_listing_or_bender_children()
 
 
 @pytest.mark.asyncio
+async def test_erasure_cleans_user_owned_null_tenant_legacy_rows_but_keeps_tenant_b():
+    """Legacy NULL tenant rows are owned by the user, not treated as global."""
+    from datetime import datetime
+    from app.core.security import hash_password
+    from app.models.enums import ListingType, ListingCategory, PricingType, UrgencyLevel, ListingStatus, EventCategory, EventStatus, NotificationType
+    from app.models.listing import Listing
+    from app.models.saved_listing import SavedListing
+    from app.models.interest import Interest
+    from app.models.notification import Notification
+    from app.models.volunteer import Volunteer
+    from app.models.talent import Talent, TalentInquiry
+    from app.models.shop import Shop
+    from app.models.employee import Employee
+    from app.models.event import Event
+    from app.models.bender import BenderPost, BenderLike
+    from app.models.endorsement import Endorsement
+    from app.models.discount_code import DiscountCode
+    from app.services.account_deletion_service import AccountDeletionService
+    marker = uuid.uuid4().hex
+    tenant_a, tenant_b, user_a, user_b = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    ids = {name: uuid.uuid4() for name in ("listing", "saved", "interest", "notification", "volunteer", "talent", "inquiry", "shop", "employee", "event", "post", "like", "endorsement", "discount")}
+    try:
+        async with async_session() as db:
+            db.add_all([Tenant(id=tenant_a, slug=f"legacy-a-{marker}", subdomain=f"legacy-a-{marker}", display_name="A"), Tenant(id=tenant_b, slug=f"legacy-b-{marker}", subdomain=f"legacy-b-{marker}", display_name="B")]); await db.flush()
+            db.add_all([User(id=user_a, tenant_id=tenant_a, email=f"legacy-{marker}@example.test", password_hash=hash_password("Correct1"), name="Legacy A", role=UserRole.INDIVIDUAL), User(id=user_b, tenant_id=tenant_b, email=f"other-{marker}@example.test", password_hash="x", name="B", role=UserRole.INDIVIDUAL)]); await db.flush()
+            db.add_all([
+                Listing(id=ids["listing"], tenant_id=None, posted_by_user_id=user_a, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="legacy listing", description="PII legacy", pricing_type=PricingType.FREE, is_free=True, urgency=UrgencyLevel.NORMAL, status=ListingStatus.ACTIVE),
+                Notification(id=ids["notification"], user_id=user_a, tenant_id=None, type=NotificationType.NEW_MESSAGE, title="legacy", body="legacy PII"),
+                Volunteer(id=ids["volunteer"], user_id=user_a, tenant_id=None, name="Legacy Volunteer", email=f"{marker}@example.test", skills="x", available_time="any"),
+                Talent(id=ids["talent"], user_id=user_a, tenant_id=None, name="Legacy Talent", email=f"{marker}@example.test", category="x", skills="x", available_time="any", rate=1, rate_unit="hr"),
+                Shop(id=ids["shop"], tenant_id=None, admin_user_id=user_a, name="Legacy Shop", business_type="x"),
+                Event(id=ids["event"], tenant_id=None, submitted_by_user_id=user_a, title="Legacy Event", start_date=datetime.utcnow(), category=EventCategory.COMMUNITY, source="manual", status=EventStatus.ACTIVE),
+                BenderPost(id=ids["post"], tenant_id=None, author_user_id=user_a, caption="legacy post"),
+                DiscountCode(id=ids["discount"], tenant_id=None, owner_user_id=user_a, code="LEGACY", name="Legacy", discount_type="flat", discount_value=1),
+            ])
+            await db.flush()
+            db.add_all([SavedListing(id=ids["saved"], user_id=user_a, listing_id=ids["listing"]), Interest(id=ids["interest"], user_id=user_a, listing_id=ids["listing"], message="legacy"), TalentInquiry(id=ids["inquiry"], talent_id=ids["talent"], name="Legacy", message="PII"), Employee(id=ids["employee"], shop_id=ids["shop"], user_id=user_a, name="Legacy Employee"), BenderLike(id=ids["like"], user_id=user_a, post_id=ids["post"]), Endorsement(id=ids["endorsement"], endorser_user_id=user_a, endorsed_shop_id=ids["shop"])])
+            keep_listing = Listing(id=uuid.uuid4(), tenant_id=tenant_b, posted_by_user_id=user_b, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="B", description="B", pricing_type=PricingType.FREE, is_free=True, urgency=UrgencyLevel.NORMAL, status=ListingStatus.ACTIVE)
+            db.add(keep_listing); await db.flush(); db.add(AccountDeletion(user_id=user_a, tenant_id=tenant_a)); await db.commit()
+            row = (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_a))).scalar_one(); assert await AccountDeletionService(db).erase(str(row.id))
+            assert (await db.execute(select(Notification).where(Notification.id == ids["notification"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(Volunteer).where(Volunteer.id == ids["volunteer"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(Talent).where(Talent.id == ids["talent"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(TalentInquiry).where(TalentInquiry.id == ids["inquiry"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(SavedListing).where(SavedListing.id == ids["saved"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(Interest).where(Interest.id == ids["interest"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(Shop).where(Shop.id == ids["shop"]))).scalar_one().admin_user_id is None
+            assert (await db.execute(select(Employee).where(Employee.id == ids["employee"]))).scalar_one().user_id is None
+            assert (await db.execute(select(Event).where(Event.id == ids["event"]))).scalar_one().submitted_by_user_id is None
+            assert (await db.execute(select(BenderLike).where(BenderLike.id == ids["like"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(Endorsement).where(Endorsement.id == ids["endorsement"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(DiscountCode).where(DiscountCode.id == ids["discount"]))).scalar_one_or_none() is None
+            assert (await db.execute(select(Listing).where(Listing.id == keep_listing.id))).scalar_one_or_none() is not None
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id.in_([user_a, user_b])))
+            for model in (TalentInquiry, SavedListing, Interest, Notification, Volunteer, Talent, Employee, BenderLike, Endorsement, DiscountCode, Event, BenderPost, Listing, Shop, AccountDeletion, User, Tenant):
+                await db.execute(delete(model).where(model.id.in_(list(ids.values()) + [user_a, user_b, tenant_a, tenant_b])))
+            await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_real_postgres_concurrent_confirmation_has_one_active_request():
     from datetime import datetime, timedelta
     from sqlalchemy.ext.asyncio import async_sessionmaker
