@@ -50,6 +50,37 @@ def test_unsupported_notification_type_has_no_native_payload():
     assert build_native_payload(notification) is None
 
 
+def test_payload_ignores_non_string_target_type_without_raising():
+    notification = type("NotificationStub", (), {"id": uuid4(), "type": NotificationType.NEW_MESSAGE, "data": {"target_type": [], "target_id": {}}})()
+    payload = build_native_payload(notification)
+    assert payload == {"notification_id": str(notification.id), "category": "message_received", "title": "New message", "body": "You have a new message"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("description", "expected"), [("DeviceTokenNotForTopic", "invalid_token"), ("TooManyRequests", "transient"), ("PayloadEmpty", "permanent")])
+async def test_apns_maps_installed_response_description(monkeypatch, description, expected):
+    from app.services.push_provider import APNsProvider
+
+    class Response:
+        is_successful = False
+        status = 400
+
+        def __init__(self):
+            self.description = description
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        async def send_notification(self, request):
+            return Response()
+
+    monkeypatch.setattr("aioapns.APNs", Client)
+    provider = APNsProvider(type("Settings", (), {"APNS_TEAM_ID": "team", "APNS_KEY_ID": "key", "APNS_PRIVATE_KEY": "private", "APNS_BUNDLE_ID": "bundle", "APNS_USE_SANDBOX": False})())
+    result = await provider.send(type("Installation", (), {"provider_token": "token"})(), {"title": "T", "body": "B"})
+    assert result.kind == expected
+
+
 def test_provider_routing_is_platform_specific_without_network():
     assert provider_for_platform("ios").__class__.__name__ == "APNsProvider"
     assert provider_for_platform("android").__class__.__name__ == "FCMProvider"

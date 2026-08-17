@@ -75,7 +75,9 @@ class APNsProvider(PushProvider):
             response = await client.send_notification(request)
             if getattr(response, "is_successful", False):
                 return ProviderResult.delivered("accepted")
-            reason = getattr(response, "reason", "provider_rejected")
+            # aioapns 4.x exposes a sanitized description/status pair; older
+            # releases used reason. Never retain the response body.
+            reason = getattr(response, "description", None) or getattr(response, "reason", None) or f"status_{getattr(response, 'status', 'rejected')}"
             code = _safe_code(reason)
             normalized = code.replace("_", "")
             if normalized in {"baddevicetoken", "unregistered", "devicetokennotfortopic"}:

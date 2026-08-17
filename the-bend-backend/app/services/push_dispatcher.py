@@ -54,7 +54,7 @@ def build_native_payload(notification: Notification) -> dict[str, Any] | None:
         UUID(str(target_id))
     except (ValueError, TypeError, AttributeError):
         return payload
-    if target_type in _TARGET_TYPES:
+    if isinstance(target_type, str) and target_type in _TARGET_TYPES:
         payload.update(target_type=target_type, target_id=str(target_id))
     return payload
 
@@ -102,7 +102,6 @@ class PushDispatcher:
         installations = (await self.db.execute(select(DeviceInstallation).where(DeviceInstallation.user_id == notification.user_id, DeviceInstallation.tenant_id == notification.tenant_id, DeviceInstallation.enabled.is_(True)))).scalars().all()
         prior = dict(outbox.provider_results or {})
         sent = 0
-        transient = False
         for installation in installations:
             key = str(installation.id)
             if prior.get(key, {}).get("kind") in {"delivered", "permanent", "invalid_token"}:
@@ -117,9 +116,12 @@ class PushDispatcher:
             if result.kind == "invalid_token":
                 installation.enabled = False
                 installation.provider_token = f"revoked:{installation.id}"
-            elif result.kind == "transient":
-                transient = True
+        # Aggregate prior and current per-installation outcomes. Terminal
+        # failures remain terminal even when another device delivered.
         outbox.provider_results = prior
+        kinds = {entry.get("kind") for entry in prior.values() if isinstance(entry, dict)}
+        transient = "transient" in kinds
+        terminal_failure = bool(kinds & {"permanent", "invalid_token"})
         attempts = outbox.attempts + 1
         outbox.attempts = attempts
         now = datetime.utcnow()
@@ -130,8 +132,8 @@ class PushDispatcher:
             outbox.available_at = now + timedelta(seconds=base_delay + random.uniform(0, min(5, base_delay * 0.1)))
             outbox.last_error_code = "transient_failure"
         else:
-            outbox.status = "failed" if transient and attempts >= 5 else "delivered"
-            outbox.last_error_code = "transient_failure" if outbox.status == "failed" else None
+            outbox.status = "failed" if terminal_failure or (transient and attempts >= 5) else "delivered"
+            outbox.last_error_code = "permanent_failure" if terminal_failure else ("transient_failure" if transient else None)
             outbox.delivered_at = None if outbox.status == "failed" else now
         outbox.locked_at, outbox.updated_at = None, now
         await self.db.commit()
@@ -158,8 +160,33 @@ class PushDispatcher:
         await self.db.commit()
         delivered = 0
         for row in rows:
-            delivered += await self.dispatch_one(row.id)
+            try:
+                delivered += await self.dispatch_one(row.id)
+            except Exception:
+                await self._recover_dispatch_error(row.id)
         return delivered
+
+    async def _recover_dispatch_error(self, outbox_id: UUID) -> None:
+        """Release a claimed row after an unexpected worker/provider failure."""
+        await self.db.rollback()
+        result = await self.db.execute(select(NotificationOutbox).where(NotificationOutbox.id == outbox_id))
+        outbox = result.scalar_one_or_none()
+        if outbox is None or outbox.status in {"delivered", "failed"}:
+            return
+        now = datetime.utcnow()
+        outbox.attempts += 1
+        outbox.locked_at = None
+        outbox.last_error_code = "dispatcher_error"
+        if outbox.attempts >= 5:
+            outbox.status = "failed"
+            outbox.delivered_at = None
+        else:
+            outbox.status = "pending"
+            base_delay = min(15 * (2 ** outbox.attempts), 900)
+            outbox.available_at = now + timedelta(seconds=base_delay + random.uniform(0, min(5, base_delay * 0.1)))
+            outbox.delivered_at = None
+        outbox.updated_at = now
+        await self.db.commit()
 
 
 async def _dispatch_pending_outbox(batch_size: int = 100) -> int:
