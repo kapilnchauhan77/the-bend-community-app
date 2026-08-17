@@ -180,3 +180,13 @@ async def test_connector_creation_rolls_back_local_row_on_provider_failure(monke
     async with sessions() as db:
         count = (await db.execute(__import__("sqlalchemy").select(__import__("sqlalchemy").func.count()).select_from(ConnectorPurchase).where(ConnectorPurchase.website_url == payload["website_url"]))).scalar_one()
         assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_webhook_requires_signature_and_rejects_unbound_metadata(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    app = make_app(sessions, tenant)
+    payload = {"type": "checkout.session.completed", "data": {"object": {"id": "cs_unbound", "payment_status": "paid", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}}}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        missing = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(payload))
+    assert missing.status_code == 400
