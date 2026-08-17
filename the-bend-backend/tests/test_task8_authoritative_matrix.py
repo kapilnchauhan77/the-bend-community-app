@@ -241,3 +241,21 @@ async def test_signed_expired_webhook_cancels_local_checkout(monkeypatch, db_con
     assert response.json() == {"status": "ok"}
     async with sessions() as db:
         assert (await db.get(Sponsor, ids[0])).checkout_status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_two_asgi_status_clients_share_one_locked_transition(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    def retrieve(session_id, **kwargs):
+        calls.append(kwargs)
+        return {"id": session_id, "status": "complete", "payment_status": "paid", "amount_total": 1200, "currency": "usd", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", retrieve)
+    app = make_app(sessions, tenant)
+    async def poll():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            return await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+    first, second = await __import__("asyncio").gather(poll(), poll())
+    assert first.json()["status"] in {"paid", "complete"}
+    assert second.json()["status"] in {"paid", "complete"}
+    assert len(calls) == 1
