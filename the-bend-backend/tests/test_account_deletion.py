@@ -180,7 +180,7 @@ async def test_real_asgi_deletion_status_and_auth_denials(monkeypatch):
     try:
         async with async_session() as db:
             db.add_all([Tenant(id=tenant_id, slug="asgi-"+marker, subdomain="asgi-"+marker, display_name="ASGI"), Tenant(id=other_tenant_id, slug="asgi-other-"+marker, subdomain="asgi-other-"+marker, display_name="Other")]); await db.flush()
-            db.add(User(id=user_id, tenant_id=tenant_id, email=marker+"@example.test", password_hash=hash_password("Correct1"), name="ASGI User", role=UserRole.INDIVIDUAL)); await db.commit()
+            db.add(User(id=user_id, tenant_id=tenant_id, email=marker+"@example.com", password_hash=hash_password("Correct1"), name="ASGI User", role=UserRole.INDIVIDUAL)); await db.commit()
         token = create_access_token(user_id, UserRole.INDIVIDUAL.value)
         monkeypatch.setattr(erase_account, "delay", lambda value: None)
         transport = httpx.ASGITransport(app=create_app())
@@ -191,7 +191,7 @@ async def test_real_asgi_deletion_status_and_auth_denials(monkeypatch):
             receipt = confirmed.json()["status_receipt"]
             pending = await client.get("/api/v1/account/deletion/status", params={"receipt":receipt}, headers={"x-tenant-slug":"asgi-"+marker}); assert pending.status_code == 200 and pending.json()["status"] == "pending"
             old_token = await client.get("/api/v1/auth/me", headers={"authorization":f"Bearer {token}","x-tenant-slug":"asgi-"+marker}); assert old_token.status_code == 403
-            login = await client.post("/api/v1/auth/login", headers={"x-tenant-slug":"asgi-"+marker}, json={"email":marker+"@example.test","password":"Correct1"}); assert login.status_code == 403
+            login = await client.post("/api/v1/auth/login", headers={"x-tenant-slug":"asgi-"+marker}, json={"email":marker+"@example.com","password":"Correct1"}); assert login.status_code == 403
             cross = await client.get("/api/v1/account/deletion/status", params={"receipt":receipt}, headers={"x-tenant-slug":"asgi-other-"+marker}); assert cross.status_code == 404
         async with async_session() as db:
             row = (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_id))).scalar_one(); await __import__("app.services.account_deletion_service", fromlist=["AccountDeletionService"]).AccountDeletionService(db).erase(str(row.id))
