@@ -22,6 +22,7 @@ from app.models.enums import EventCategory, EventStatus
 from app.models.sponsor import Sponsor
 from app.models.tenant import Tenant
 from app.services.checkout_service import CheckoutVerificationService
+from app.services.capabilities_service import native_capabilities
 
 
 @pytest.fixture
@@ -336,6 +337,14 @@ async def test_capabilities_exact_contract_and_credential_matrix(monkeypatch, db
 
 
 @pytest.mark.asyncio
+async def test_capabilities_other_tenant_and_unknown_are_disabled_or_not_found(db_context):
+    sessions, tenant, ids = db_context
+    other = type("Tenant", (), {"slug": "other", "stripe_secret_key": "sk_test_o", "stripe_publishable_key": "pk_test_o", "stripe_webhook_secret": "whsec_o"})()
+    assert native_capabilities(other)["native_commerce_enabled"] is False
+    assert native_capabilities(None) is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("kind,index", [("sponsor", 0), ("event", 1), ("connector", 2)])
 async def test_status_provider_variants_remain_pending_or_transition_authoritatively(monkeypatch, db_context, kind, index):
     sessions, tenant, ids = db_context
@@ -367,6 +376,49 @@ async def test_status_rejects_wrong_kind_cross_tenant_deleted_and_oversized_with
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         for path in paths:
             assert (await client.get(path)).status_code == 404
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_status_foreign_and_deleted_targets_are_not_found_without_provider(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    foreign_tenant_id, foreign_id = uuid.uuid4(), uuid.uuid4()
+    async with sessions() as db:
+        db.add(Tenant(id=foreign_tenant_id, slug=f"foreign-{foreign_id.hex[:8]}", subdomain=f"foreign-{foreign_id.hex[:8]}", display_name="Foreign"))
+        await db.flush()
+        db.add(Sponsor(id=foreign_id, tenant_id=foreign_tenant_id, name="Foreign", placement="homepage", stripe_session_id="cs_foreign", expected_amount=1200, expected_currency="usd"))
+        await db.commit()
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: calls.append(1))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        assert (await client.get("/api/v1/checkout/status/sponsor/cs_foreign")).status_code == 404
+    async with sessions() as db:
+        await db.execute(__import__("sqlalchemy").delete(Sponsor).where(Sponsor.id == ids[0]))
+        await db.commit()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        assert (await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")).status_code == 404
+    assert calls == []
+    async with sessions() as db:
+        await db.execute(__import__("sqlalchemy").delete(Sponsor).where(Sponsor.id == foreign_id))
+        await db.execute(__import__("sqlalchemy").delete(Tenant).where(Tenant.id == foreign_tenant_id))
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_final_local_states_map_without_provider_calls(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: calls.append(1))
+    async with sessions() as db:
+        sponsor = await db.get(Sponsor, ids[0]); sponsor.checkout_status = "cancelled"
+        event = await db.get(Event, ids[1]); event.checkout_status = "cancelled"
+        connector = await db.get(ConnectorPurchase, ids[2]); connector.status = "cancelled"
+        await db.commit()
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        for kind, sid in (("sponsor", "cs_sponsor_1"), ("event", "cs_event_1"), ("connector", "cs_connector_1")):
+            assert (await client.get(f"/api/v1/checkout/status/{kind}/{sid}")).json()["status"] == "cancelled"
     assert calls == []
 
 
