@@ -193,6 +193,21 @@ export function CameraCapture({
     );
   }, [stopStream]);
 
+  const stopRecordingInternal = useCallback(() => {
+    if (recordTimerRef.current) {
+      window.clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      try {
+        recorderRef.current.stop();
+      } catch {
+        // ignore
+      }
+    }
+    setRecording(false);
+  }, []);
+
   // Video capture: MediaRecorder with mime fallback + 9 s auto-stop.
   const startRecording = useCallback(() => {
     const stream = streamRef.current;
@@ -252,22 +267,7 @@ export function CameraCapture({
         stopRecordingInternal();
       }
     }, 100);
-  }, [stopStream]);
-
-  const stopRecordingInternal = useCallback(() => {
-    if (recordTimerRef.current) {
-      window.clearInterval(recordTimerRef.current);
-      recordTimerRef.current = null;
-    }
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      try {
-        recorderRef.current.stop();
-      } catch {
-        // ignore
-      }
-    }
-    setRecording(false);
-  }, []);
+  }, [stopRecordingInternal, stopStream]);
 
   const handleRecordPress = useCallback(() => {
     if (recording) {

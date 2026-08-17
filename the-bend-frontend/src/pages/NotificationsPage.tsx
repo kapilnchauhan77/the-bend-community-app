@@ -20,12 +20,12 @@ import type { Notification } from '@/types';
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
 // ─── Icon map by notification type ───────────────────────────────────────────
-function getNotificationIcon(type: string) {
-  if (type.includes('message')) return MessageSquare;
-  if (type.includes('interest') || type.includes('listing')) return Package;
-  if (type.includes('fulfilled')) return CheckCircle;
-  if (type.includes('urgent')) return AlertTriangle;
-  return Info;
+function renderNotificationIcon(type: string, className: string) {
+  if (type.includes('message')) return <MessageSquare className={className} size={18} />;
+  if (type.includes('interest') || type.includes('listing')) return <Package className={className} size={18} />;
+  if (type.includes('fulfilled')) return <CheckCircle className={className} size={18} />;
+  if (type.includes('urgent')) return <AlertTriangle className={className} size={18} />;
+  return <Info className={className} size={18} />;
 }
 
 function getIconStyle(type: string): { bg: string; color: string } {
@@ -108,7 +108,6 @@ function NotificationItem({
   onClick: (n: Notification) => void;
   onDismiss: (id: string) => void;
 }) {
-  const Icon = getNotificationIcon(notification.type);
   const iconStyle = getIconStyle(notification.type);
 
   return (
@@ -120,7 +119,7 @@ function NotificationItem({
       {/* Unread dot */}
       <div className="flex-shrink-0 mt-0.5 relative">
         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${iconStyle.bg}`}>
-          <Icon className={`w-4.5 h-4.5 ${iconStyle.color}`} size={18} />
+          {renderNotificationIcon(notification.type, `w-4.5 h-4.5 ${iconStyle.color}`)}
         </div>
         {!notification.is_read && (
           <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />

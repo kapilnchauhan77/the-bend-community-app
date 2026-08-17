@@ -13,7 +13,7 @@ export function useAuth() {
   }, [setAuth]);
 
   const register = useCallback(async (formData: Record<string, unknown>) => {
-    const { data } = await authApi.register(formData as any);
+    const { data } = await authApi.register(formData as Parameters<typeof authApi.register>[0]);
     return data;
   }, []);
 

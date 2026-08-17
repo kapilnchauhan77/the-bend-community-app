@@ -61,7 +61,6 @@ function categoryBadge(cat: EventCategory) {
 }
 
 function statusBadge(status: string) {
-  const now = new Date();
   switch (status) {
     case 'cancelled':
       return <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">Cancelled</Badge>;

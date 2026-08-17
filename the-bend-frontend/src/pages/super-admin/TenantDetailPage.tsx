@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, UserPlus, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Save, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,8 +61,9 @@ export default function TenantDetailPage() {
     try {
       const res = await api.put(`/super-admin/tenants/${tenantId}`, form);
       setTenant(res.data);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to save');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      alert(detail || 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -77,8 +78,9 @@ export default function TenantDetailPage() {
       setShowAdminForm(false);
       setAdminForm({ email: '', password: '', name: '' });
       alert('Community admin created successfully');
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create admin');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      alert(detail || 'Failed to create admin');
     } finally {
       setCreatingAdmin(false);
     }

@@ -16,7 +16,6 @@ interface ReportData {
 }
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
-const BRONZE = 'hsl(35, 45%, 42%)';
 
 const PERIODS: Array<{ value: Period; label: string }> = [
   { value: 'week', label: 'This Week' },

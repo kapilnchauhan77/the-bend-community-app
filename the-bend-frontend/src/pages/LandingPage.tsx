@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Mail, Calendar, MapPin } from 'lucide-react';
 import { parseServerDate } from '@/lib/utils';
 
@@ -10,18 +10,18 @@ const SAGE = 'hsl(80, 15%, 55%)';
 
 // Reveal on scroll helper
 function useReveal<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
+  const [element, setElement] = useState<T | null>(null);
   const [shown, setShown] = useState(false);
   useEffect(() => {
-    if (!ref.current) return;
+    if (!element) return;
     const io = new IntersectionObserver(
       ([entry]) => entry.isIntersecting && setShown(true),
       { threshold: 0.15 }
     );
-    io.observe(ref.current);
+    io.observe(element);
     return () => io.disconnect();
-  }, []);
-  return { ref, shown };
+  }, [element]);
+  return { ref: setElement, shown };
 }
 
 const grainSvg =
@@ -150,7 +150,7 @@ export default function LandingPage() {
             className="hidden md:flex items-center gap-8 text-[11px] tracking-[0.25em] uppercase"
             style={{ fontFamily: 'ui-sans-serif, system-ui', color: 'hsl(30,12%,35%)' }}
           >
-            <a href="#philosophy" className="hover:text-[color:var(--ink)]" style={{ ['--ink' as any]: INK }}>
+            <a href="#philosophy" className="hover:text-[color:var(--ink)]" style={{ '--ink': INK }}>
               Philosophy
             </a>
             <a href="#how" className="hover:opacity-60">How It Works</a>

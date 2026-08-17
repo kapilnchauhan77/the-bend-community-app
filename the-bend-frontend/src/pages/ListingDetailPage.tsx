@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { resolveAssetUrl } from '@/lib/constants';
 import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -99,11 +99,6 @@ export default function ListingDetailPage() {
   const isOwner = !!(listing && shop && listing.shop && listing.shop.id === shop.id);
   const isVolunteer = listing?.category === 'volunteer';
 
-  useEffect(() => {
-    if (!id) return;
-    loadListing();
-  }, [id]);
-
   // Fetch discount codes for community-member-posted listings only.
   // Shop-owned listings surface codes on the business profile page instead.
   useEffect(() => {
@@ -119,7 +114,7 @@ export default function ListingDetailPage() {
       .catch(() => setPosterDiscountCodes([]));
   }, [listing]);
 
-  async function loadListing() {
+  const loadListing = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -132,7 +127,12 @@ export default function ListingDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    loadListing();
+  }, [id, loadListing]);
 
   async function handleInterest() {
     if (!isAuthenticated) {

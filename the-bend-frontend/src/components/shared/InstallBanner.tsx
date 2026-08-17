@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Download, X, Share } from 'lucide-react';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 
@@ -17,18 +17,11 @@ function isMobile(): boolean {
 
 export function InstallBanner() {
   const { canInstall, install, dismiss } = useInstallPrompt();
-  const [showIOSBanner, setShowIOSBanner] = useState(false);
+  const [showIOSBanner, setShowIOSBanner] = useState(() => {
+    if (!isIOS() || !isMobile() || isInStandaloneMode()) return false;
+    return localStorage.getItem('pwa-ios-dismissed') !== 'true';
+  });
   const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    // Show iOS instructions if on iOS, mobile, not in standalone, and not dismissed
-    if (isIOS() && isMobile() && !isInStandaloneMode()) {
-      const iosDismissed = localStorage.getItem('pwa-ios-dismissed') === 'true';
-      if (!iosDismissed) {
-        setShowIOSBanner(true);
-      }
-    }
-  }, []);
 
   const dismissIOS = () => {
     localStorage.setItem('pwa-ios-dismissed', 'true');

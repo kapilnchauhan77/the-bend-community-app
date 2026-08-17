@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Building2, Users, FileText, ChevronRight, Gift } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Building2, ChevronRight, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,8 +47,9 @@ export default function TenantsListPage() {
       setShowCreate(false);
       setForm({ slug: '', subdomain: '', display_name: '', tagline: '', primary_color: 'hsl(160,25%,24%)' });
       loadTenants();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create tenant');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      alert(detail || 'Failed to create tenant');
     } finally {
       setCreating(false);
     }

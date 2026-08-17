@@ -3,7 +3,6 @@ import {
   Users,
   Package,
   Wrench,
-  Heart,
   Handshake,
   Leaf,
   ShieldCheck,

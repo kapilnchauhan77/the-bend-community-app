@@ -30,7 +30,7 @@ export default function AdvertisePage() {
     logo_url: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<'select' | 'details' | 'connector' | 'success'>('select');
+  const [step, setStep] = useState<'select' | 'details' | 'connector' | 'success'>(() => sessionId ? 'success' : 'select');
   const [statusMessage, setStatusMessage] = useState('');
   const [loadingPricing, setLoadingPricing] = useState(true);
 
@@ -42,7 +42,6 @@ export default function AdvertisePage() {
 
   useEffect(() => {
     if (sessionId) {
-      setStep('success');
       advertisingApi.checkStatus(sessionId).then((res) => {
         const status = res.data?.status;
         if (status === 'paid' || status === 'complete') {

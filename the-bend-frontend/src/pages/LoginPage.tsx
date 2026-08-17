@@ -9,13 +9,11 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/authApi';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
-import { useTenant } from '@/context/TenantContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
 
 export default function LoginPage() {
-  const tenant = useTenant();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

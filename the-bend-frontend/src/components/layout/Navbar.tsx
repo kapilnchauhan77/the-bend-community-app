@@ -1,6 +1,6 @@
 import { resolveAssetUrl } from '@/lib/constants';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Menu, X, ChevronDown, Settings, LogOut, User as UserIcon, Store, Bookmark, Moon, Sun, Package, Tag } from 'lucide-react';
+import { Bell, Menu, X, ChevronDown, Settings, LogOut, Store, Bookmark, Moon, Sun, Package, Tag } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';

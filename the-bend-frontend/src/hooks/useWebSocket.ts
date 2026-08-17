@@ -12,6 +12,7 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const reconnectTimeoutRef = useRef<number>();
+  const connectRef = useRef<(() => void) | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const addMessage = useMessageStore((s) => s.addMessage);
 
@@ -31,7 +32,7 @@ export function useWebSocket() {
       try {
         const msg: WSMessage = JSON.parse(event.data);
         if (msg.type === 'message') {
-          addMessage(msg.data as any);
+          addMessage(msg.data as Parameters<typeof addMessage>[0]);
         }
         // Dispatch custom event for other listeners
         window.dispatchEvent(new CustomEvent('ws-message', { detail: msg }));
@@ -43,7 +44,7 @@ export function useWebSocket() {
     ws.onclose = () => {
       setConnected(false);
       console.log('[WS] Disconnected, reconnecting in 3s...');
-      reconnectTimeoutRef.current = window.setTimeout(connect, 3000);
+      reconnectTimeoutRef.current = window.setTimeout(() => connectRef.current?.(), 3000);
     };
 
     ws.onerror = () => {
@@ -52,6 +53,7 @@ export function useWebSocket() {
 
     wsRef.current = ws;
   }, [addMessage]);
+  connectRef.current = connect;
 
   useEffect(() => {
     if (isAuthenticated) {

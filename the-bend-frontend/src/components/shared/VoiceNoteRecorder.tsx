@@ -218,6 +218,25 @@ export function VoiceNoteRecorder({ open, onClose, onCaptured }: Props) {
     }
   }, []);
 
+  const stopRecordingInternal = useCallback(() => {
+    if (recordTimerRef.current) {
+      window.clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      try {
+        recorderRef.current.stop();
+      } catch {
+        // ignore
+      }
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setRecording(false);
+  }, []);
+
   // Voice note capture: MediaRecorder with mime fallback + 9 s auto-stop.
   const startRecording = useCallback(() => {
     const stream = streamRef.current;
@@ -282,26 +301,7 @@ export function VoiceNoteRecorder({ open, onClose, onCaptured }: Props) {
         stopRecordingInternal();
       }
     }, 100);
-  }, [startVisualizer]);
-
-  const stopRecordingInternal = useCallback(() => {
-    if (recordTimerRef.current) {
-      window.clearInterval(recordTimerRef.current);
-      recordTimerRef.current = null;
-    }
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      try {
-        recorderRef.current.stop();
-      } catch {
-        // ignore
-      }
-    }
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    setRecording(false);
-  }, []);
+  }, [startVisualizer, stopRecordingInternal]);
 
   const handleRecordPress = useCallback(() => {
     if (recording) {
