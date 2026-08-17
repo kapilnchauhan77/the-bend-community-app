@@ -22,6 +22,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:path="/" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:pathPattern="/listing/.*" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:pathPattern="/business/.*" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:pathPattern="/events/.*" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:path="/events" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:pathPattern="/bender/.*" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:path="/bender" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:pathPattern="/messages/.*" />
+                <data android:scheme="https" android:host="westmoreland.bend.community" android:path="/notifications" />
+            </intent-filter>
+
         </activity>
 
         <provider

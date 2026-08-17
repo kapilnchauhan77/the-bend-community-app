@@ -13,7 +13,8 @@
     "build:native": "VITE_NATIVE_BUILD=true VITE_API_URL=https://api.bend.community/api/v1 vite build",
     "cap:sync": "npm run build:native && cap sync",
     "cap:ios": "npm run cap:sync && cap open ios",
-    "cap:android": "npm run cap:sync && cap open android"
+    "cap:android": "npm run cap:sync && cap open android",
+    "render:association-files": "node scripts/render-association-files.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

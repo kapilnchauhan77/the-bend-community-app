@@ -19,7 +19,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
-    const destination = `${location.pathname}${location.search}${location.hash}`;
+    // Persist only the route path. Foundation deep links intentionally reject query strings.
+    const destination = location.pathname;
     setPendingDestination(destination);
     return <Navigate to="/login" state={{ from: { pathname: location.pathname, search: location.search, hash: location.hash } }} replace />;
   }
