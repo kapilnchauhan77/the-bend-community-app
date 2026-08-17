@@ -12,7 +12,7 @@ export function useCachedPublicContent<T>(key: string, fetcher: () => Promise<T>
     const online = await network.getStatus() === 'online'
     if (online) {
       try {
-        const fresh = await fetcher(); setData(fresh); setSource('network')
+        const fresh = await fetcher(); setData(fresh); setSource('network'); setCachedAt(null)
         const value = fresh as CachedContent
         const [prefix, ...rest] = key.split(':')
         const kind = (value && typeof value === 'object' && 'kind' in value ? value.kind : prefix) as CachedContent['kind']

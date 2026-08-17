@@ -431,10 +431,10 @@ export default function EventsPage() {
       })
       .catch(err => {
         console.error('Failed to load events:', err);
-        setEvents([]);
+        if (!cached.data) setEvents([]);
       })
       .finally(() => setLoading(false));
-  }, [category, debouncedSearch]);
+  }, [category, debouncedSearch, cached.data]);
 
   // Scroll to and highlight a card based on URL hash
   useEffect(() => {

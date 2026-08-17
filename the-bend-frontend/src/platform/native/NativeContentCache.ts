@@ -7,6 +7,8 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const PUBLIC_KINDS = new Set<CachedContent['kind']>(['listing', 'business', 'event', 'bender'])
 const INDEX_PATH = 'bend-public-cache/index.json'
 type Entry = CachedContent & { lastAccessedAt: string }
+const canonicalKey = (kind: CachedContent['kind'], entityId: string) => `${kind}:${entityId}`
+const validKey = (key: string, kind: CachedContent['kind'], entityId: string) => key === canonicalKey(kind, entityId) && !/[\\/]/.test(entityId)
 
 let testMemory = new Map<string, Entry>()
 
@@ -37,7 +39,7 @@ export class NativeContentCache implements ContentCache {
   private valid(value: unknown): value is Entry {
     if (!value || typeof value !== 'object') return false
     const item = value as Partial<Entry>
-    return typeof item.key === 'string' && PUBLIC_KINDS.has(item.kind as CachedContent['kind']) && typeof item.entityId === 'string' && typeof item.cachedAt === 'string' && Number.isFinite(Date.parse(item.cachedAt)) && Date.now() - Date.parse(item.cachedAt) <= MAX_AGE_MS && typeof item.lastAccessedAt === 'string' && typeof item.sizeBytes === 'number' && item.sizeBytes >= 0 && item.sizeBytes <= MAX_BYTES && item.payload !== undefined
+    return typeof item.key === 'string' && PUBLIC_KINDS.has(item.kind as CachedContent['kind']) && typeof item.entityId === 'string' && validKey(item.key, item.kind as CachedContent['kind'], item.entityId) && typeof item.cachedAt === 'string' && Number.isFinite(Date.parse(item.cachedAt)) && Date.now() - Date.parse(item.cachedAt) <= MAX_AGE_MS && typeof item.lastAccessedAt === 'string' && typeof item.sizeBytes === 'number' && item.sizeBytes >= 0 && item.sizeBytes <= MAX_BYTES && item.payload !== undefined
   }
 
   private async persist() {
@@ -50,6 +52,11 @@ export class NativeContentCache implements ContentCache {
     } catch { /* cache is best effort */ }
   }
 
+  private async deleteImage(imagePath: string | null) {
+    if (!imagePath || /(^|[\\/])\.\.?([\\/])/.test(imagePath)) return
+    try { await Filesystem.deleteFile({ path: imagePath, directory: Directory.Data }) } catch { /* best effort */ }
+  }
+
   private async evict() {
     const ordered = [...this.entries.values()].sort((a, b) => a.lastAccessedAt.localeCompare(b.lastAccessedAt))
     let bytes = ordered.reduce((sum, item) => sum + item.sizeBytes, 0)
@@ -57,6 +64,7 @@ export class NativeContentCache implements ContentCache {
       const item = ordered.shift()
       if (!item) break
       this.entries.delete(item.key)
+      await this.deleteImage(item.imagePath)
       bytes -= item.sizeBytes
     }
   }
@@ -64,8 +72,15 @@ export class NativeContentCache implements ContentCache {
   async put(content: CachedContent): Promise<void> {
     await this.load()
     if (!PUBLIC_KINDS.has(content.kind)) throw new Error('PUBLIC_CONTENT_ONLY')
-    if (content.sizeBytes > MAX_BYTES || content.sizeBytes < 0) return
-    this.entries.set(content.key, { ...content, imagePath: content.imagePath ?? null, lastAccessedAt: new Date().toISOString() })
+    if (!validKey(content.key, content.kind, content.entityId)) throw new Error('INVALID_CACHE_KEY')
+    if (content.imagePath && /(^|[\\/])\.\.?([\\/])/.test(content.imagePath)) throw new Error('INVALID_CACHE_IMAGE_PATH')
+    const previous = this.entries.get(content.key)
+    if (previous?.imagePath && previous.imagePath !== content.imagePath) await this.deleteImage(previous.imagePath)
+    let imageBytes = 0
+    if (content.imagePath) { try { imageBytes = (await Filesystem.stat({ path: content.imagePath, directory: Directory.Data })).size ?? 0 } catch { imageBytes = 0 } }
+    const sizeBytes = new TextEncoder().encode(JSON.stringify({ key: content.key, kind: content.kind, entityId: content.entityId, cachedAt: content.cachedAt, payload: content.payload })).byteLength + imageBytes
+    if (sizeBytes > MAX_BYTES) return
+    this.entries.set(content.key, { ...content, imagePath: content.imagePath ?? null, sizeBytes, lastAccessedAt: new Date().toISOString() })
     await this.evict()
     await this.persist()
   }
@@ -80,8 +95,8 @@ export class NativeContentCache implements ContentCache {
     return { ...item }
   }
 
-  async remove(key: string) { await this.load(); this.entries.delete(key); await this.persist() }
-  async clear() { await this.load(); this.entries.clear(); await this.persist() }
+  async remove(key: string) { await this.load(); const item = this.entries.get(key); this.entries.delete(key); if (item) await this.deleteImage(item.imagePath); await this.persist() }
+  async clear() { await this.load(); await Promise.all([...this.entries.values()].map((item) => this.deleteImage(item.imagePath))); this.entries.clear(); await this.persist() }
   async stats() { await this.load(); return { items: this.entries.size, bytes: [...this.entries.values()].reduce((sum, item) => sum + item.sizeBytes, 0) } }
 }
 

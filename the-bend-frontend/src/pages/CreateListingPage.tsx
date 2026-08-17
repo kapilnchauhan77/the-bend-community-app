@@ -168,6 +168,13 @@ export default function CreateListingPage() {
       .finally(() => setLoadingExisting(false));
   }, [editId, reset]);
 
+  useEffect(() => {
+    if (editId) return;
+    void draftStore.load('create-listing').then((draft) => {
+      if (draft) reset(draft.fields as Partial<FormData>);
+    });
+  }, [editId, reset]);
+
   const watchedType = watch('type');
   const watchedUrgency = watch('urgency');
   const watchedPricingType = watch('pricing_type');

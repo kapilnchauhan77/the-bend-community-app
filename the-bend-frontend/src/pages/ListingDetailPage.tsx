@@ -133,11 +133,11 @@ export default function ListingDetailPage() {
       setHasInterest(data.viewer_has_interest);
       setHasSaved(data.viewer_has_saved);
     } catch {
-      setError('Could not load this listing. It may have been removed.');
+      if (!cached.data) setError('Could not load this listing. It may have been removed.');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, cached.data]);
 
   useEffect(() => {
     if (!id) return;
@@ -652,7 +652,7 @@ export default function ListingDetailPage() {
                 onClick={async () => {
                   if (!listing || !listing.shop) return;
                   try {
-                    const { data } = await messageApi.startThread(listing.shop.id, listing.id);
+                    const { data } = await runOnline(() => messageApi.startThread(listing.shop.id, listing.id));
                     navigate(`/messages/${data.id}`);
                   } catch (err) {
                     console.error('Failed to start thread:', err);
@@ -671,7 +671,7 @@ export default function ListingDetailPage() {
                   if (!isAuthenticated) { navigate('/login'); return; }
                   if (!listing.posted_by) return;
                   try {
-                    const { data } = await messageApi.createDirectThread(listing.posted_by.id);
+                    const { data } = await runOnline(() => messageApi.createDirectThread(listing.posted_by.id));
                     navigate(`/messages/${data.id}`);
                   } catch (err) {
                     console.error('Failed to start thread:', err);
@@ -751,7 +751,7 @@ export default function ListingDetailPage() {
                     onClick={async () => {
                       setReportSubmitting(true);
                       try {
-                        await listingApi.reportListing(id!, { reason: reportReason, details: reportDetails || undefined });
+                        await runOnline(() => listingApi.reportListing(id!, { reason: reportReason, details: reportDetails || undefined }));
                         setReported(true);
                       } catch {
                         // silently fail

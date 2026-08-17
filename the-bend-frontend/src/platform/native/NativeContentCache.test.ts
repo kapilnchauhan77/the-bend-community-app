@@ -21,4 +21,17 @@ describe('NativeContentCache', () => {
     const cache = new NativeContentCache({ storage: 'memory' })
     await expect(cache.put({ key: `${kind}:1`, kind, entityId: '1', cachedAt: new Date().toISOString(), payload: {}, imagePath: null, sizeBytes: 1 } as never)).rejects.toThrow('PUBLIC_CONTENT_ONLY')
   })
+
+  it('rejects mismatched and traversing keys', async () => {
+    const cache = new NativeContentCache({ storage: 'memory' })
+    const base = { kind: 'listing' as const, entityId: '42', cachedAt: new Date().toISOString(), payload: { title: 'safe' }, imagePath: null, sizeBytes: 1 }
+    await expect(cache.put({ ...base, key: 'business:42' })).rejects.toThrow('INVALID_CACHE_KEY')
+    await expect(cache.put({ ...base, key: 'listing:../secret', entityId: '../secret' })).rejects.toThrow('INVALID_CACHE_KEY')
+  })
+
+  it('does not trust a caller supplied byte count', async () => {
+    const cache = new NativeContentCache({ storage: 'memory' })
+    await cache.put({ key: 'listing:large', kind: 'listing', entityId: 'large', cachedAt: new Date().toISOString(), payload: { body: 'x'.repeat(100) }, imagePath: null, sizeBytes: 0 })
+    expect((await cache.get('listing:large'))?.sizeBytes).toBeGreaterThan(0)
+  })
 })

@@ -105,9 +105,9 @@ export default function BusinessProfilePage() {
         setHasEndorsed(shopRes.data.viewer_has_endorsed ?? false);
         setDiscountCodes(Array.isArray(discountRes.data) ? discountRes.data : []);
       })
-      .catch(() => setError('Could not load this business profile.'))
+      .catch(() => { if (!cached.data) setError('Could not load this business profile.') })
       .finally(() => setLoading(false));
-  }, [shopId]);
+  }, [shopId, cached.data]);
 
   async function handleEndorse() {
     if (!shopId) return;

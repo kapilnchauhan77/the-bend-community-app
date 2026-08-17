@@ -142,6 +142,7 @@ function CommentsDrawer({
   isCommunityAdmin: boolean;
   onCountChange: (delta: number) => void;
 }) {
+  const { run: runOnline } = useOnlineMutation();
   const [comments, setComments] = useState<BenderComment[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -193,7 +194,7 @@ function CommentsDrawer({
     setDraft('');
     onCountChange(1);
     try {
-      const res = await benderApi.createComment(postId, content);
+      const res = await runOnline(() => benderApi.createComment(postId, content));
       setComments((prev) =>
         prev.map((c) => (c.id === tempId ? res.data : c))
       );
@@ -205,7 +206,7 @@ function CommentsDrawer({
     } finally {
       setSending(false);
     }
-  }, [draft, sending, postId, currentUserId, onCountChange]);
+  }, [draft, sending, postId, currentUserId, onCountChange, runOnline]);
 
   const handleDelete = useCallback(
     async (commentId: string) => {
@@ -213,14 +214,14 @@ function CommentsDrawer({
       setComments((prev) => prev.filter((c) => c.id !== commentId));
       onCountChange(-1);
       try {
-        await benderApi.deleteComment(postId, commentId);
+      await runOnline(() => benderApi.deleteComment(postId, commentId));
       } catch {
         // Restore on failure.
         setComments(previous);
         onCountChange(1);
       }
     },
-    [comments, postId, onCountChange]
+    [comments, postId, onCountChange, runOnline]
   );
 
   return (
@@ -341,6 +342,7 @@ function BenderPostCard({
   onPatch: (id: string, patch: Partial<BenderPost>) => void;
 }) {
   const navigate = useNavigate();
+  const { run: runOnline } = useOnlineMutation();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
 
@@ -370,9 +372,9 @@ function BenderPostCard({
     });
     try {
       if (wasLiked) {
-        await benderApi.unlike(post.id);
+        await runOnline(() => benderApi.unlike(post.id));
       } else {
-        await benderApi.like(post.id);
+        await runOnline(() => benderApi.like(post.id));
       }
     } catch {
       // Revert.
@@ -381,7 +383,7 @@ function BenderPostCard({
         like_count: post.like_count,
       });
     }
-  }, [post, isAuthenticated, navigate, onPatch]);
+  }, [post, isAuthenticated, navigate, onPatch, runOnline]);
 
   const handleShare = useCallback(async () => {
     const url = `${window.location.origin}/bender#post-${post.id}`;
@@ -405,12 +407,12 @@ function BenderPostCard({
   const handleDeletePost = useCallback(async () => {
     if (!window.confirm('Delete this post?')) return;
     try {
-      await benderApi.deletePost(post.id);
+      await runOnline(() => benderApi.deletePost(post.id));
       onDelete(post.id);
     } catch {
       // Soft-fail — the post stays. UI doesn't block.
     }
-  }, [post.id, onDelete]);
+  }, [post.id, onDelete, runOnline]);
 
   const captionTooLong = (post.caption?.length ?? 0) > 140;
 
@@ -620,6 +622,16 @@ function BenderComposer({
       setError(null);
       setSubmitting(false);
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    void draftStore.load('create-bender-post').then((draft) => {
+      const savedCaption = typeof draft?.fields.caption === 'string' ? draft.fields.caption : '';
+      if (savedCaption) setCaption(savedCaption);
+      const uri = draft?.localMediaUris[0];
+      if (uri) setPending({ url: uri, thumbnail_url: null, type: 'image' });
+    });
   }, [open]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
@@ -864,13 +876,13 @@ export default function BenderPage() {
         setCursor(res.data.next_cursor ?? null);
         setHasMore(res.data.has_more);
       } catch {
-        setHasMore(false);
+      if (!cached.data) setHasMore(false);
       } finally {
         setLoading(false);
         setLoadingMore(false);
       }
     },
-    []
+    [cached.data]
   );
 
   // Initial load.
