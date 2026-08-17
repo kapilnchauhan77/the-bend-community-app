@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, ForeignKey, Index
+from sqlalchemy import String, Boolean, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, ENUM
 from app.database import Base
@@ -36,6 +36,7 @@ class User(Base):
     notification_preferences: Mapped[list[NotificationPreference]] = relationship("NotificationPreference", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
+        UniqueConstraint("id", "tenant_id", name="uq_users_id_tenant"),
         Index("idx_users_email", "email"),
         Index("idx_users_shop_id", "shop_id"),
         Index("idx_users_role", "role"),

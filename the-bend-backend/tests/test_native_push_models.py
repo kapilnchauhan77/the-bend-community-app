@@ -1,13 +1,21 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import inspect
+import pytest
+from sqlalchemy import delete, insert, inspect, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.database import Base
 from app.models.device_installation import DeviceInstallation
 from app.models.notification_outbox import NotificationOutbox
 from app.models.notification_preference import NotificationPreference
+from app.models.enums import NotificationType, UserRole
+from app.models.notification import Notification
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.database import async_session, engine
 
 
 def test_notification_preferences_default_to_required_categories_enabled():
@@ -57,9 +65,9 @@ def test_native_push_columns_use_uuid_fks_and_jsonb_without_enum_status():
     assert outbox.c.last_error_code.type.length <= 128
 
     for table, target in (
-        (DeviceInstallation.__table__, {"users.id", "tenants.id"}),
-        (NotificationPreference.__table__, {"users.id", "tenants.id"}),
-        (NotificationOutbox.__table__, {"notifications.id", "tenants.id"}),
+        (DeviceInstallation.__table__, {"users.id", "users.tenant_id", "tenants.id"}),
+        (NotificationPreference.__table__, {"users.id", "users.tenant_id", "tenants.id"}),
+        (NotificationOutbox.__table__, {"notifications.id", "notifications.tenant_id", "tenants.id"}),
     ):
         assert {
             f"{fk.column.table.name}.{fk.column.name}"
@@ -94,3 +102,119 @@ def test_native_push_uniques_and_indexes_are_tenant_safe():
 
 def test_native_models_are_registered_in_metadata():
     assert {"device_installations", "notification_preferences", "notification_outbox"} <= set(Base.metadata.tables)
+
+
+def test_tenant_integrity_uses_composite_parent_keys():
+    for model, target in (
+        (DeviceInstallation, {"users.id,users.tenant_id", "tenants.id"}),
+        (NotificationPreference, {"users.id,users.tenant_id", "tenants.id"}),
+        (NotificationOutbox, {"notifications.id,notifications.tenant_id", "tenants.id"}),
+    ):
+        table = model.__table__
+        actual = {
+            ",".join(f"{element.column.table.name}.{element.column.name}" for element in fk.elements)
+            for fk in table.foreign_key_constraints
+        }
+        assert actual == target
+
+    assert {"id", "tenant_id"} in [
+        {column.name for column in constraint.columns}
+        for constraint in DeviceInstallation.metadata.tables["users"].constraints
+        if constraint.__class__.__name__ == "UniqueConstraint"
+    ]
+
+
+@pytest.fixture
+async def db():
+    await engine.dispose()
+    async with engine.connect() as connection:
+        transaction = await connection.begin()
+        session = AsyncSession(bind=connection, expire_on_commit=False)
+        try:
+            yield session
+        finally:
+            await session.close()
+            await transaction.rollback()
+            await engine.dispose()
+
+
+async def _parents(session: AsyncSession):
+    tenant = Tenant(id=uuid4(), slug=f"native-{uuid4().hex[:12]}", subdomain=f"native-{uuid4().hex[:12]}", display_name="Native Test")
+    user = User(id=uuid4(), email=f"native-{uuid4().hex}@example.com", password_hash="hash", name="Native", role=UserRole.INDIVIDUAL, tenant_id=tenant.id)
+    notification = Notification(id=uuid4(), user_id=user.id, tenant_id=tenant.id, type=NotificationType.NEW_MESSAGE, title="Test", body="Body")
+    session.add_all([tenant, user, notification])
+    await session.flush()
+    return tenant, user, notification
+
+
+@pytest.mark.asyncio
+async def test_postgres_server_defaults_jsonb_and_nullable_timestamps(db):
+    tenant, user, notification = await _parents(db)
+    installation_id = uuid4()
+    preference_id = uuid4()
+    outbox_id = uuid4()
+    await db.execute(insert(DeviceInstallation).values(id=installation_id, user_id=user.id, tenant_id=tenant.id, platform="ios", provider_token=f"token-{uuid4().hex}", revocation_secret_hash="a" * 64, app_version="1", build_number="1"))
+    await db.execute(insert(NotificationPreference).values(id=preference_id, user_id=user.id, tenant_id=tenant.id))
+    await db.execute(insert(NotificationOutbox).values(id=outbox_id, notification_id=notification.id, tenant_id=tenant.id, locked_at=None, delivered_at=None))
+    installation = await db.get(DeviceInstallation, installation_id)
+    preference = await db.get(NotificationPreference, preference_id)
+    outbox = await db.get(NotificationOutbox, outbox_id)
+    assert installation.locale == "en-US" and installation.enabled is True
+    assert preference.push_enabled is True and preference.urgent_listing_published is True
+    assert outbox.status == "pending" and outbox.attempts == 0 and outbox.provider_results == {}
+    assert outbox.locked_at is None and outbox.delivered_at is None
+    outbox.provider_results = {"provider": "apns", "accepted": True}
+    await db.flush()
+    await db.refresh(outbox)
+    assert outbox.provider_results == {"provider": "apns", "accepted": True}
+
+
+@pytest.mark.asyncio
+async def test_postgres_constraints_reject_invalid_status_and_duplicates(db):
+    tenant, user, notification = await _parents(db)
+    token = f"token-{uuid4().hex}"
+    db.add(DeviceInstallation(user_id=user.id, tenant_id=tenant.id, platform="ios", provider_token=token, revocation_secret_hash="a" * 64, app_version="1", build_number="1"))
+    await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(DeviceInstallation(user_id=user.id, tenant_id=tenant.id, platform="ios", provider_token=token, revocation_secret_hash="b" * 64, app_version="1", build_number="1"))
+            await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(NotificationOutbox(notification_id=notification.id, tenant_id=tenant.id, status="not-a-status"))
+            await db.flush()
+
+
+@pytest.mark.asyncio
+async def test_postgres_constraints_reject_cross_tenant_child_rows(db):
+    tenant, user, notification = await _parents(db)
+    other = Tenant(id=uuid4(), slug=f"native-{uuid4().hex[:12]}", subdomain=f"native-{uuid4().hex[:12]}", display_name="Other")
+    await db.flush()
+    db.add(other)
+    await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(DeviceInstallation(user_id=user.id, tenant_id=other.id, platform="ios", provider_token=f"token-{uuid4().hex}", revocation_secret_hash="a" * 64, app_version="1", build_number="1"))
+            await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(NotificationOutbox(notification_id=notification.id, tenant_id=other.id))
+            await db.flush()
+
+
+@pytest.mark.asyncio
+async def test_postgres_preference_is_unique_per_user_tenant_and_cascades(db):
+    tenant, user, notification = await _parents(db)
+    db.add(NotificationPreference(user_id=user.id, tenant_id=tenant.id))
+    await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(NotificationPreference(user_id=user.id, tenant_id=tenant.id))
+            await db.flush()
+    db.add(DeviceInstallation(user_id=user.id, tenant_id=tenant.id, platform="ios", provider_token=f"token-{uuid4().hex}", revocation_secret_hash="a" * 64, app_version="1", build_number="1"))
+    db.add(NotificationOutbox(notification_id=notification.id, tenant_id=tenant.id))
+    await db.flush()
+    await db.execute(delete(Tenant).where(Tenant.id == tenant.id))
+    await db.flush()
+    assert await db.scalar(select(DeviceInstallation.id).where(DeviceInstallation.tenant_id == tenant.id)) is None
+    assert await db.scalar(select(NotificationOutbox.id).where(NotificationOutbox.tenant_id == tenant.id)) is None

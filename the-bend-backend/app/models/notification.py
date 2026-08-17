@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, Text, ForeignKey, Index
+from sqlalchemy import String, Boolean, Text, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, ENUM, JSONB
 from app.database import Base
@@ -27,6 +27,7 @@ class Notification(Base):
     user: Mapped[User] = relationship("User", back_populates="notifications")
 
     __table_args__ = (
+        UniqueConstraint("id", "tenant_id", name="uq_notifications_id_tenant"),
         Index("idx_notifications_user", "user_id", "created_at"),
         Index("idx_notifications_unread", "user_id", "is_read"),
     )

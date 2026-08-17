@@ -16,6 +16,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Composite parent keys make the tenant boundary part of every child FK.
+    # The id columns remain independently unique through their primary keys.
+    op.create_unique_constraint("uq_users_id_tenant", "users", ["id", "tenant_id"])
+    op.create_unique_constraint("uq_notifications_id_tenant", "notifications", ["id", "tenant_id"])
+
     op.create_table(
         "device_installations",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -31,7 +36,7 @@ def upgrade() -> None:
         sa.Column("last_seen_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("provider_token", name="uq_device_installations_provider_token"),
@@ -49,7 +54,7 @@ def upgrade() -> None:
         sa.Column("listing_interest_received", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("registration_decision", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("urgent_listing_published", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "tenant_id", name="uq_notification_preferences_user_tenant"),
@@ -71,7 +76,7 @@ def upgrade() -> None:
         sa.Column("last_error_code", sa.String(length=128), nullable=True),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.ForeignKeyConstraint(["notification_id"], ["notifications.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["notification_id", "tenant_id"], ["notifications.id", "notifications.tenant_id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("notification_id", name="uq_notification_outbox_notification"),
@@ -91,3 +96,5 @@ def downgrade() -> None:
     op.drop_index("idx_device_installations_tenant", table_name="device_installations")
     op.drop_index("idx_device_installations_user", table_name="device_installations")
     op.drop_table("device_installations")
+    op.drop_constraint("uq_notifications_id_tenant", "notifications", type_="unique")
+    op.drop_constraint("uq_users_id_tenant", "users", type_="unique")
