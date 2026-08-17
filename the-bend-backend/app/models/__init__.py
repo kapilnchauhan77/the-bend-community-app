@@ -31,6 +31,7 @@ from app.models.notification_preference import NotificationPreference
 from app.models.notification_outbox import NotificationOutbox
 from app.models.user_block import UserBlock
 from app.models.report_audit import ReportAudit
+from app.models.account_deletion import AccountDeletion
 
 __all__ = [
     "UserRole", "ShopStatus", "ListingType", "ListingCategory",
@@ -50,5 +51,5 @@ __all__ = [
     "DiscountCode",
     "BenderPost", "BenderLike", "BenderComment",
     "RefreshSession",
-    "DeviceInstallation", "NotificationPreference", "NotificationOutbox", "UserBlock", "ReportAudit",
+    "DeviceInstallation", "NotificationPreference", "NotificationOutbox", "UserBlock", "ReportAudit", "AccountDeletion",
 ]
