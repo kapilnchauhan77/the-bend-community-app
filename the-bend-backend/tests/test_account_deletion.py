@@ -205,6 +205,30 @@ async def test_real_asgi_deletion_status_and_auth_denials(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_real_postgres_queue_failure_is_reconciled_once(monkeypatch):
+    from app.core.security import hash_password
+    from app.services.account_deletion_service import AccountDeletionService
+    from app.workers.account_tasks import erase_account
+    marker = uuid.uuid4().hex; tenant_id, user_id = uuid.uuid4(), uuid.uuid4()
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id, slug="queue-"+marker, subdomain="queue-"+marker, display_name="Queue")); await db.flush(); user=User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash=hash_password("Correct1"),name="Queue",role=UserRole.INDIVIDUAL); db.add(user); await db.commit()
+        class Broken:
+            def delay(self, value): raise RuntimeError("broker unavailable")
+        async with async_session() as db:
+            row, _ = await AccountDeletionService(db, queue=Broken()).confirm(user, "Correct1")
+            assert row.status == "pending" and not user.is_active
+        calls=[]; monkeypatch.setattr(erase_account, "delay", lambda value: calls.append(value))
+        async def reconcile():
+            async with async_session() as db: return await AccountDeletionService(db).reconcile_pending()
+        counts = await __import__("asyncio").gather(reconcile(), reconcile())
+        assert sum(counts) == 1 and calls == [str(row.id)]
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id==user_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
