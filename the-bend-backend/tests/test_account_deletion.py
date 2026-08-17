@@ -230,6 +230,30 @@ async def test_real_postgres_queue_failure_is_reconciled_once(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_real_postgres_workers_are_idempotent_and_email_attempt_is_once(monkeypatch):
+    from datetime import datetime, timedelta
+    from app.models.account_deletion import AccountDeletion
+    from app.services.account_deletion_service import AccountDeletionService
+    marker=uuid.uuid4().hex; tenant_id,user_id,deletion_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4(); calls=[]
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id,slug="worker-"+marker,subdomain="worker-"+marker,display_name="Worker")); await db.flush()
+            db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Worker",role=UserRole.INDIVIDUAL)); await db.flush()
+            db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,send_confirmation=True,confirmation_email=marker+"@example.com")); await db.commit()
+        monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address: calls.append(address) or True)
+        async def run():
+            async with async_session() as db: return await AccountDeletionService(db).erase(str(deletion_id))
+        results=await __import__("asyncio").gather(run(),run()); assert all(results)
+        async with async_session() as db:
+            row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.attempts==1 and row.confirmation_email is None and row.email_sent_at is not None; assert calls==[marker+"@example.com"]
+            assert await AccountDeletionService(db).erase(str(deletion_id)) is True
+        assert calls==[marker+"@example.com"]
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
