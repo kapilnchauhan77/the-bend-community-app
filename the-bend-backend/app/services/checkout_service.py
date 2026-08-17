@@ -58,37 +58,43 @@ class CheckoutVerificationService:
             return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
         try:
             checkout = stripe.checkout.Session.retrieve(session_id, api_key=keys.secret)
-            if not self._matches(kind, row, checkout):
-                return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
-            provider_status = checkout.get("status")
-            if provider_status == "expired" or provider_status == "canceled":
-                if kind == "connector":
-                    row.status = "cancelled"
-                else:
-                    row.checkout_status = "cancelled"
-            elif provider_status == "complete" and checkout.get("payment_status") == "paid":
-                if kind == "connector":
-                    row.status = "paid"
-                else:
-                    row.checkout_status = "paid"
-                if kind == "sponsor":
-                    from app.api.v1.advertising import _mark_paid_and_notify
-                    from app.models.ad_pricing import AdPricing
-                    pricing = None
-                    if row.pricing_id:
-                        pricing = (await self.db.execute(select(AdPricing).where(AdPricing.id == row.pricing_id))).scalar_one_or_none()
-                    await _mark_paid_and_notify(self.db, row, pricing)
-                elif kind == "event":
-                    row.paid = True
-                    if getattr(row, "coupon_code_id", None):
-                        from app.services.discount_code_service import DiscountCodeService
-                        await DiscountCodeService(self.db).mark_used(row.coupon_code_id)
-                if checkout.get("payment_intent"):
-                    row.stripe_payment_intent = checkout.get("payment_intent")
+            await self.apply_provider_transition(kind, row, checkout)
             await self.db.flush()
         except (stripe.error.StripeError, OSError, TimeoutError):
             pass
         return {"status": self._status(kind, row), "target_type": kind, "target_id": str(row.id)}
+
+    async def apply_provider_transition(self, kind: str, row: Any, checkout: dict) -> bool:
+        if not self._matches(kind, row, checkout):
+            return False
+        provider_status = checkout.get("status")
+        if provider_status in {"expired", "canceled"}:
+            if kind == "connector": row.status = "cancelled"
+            else: row.checkout_status = "cancelled"
+            return True
+        if provider_status != "complete" or checkout.get("payment_status") != "paid":
+            return False
+        if self._status(kind, row) in {"paid", "complete", "cancelled"}:
+            return False
+        if kind == "sponsor":
+            from app.api.v1.advertising import _mark_paid_and_notify
+            from app.models.ad_pricing import AdPricing
+            pricing = None
+            if row.pricing_id:
+                pricing = (await self.db.execute(select(AdPricing).where(AdPricing.id == row.pricing_id))).scalar_one_or_none()
+            await _mark_paid_and_notify(self.db, row, pricing)
+            row.checkout_status = "paid"
+        elif kind == "event":
+            row.paid = True
+            row.checkout_status = "paid"
+            if getattr(row, "coupon_code_id", None):
+                from app.services.discount_code_service import DiscountCodeService
+                await DiscountCodeService(self.db).mark_used(row.coupon_code_id)
+        else:
+            row.status = "paid"
+        if checkout.get("payment_intent"):
+            row.stripe_payment_intent = checkout.get("payment_intent")
+        return True
 
     @staticmethod
     def _matches(kind: str, row: Any, checkout: dict) -> bool:

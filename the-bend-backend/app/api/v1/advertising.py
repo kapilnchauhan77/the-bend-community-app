@@ -251,7 +251,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         metadata = session.get("metadata", {})
         kind = metadata.get("kind")
         target_id = metadata.get("target_id")
-        if kind not in {"sponsor", "event", "connector"} or not target_id or not tenant or session.get("payment_status") != "paid":
+        if kind not in {"sponsor", "event", "connector"} or not target_id or not tenant or (session.get("status") not in {"complete", "expired", "canceled"}):
             return {"status": "ok"}
         from app.models.connector_purchase import ConnectorPurchase
         target_model = {"sponsor": Sponsor, "event": __import__("app.models.event", fromlist=["Event"]).Event, "connector": ConnectorPurchase}[kind]
@@ -259,6 +259,10 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         target = target_result.scalar_one_or_none()
         from app.services.checkout_service import CheckoutVerificationService
         if target is None or not CheckoutVerificationService._matches(kind, target, session):
+            return {"status": "ok"}
+        transition_service = CheckoutVerificationService(db, tenant)
+        transitioned = await transition_service.apply_provider_transition(kind, target, session)
+        if not transitioned:
             return {"status": "ok"}
         sponsor_id = metadata.get("sponsor_id") or (target_id if kind == "sponsor" else None)
         pricing_id = metadata.get("pricing_id")
@@ -276,8 +280,6 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                 purchase_result = await db.execute(select(ConnectorPurchase).where(ConnectorPurchase.id == target_id, ConnectorPurchase.tenant_id == tenant.id if tenant else False))
                 purchase = purchase_result.scalar_one_or_none()
                 if purchase is None:
-                    return {"status": "ok"}
-                if purchase.status in {"paid", "complete"}:
                     return {"status": "ok"}
                 purchase.status = "paid"
                 purchase.stripe_session_id = session.get("id")
