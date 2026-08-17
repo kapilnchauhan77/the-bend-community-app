@@ -143,6 +143,7 @@ class FileService:
         return {"id": file_id, "url": f"/uploads/users/{user_id}/{file_id}{ext}", "thumbnail_url": f"/uploads/users/{user_id}/{file_id}_thumb{ext}"}
 
     async def upload_images(self, files: list) -> list[dict]:
+        (UPLOAD_DIR / "images").mkdir(parents=True, exist_ok=True)
         results = []
         for file in files[:5]:  # Max 5
             content = await file.read()

@@ -76,8 +76,7 @@ async def upload_public_photo(
 ):
     """Upload a photo for talent/volunteer profiles (no auth required)."""
     service = FileService()
-    private = current_user.shop_id is None
-    result = [await service.upload_private_user_image(file, current_user.id)] if private else await service.upload_images([file])
+    result = await service.upload_images([file])
     if not result:
         raise HTTPException(status_code=400, detail="Upload failed")
     return {"photo_url": result[0]["url"]}
@@ -154,7 +153,8 @@ async def upload_avatar(
 ):
     """Upload a profile avatar for the current user."""
     service = FileService()
-    result = await service.upload_images([file])
+    private = current_user.shop_id is None
+    result = [await service.upload_private_user_image(file, current_user.id)] if private else await service.upload_images([file])
     if not result:
         raise HTTPException(status_code=400, detail="Upload failed")
 
