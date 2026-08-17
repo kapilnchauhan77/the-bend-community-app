@@ -93,6 +93,7 @@ export function CameraCapture({
   }, [capturedPreviewUrl]);
 
   const handleClose = useCallback(() => {
+    services.media.stopVideoCapture?.();
     // Bail out of any in-flight recording before tearing the stream down.
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       try {
@@ -108,7 +109,7 @@ export function CameraCapture({
     stopStream();
     resetCapture();
     onClose();
-  }, [onClose, resetCapture, stopStream]);
+  }, [onClose, resetCapture, services.media, stopStream]);
 
   // Acquire the camera when the modal opens; release it on close / unmount.
   useEffect(() => {
@@ -158,10 +159,11 @@ export function CameraCapture({
 
     startStream();
     return () => {
+      services.media.stopVideoCapture?.();
       cancelled = true;
       stopStream();
     };
-  }, [open, mode, stopStream]);
+  }, [mode, open, services.media, stopStream]);
 
   // Cleanup any lingering object URL when unmounting.
   useEffect(() => {
@@ -169,7 +171,7 @@ export function CameraCapture({
       if (capturedPreviewUrl) URL.revokeObjectURL(capturedPreviewUrl);
       if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
     };
-  }, [capturedPreviewUrl]);
+  }, [capturedPreviewUrl, services.media]);
 
   // Photo capture: paint current frame to canvas, JPEG-encode it.
   const takePhoto = useCallback(() => {

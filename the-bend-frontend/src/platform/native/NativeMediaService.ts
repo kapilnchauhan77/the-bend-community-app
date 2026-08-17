@@ -28,6 +28,7 @@ export class NativeMediaService implements MediaService {
   private recorder: MediaRecorder | null = null
   private chunks: Blob[] = []
   private resolveVideo: ((value: MediaSelection | null) => void) | null = null
+  private timer: number | null = null
   async pickPhoto() {
     try {
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
@@ -65,9 +66,11 @@ export class NativeMediaService implements MediaService {
         stream.getTracks().forEach((track) => track.stop())
         this.recorder = null; this.chunks = []
         this.resolveVideo = null
+        if (this.timer) { window.clearTimeout(this.timer); this.timer = null }
         resolve(blob.size ? { blob, localUri: URL.createObjectURL(blob), mimeType: blob.type, filename: `capture.${blob.type.includes('webm') ? 'webm' : 'mp4'}` } : null)
       }
       recorder.start()
+      this.timer = window.setTimeout(() => this.stopVideoCapture(), 9000)
     })
   }
 

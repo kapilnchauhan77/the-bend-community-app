@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Header
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Header, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
@@ -119,12 +119,14 @@ async def get_current_guidelines(db: AsyncSession = Depends(get_db)):
 @router.post("/photo")
 async def upload_public_photo(
     file: UploadFile = File(...),
+    request: Request = None,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
-    tenant: str | None = Header(None, alias="X-Tenant-Slug"),
     anonymous_client_id: str | None = Header(None, alias="X-Anonymous-Client-ID"),
 ):
     """Upload a photo for talent/volunteer profiles (no auth required)."""
-    claim = await _claim("/upload/photo", idempotency_key, None, tenant, anonymous_client_id)
+    trusted_tenant = getattr(getattr(request, "state", None), "tenant", None)
+    tenant_id = getattr(trusted_tenant, "id", None) or "public"
+    claim = await _claim("/upload/photo", idempotency_key, None, str(tenant_id), anonymous_client_id)
     if isinstance(claim, JSONResponse): return claim
     try:
         service = FileService(); result = await service.upload_images([file])
