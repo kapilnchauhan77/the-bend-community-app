@@ -70,7 +70,7 @@ class CheckoutVerificationService:
 
     async def apply_provider_transition(self, kind: str, row: Any, checkout: dict) -> str | None:
         if not self._matches(kind, row, checkout):
-            return False
+            return None
         provider_status = checkout.get("status")
         if provider_status in {"expired", "canceled"}:
             if kind == "connector": row.status = "cancelled"
