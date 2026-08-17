@@ -9,15 +9,16 @@ import { WebRoutes } from '@/routes/WebRoutes';
 import { useAuthStore } from '@/stores/authStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
+function PushLifecycle() { usePushNotifications(); return null }
+
 function ScrollToTop() { const { pathname, hash } = useLocation(); useEffect(() => { if (!hash) window.scrollTo(0, 0); }, [pathname, hash]); return null; }
 function App() {
   const runtime = getRuntimeConfig();
   const initialize = useAuthStore((state) => state.initialize);
-  usePushNotifications();
   useEffect(() => { void initialize(); }, [initialize]);
-  if (runtime.isNative) return <TenantProvider><BrowserRouter><ScrollToTop /><NativeRoutes /></BrowserRouter></TenantProvider>;
-  if (isRootDomain()) return <LandingPage />;
-  return <TenantProvider><BrowserRouter><ScrollToTop /><WebRoutes /></BrowserRouter></TenantProvider>;
+  if (runtime.isNative) return <TenantProvider><BrowserRouter><PushLifecycle /><ScrollToTop /><NativeRoutes /></BrowserRouter></TenantProvider>;
+  if (isRootDomain()) return <BrowserRouter><PushLifecycle /><LandingPage /></BrowserRouter>;
+  return <TenantProvider><BrowserRouter><PushLifecycle /><ScrollToTop /><WebRoutes /></BrowserRouter></TenantProvider>;
 }
 
 export default App;
