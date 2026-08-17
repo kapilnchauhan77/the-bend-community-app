@@ -34,7 +34,11 @@ class PushSubscriptionRequest(BaseModel):
 
 class NotificationPreferencesRequest(BaseModel):
     push_enabled: bool = True
-    email_enabled: bool = True
-    email_frequency: str = "daily"
-    categories: list[str] = ["staff", "materials", "equipment"]
-    min_urgency: str = "normal"
+    message_received: bool = True
+    listing_interest_received: bool = True
+    registration_decision: bool = True
+    urgent_listing_published: bool = True
+
+
+class NotificationPreferencesResponse(NotificationPreferencesRequest):
+    pass

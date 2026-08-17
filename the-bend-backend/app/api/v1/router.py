@@ -21,6 +21,7 @@ from app.api.v1.tenant import router as tenant_router
 from app.api.v1.referrals import router as referrals_router
 from app.api.v1.discount_codes import router as discount_codes_router
 from app.api.v1.bender import router as bender_router
+from app.api.v1.devices import router as devices_router
 
 api_router = APIRouter()
 
@@ -44,6 +45,7 @@ api_router.include_router(tenant_router)
 api_router.include_router(referrals_router)
 api_router.include_router(discount_codes_router)
 api_router.include_router(bender_router)
+api_router.include_router(devices_router)
 
 
 @api_router.get("/health")

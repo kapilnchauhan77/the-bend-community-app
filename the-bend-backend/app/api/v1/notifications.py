@@ -6,7 +6,7 @@ from app.api.deps import get_db
 from app.core.permissions import get_current_user
 from app.models.user import User
 from app.services.notification_service import NotificationService
-from app.schemas.notification import PushSubscriptionRequest, NotificationPreferencesRequest
+from app.schemas.notification import PushSubscriptionRequest, NotificationPreferencesRequest, NotificationPreferencesResponse
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -94,5 +94,14 @@ async def update_preferences(
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
 ):
-    await service.update_preferences(current_user.id, data.model_dump())
-    return {"status": "updated"}
+    preference = await service.update_preferences(current_user.id, current_user.tenant_id, data.model_dump())
+    return NotificationPreferencesResponse.model_validate(preference)
+
+
+@router.get("/preferences", response_model=NotificationPreferencesResponse)
+async def get_preferences(
+    service: NotificationService = Depends(get_notification_service),
+    current_user: User = Depends(get_current_user),
+):
+    preference = await service.get_preferences(current_user.id, current_user.tenant_id)
+    return NotificationPreferencesResponse.model_validate(preference)

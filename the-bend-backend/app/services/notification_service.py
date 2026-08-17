@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.repositories.notification_repo import NotificationRepository
 from app.models.enums import NotificationType
 from app.models.push_subscription import PushSubscription
+from app.models.notification_preference import NotificationPreference
 from app.core.exceptions import NotFoundError
 
 
@@ -66,7 +67,30 @@ class NotificationService:
             self.db.add(sub)
         await self.db.flush()
 
-    async def update_preferences(self, user_id: UUID, preferences: dict):
-        # Store in user record as JSONB (simplified - would need migration for column)
-        # For now, just return success
-        pass
+    async def get_preferences(self, user_id: UUID, tenant_id: UUID | None):
+        result = await self.db.execute(
+            select(NotificationPreference).where(
+                NotificationPreference.user_id == user_id,
+                NotificationPreference.tenant_id == tenant_id,
+            )
+        )
+        preference = result.scalar_one_or_none()
+        if preference is None:
+            preference = NotificationPreference(user_id=user_id, tenant_id=tenant_id)
+            self.db.add(preference)
+            await self.db.flush()
+        return preference
+
+    async def update_preferences(self, user_id: UUID, tenant_id: UUID | None, preferences: dict):
+        preference = await self.get_preferences(user_id, tenant_id)
+        for field in (
+            "push_enabled",
+            "message_received",
+            "listing_interest_received",
+            "registration_decision",
+            "urgent_listing_published",
+        ):
+            if field in preferences:
+                setattr(preference, field, preferences[field])
+        await self.db.flush()
+        return preference
