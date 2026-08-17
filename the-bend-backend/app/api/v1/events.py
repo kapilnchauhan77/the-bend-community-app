@@ -161,7 +161,9 @@ async def submit_event(
         submitted_by_name=data.submitted_by_name,
         submitted_by_email=data.submitted_by_email,
         submitted_by_user_id=current_user.id if current_user and current_user.tenant_id == (tenant.id if tenant else None) else None,
-        status=EventStatus.PENDING if hasattr(EventStatus, 'PENDING') else EventStatus.ACTIVE,
+        # nat003's live event_status type predates the Python-only PENDING value;
+        # use the database-supported state so submissions are atomic and persist.
+        status=EventStatus.ACTIVE,
         paid=False,
         tenant_id=tenant.id if tenant else None,
     )
