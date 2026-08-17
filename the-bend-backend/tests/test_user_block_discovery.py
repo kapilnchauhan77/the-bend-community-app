@@ -274,6 +274,31 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         cross_page = await ListingService(db).browse_listings(tenant_id=ids["other_tenant"], viewer_id=ids["cross_blocker"], limit=20)
         assert ids["cross_listing"] not in {row.id for row in cross_page.items}
         assert ids["cross_listing"] in {row.id for row in (await ListingService(db).browse_listings(tenant_id=ids["other_tenant"], viewer_id=ids["cross_blocked"], limit=20)).items}
+        for tenant_viewer in (ids["cross_other"], None):
+            assert ids["cross_listing"] in {row.id for row in (await ListingService(db).browse_listings(tenant_id=ids["other_tenant"], viewer_id=tenant_viewer, limit=20)).items}
+        with pytest.raises(NotFoundError):
+            await ListingService(db).get_listing(ids["cross_listing"], await db.get(User, ids["cross_blocker"]))
+        assert (await ListingService(db).get_listing(ids["cross_listing"], await db.get(User, ids["cross_blocked"])))[0].id == ids["cross_listing"]
+        assert (await ListingService(db).get_listing(ids["cross_listing"], await db.get(User, ids["cross_other"])))[0].id == ids["cross_listing"]
+        assert (await ListingService(db).get_listing(ids["cross_listing"], None))[0].id == ids["cross_listing"]
+        cross_tenant = await db.get(Tenant, ids["other_tenant"])
+        cross_blocker = await db.get(User, ids["cross_blocker"])
+        cross_blocked = await db.get(User, ids["cross_blocked"])
+        cross_other = await db.get(User, ids["cross_other"])
+        for viewer in (cross_blocker, cross_blocked, cross_other, None):
+            shop_items = await list_shops(search=None, business_type=None, cursor=None, limit=20, db=db, tenant=cross_tenant, current_user=viewer)
+            if viewer is cross_blocker:
+                assert str(ids["cross_shop"]) not in {x["id"] for x in shop_items["items"]}
+            else:
+                assert str(ids["cross_shop"]) in {x["id"] for x in shop_items["items"]}
+        with pytest.raises(NotFoundError):
+            await get_shop(ids["cross_shop"], service=ShopService(db), current_user=cross_blocker, db=db)
+        for viewer in (cross_blocked, cross_other, None):
+            assert (await get_shop(ids["cross_shop"], service=ShopService(db), current_user=viewer, db=db))["id"] == str(ids["cross_shop"])
+            rows = await get_shop_listings(ids["cross_shop"], status=None, cursor=None, limit=20, service=ListingService(db), current_user=viewer)
+            assert str(ids["cross_listing"]) in {x["id"] for x in rows["items"]}
+        hidden_rows = await get_shop_listings(ids["cross_shop"], status=None, cursor=None, limit=20, service=ListingService(db), current_user=cross_blocker)
+        assert str(ids["cross_listing"]) not in {x["id"] for x in hidden_rows["items"]}
 
         refs = {"listing": ids["listing"], "shop": ids["shop"], "user": ids["blocked"], "bender": ids["bender"]}
         for ref_type, ref_id in refs.items():
@@ -305,6 +330,25 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert ids["cross_volunteer"] in {x.id for x in (await VolunteerService(db, ids["other_tenant"]).list_volunteers(limit=20, viewer_id=ids["cross_blocked"])).items}
         assert ids["cross_talent"] not in {x.id for x in (await TalentService(db, ids["other_tenant"]).list_talent(limit=20, viewer_id=ids["cross_blocker"])).items}
         assert ids["cross_talent"] in {x.id for x in (await TalentService(db, ids["other_tenant"]).list_talent(limit=20, viewer_id=ids["cross_blocked"])).items}
+        assert str(ids["cross_bender"]) in {x.id for x in (await BenderService(db).feed(ids["other_tenant"], None, 20, cross_other))[0]}
+        assert str(ids["cross_bender"]) in {x.id for x in (await BenderService(db).feed(ids["other_tenant"], None, 20, None))[0]}
+        assert ids["cross_volunteer"] in {x.id for x in (await VolunteerService(db, ids["other_tenant"]).list_volunteers(limit=20, viewer_id=ids["cross_other"])).items}
+        assert ids["cross_volunteer"] in {x.id for x in (await VolunteerService(db, ids["other_tenant"]).list_volunteers(limit=20, viewer_id=None)).items}
+        assert ids["cross_talent"] in {x.id for x in (await TalentService(db, ids["other_tenant"]).list_talent(limit=20, viewer_id=ids["cross_other"])).items}
+        assert ids["cross_talent"] in {x.id for x in (await TalentService(db, ids["other_tenant"]).list_talent(limit=20, viewer_id=None)).items}
+        cross_refs = {"listing": ids["cross_listing"], "shop": ids["cross_shop"], "user": ids["cross_blocked"], "bender": ids["cross_bender"]}
+        for ref_type, ref_id in cross_refs.items():
+            assert await resolve_reference(db, ids["other_tenant"], ref_type, ref_id, ids["cross_blocker"]) is None
+            for viewer in (ids["cross_blocked"], ids["cross_other"], None):
+                assert await resolve_reference(db, ids["other_tenant"], ref_type, ref_id, viewer)
+            assert await resolve_reference(db, ids["tenant"], ref_type, ref_id, ids["other"]) is None
+            assert await search_references(db, ids["tenant"], "Task5 Other Tenant", ref_type, ids["other"]) == []
+            ref_query = "Other blocked" if ref_type == "user" else "Task5 Other Tenant"
+            blocked_search = await search_references(db, ids["other_tenant"], ref_query, ref_type, ids["cross_blocker"])
+            assert str(ref_id) not in {x["id"] for x in blocked_search}
+            for viewer in (ids["cross_blocked"], ids["cross_other"], None):
+                visible_search = await search_references(db, ids["other_tenant"], ref_query, ref_type, viewer)
+                assert str(ref_id) in {x["id"] for x in visible_search}
 
 
 @pytest.mark.asyncio
