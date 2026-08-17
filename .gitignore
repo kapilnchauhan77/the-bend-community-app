@@ -20,6 +20,12 @@ dist/
 .env.local
 .env.*.local
 
+# Native provider credentials and generated app configuration
+the-bend-frontend/android/app/google-services.json
+the-bend-frontend/ios/App/App/GoogleService-Info.plist
+*.p8
+*firebase-service-account*.json
+
 # IDE
 .idea/
 .vscode/
