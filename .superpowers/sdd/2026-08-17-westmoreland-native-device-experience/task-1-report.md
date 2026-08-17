@@ -27,7 +27,7 @@ The new focused suite was run before implementation and failed during module res
 
 ## Commit
 
-`866a91f3975a2b7de34c7479988f1f2144475981` — `feat(native): register and route native notifications`
+`f9d4c6d885206c3dfb72756042440820ed310088` — `feat(native): register and route native notifications` (includes the follow-up permission-shortcut and foreground-suppression implementation).
 
 ## Self-review
 
