@@ -217,7 +217,8 @@ async def test_real_postgres_queue_failure_is_reconciled_once(monkeypatch):
             def delay(self, value): raise RuntimeError("broker unavailable")
         async with async_session() as db:
             row, _ = await AccountDeletionService(db, queue=Broken()).confirm(user, "Correct1")
-            assert row.status == "pending" and not user.is_active
+            locked_user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
+            assert row.status == "pending" and not locked_user.is_active
         calls=[]; monkeypatch.setattr(erase_account, "delay", lambda value: calls.append(value))
         async def reconcile():
             async with async_session() as db: return await AccountDeletionService(db).reconcile_pending()
