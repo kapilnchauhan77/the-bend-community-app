@@ -60,7 +60,8 @@ class CheckoutVerificationService:
             return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
         try:
             checkout = stripe.checkout.Session.retrieve(session_id, api_key=keys.secret)
-            if not isinstance(checkout, dict):
+            checkout = self._as_dict(checkout)
+            if not checkout:
                 logger.warning("checkout_provider_mismatch kind=%s reason=malformed_response", kind)
                 return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
             if not self._matches(kind, row, checkout):

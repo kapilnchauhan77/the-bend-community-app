@@ -122,6 +122,21 @@ async def test_provider_metadata_amount_currency_mismatch_stays_pending_and_uses
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "provider_status,payment_status,expected",
+    [("complete", "paid", "paid"), ("expired", "unpaid", "cancelled"), ("complete", "unpaid", "pending")],
+)
+async def test_status_normalizes_real_stripe_objects(monkeypatch, db_context, provider_status, payment_status, expected):
+    sessions, tenant, ids = db_context
+    payload = {"id": "cs_sponsor_1", "status": provider_status, "payment_status": payment_status, "amount_total": 1200, "currency": "usd", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *args, **kwargs: stripe.StripeObject.construct_from(payload, "sk_test_task8"))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+    assert response.json()["status"] == expected
+
+
+@pytest.mark.asyncio
 async def test_verified_paid_connector_is_idempotent_and_setup_gates_completion(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     calls = []
@@ -313,6 +328,28 @@ async def test_real_stripe_signature_valid_missing_invalid_and_wrong_secret(db_c
         invalid = await client.post("/api/v1/advertising/webhook", content=raw, headers={"stripe-signature": "t=1,v1=bad", "x-tenant-slug": tenant.slug})
         wrong_secret = await client.post("/api/v1/advertising/webhook", content=raw, headers={"stripe-signature": wrong_header, "x-tenant-slug": tenant.slug})
     assert valid.status_code == 200 and missing.status_code == 400 and invalid.status_code == 400 and wrong_secret.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_webhook_malformed_tenant_and_signed_event_are_safe(monkeypatch, db_context, caplog):
+    sessions, tenant, ids = db_context
+    import json
+    malformed_tenant = {"type": "checkout.session.completed", "data": {"object": {"metadata": {"tenant_id": "not-a-uuid"}}}}
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/advertising/webhook", content=json.dumps(malformed_tenant), headers={"stripe-signature": "ignored"})
+    assert response.status_code == 400
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda payload, sig, secret: {"type": "checkout.session.completed", "data": {}})
+    valid_envelope = {"type": "checkout.session.completed", "data": {"object": {"metadata": {"tenant_id": str(tenant.id)}}}}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/advertising/webhook", content=json.dumps(valid_envelope), headers={"stripe-signature": "valid"})
+    assert response.status_code == 400
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda payload, sig, secret: {"type": "checkout.session.completed", "data": {"object": {"id": "cs_bad", "status": "complete", "metadata": {"kind": "sponsor", "target_id": "not-a-uuid", "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}}})
+    malformed_target = {"type": "checkout.session.completed", "data": {"object": {"metadata": {"tenant_id": str(tenant.id), "target_id": "not-a-uuid"}}}}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/advertising/webhook", content=json.dumps(malformed_target), headers={"stripe-signature": "valid"})
+    assert response.status_code == 200 and response.json() == {"status": "ok"}
+    assert all(str(tenant.id) not in record.message and str(ids[0]) not in record.message for record in caplog.records)
 
 
 @pytest.mark.asyncio

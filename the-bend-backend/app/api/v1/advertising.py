@@ -1,3 +1,4 @@
+import logging
 import stripe
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta
@@ -18,6 +19,7 @@ from app.services.discount_code_service import DiscountCodeService
 
 router = APIRouter(prefix="/advertising", tags=["Advertising"])
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class AdOrderRequest(BaseModel):
@@ -226,14 +228,29 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     import json
     try:
         envelope = json.loads(payload)
-        metadata_hint = envelope.get("data", {}).get("object", {}).get("metadata", {})
-        tenant = None
-        if metadata_hint.get("tenant_id"):
-            tenant_result = await db.execute(select(Tenant).where(Tenant.id == metadata_hint["tenant_id"], Tenant.is_active == True))
-            tenant = tenant_result.scalar_one_or_none()
+    except (ValueError, TypeError):
+        logger.warning("advertising_webhook_rejected reason=malformed_payload")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    if not isinstance(envelope, dict):
+        logger.warning("advertising_webhook_rejected reason=malformed_payload")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    envelope_data = envelope.get("data")
+    envelope_object = envelope_data.get("object") if isinstance(envelope_data, dict) else None
+    metadata_hint = envelope_object.get("metadata") if isinstance(envelope_object, dict) else None
+    if not isinstance(metadata_hint, dict):
+        logger.warning("advertising_webhook_rejected reason=malformed_event")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    tenant_id_hint = metadata_hint.get("tenant_id")
+    try:
+        tenant_id = UUID(str(tenant_id_hint))
     except (ValueError, TypeError, AttributeError):
-        envelope = None
-        tenant = None
+        logger.warning("advertising_webhook_rejected reason=invalid_tenant")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id, Tenant.is_active == True))
+    tenant = tenant_result.scalar_one_or_none()
+    if tenant is None:
+        logger.warning("advertising_webhook_rejected reason=unknown_tenant")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
     webhook_secret = get_stripe_keys(tenant).webhook
 
     try:
@@ -246,16 +263,31 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     except (ValueError, stripe.error.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid webhook")
 
-    if event["type"] in {"checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_failed"}:
-        session = event["data"]["object"]
+    event_data = getattr(event, "_data", event)
+    if not isinstance(event_data, dict):
+        logger.warning("advertising_webhook_rejected reason=malformed_event")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    event_type = event_data.get("type")
+    if event_type in {"checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_failed"}:
+        event_data_payload = getattr(event_data.get("data"), "_data", event_data.get("data"))
+        session = event_data_payload.get("object") if isinstance(event_data_payload, dict) else None
+        session = getattr(session, "_data", session)
         if not isinstance(session, dict):
-            session = getattr(session, "_data", session)
-        metadata = session.get("metadata", {})
+            logger.warning("advertising_webhook_rejected reason=malformed_event")
+            raise HTTPException(status_code=400, detail="Invalid webhook")
+        metadata = getattr(session.get("metadata"), "_data", session.get("metadata", {}))
         if not isinstance(metadata, dict):
-            metadata = getattr(metadata, "_data", metadata)
+            logger.warning("advertising_webhook_rejected reason=malformed_event")
+            raise HTTPException(status_code=400, detail="Invalid webhook")
         kind = metadata.get("kind")
         target_id = metadata.get("target_id")
         if kind not in {"sponsor", "event", "connector"} or not target_id or not tenant or (session.get("status") not in {"complete", "expired", "canceled"}):
+            logger.warning("advertising_webhook_rejected reason=invalid_checkout_metadata")
+            return {"status": "ok"}
+        try:
+            target_id = UUID(str(target_id))
+        except (ValueError, TypeError, AttributeError):
+            logger.warning("advertising_webhook_rejected kind=%s reason=invalid_target", kind)
             return {"status": "ok"}
         from app.models.connector_purchase import ConnectorPurchase
         target_model = {"sponsor": Sponsor, "event": __import__("app.models.event", fromlist=["Event"]).Event, "connector": ConnectorPurchase}[kind]
@@ -263,6 +295,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         target = target_result.scalar_one_or_none()
         from app.services.checkout_service import CheckoutVerificationService
         if target is None or not CheckoutVerificationService._matches(kind, target, session):
+            logger.warning("advertising_webhook_rejected kind=%s reason=provider_mismatch", kind)
             return {"status": "ok"}
         transition_service = CheckoutVerificationService(db, tenant)
         transition_outcome = await transition_service.apply_provider_transition(kind, target, session)
