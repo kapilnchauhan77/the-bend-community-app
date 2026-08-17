@@ -190,3 +190,54 @@ async def test_webhook_requires_signature_and_rejects_unbound_metadata(monkeypat
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         missing = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(payload))
     assert missing.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,index", [("sponsor", 0), ("event", 1), ("connector", 2)])
+async def test_signed_webhook_transitions_each_kind_once(monkeypatch, db_context, kind, index):
+    sessions, tenant, ids = db_context
+    expected = [1200, 1999, 39900][index]
+    target = ids[index]
+    event = {"type": "checkout.session.completed", "data": {"object": {"id": f"cs_{kind}_1", "status": "complete", "payment_status": "paid", "amount_total": expected, "currency": "usd", "payment_intent": f"pi_{kind}", "metadata": {"kind": kind, "target_id": str(target), "tenant_id": str(tenant.id), "expected_amount": str(expected), "expected_currency": "usd"}}}}
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda payload, sig, secret: event)
+    app = make_app(sessions, tenant)
+    headers = {"stripe-signature": "valid", "x-tenant-slug": tenant.slug}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        first = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(event), headers=headers)
+        second = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(event), headers=headers)
+    assert first.json() == {"status": "ok"}
+    assert second.json() == {"status": "ok"}
+    async with sessions() as db:
+        model = [Sponsor, Event, ConnectorPurchase][index]
+        row = await db.get(model, target)
+        assert (row.paid if kind != "connector" else row.status) in (True, "paid")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field,value", [("kind", "event"), ("target_id", str(uuid.uuid4())), ("tenant_id", str(uuid.uuid4())), ("expected_amount", "1"), ("expected_currency", "eur")])
+async def test_signed_webhook_mismatch_does_not_transition(monkeypatch, db_context, field, value):
+    sessions, tenant, ids = db_context
+    metadata = {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}
+    metadata[field] = value
+    event = {"type": "checkout.session.completed", "data": {"object": {"id": "cs_sponsor_1", "status": "complete", "payment_status": "paid", "amount_total": 1200, "currency": "usd", "metadata": metadata}}}
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda payload, sig, secret: event)
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(event), headers={"stripe-signature": "valid", "x-tenant-slug": tenant.slug})
+    assert response.status_code in (200, 400)
+    assert response.json() in ({"status": "ok"}, {"detail": "Invalid webhook"})
+    async with sessions() as db:
+        assert not (await db.get(Sponsor, ids[0])).paid
+
+
+@pytest.mark.asyncio
+async def test_signed_expired_webhook_cancels_local_checkout(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    event = {"type": "checkout.session.expired", "data": {"object": {"id": "cs_sponsor_1", "status": "expired", "payment_status": "unpaid", "amount_total": 1200, "currency": "usd", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}}}
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda payload, sig, secret: event)
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(event), headers={"stripe-signature": "valid", "x-tenant-slug": tenant.slug})
+    assert response.json() == {"status": "ok"}
+    async with sessions() as db:
+        assert (await db.get(Sponsor, ids[0])).checkout_status == "cancelled"

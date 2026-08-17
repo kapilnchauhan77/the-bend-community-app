@@ -246,7 +246,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     except (ValueError, stripe.error.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid webhook")
 
-    if event["type"] == "checkout.session.completed":
+    if event["type"] in {"checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_failed"}:
         session = event["data"]["object"]
         metadata = session.get("metadata", {})
         kind = metadata.get("kind")
