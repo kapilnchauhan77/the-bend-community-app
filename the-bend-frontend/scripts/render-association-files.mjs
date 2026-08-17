@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises'
-import { resolve, relative, sep } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = resolve(new URL('..', import.meta.url).pathname)
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+export const associationOutputDirectory = resolve(root, 'public/.well-known')
 
 export function validateInputs(teamId, fingerprint) {
   if (!/^[A-Z0-9]{10}$/.test(teamId)) throw new Error('APPLE_TEAM_ID must be exactly 10 uppercase alphanumeric characters')
@@ -17,9 +18,9 @@ export function createAssociationDocuments(teamId, fingerprint) {
   return { aasa, assetlinks }
 }
 
-export async function renderAssociationFiles({ teamId, fingerprint, outputDir = resolve(root, 'public/.well-known') }) {
+export async function renderAssociationFiles({ teamId, fingerprint, outputDir = associationOutputDirectory }) {
   validateInputs(teamId, fingerprint)
-  if (!relative(root, outputDir).split(sep).includes('.well-known')) throw new Error('association output escaped public/.well-known')
+  if (resolve(outputDir) !== associationOutputDirectory) throw new Error('association output escaped public/.well-known')
   const { aasa, assetlinks } = createAssociationDocuments(teamId, fingerprint)
   await mkdir(outputDir, { recursive: true })
   await writeFile(resolve(outputDir, 'apple-app-site-association'), `${JSON.stringify(aasa, null, 2)}\n`, 'utf8')
