@@ -38,7 +38,7 @@ from app.core.exceptions import NotFoundError
 @pytest_asyncio.fixture
 async def discovery_rows():
     await engine.dispose()
-    ids = {k: uuid4() for k in ("tenant", "other_tenant", "blocker", "blocked", "other", "cross_blocker", "cross_blocked", "shop", "other_shop", "cross_shop", "listing", "late_listing", "explicit_blocked", "other_listing", "cross_listing", "event", "late_event", "legacy", "bender", "late_bender", "volunteer", "late_volunteer", "talent", "late_talent")}
+    ids = {k: uuid4() for k in ("tenant", "other_tenant", "blocker", "blocked", "other", "cross_blocker", "cross_blocked", "cross_other", "shop", "other_shop", "cross_shop", "listing", "late_listing", "explicit_blocked", "other_listing", "cross_listing", "event", "late_event", "legacy", "cross_event", "cross_legacy", "bender", "late_bender", "cross_bender", "volunteer", "late_volunteer", "cross_volunteer", "talent", "late_talent", "cross_talent")}
     ordered = datetime.utcnow()
     async with async_session() as db:
         db.add_all([
@@ -52,6 +52,7 @@ async def discovery_rows():
             User(id=ids["other"], tenant_id=ids["tenant"], email=f"task5-{ids['other']}@example.test", password_hash="x", name="Other viewer", role=UserRole.INDIVIDUAL),
             User(id=ids["cross_blocker"], tenant_id=ids["other_tenant"], email=f"task5-{ids['cross_blocker']}@example.test", password_hash="x", name="Other blocker", role=UserRole.INDIVIDUAL),
             User(id=ids["cross_blocked"], tenant_id=ids["other_tenant"], email=f"task5-{ids['cross_blocked']}@example.test", password_hash="x", name="Other blocked", role=UserRole.INDIVIDUAL),
+            User(id=ids["cross_other"], tenant_id=ids["other_tenant"], email=f"task5-{ids['cross_other']}@example.test", password_hash="x", name="Other unrelated", role=UserRole.INDIVIDUAL),
         ])
         await db.flush()
         db.add_all([
@@ -63,6 +64,11 @@ async def discovery_rows():
             Listing(id=ids["explicit_blocked"], tenant_id=ids["tenant"], shop_id=ids["other_shop"], posted_by_user_id=ids["blocked"], type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Explicit Blocked Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=ordered - timedelta(days=2)),
             Listing(id=ids["other_listing"], tenant_id=ids["tenant"], shop_id=ids["other_shop"], posted_by_user_id=ids["other"], type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Other Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=ordered - timedelta(days=3)),
             Listing(id=ids["cross_listing"], tenant_id=ids["other_tenant"], shop_id=ids["cross_shop"], posted_by_user_id=None, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Other Tenant Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL),
+            Event(id=ids["cross_event"], tenant_id=ids["other_tenant"], submitted_by_user_id=ids["cross_blocked"], title="Task5 Other Tenant Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=2), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="manual"),
+            Event(id=ids["cross_legacy"], tenant_id=ids["other_tenant"], submitted_by_user_id=None, title="Task5 Other Tenant Legacy", description="Task5", start_date=datetime.utcnow() + timedelta(days=3), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="import"),
+            BenderPost(id=ids["cross_bender"], tenant_id=ids["other_tenant"], author_user_id=ids["cross_blocked"], caption="Task5 Other Tenant Bender", like_count=0, comment_count=0),
+            Volunteer(id=ids["cross_volunteer"], tenant_id=ids["other_tenant"], user_id=ids["cross_blocked"], name="Task5 Other Tenant Volunteer", skills="Task5", available_time="now"),
+            Talent(id=ids["cross_talent"], tenant_id=ids["other_tenant"], user_id=ids["cross_blocked"], name="Task5 Other Tenant Talent", category="Task5", skills="Task5", available_time="now", rate=1),
             Event(id=ids["event"], tenant_id=ids["tenant"], submitted_by_user_id=ids["blocked"], title="Task5 Blocked Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=2), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="manual"),
             Event(id=ids["late_event"], tenant_id=ids["tenant"], submitted_by_user_id=ids["other"], title="Task5 Eligible Late Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=4), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="manual"),
             Event(id=ids["legacy"], tenant_id=ids["tenant"], submitted_by_user_id=None, title="Task5 Legacy Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=3), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="import"),
@@ -81,25 +87,25 @@ async def discovery_rows():
         yield ids
     finally:
         async with async_session() as db:
-            await db.execute(delete(BenderPost).where(BenderPost.id.in_([ids["bender"], ids["late_bender"]])))
-            await db.execute(delete(Volunteer).where(Volunteer.id.in_([ids["volunteer"], ids["late_volunteer"]])))
-            await db.execute(delete(Talent).where(Talent.id.in_([ids["talent"], ids["late_talent"]])))
-            await db.execute(delete(Event).where(Event.id.in_([ids["event"], ids["late_event"], ids["legacy"]])))
+            await db.execute(delete(BenderPost).where(BenderPost.id.in_([ids["bender"], ids["late_bender"], ids["cross_bender"]])))
+            await db.execute(delete(Volunteer).where(Volunteer.id.in_([ids["volunteer"], ids["late_volunteer"], ids["cross_volunteer"]])))
+            await db.execute(delete(Talent).where(Talent.id.in_([ids["talent"], ids["late_talent"], ids["cross_talent"]])))
+            await db.execute(delete(Event).where(Event.id.in_([ids["event"], ids["late_event"], ids["legacy"], ids["cross_event"], ids["cross_legacy"]])))
             await db.execute(delete(Listing).where(Listing.id.in_([ids["listing"], ids["late_listing"], ids["explicit_blocked"], ids["other_listing"], ids["cross_listing"]])))
             await db.execute(delete(Shop).where(Shop.id.in_([ids["shop"], ids["other_shop"], ids["cross_shop"]])))
             await db.execute(delete(UserBlock).where(UserBlock.tenant_id.in_([ids["tenant"], ids["other_tenant"]])))
-            await db.execute(delete(User).where(User.id.in_([ids["blocker"], ids["blocked"], ids["other"], ids["cross_blocker"], ids["cross_blocked"]])))
+            await db.execute(delete(User).where(User.id.in_([ids["blocker"], ids["blocked"], ids["other"], ids["cross_blocker"], ids["cross_blocked"], ids["cross_other"]])))
             await db.execute(delete(Tenant).where(Tenant.id.in_([ids["tenant"], ids["other_tenant"]])))
             await db.commit()
             for model, key_names in (
-                (BenderPost, ("bender", "late_bender")),
-                (Volunteer, ("volunteer", "late_volunteer")),
-                (Talent, ("talent", "late_talent")),
-                (Event, ("event", "late_event", "legacy")),
+                (BenderPost, ("bender", "late_bender", "cross_bender")),
+                (Volunteer, ("volunteer", "late_volunteer", "cross_volunteer")),
+                (Talent, ("talent", "late_talent", "cross_talent")),
+                (Event, ("event", "late_event", "legacy", "cross_event", "cross_legacy")),
                 (Listing, ("listing", "late_listing", "explicit_blocked", "other_listing", "cross_listing")),
                 (Shop, ("shop", "other_shop", "cross_shop")),
                 (UserBlock, ()),
-                (User, ("blocker", "blocked", "other", "cross_blocker", "cross_blocked")),
+                (User, ("blocker", "blocked", "other", "cross_blocker", "cross_blocked", "cross_other")),
                 (Tenant, ("tenant", "other_tenant")),
             ):
                 values = [ids[name] for name in key_names]
@@ -287,6 +293,18 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
             assert len(found_blocker) <= 8 and len(found_reverse) <= 8
         assert await resolve_reference(db, ids["tenant"], "listing", ids["cross_listing"], ids["other"]) is None
         assert await search_references(db, ids["tenant"], "Task5 Other Tenant", "listing", ids["other"]) == []
+        b_events = EventService(db, tenant_id=ids["other_tenant"])
+        assert ids["cross_event"] not in {e.id for e in (await b_events.browse_events(limit=20, viewer_id=ids["cross_blocker"])).items}
+        assert ids["cross_legacy"] in {e.id for e in (await b_events.browse_events(limit=20, viewer_id=ids["cross_blocker"])).items}
+        assert ids["cross_event"] in {e.id for e in (await b_events.browse_events(limit=20, viewer_id=ids["cross_blocked"])).items}
+        assert ids["cross_event"] in {e.id for e in (await b_events.browse_events(limit=20, viewer_id=ids["cross_other"])).items}
+        assert ids["cross_event"] in {e.id for e in (await b_events.browse_events(limit=20, viewer_id=None)).items}
+        assert str(ids["cross_bender"]) not in {x.id for x in (await BenderService(db).feed(ids["other_tenant"], None, 20, await db.get(User, ids["cross_blocker"])))[0]}
+        assert str(ids["cross_bender"]) in {x.id for x in (await BenderService(db).feed(ids["other_tenant"], None, 20, await db.get(User, ids["cross_blocked"])))[0]}
+        assert ids["cross_volunteer"] not in {x.id for x in (await VolunteerService(db, ids["other_tenant"]).list_volunteers(limit=20, viewer_id=ids["cross_blocker"])).items}
+        assert ids["cross_volunteer"] in {x.id for x in (await VolunteerService(db, ids["other_tenant"]).list_volunteers(limit=20, viewer_id=ids["cross_blocked"])).items}
+        assert ids["cross_talent"] not in {x.id for x in (await TalentService(db, ids["other_tenant"]).list_talent(limit=20, viewer_id=ids["cross_blocker"])).items}
+        assert ids["cross_talent"] in {x.id for x in (await TalentService(db, ids["other_tenant"]).list_talent(limit=20, viewer_id=ids["cross_blocked"])).items}
 
 
 @pytest.mark.asyncio
@@ -315,12 +333,18 @@ async def test_public_shop_listing_route_propagates_authenticated_and_anonymous_
         from app.api.v1.shops import router
         from app.api.v1.listings import router as listing_router
         from app.api.v1.events import router as event_router
+        from app.api.v1.bender import router as bender_router
+        from app.api.v1.volunteers import router as volunteer_router
+        from app.api.v1.talent import router as talent_router
         from app.core.permissions import get_current_tenant, get_current_user_optional
 
         app = FastAPI()
         app.include_router(router, prefix="/api/v1")
         app.include_router(listing_router, prefix="/api/v1")
         app.include_router(event_router, prefix="/api/v1")
+        app.include_router(bender_router, prefix="/api/v1")
+        app.include_router(volunteer_router, prefix="/api/v1")
+        app.include_router(talent_router, prefix="/api/v1")
         app.dependency_overrides[get_db] = lambda: db
         app.dependency_overrides[get_current_tenant] = lambda: tenant
         app.dependency_overrides[get_current_user_optional] = lambda: blocker
@@ -338,11 +362,23 @@ async def test_public_shop_listing_route_propagates_authenticated_and_anonymous_
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             listing_auth = await client.get("/api/v1/listings", params={"limit": 20})
             event_auth = await client.get("/api/v1/events", params={"limit": 20})
+            bender_auth = await client.get("/api/v1/bender/posts", params={"limit": 20})
+            volunteer_auth = await client.get("/api/v1/volunteers", params={"limit": 20})
+            talent_auth = await client.get("/api/v1/talent", params={"limit": 20})
         assert str(ids["listing"]) not in {row["id"] for row in listing_auth.json()["items"]}
         assert str(ids["event"]) not in {row["id"] for row in event_auth.json()["items"]}
+        assert str(ids["bender"]) not in {row["id"] for row in bender_auth.json()["items"]}
+        assert str(ids["volunteer"]) not in {row["id"] for row in volunteer_auth.json()["items"]}
+        assert str(ids["talent"]) not in {row["id"] for row in talent_auth.json()["items"]}
         app.dependency_overrides[get_current_user_optional] = lambda: None
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             listing_anon = await client.get("/api/v1/listings", params={"limit": 20})
             event_anon = await client.get("/api/v1/events", params={"limit": 20})
+            bender_anon = await client.get("/api/v1/bender/posts", params={"limit": 20})
+            volunteer_anon = await client.get("/api/v1/volunteers", params={"limit": 20})
+            talent_anon = await client.get("/api/v1/talent", params={"limit": 20})
         assert str(ids["listing"]) in {row["id"] for row in listing_anon.json()["items"]}
         assert str(ids["event"]) in {row["id"] for row in event_anon.json()["items"]}
+        assert str(ids["bender"]) in {row["id"] for row in bender_anon.json()["items"]}
+        assert str(ids["volunteer"]) in {row["id"] for row in volunteer_anon.json()["items"]}
+        assert str(ids["talent"]) in {row["id"] for row in talent_anon.json()["items"]}
