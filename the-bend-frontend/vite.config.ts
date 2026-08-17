@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
   const cfToken = env.VITE_CF_ANALYTICS_TOKEN || ''
 
   return {
+  // Native bundles are loaded from Capacitor's local filesystem, so use
+  // relative asset URLs while preserving root-relative URLs for the web.
+  base: env.VITE_NATIVE_BUILD === 'true' ? './' : '/',
   plugins: [
     {
       // Inject Cloudflare Web Analytics token into index.html, or strip the
