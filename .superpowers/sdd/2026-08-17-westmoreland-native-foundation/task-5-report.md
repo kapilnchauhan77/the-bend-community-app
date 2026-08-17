@@ -20,4 +20,8 @@
 
 ## Commit
 
-Implementation commit SHA: `4f3dd65300e9cbcc5477f8933b0292d763f067af`. No push or deployment performed.
+Implementation commit SHA: `f3d8eaff0ea78e3a6491ef234bffb0a2114c51fe`.
+
+Review-fix commit SHA: `9b1a2b0ebd64f265cf00ce60f42e8dba00e2a9df`.
+
+Review fixes add the authenticated tenant-scoped `/auth/me` endpoint, manager bearer/tenant headers, refresh/logout race protection, null-refresh cleanup, runtime-derived encoded WebSocket URLs, allowlisted pending-destination integration, and expanded regression tests. Backend focused and full suite: `pytest -q tests/test_auth_me.py` — 2 passed; `pytest -q` — 82 passed. Frontend focused/regression suite — 7 files, 36 tests passed; lint, web build, and native build passed. No push or deployment performed.
