@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.device_installation import DeviceInstallation
 from app.models.refresh_session import RefreshSession
 from app.models.account_deletion import AccountDeletion
+from app.models.account_deletion import AccountOwnedUpload
 from app.models.enums import UserRole
 
 
@@ -147,35 +148,47 @@ async def test_connected_websocket_is_denied_after_database_lock():
 @pytest.mark.asyncio
 async def test_stale_lease_and_partial_worker_failure_recover(monkeypatch):
     from datetime import datetime, timedelta
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from sqlalchemy.pool import NullPool
+    from app.config import get_settings
     from app.services.account_deletion_service import AccountDeletionService
     marker=uuid.uuid4().hex; tenant_id,user_id,deletion_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4()
+    isolated_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
+    isolated_session = async_sessionmaker(isolated_engine, expire_on_commit=False)
     try:
-        async with async_session() as db:
-            db.add(Tenant(id=tenant_id,slug="lease-"+marker,subdomain="lease-"+marker,display_name="Lease")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Lease",role=UserRole.INDIVIDUAL)); await db.flush(); db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,status="processing",claimed_at=datetime.utcnow()-timedelta(hours=1))); await db.commit()
+        async with isolated_session() as db:
+            db.add(Tenant(id=tenant_id,slug="lease-"+marker,subdomain="lease-"+marker,display_name="Lease")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Lease",role=UserRole.INDIVIDUAL)); await db.flush(); db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,status="processing",claimed_at=datetime.utcnow()-timedelta(hours=1))); db.add(AccountOwnedUpload(user_id=user_id,tenant_id=tenant_id,path=f"uploads/users/{user_id}/private.png")); await db.commit()
         original=AccountDeletionService.safe_owned_upload
         monkeypatch.setattr(AccountDeletionService,"safe_owned_upload",staticmethod(lambda *args,**kwargs: (_ for _ in ()).throw(RuntimeError("partial"))))
         with pytest.raises(RuntimeError):
-            async with async_session() as db: await AccountDeletionService(db).erase(str(deletion_id))
-        monkeypatch.setattr(AccountDeletionService,"safe_owned_upload",original)
-        async with async_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
+            async with isolated_session() as db: await AccountDeletionService(db).erase(str(deletion_id))
+        monkeypatch.setattr(AccountDeletionService,"safe_owned_upload",staticmethod(original))
+        async with isolated_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
     finally:
-        async with async_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+        async with isolated_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+        await isolated_engine.dispose()
 
 
 @pytest.mark.asyncio
 async def test_email_provider_failure_attempt_marker_still_completes(monkeypatch):
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from sqlalchemy.pool import NullPool
+    from app.config import get_settings
     from app.services.account_deletion_service import AccountDeletionService
     marker=uuid.uuid4().hex; tenant_id,user_id,deletion_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4(); calls=[]
+    isolated_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
+    isolated_session = async_sessionmaker(isolated_engine, expire_on_commit=False)
     try:
-        async with async_session() as db:
+        async with isolated_session() as db:
             db.add(Tenant(id=tenant_id,slug="mail-"+marker,subdomain="mail-"+marker,display_name="Mail")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Mail",role=UserRole.INDIVIDUAL)); await db.flush(); db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,send_confirmation=True,confirmation_email=marker+"@example.com")); await db.commit()
         monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address: calls.append(address) or False)
-        async with async_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
-        async with async_session() as db: row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.email_sent_at is not None and row.confirmation_email is None
-        async with async_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
+        async with isolated_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
+        async with isolated_session() as db: row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.email_sent_at is not None and row.confirmation_email is None
+        async with isolated_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
         assert calls==[marker+"@example.com"]
     finally:
-        async with async_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+        async with isolated_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+        await isolated_engine.dispose()
 
 
 @pytest.mark.asyncio
