@@ -112,6 +112,65 @@ async def discovery_rows():
         await engine.dispose()
 
 
+@pytest_asyncio.fixture
+async def reference_limit_rows():
+    await engine.dispose()
+    ids = {"tenant": uuid4(), "viewer": uuid4()}
+    blocked = [uuid4() for _ in range(9)]
+    eligible = [uuid4() for _ in range(8)]
+    ids.update({"blocked": blocked, "eligible": eligible})
+    shops = [uuid4() for _ in range(17)]
+    listings = [uuid4() for _ in range(17)]
+    benders = [uuid4() for _ in range(17)]
+    ids.update({"shops": shops, "listings": listings, "benders": benders})
+    marker = f"Task5Limit{uuid4().hex}"
+    async with async_session() as db:
+        db.add(Tenant(id=ids["tenant"], slug=f"task5-limit-{ids['tenant'].hex}", subdomain=f"task5-limit-{ids['tenant'].hex}", display_name=marker))
+        db.add(User(id=ids["viewer"], tenant_id=ids["tenant"], email=f"{marker}-viewer@example.test", password_hash="x", name="Reference viewer", role=UserRole.INDIVIDUAL))
+        for index, user_id in enumerate(blocked + eligible):
+            db.add(User(id=user_id, tenant_id=ids["tenant"], email=f"{marker}-{index}@example.test", password_hash="x", name=f"{marker} User {index}", role=UserRole.INDIVIDUAL, created_at=datetime.utcnow() - timedelta(minutes=index)))
+        await db.flush()
+        for index, user_id in enumerate(blocked + eligible):
+            db.add(Shop(id=shops[index], tenant_id=ids["tenant"], admin_user_id=user_id, name=f"{marker} Shop {index}", business_type="food", status=ShopStatus.ACTIVE, created_at=datetime.utcnow() - timedelta(minutes=index)))
+            db.add(Listing(id=listings[index], tenant_id=ids["tenant"], shop_id=shops[index], posted_by_user_id=None, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title=f"{marker} Listing {index}", description=marker, pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=datetime.utcnow() - timedelta(minutes=index)))
+            db.add(BenderPost(id=benders[index], tenant_id=ids["tenant"], author_user_id=user_id, caption=f"{marker} Bender {index}", like_count=0, comment_count=0, created_at=datetime.utcnow() - timedelta(minutes=index)))
+        await db.commit()
+        for user_id in blocked:
+            await BlockService(db).create(ids["viewer"], user_id, ids["tenant"])
+        await db.commit()
+    try:
+        yield ids, marker
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(BenderPost).where(BenderPost.id.in_(benders)))
+            await db.execute(delete(Listing).where(Listing.id.in_(listings)))
+            await db.execute(delete(Shop).where(Shop.id.in_(shops)))
+            await db.execute(delete(UserBlock).where(UserBlock.tenant_id == ids["tenant"]))
+            await db.execute(delete(User).where(User.id.in_([ids["viewer"], *blocked, *eligible])))
+            await db.execute(delete(Tenant).where(Tenant.id == ids["tenant"]))
+            await db.commit()
+            for model, values in ((BenderPost, benders), (Listing, listings), (Shop, shops), (UserBlock, []), (User, [ids["viewer"], *blocked, *eligible]), (Tenant, [ids["tenant"]])):
+                statement = select(model.id)
+                statement = statement.where(model.tenant_id == ids["tenant"]) if not values else statement.where(model.id.in_(values))
+                assert (await db.execute(statement)).scalars().all() == []
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_reference_search_filters_nine_blocked_authors_before_limit_eight(reference_limit_rows):
+    ids, marker = reference_limit_rows
+    async with async_session() as db:
+        for ref_type in ("listing", "shop", "user", "bender"):
+            result = await search_references(db, ids["tenant"], marker, ref_type, ids["viewer"])
+            assert len(result) == 8
+            expected = {str(value) for value in ids["eligible"]}
+            assert {card["id"] for card in result} == ({str(ids[ref_type + "s"][i]) for i in range(9, 17)} if ref_type != "user" else expected), ref_type
+            assert not ({str(value) for value in ids["blocked"]} & {card["id"] for card in result})
+            anonymous = await search_references(db, ids["tenant"], marker, ref_type, None)
+            assert len(anonymous) == 8
+            assert {card["id"] for card in anonymous} == ({str(ids[ref_type + "s"][i]) for i in range(8)} if ref_type != "user" else {str(value) for value in ids["blocked"][:8]})
+
+
 @pytest.mark.asyncio
 async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(discovery_rows):
     ids = discovery_rows
@@ -127,6 +186,8 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert [row.id for row in listing_limit_one.items] == [ids["late_listing"]]
         assert listing_limit_one.has_more is True
         assert (await ListingService(db).get_listing(ids["late_listing"], blocker))[0].id == ids["late_listing"]
+        assert (await ListingService(db).get_listing(ids["listing"], blocked))[0].id == ids["listing"]
+        assert (await ListingService(db).get_listing(ids["listing"], None))[0].id == ids["listing"]
         with pytest.raises(NotFoundError):
             await ListingService(db).get_listing(ids["explicit_blocked"], blocker)
         assert (await ListingService(db).browse_listings(tenant_id=ids["tenant"], viewer_id=ids["other"], limit=20)).items
@@ -142,6 +203,8 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert shops_limit_one["items"] and shops_limit_one["items"][0]["id"] == str(ids["other_shop"])
         assert shops_limit_one["has_more"] is False
         assert str(ids["shop"]) in {x["id"] for x in (await list_shops(search=None, business_type=None, cursor=None, limit=20, db=db, tenant=tenant, current_user=blocked))["items"]}
+        assert str(ids["shop"]) in {x["id"] for x in (await list_shops(search=None, business_type=None, cursor=None, limit=20, db=db, tenant=tenant, current_user=other))["items"]}
+        assert str(ids["shop"]) in {x["id"] for x in (await list_shops(search=None, business_type=None, cursor=None, limit=20, db=db, tenant=tenant, current_user=None))["items"]}
         assert str(ids["shop"]) in {x["id"] for x in (await list_shops(search=None, business_type=None, cursor=None, limit=20, db=db, tenant=tenant, current_user=None))["items"]}
         with pytest.raises(NotFoundError):
             await get_shop(ids["shop"], service=ShopService(db), current_user=blocker, db=db)
@@ -150,6 +213,8 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert str(ids["listing"]) not in {x["id"] for x in hidden_shop_listings["items"]}
         visible_shop_listings = await get_shop_listings(ids["shop"], status=None, cursor=None, limit=20, service=ListingService(db), current_user=other)
         assert str(ids["listing"]) in {x["id"] for x in visible_shop_listings["items"]}
+        assert str(ids["listing"]) in {x["id"] for x in (await get_shop_listings(ids["shop"], status=None, cursor=None, limit=20, service=ListingService(db), current_user=blocked))["items"]}
+        assert str(ids["listing"]) in {x["id"] for x in (await get_shop_listings(ids["shop"], status=None, cursor=None, limit=20, service=ListingService(db), current_user=None))["items"]}
 
         events = EventService(db, tenant_id=ids["tenant"])
         assert ids["event"] not in {e.id for e in (await events.browse_events(limit=20, viewer_id=ids["blocker"])).items}
@@ -162,6 +227,10 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert [event.id for event in events_limit_one.items] == [ids["legacy"]]
         assert events_limit_one.has_more is True and events_limit_one.next_cursor is not None
         assert ids["event"] in {e.id for e in (await events.browse_events(limit=20, viewer_id=None)).items}
+        assert ids["event"] in {e.id for e in (await events.browse_events(limit=20, viewer_id=ids["blocked"])).items}
+        assert ids["event"] in {e.id for e in (await events.browse_events(limit=20, viewer_id=ids["other"])).items}
+        assert ids["event"] in {e.id for e in await events.get_upcoming(limit=20, viewer_id=ids["blocked"])}
+        assert ids["event"] in {e.id for e in await events.get_upcoming(limit=20, viewer_id=None)}
         items, _, _ = await BenderService(db).feed(ids["tenant"], None, 20, blocker)
         assert str(ids["bender"]) not in {x.id for x in items}
         assert str(ids["late_bender"]) in {x.id for x in items}
@@ -172,6 +241,7 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert str(ids["bender"]) in {x.id for x in reverse_items}
         anonymous_items, _, _ = await BenderService(db).feed(ids["tenant"], None, 20, None)
         assert str(ids["bender"]) in {x.id for x in anonymous_items}
+        assert str(ids["bender"]) in {x.id for x in (await BenderService(db).feed(ids["tenant"], None, 20, other))[0]}
         volunteer = await VolunteerService(db, ids["tenant"]).list_volunteers(limit=20, viewer_id=ids["blocker"])
         talent = await TalentService(db, ids["tenant"]).list_talent(limit=20, viewer_id=ids["blocker"])
         assert ids["volunteer"] not in {x.id for x in volunteer.items}
@@ -185,6 +255,9 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert volunteer_limit_one.has_more is False and talent_limit_one.has_more is False
         assert ids["volunteer"] in {x.id for x in (await VolunteerService(db, ids["tenant"]).list_volunteers(limit=20, viewer_id=ids["blocked"])).items}
         assert ids["talent"] in {x.id for x in (await TalentService(db, ids["tenant"]).list_talent(limit=20, viewer_id=None)).items}
+        assert ids["volunteer"] in {x.id for x in (await VolunteerService(db, ids["tenant"]).list_volunteers(limit=20, viewer_id=ids["other"])).items}
+        assert ids["volunteer"] in {x.id for x in (await VolunteerService(db, ids["tenant"]).list_volunteers(limit=20, viewer_id=None)).items}
+        assert ids["talent"] in {x.id for x in (await TalentService(db, ids["tenant"]).list_talent(limit=20, viewer_id=ids["other"])).items}
         assert await resolve_reference(db, ids["tenant"], "listing", ids["listing"], viewer_id=ids["blocker"]) is None
         assert await resolve_reference(db, ids["tenant"], "listing", ids["listing"], viewer_id=ids["other"])
         assert not any(x["id"] == str(ids["listing"]) for x in await search_references(db, ids["tenant"], "Task5", "listing", ids["blocker"]))
