@@ -24,6 +24,7 @@ from app.core.exceptions import NotFoundError
 @pytest_asyncio.fixture
 async def domain_rows():
     ids = {"tenant": uuid4(), "owner": uuid4(), "actor": uuid4(), "shop": uuid4(), "listing": uuid4()}
+    await engine.dispose()
     async with async_session() as db:
         db.add(Tenant(id=ids["tenant"], slug=f"task4-domain-{ids['tenant'].hex[:10]}", subdomain=f"task4-domain-{ids['tenant'].hex[:10]}", display_name="Task4"))
         db.add_all([
