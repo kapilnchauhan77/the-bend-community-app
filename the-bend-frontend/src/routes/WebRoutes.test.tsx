@@ -23,4 +23,10 @@ describe('WebRoutes', () => {
     renderAt('/unknown-public-path');
     expect(screen.getByText('Public not found')).toBeInTheDocument();
   });
+
+  it.each(['/admin/unknown', '/super-admin/unknown', '/administrator'])('renders NotFound for unknown or near-admin URL %s', (path) => {
+    renderAt(path);
+    expect(screen.getByText('Public not found')).toBeInTheDocument();
+    expect(screen.queryByText('Admin dashboard')).not.toBeInTheDocument();
+  });
 });

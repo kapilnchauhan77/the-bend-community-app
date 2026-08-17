@@ -4,5 +4,6 @@ import { WebAdminRoutes } from './WebAdminRoutes';
 
 export function WebRoutes() {
   const { pathname } = useLocation();
-  return pathname.startsWith('/admin') || pathname.startsWith('/super-admin') ? <WebAdminRoutes /> : <PublicMemberRoutes />;
+  const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/') || pathname === '/super-admin' || pathname.startsWith('/super-admin/');
+  return isAdminPath ? <WebAdminRoutes /> : <PublicMemberRoutes />;
 }
