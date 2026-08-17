@@ -6,6 +6,8 @@ import { WebRoutes } from './WebRoutes';
 vi.mock('@/stores/authStore', () => ({ useAuthStore: (selector?: (state: { isAuthenticated: boolean; isLoading: boolean; user: null }) => unknown) => selector ? selector({ isAuthenticated: false, isLoading: false, user: null }) : { isAuthenticated: false, isLoading: false, user: null } }));
 vi.mock('@/pages/NotFoundPage', () => ({ default: () => <div>Public not found</div> }));
 vi.mock('@/pages/admin/DashboardPage', () => ({ default: () => <div>Admin dashboard</div> }));
+vi.mock('@/components/shared/ProtectedRoute', () => ({ ProtectedRoute: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock('@/components/shared/RoleGuard', () => ({ RoleGuard: ({ children }: { children: React.ReactNode }) => children }));
 afterEach(() => cleanup());
 
 function renderAt(path: string) { return render(<MemoryRouter initialEntries={[path]}><WebRoutes /></MemoryRouter>); }
@@ -13,6 +15,7 @@ function renderAt(path: string) { return render(<MemoryRouter initialEntries={[p
 describe('WebRoutes', () => {
   it('does not render the public not-found surface alongside admin routes', () => {
     renderAt('/admin');
+    expect(screen.getByText('Admin dashboard')).toBeInTheDocument();
     expect(screen.queryByText('Public not found')).not.toBeInTheDocument();
   });
 

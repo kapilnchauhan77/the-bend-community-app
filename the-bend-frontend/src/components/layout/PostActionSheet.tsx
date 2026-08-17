@@ -15,6 +15,7 @@ export function PostActionSheet({ open, onClose, returnFocusRef }: PostActionShe
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
@@ -35,11 +36,22 @@ export function PostActionSheet({ open, onClose, returnFocusRef }: PostActionShe
       navigate(path);
       return;
     }
+    localStorage.setItem('native_pending_post_path', path);
     navigate('/login', { state: { from: { pathname: path } } });
   };
 
+  const trapFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? []);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="post-action-title" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }} className="fixed inset-0 z-[60] flex items-end bg-black/40">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="post-action-title" onKeyDown={trapFocus} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }} className="fixed inset-0 z-[60] flex items-end bg-black/40">
       <div onClick={(event) => event.stopPropagation()} className="w-full rounded-t-2xl bg-white p-5 pb-8">
         <div className="mb-4 flex items-center justify-between">
           <h2 id="post-action-title" className="text-lg font-semibold">What do you want to post?</h2>
