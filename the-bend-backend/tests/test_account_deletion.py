@@ -6,6 +6,9 @@ integration fixtures can opt in to PostgreSQL through the normal test setup.
 import uuid
 
 import pytest
+from io import BytesIO
+from fastapi import UploadFile
+from PIL import Image
 from sqlalchemy import delete, select
 from app.database import async_session
 from app.models.tenant import Tenant
@@ -114,6 +117,28 @@ async def test_real_postgres_confirmation_scrubs_all_devices_and_tombstones_user
             await db.execute(delete(DeviceInstallation).where(DeviceInstallation.user_id == user_id))
             await db.execute(delete(RefreshSession).where(RefreshSession.user_id == user_id))
             await db.execute(delete(User).where(User.id == user_id)); await db.execute(delete(Tenant).where(Tenant.id == tenant_id)); await db.commit()
+
+
+def _png_upload(name="avatar.png"):
+    image = Image.new("RGB", (2, 2), "red"); data = BytesIO(); image.save(data, format="PNG"); data.seek(0)
+    return UploadFile(filename=name, file=data, headers={"content-type": "image/png"})
+
+
+@pytest.mark.asyncio
+async def test_real_upload_routes_keep_photo_public_and_avatar_private(monkeypatch, tmp_path):
+    from app.api.v1 import upload as routes
+    monkeypatch.setattr("app.services.file_service.UPLOAD_DIR", tmp_path)
+    photo = await routes.upload_public_photo(_png_upload("photo.png"))
+    assert photo["photo_url"].startswith("/uploads/images/")
+    class DB:
+        def __init__(self): self.rows = []
+        def add(self, row): self.rows.append(row)
+        async def flush(self): pass
+    from types import SimpleNamespace
+    user = SimpleNamespace(id=uuid.uuid4(), tenant_id=uuid.uuid4(), shop_id=None)
+    db = DB(); result = await routes.upload_avatar(_png_upload(), db, user)
+    assert result["avatar_url"].startswith("/uploads/users/")
+    assert len(db.rows) == 1 and db.rows[0].path.startswith("/uploads/users/")
 
 
 @pytest.mark.asyncio
