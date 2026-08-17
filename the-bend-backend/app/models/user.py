@@ -32,6 +32,8 @@ class User(Base):
     notifications: Mapped[list[Notification]] = relationship("Notification", back_populates="user")
     interests: Mapped[list[Interest]] = relationship("Interest", back_populates="user")
     push_subscriptions: Mapped[list[PushSubscription]] = relationship("PushSubscription", back_populates="user")
+    device_installations: Mapped[list[DeviceInstallation]] = relationship("DeviceInstallation", back_populates="user", cascade="all, delete-orphan")
+    notification_preferences: Mapped[list[NotificationPreference]] = relationship("NotificationPreference", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_users_email", "email"),

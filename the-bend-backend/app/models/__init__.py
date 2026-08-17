@@ -26,6 +26,9 @@ from app.models.endorsement import Endorsement
 from app.models.discount_code import DiscountCode
 from app.models.bender import BenderPost, BenderLike, BenderComment
 from app.models.refresh_session import RefreshSession
+from app.models.device_installation import DeviceInstallation
+from app.models.notification_preference import NotificationPreference
+from app.models.notification_outbox import NotificationOutbox
 
 __all__ = [
     "UserRole", "ShopStatus", "ListingType", "ListingCategory",
@@ -45,4 +48,5 @@ __all__ = [
     "DiscountCode",
     "BenderPost", "BenderLike", "BenderComment",
     "RefreshSession",
+    "DeviceInstallation", "NotificationPreference", "NotificationOutbox",
 ]
