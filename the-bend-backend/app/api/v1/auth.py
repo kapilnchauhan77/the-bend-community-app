@@ -64,8 +64,10 @@ async def register(
 async def login(
     data: LoginRequest,
     service: AuthService = Depends(get_auth_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Authenticate and receive tokens."""
+    service.tenant_id = tenant.id if tenant else None
     return await service.login(data.email, data.password)
 
 
@@ -73,8 +75,10 @@ async def login(
 async def refresh_token(
     data: RefreshRequest,
     service: AuthService = Depends(get_auth_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Refresh an expired access token."""
+    service.tenant_id = tenant.id if tenant else None
     return await service.refresh_token(data.refresh_token)
 
 

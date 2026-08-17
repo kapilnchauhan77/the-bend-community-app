@@ -144,6 +144,9 @@ class AuthService:
         if not user or not verify_password(password, user.password_hash):
             raise UnauthorizedError("Invalid email or password")
 
+        if self.tenant_id is not None and user.tenant_id != self.tenant_id:
+            raise UnauthorizedError("Invalid email or password")
+
         if not user.is_active:
             raise ForbiddenError("Account is disabled")
 
@@ -193,6 +196,8 @@ class AuthService:
         user_id, session_id = claims
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
+            raise UnauthorizedError("Invalid refresh token")
+        if self.tenant_id is not None and user.tenant_id != self.tenant_id:
             raise UnauthorizedError("Invalid refresh token")
 
         session = await self.db.get(RefreshSession, session_id)

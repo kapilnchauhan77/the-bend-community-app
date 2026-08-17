@@ -67,6 +67,7 @@ def active_user():
         shop_id=None,
         name="Active User",
         avatar_url=None,
+        tenant_id=None,
     )
 
 
@@ -120,6 +121,64 @@ async def test_refresh_token_can_be_reused_for_compatible_session_protocol(servi
 
     assert session.revoked_at is None
     assert session.last_used_at >= first_last_used
+
+
+@pytest.mark.asyncio
+async def test_login_allows_user_in_resolved_tenant(service):
+    auth, _, user = service
+    tenant_id = uuid4()
+    user.tenant_id = tenant_id
+    auth.tenant_id = tenant_id
+
+    tokens = await auth.login(user.email, "correct-password")
+
+    assert tokens.refresh_token
+
+
+@pytest.mark.asyncio
+async def test_login_rejects_user_from_resolved_tenant_with_generic_credentials_error(service):
+    auth, _, user = service
+    user.tenant_id = uuid4()
+    auth.tenant_id = uuid4()
+
+    with pytest.raises(UnauthorizedError) as exc_info:
+        await auth.login(user.email, "correct-password")
+
+    assert exc_info.value.detail["error"]["message"] == "Invalid email or password"
+
+
+@pytest.mark.asyncio
+async def test_login_without_resolved_tenant_preserves_root_compatibility(service):
+    auth, _, user = service
+    user.tenant_id = uuid4()
+    auth.tenant_id = None
+
+    assert (await auth.login(user.email, "correct-password")).refresh_token
+
+
+@pytest.mark.asyncio
+async def test_refresh_requires_user_in_resolved_tenant(service):
+    auth, _, user = service
+    tokens = await auth.login(user.email, "correct-password")
+    auth.tenant_id = uuid4()
+
+    with pytest.raises(UnauthorizedError) as exc_info:
+        await auth.refresh_token(tokens.refresh_token)
+
+    assert exc_info.value.detail["error"]["message"] == "Invalid refresh token"
+
+
+@pytest.mark.asyncio
+async def test_refresh_allows_same_tenant_and_without_tenant(service):
+    auth, _, user = service
+    tenant_id = uuid4()
+    user.tenant_id = tenant_id
+    tokens = await auth.login(user.email, "correct-password")
+
+    auth.tenant_id = tenant_id
+    assert (await auth.refresh_token(tokens.refresh_token))["access_token"]
+    auth.tenant_id = None
+    assert (await auth.refresh_token(tokens.refresh_token))["access_token"]
 
 
 @pytest.mark.asyncio
@@ -255,7 +314,33 @@ async def test_refresh_route_preserves_access_only_response_shape():
             return {"access_token": "access-token", "token_type": "bearer"}
 
     service = RecordingService()
-    response = await refresh_route(RefreshRequest(refresh_token="refresh-token"), service=service)
+    response = await refresh_route(
+        RefreshRequest(refresh_token="refresh-token"), service=service, tenant=None
+    )
 
     assert service.received == "refresh-token"
     assert response == {"access_token": "access-token", "token_type": "bearer"}
+
+
+@pytest.mark.asyncio
+async def test_login_route_resolves_and_assigns_tenant_before_service_call():
+    from app.api.v1.auth import login as login_route
+    from app.schemas.auth import LoginRequest
+
+    class RecordingService:
+        def __init__(self):
+            self.tenant_id = None
+
+        async def login(self, email, password):
+            assert self.tenant_id == tenant.id
+            return {"access_token": "access", "refresh_token": "refresh", "user": {}, "shop": None}
+
+    tenant = SimpleNamespace(id=uuid4())
+    service = RecordingService()
+    response = await login_route(
+        LoginRequest(email="active@example.com", password="correct-password"),
+        service=service,
+        tenant=tenant,
+    )
+
+    assert response["refresh_token"] == "refresh"
