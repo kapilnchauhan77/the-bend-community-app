@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete, insert, inspect, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -15,7 +15,7 @@ from app.models.enums import NotificationType, UserRole
 from app.models.notification import Notification
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.database import async_session, engine
+from app.database import engine
 
 
 def test_notification_preferences_default_to_required_categories_enabled():
@@ -195,6 +195,10 @@ async def test_postgres_constraints_reject_cross_tenant_child_rows(db):
     with pytest.raises(IntegrityError):
         async with db.begin_nested():
             db.add(DeviceInstallation(user_id=user.id, tenant_id=other.id, platform="ios", provider_token=f"token-{uuid4().hex}", revocation_secret_hash="a" * 64, app_version="1", build_number="1"))
+            await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(NotificationPreference(user_id=user.id, tenant_id=other.id))
             await db.flush()
     with pytest.raises(IntegrityError):
         async with db.begin_nested():
