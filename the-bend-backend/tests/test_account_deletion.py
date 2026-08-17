@@ -21,7 +21,13 @@ import app.database as _database
 # factory during these tests.
 _test_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
 async_session = async_sessionmaker(_test_engine, expire_on_commit=False)
-_database.async_session = async_session
+
+
+@pytest.fixture(autouse=True)
+def _isolated_application_session(monkeypatch):
+    """Scope the NullPool application session to each test and restore it."""
+    monkeypatch.setattr(_database, "async_session", async_session)
+    yield
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.device_installation import DeviceInstallation
@@ -217,6 +223,54 @@ async def test_real_upload_routes_keep_photo_public_and_avatar_private(monkeypat
     db = DB(); result = await routes.upload_avatar(_png_upload(), db, user)
     assert result["avatar_url"].startswith("/uploads/users/")
     assert len(db.rows) == 1 and db.rows[0].path.startswith("/uploads/users/")
+
+
+@pytest.mark.asyncio
+async def test_erasure_does_not_delete_cross_tenant_listing_or_bender_children():
+    """Real PG proof that global user FKs are constrained by owned parents."""
+    from app.core.security import hash_password
+    from app.models.enums import ListingType, ListingCategory, PricingType, UrgencyLevel, ListingStatus
+    from app.models.listing import Listing
+    from app.models.saved_listing import SavedListing
+    from app.models.interest import Interest
+    from app.models.bender import BenderPost, BenderLike
+    from app.services.account_deletion_service import AccountDeletionService
+    marker = uuid.uuid4().hex
+    tenant_a, tenant_b, user_a = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    listing_b, post_b, saved_id, interest_id, like_id = (uuid.uuid4() for _ in range(5))
+    try:
+        async with async_session() as db:
+            db.add_all([
+                Tenant(id=tenant_a, slug=f"ta-{marker}", subdomain=f"ta-{marker}", display_name="A"),
+                Tenant(id=tenant_b, slug=f"tb-{marker}", subdomain=f"tb-{marker}", display_name="B"),
+            ])
+            await db.flush()
+            db.add(User(id=user_a, tenant_id=tenant_a, email=f"{marker}@example.test", password_hash=hash_password("Correct1"), name="A", role=UserRole.INDIVIDUAL))
+            db.add(Listing(id=listing_b, tenant_id=tenant_b, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="B listing", description="B", pricing_type=PricingType.FREE, is_free=True, urgency=UrgencyLevel.NORMAL, status=ListingStatus.ACTIVE))
+            db.add(BenderPost(id=post_b, tenant_id=tenant_b, author_user_id=user_a, caption="B post"))
+            await db.flush()
+            db.add_all([
+                SavedListing(id=saved_id, user_id=user_a, listing_id=listing_b),
+                Interest(id=interest_id, user_id=user_a, listing_id=listing_b, message="B interest"),
+                BenderLike(id=like_id, user_id=user_a, post_id=post_b),
+            ])
+            db.add(AccountDeletion(user_id=user_a, tenant_id=tenant_a))
+            await db.commit()
+            row = (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_a))).scalar_one()
+            assert await AccountDeletionService(db).erase(str(row.id))
+            assert (await db.execute(select(SavedListing).where(SavedListing.id == saved_id))).scalar_one_or_none() is not None
+            assert (await db.execute(select(Interest).where(Interest.id == interest_id))).scalar_one_or_none() is not None
+            assert (await db.execute(select(BenderLike).where(BenderLike.id == like_id))).scalar_one_or_none() is not None
+            assert (await db.execute(select(Listing).where(Listing.id == listing_b))).scalar_one_or_none() is not None
+    finally:
+        async with async_session() as db:
+            for model in (SavedListing, Interest, BenderLike, BenderPost, Listing, AccountDeletion, User, Tenant):
+                if hasattr(model, "tenant_id"):
+                    await db.execute(delete(model).where(model.tenant_id.in_([tenant_a, tenant_b])))
+                elif model is SavedListing or model is Interest or model is BenderLike:
+                    await db.execute(delete(model).where(model.id.in_([saved_id, interest_id, like_id])))
+            await db.execute(delete(Tenant).where(Tenant.id.in_([tenant_a, tenant_b])))
+            await db.commit()
 
 
 @pytest.mark.asyncio
