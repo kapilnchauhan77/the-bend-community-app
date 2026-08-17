@@ -37,7 +37,7 @@ from app.core.exceptions import NotFoundError
 @pytest_asyncio.fixture
 async def discovery_rows():
     await engine.dispose()
-    ids = {k: uuid4() for k in ("tenant", "other_tenant", "blocker", "blocked", "other", "shop", "other_shop", "listing", "late_listing", "explicit_blocked", "other_listing", "event", "late_event", "legacy", "bender", "late_bender", "volunteer", "late_volunteer", "talent", "late_talent")}
+    ids = {k: uuid4() for k in ("tenant", "other_tenant", "blocker", "blocked", "other", "cross_blocker", "cross_blocked", "shop", "other_shop", "cross_shop", "listing", "late_listing", "explicit_blocked", "other_listing", "cross_listing", "event", "late_event", "legacy", "bender", "late_bender", "volunteer", "late_volunteer", "talent", "late_talent")}
     ordered = datetime.utcnow()
     async with async_session() as db:
         db.add_all([
@@ -49,15 +49,19 @@ async def discovery_rows():
             User(id=ids["blocker"], tenant_id=ids["tenant"], email=f"task5-{ids['blocker']}@example.test", password_hash="x", name="Blocker", role=UserRole.INDIVIDUAL),
             User(id=ids["blocked"], tenant_id=ids["tenant"], email=f"task5-{ids['blocked']}@example.test", password_hash="x", name="Blocked", role=UserRole.INDIVIDUAL),
             User(id=ids["other"], tenant_id=ids["tenant"], email=f"task5-{ids['other']}@example.test", password_hash="x", name="Other viewer", role=UserRole.INDIVIDUAL),
+            User(id=ids["cross_blocker"], tenant_id=ids["other_tenant"], email=f"task5-{ids['cross_blocker']}@example.test", password_hash="x", name="Other blocker", role=UserRole.INDIVIDUAL),
+            User(id=ids["cross_blocked"], tenant_id=ids["other_tenant"], email=f"task5-{ids['cross_blocked']}@example.test", password_hash="x", name="Other blocked", role=UserRole.INDIVIDUAL),
         ])
         await db.flush()
         db.add_all([
             Shop(id=ids["shop"], tenant_id=ids["tenant"], admin_user_id=ids["blocked"], name="Task5 Blocked Shop", business_type="food", status=ShopStatus.ACTIVE),
             Shop(id=ids["other_shop"], tenant_id=ids["tenant"], admin_user_id=ids["other"], name="Task5 Eligible Shop", business_type="food", status=ShopStatus.ACTIVE),
+            Shop(id=ids["cross_shop"], tenant_id=ids["other_tenant"], admin_user_id=ids["cross_blocked"], name="Task5 Other Tenant Shop", business_type="food", status=ShopStatus.ACTIVE),
             Listing(id=ids["listing"], tenant_id=ids["tenant"], shop_id=ids["shop"], posted_by_user_id=None, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Blocked Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=ordered),
             Listing(id=ids["late_listing"], tenant_id=ids["tenant"], shop_id=ids["shop"], posted_by_user_id=ids["other"], type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Eligible Late Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=ordered - timedelta(days=1)),
             Listing(id=ids["explicit_blocked"], tenant_id=ids["tenant"], shop_id=ids["other_shop"], posted_by_user_id=ids["blocked"], type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Explicit Blocked Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=ordered - timedelta(days=2)),
             Listing(id=ids["other_listing"], tenant_id=ids["tenant"], shop_id=ids["other_shop"], posted_by_user_id=ids["other"], type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Other Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL, created_at=ordered - timedelta(days=3)),
+            Listing(id=ids["cross_listing"], tenant_id=ids["other_tenant"], shop_id=ids["cross_shop"], posted_by_user_id=None, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Task5 Other Tenant Listing", description="Task5", pricing_type=PricingType.FREE, is_free=True, status=ListingStatus.ACTIVE, urgency=UrgencyLevel.NORMAL),
             Event(id=ids["event"], tenant_id=ids["tenant"], submitted_by_user_id=ids["blocked"], title="Task5 Blocked Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=2), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="manual"),
             Event(id=ids["late_event"], tenant_id=ids["tenant"], submitted_by_user_id=ids["other"], title="Task5 Eligible Late Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=4), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="manual"),
             Event(id=ids["legacy"], tenant_id=ids["tenant"], submitted_by_user_id=None, title="Task5 Legacy Event", description="Task5", start_date=datetime.utcnow() + timedelta(days=3), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="import"),
@@ -70,6 +74,7 @@ async def discovery_rows():
         ])
         await db.commit()
         await BlockService(db).create(ids["blocker"], ids["blocked"], ids["tenant"])
+        await BlockService(db).create(ids["cross_blocker"], ids["cross_blocked"], ids["other_tenant"])
         await db.commit()
     try:
         yield ids
@@ -79,10 +84,10 @@ async def discovery_rows():
             await db.execute(delete(Volunteer).where(Volunteer.id.in_([ids["volunteer"], ids["late_volunteer"]])))
             await db.execute(delete(Talent).where(Talent.id.in_([ids["talent"], ids["late_talent"]])))
             await db.execute(delete(Event).where(Event.id.in_([ids["event"], ids["late_event"], ids["legacy"]])))
-            await db.execute(delete(Listing).where(Listing.id.in_([ids["listing"], ids["late_listing"], ids["explicit_blocked"], ids["other_listing"]])))
-            await db.execute(delete(Shop).where(Shop.id.in_([ids["shop"], ids["other_shop"]])))
-            await db.execute(delete(UserBlock).where(UserBlock.tenant_id == ids["tenant"], UserBlock.blocker_id == ids["blocker"], UserBlock.blocked_id == ids["blocked"]))
-            await db.execute(delete(User).where(User.id.in_([ids["blocker"], ids["blocked"], ids["other"]])))
+            await db.execute(delete(Listing).where(Listing.id.in_([ids["listing"], ids["late_listing"], ids["explicit_blocked"], ids["other_listing"], ids["cross_listing"]])))
+            await db.execute(delete(Shop).where(Shop.id.in_([ids["shop"], ids["other_shop"], ids["cross_shop"]])))
+            await db.execute(delete(UserBlock).where(UserBlock.tenant_id.in_([ids["tenant"], ids["other_tenant"]])))
+            await db.execute(delete(User).where(User.id.in_([ids["blocker"], ids["blocked"], ids["other"], ids["cross_blocker"], ids["cross_blocked"]])))
             await db.execute(delete(Tenant).where(Tenant.id.in_([ids["tenant"], ids["other_tenant"]])))
             await db.commit()
             for model, key_names in (
@@ -90,10 +95,10 @@ async def discovery_rows():
                 (Volunteer, ("volunteer", "late_volunteer")),
                 (Talent, ("talent", "late_talent")),
                 (Event, ("event", "late_event", "legacy")),
-                (Listing, ("listing", "late_listing", "explicit_blocked", "other_listing")),
-                (Shop, ("shop", "other_shop")),
+                (Listing, ("listing", "late_listing", "explicit_blocked", "other_listing", "cross_listing")),
+                (Shop, ("shop", "other_shop", "cross_shop")),
                 (UserBlock, ()),
-                (User, ("blocker", "blocked", "other")),
+                (User, ("blocker", "blocked", "other", "cross_blocker", "cross_blocked")),
                 (Tenant, ("tenant", "other_tenant")),
             ):
                 values = [ids[name] for name in key_names]
@@ -185,6 +190,10 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert any(x["id"] == str(ids["listing"]) for x in await search_references(db, ids["tenant"], "Task5", "listing", ids["other"]))
         assert await resolve_reference(db, ids["tenant"], "listing", ids["listing"], viewer_id=None)
         assert any(x["id"] == str(ids["listing"]) for x in await search_references(db, ids["tenant"], "Task5", "listing", None))
+        assert ids["cross_listing"] not in {row.id for row in (await ListingService(db).browse_listings(tenant_id=ids["tenant"], viewer_id=ids["blocker"], limit=20)).items}
+        cross_page = await ListingService(db).browse_listings(tenant_id=ids["other_tenant"], viewer_id=ids["cross_blocker"], limit=20)
+        assert ids["cross_listing"] not in {row.id for row in cross_page.items}
+        assert ids["cross_listing"] in {row.id for row in (await ListingService(db).browse_listings(tenant_id=ids["other_tenant"], viewer_id=ids["cross_blocked"], limit=20)).items}
 
 
 @pytest.mark.asyncio
