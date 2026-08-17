@@ -19,6 +19,10 @@ from app.services.listing_service import ListingService
 from app.services.shop_service import ShopService
 from app.services.event_service import EventService
 from app.services.auth_service import AuthService
+from app.services.bender_service import BenderService
+from app.services.volunteer_service import VolunteerService
+from app.services.talent_service import TalentService
+from app.services.message_service import MessageService
 from app.schemas.auth import RegisterRequest
 from app.core.exceptions import ValidationError
 from app.core.exceptions import AppException
@@ -28,10 +32,18 @@ from app.api.v1.auth import router as auth_router, get_auth_service
 from app.api.v1.listings import router as listings_router, get_listing_service
 from app.api.v1.events import router as events_router
 from app.api.v1.admin import router as admin_router, get_event_service
+from app.api.v1.bender import router as bender_router, get_service as get_bender_service
+from app.api.v1.volunteers import router as volunteers_router, get_service as get_volunteer_service
+from app.api.v1.talent import router as talent_router, get_service as get_talent_service
+from app.api.v1.messages import router as messages_router, get_message_service
 from app.models.refresh_session import RefreshSession
 from app.models.notification import Notification
 from app.models.notification_outbox import NotificationOutbox
 from app.models.event import EventConnector
+from app.models.bender import BenderPost, BenderComment, BenderLike
+from app.models.volunteer import Volunteer
+from app.models.talent import Talent, TalentInquiry
+from app.models.message import MessageThread, Message
 from app.config import get_settings
 from app.services.content_moderation_service import ContentModerationService
 from app.core.exceptions import ValidationError
@@ -44,6 +56,10 @@ def _route_app(db, tenant, user):
     app.include_router(listings_router, prefix="/api/v1")
     app.include_router(events_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(bender_router, prefix="/api/v1")
+    app.include_router(volunteers_router, prefix="/api/v1")
+    app.include_router(talent_router, prefix="/api/v1")
+    app.include_router(messages_router, prefix="/api/v1")
 
     async def db_override():
         yield db
@@ -59,6 +75,10 @@ def _route_app(db, tenant, user):
     app.dependency_overrides[get_auth_service] = lambda: AuthService(db, tenant_id=tenant.id)
     app.dependency_overrides[get_listing_service] = lambda: ListingService(db)
     app.dependency_overrides[get_event_service] = lambda: EventService(db, tenant_id=tenant.id)
+    app.dependency_overrides[get_bender_service] = lambda: BenderService(db)
+    app.dependency_overrides[get_volunteer_service] = lambda: VolunteerService(db)
+    app.dependency_overrides[get_talent_service] = lambda: TalentService(db, tenant_id=tenant.id)
+    app.dependency_overrides[get_message_service] = lambda: MessageService(db)
     return app
 
 
@@ -113,6 +133,15 @@ def test_private_message_and_inquiry_services_are_excluded_from_public_filter():
     for rel in ("services/message_service.py", "services/talent_service.py", "services/volunteer_service.py"):
         source = (root / rel).read_text()
         assert "ContentModerationService" not in source
+
+
+def test_public_profile_path_is_registration_name_and_avatar_only():
+    """Call-graph audit: there is no separate public text profile editor."""
+    root = Path(__file__).parents[1] / "app" / "api" / "v1"
+    route_sources = "\n".join((root / name).read_text() for name in ("auth.py", "upload.py"))
+    assert "@router.post(\"/register\"" in route_sources
+    assert "@router.post(\"/avatar\"" in route_sources
+    assert not any(token in route_sources for token in ("/profile", "/users/me", "update_profile"))
 
 @pytest.mark.asyncio
 async def test_real_listing_create_update_moderation_rolls_back_side_effects(monkeypatch):
@@ -215,4 +244,60 @@ async def test_real_asgi_public_and_admin_moderation_paths(monkeypatch):
     finally:
         async with async_session() as db:
             await db.execute(Event.__table__.delete().where(Event.tenant_id==tid)); await db.execute(Shop.__table__.delete().where(Shop.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_real_asgi_bender_volunteer_talent_and_private_message_paths(monkeypatch):
+    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); await engine.dispose()
+    marker=f"task6-private-{uuid4().hex}"; tid=uuid4(); sender_id=uuid4(); recipient_id=uuid4()
+    async with async_session() as db:
+        tenant=Tenant(id=tid,slug=marker,subdomain=marker,display_name=marker)
+        sender=User(id=sender_id,tenant_id=tid,email=f"{marker}-sender@example.com",password_hash="x",name="Sender",role=UserRole.COMMUNITY_ADMIN)
+        recipient=User(id=recipient_id,tenant_id=tid,email=f"{marker}-recipient@example.com",password_hash="x",name="Recipient",role=UserRole.INDIVIDUAL)
+        db.add_all([tenant,sender,recipient]); await db.commit()
+    try:
+        async with async_session() as db:
+            tenant=await db.get(Tenant,tid); sender=await db.get(User,sender_id); app=_route_app(db,tenant,sender); anonymous=_route_app(db,tenant,None)
+            # Bender public post/comment routes: validation precedes rows and counters.
+            response=await _request(app,"POST","/api/v1/bender/posts",json={"caption":"Allowed community post"}); assert response.status_code==201, response.text
+            post_id=response.json()["id"]; post=await db.get(BenderPost,post_id); before_count=post.comment_count
+            response=await _request(app,"POST","/api/v1/bender/posts",json={"caption":"blocked phrase"}); assert response.status_code==400
+            assert (await db.execute(select(func.count()).select_from(BenderPost).where(BenderPost.tenant_id==tid))).scalar_one()==1
+            response=await _request(app,"POST",f"/api/v1/bender/posts/{post_id}/comments",json={"content":"blocked phrase"}); assert response.status_code==400
+            await db.refresh(post); assert post.comment_count==before_count
+            response=await _request(app,"POST",f"/api/v1/bender/posts/{post_id}/comments",json={"content":"Allowed comment"}); assert response.status_code==201
+            await db.refresh(post); assert post.comment_count==1
+            # No Bender update route exists; the router exposes create/delete/like/comment only.
+            assert not any(getattr(r,"path","").endswith("/posts/{post_id}") and "PUT" in getattr(r,"methods",set()) for r in bender_router.routes)
+            # Anonymous volunteer and talent routes reject prohibited public fields before rows.
+            volunteer_base={"name":"Allowed Volunteer","skills":"First aid","available_time":"Weekends","email":f"{marker}-vol@example.com"}
+            for field in ("name","skills","available_time"):
+                response=await _request(anonymous,"POST","/api/v1/volunteers",json={**volunteer_base,field:"blocked phrase"}); assert response.status_code==400
+            assert (await db.execute(select(func.count()).select_from(Volunteer).where(Volunteer.tenant_id==tid))).scalar_one()==0
+            response=await _request(anonymous,"POST","/api/v1/volunteers",json=volunteer_base); assert response.status_code==200
+            volunteer_id=response.json()["id"]
+            response=await _request(app,"PUT",f"/api/v1/volunteers/{volunteer_id}",json={"skills":"blocked phrase"}); assert response.status_code==400
+            volunteer=await db.get(Volunteer,volunteer_id); assert volunteer.skills=="First aid"
+            talent_base={"name":"Allowed Talent","category":"artist","skills":"Painting","available_time":"Evenings","rate":50,"rate_unit":"hr","email":f"{marker}-talent@example.com"}
+            for field in ("name","skills","available_time"):
+                response=await _request(anonymous,"POST","/api/v1/talent",json={**talent_base,field:"blocked phrase"}); assert response.status_code==400
+            assert (await db.execute(select(func.count()).select_from(Talent).where(Talent.tenant_id==tid))).scalar_one()==0
+            response=await _request(anonymous,"POST","/api/v1/talent",json=talent_base); assert response.status_code==200
+            talent_id=response.json()["id"]
+            response=await _request(app,"PUT",f"/api/v1/talent/{talent_id}",json={"available_time":"blocked phrase"}); assert response.status_code==400
+            talent=await db.get(Talent,talent_id); assert talent.available_time=="Evenings"
+            # Private talent inquiry is deliberately unmoderated and persists.
+            response=await _request(app,"POST",f"/api/v1/talent/{talent_id}/inquiries",json={"name":"Private Contact","message":"blocked phrase","preferred_date":"tomorrow"}); assert response.status_code==200, response.text
+            assert (await db.execute(select(func.count()).select_from(TalentInquiry).where(TalentInquiry.talent_id==talent_id))).scalar_one()==1
+            # Private messages are deliberately unmoderated and still notify/outbox.
+            response=await _request(app,"POST","/api/v1/messages/threads",json={"recipient_user_id":str(recipient_id)}); assert response.status_code==200, response.text
+            thread_id=response.json()["thread_id"] if "thread_id" in response.json() else response.json()["id"]
+            response=await _request(app,"POST",f"/api/v1/messages/threads/{thread_id}",json={"content":"blocked phrase private message"}); assert response.status_code==200, response.text
+            assert (await db.execute(select(func.count()).select_from(Message).where(Message.thread_id==thread_id))).scalar_one()==1
+            assert (await db.execute(select(func.count()).select_from(Notification).where(Notification.tenant_id==tid))).scalar_one()>=1
+            assert (await db.execute(select(func.count()).select_from(NotificationOutbox).where(NotificationOutbox.tenant_id==tid))).scalar_one()>=1
+    finally:
+        async with async_session() as db:
+            await db.execute(Message.__table__.delete().where(Message.sender_id.in_([sender_id,recipient_id]))); await db.execute(MessageThread.__table__.delete().where(MessageThread.participant_a.in_([sender_id,recipient_id]) | MessageThread.participant_b.in_([sender_id,recipient_id]))); await db.execute(BenderComment.__table__.delete().where(BenderComment.user_id.in_([sender_id,recipient_id]))); await db.execute(BenderLike.__table__.delete().where(BenderLike.user_id.in_([sender_id,recipient_id]))); await db.execute(BenderPost.__table__.delete().where(BenderPost.tenant_id==tid)); await db.execute(TalentInquiry.__table__.delete().where(TalentInquiry.talent_id.in_(select(Talent.id).where(Talent.tenant_id==tid)))); await db.execute(Talent.__table__.delete().where(Talent.tenant_id==tid)); await db.execute(Volunteer.__table__.delete().where(Volunteer.tenant_id==tid)); await db.execute(NotificationOutbox.__table__.delete().where(NotificationOutbox.tenant_id==tid)); await db.execute(Notification.__table__.delete().where(Notification.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
         await engine.dispose()
