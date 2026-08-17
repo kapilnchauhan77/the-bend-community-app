@@ -52,6 +52,11 @@ export class SessionManager {
   getSnapshot(): AuthSnapshot { return this.snapshot() }
 
   async setAuthenticated(response: AuthTokens | RefreshResponse): Promise<void> {
+    this.epoch += 1
+    await this.applyAuthenticated(response, this.epoch)
+  }
+
+  private async applyAuthenticated(response: AuthTokens | RefreshResponse, expectedEpoch: number): Promise<void> {
     this.accessToken = response.access_token
     if (response.refresh_token) {
       this.refreshToken = response.refresh_token
@@ -65,6 +70,7 @@ export class SessionManager {
       if (this.currentUser) browserStorage.setItem('user', JSON.stringify(this.currentUser))
       browserStorage.setItem('shop', JSON.stringify(this.currentShop))
     }
+    if (expectedEpoch !== this.epoch) return
     this.initialized = true
     this.publish()
   }
@@ -106,10 +112,10 @@ export class SessionManager {
     try {
       const response = await this.options.refresh(this.refreshToken)
       if (requestEpoch !== this.epoch) return null
-      await this.setAuthenticated({ ...response, refresh_token: response.refresh_token ?? this.refreshToken })
+      await this.applyAuthenticated({ ...response, refresh_token: response.refresh_token ?? this.refreshToken }, requestEpoch)
       return response.access_token
     } catch (error) {
-      await this.clearLocalSession()
+      if (requestEpoch === this.epoch) await this.clearLocalSession()
       throw error
     }
   }

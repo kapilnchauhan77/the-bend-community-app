@@ -64,4 +64,20 @@ describe('SessionManager', () => {
     expect(manager.getAccessToken()).toBeNull()
     expect(sessionStore.save).not.toHaveBeenCalled()
   })
+
+  it('does not clear a newer login when an older refresh rejects', async () => {
+    const sessionStore = store({ refreshToken: 'old-refresh' })
+    let rejectRefresh!: (error: Error) => void
+    const refreshApi = vi.fn(() => new Promise<never>((_, reject) => { rejectRefresh = reject }))
+    const manager = new SessionManager({ runtime, sessionStore, refresh: refreshApi, getCurrentSession: vi.fn(async () => ({ user, shop })) })
+    await manager.setAuthenticated({ ...tokens, access_token: 'old-access', refresh_token: 'old-refresh' })
+    const pendingRefresh = manager.refresh()
+    await Promise.resolve()
+    await manager.setAuthenticated({ ...tokens, access_token: 'new-access', refresh_token: 'new-refresh' })
+    rejectRefresh(new Error('stale failure'))
+    await pendingRefresh.catch(() => undefined)
+    expect(manager.getAccessToken()).toBe('new-access')
+    expect(await sessionStore.load()).toEqual({ refreshToken: 'new-refresh' })
+    expect(manager.getSnapshot().isAuthenticated).toBe(true)
+  })
 })
