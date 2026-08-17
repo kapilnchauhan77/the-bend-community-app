@@ -386,6 +386,15 @@ async def test_erasure_retains_shared_content_and_hydrates_deleted_identity():
             post = (await db.execute(select(BenderPost).where(BenderPost.id == post_id))).scalar_one(); assert post.author_user_id == user_a
             hydrated = (await ReportService(db).list_admin(tenant_a))["items"]; assert any(item["target_id"] == str(listing_id) and item["target_summary"]["title"] == "Shared listing" for item in hydrated)
             assert "Former Name" not in str(hydrated) and marker not in str(hydrated)
+            from app.services.message_service import MessageService
+            threads = await MessageService(db).get_threads(user_b)
+            other_party = next(item["other_party"] for item in threads["items"] if item["id"] == str(thread_id))
+            assert other_party["name"] == "Deleted member"
+            from app.services.bender_service import BenderService
+            feed, _, _ = await BenderService(db).feed(tenant_a, None, 20, await db.get(User, user_b))
+            feed_post = next(item for item in feed if item.id == str(post_id))
+            assert feed_post.author.name == "Deleted member"
+            assert marker not in str(feed_post) and "former-" not in str(feed_post)
     finally:
         async with async_session() as db:
             await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id.in_([user_a, user_b])))
