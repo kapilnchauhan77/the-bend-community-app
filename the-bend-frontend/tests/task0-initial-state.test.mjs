@@ -11,6 +11,7 @@ test('iOS install banner starts visible only for an eligible, non-dismissed devi
   assert.equal(getInitialIOSBannerState({ ...base, dismissed: true }), false);
   assert.equal(getInitialIOSBannerState({ ...base, standalone: true }), false);
   assert.equal(getInitialIOSBannerState({ ...base, userAgent: 'Mozilla' }), false);
+  assert.equal(getInitialIOSBannerState({ ...base, msStream: true }), false);
 });
 
 test('advertise page starts at success only when a checkout session exists', () => {

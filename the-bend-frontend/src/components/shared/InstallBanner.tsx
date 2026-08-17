@@ -15,6 +15,7 @@ export function InstallBanner() {
       userAgent: navigator.userAgent,
       standalone: isInStandaloneMode(),
       dismissed: localStorage.getItem('pwa-ios-dismissed') === 'true',
+      msStream: Boolean((window as unknown as { MSStream?: unknown }).MSStream),
     });
   });
   const [dismissed, setDismissed] = useState(false);

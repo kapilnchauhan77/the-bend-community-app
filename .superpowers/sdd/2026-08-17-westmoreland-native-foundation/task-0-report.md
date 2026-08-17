@@ -68,3 +68,26 @@ node --experimental-strip-types tests/task0-initial-state.test.mjs  # exit 0; 2 
 npm run lint                                                       # exit 0; pristine
 npm run build                                                      # exit 0; only pre-existing Vite warnings above
 ```
+
+## Fix Round 2 — MSStream compatibility
+
+Review found that extracting iOS detection had dropped the existing `MSStream` exclusion. The focused test was extended with an iOS-looking user agent and `msStream: true`.
+
+TDD evidence:
+
+```text
+RED: node --experimental-strip-types tests/task0-initial-state.test.mjs
+     exit 1; iOS eligibility assertion reported actual true, expected false
+GREEN: node --experimental-strip-types tests/task0-initial-state.test.mjs
+       exit 0; 2 tests passed, 0 failed
+```
+
+The minimal fix passes the browser's `MSStream` presence into the helper and rejects that compatibility case while retaining existing iOS/mobile/standalone/dismissed checks.
+
+Verification:
+
+```text
+node --experimental-strip-types tests/task0-initial-state.test.mjs  # exit 0; 2 passed
+npm run lint                                                       # exit 0; pristine
+npm run build                                                      # exit 0; only pre-existing Vite warnings above
+```
