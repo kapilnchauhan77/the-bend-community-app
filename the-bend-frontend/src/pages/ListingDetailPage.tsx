@@ -108,8 +108,9 @@ export default function ListingDetailPage() {
   // Fetch discount codes for community-member-posted listings only.
   // Shop-owned listings surface codes on the business profile page instead.
   useEffect(() => {
-    if (!listing && cached.data) { setListing(cached.data); setHasInterest(cached.data.viewer_has_interest); setHasSaved(cached.data.viewer_has_saved); setLoading(false); }
-  }, [cached.data, listing]);
+    if (!cached.data) return;
+    setListing(cached.data); setHasInterest(cached.data.viewer_has_interest); setHasSaved(cached.data.viewer_has_saved); setLoading(false);
+  }, [cached.data]);
 
   useEffect(() => {
     if (!listing) return;
@@ -124,25 +125,9 @@ export default function ListingDetailPage() {
       .catch(() => setPosterDiscountCodes([]));
   }, [listing]);
 
-  const loadListing = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data } = await listingApi.getDetail(id!);
-      setListing(data);
-      setHasInterest(data.viewer_has_interest);
-      setHasSaved(data.viewer_has_saved);
-    } catch {
-      if (!cached.data) setError('Could not load this listing. It may have been removed.');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, cached.data]);
-
   useEffect(() => {
-    if (!id) return;
-    loadListing();
-  }, [id, loadListing]);
+    if (!cached.data && cached.source === 'cache') setError('Could not load this listing. It may have been removed.');
+  }, [cached.data, cached.source]);
 
   async function handleInterest() {
     if (!isAuthenticated) {
@@ -160,8 +145,8 @@ export default function ListingDetailPage() {
         setInterestSuccess(true);
         setTimeout(() => setInterestSuccess(false), 3000);
       }
-    } catch {
-      // silently fail
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
     } finally {
       setInterestLoading(false);
     }
@@ -177,8 +162,8 @@ export default function ListingDetailPage() {
         await runOnline(() => listingApi.saveListing(id!));
         setHasSaved(true);
       }
-    } catch {
-      // silently fail
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
     }
   }
 
@@ -187,7 +172,8 @@ export default function ListingDetailPage() {
     try {
       await runOnline(() => listingApi.fulfill(id!));
       navigate('/my-shop');
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
       setActionLoading(false);
     }
   }
@@ -197,7 +183,8 @@ export default function ListingDetailPage() {
     try {
       await runOnline(() => listingApi.delete(id!));
       navigate('/my-shop');
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
       setActionLoading(false);
     }
   }
@@ -753,8 +740,8 @@ export default function ListingDetailPage() {
                       try {
                         await runOnline(() => listingApi.reportListing(id!, { reason: reportReason, details: reportDetails || undefined }));
                         setReported(true);
-                      } catch {
-                        // silently fail
+                      } catch (error) {
+                        if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
                       }
                       setReportSubmitting(false);
                     }}

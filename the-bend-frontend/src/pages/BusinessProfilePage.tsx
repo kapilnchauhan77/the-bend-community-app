@@ -41,6 +41,7 @@ type ApiErrorResponse = {
 };
 
 function endorsementErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') return 'OFFLINE_ACTION_UNAVAILABLE';
   const apiMessage = (error as AxiosError<ApiErrorResponse>)?.response?.data?.error?.message;
   return apiMessage || 'Could not update this endorsement. Please try again.';
 }
@@ -82,27 +83,24 @@ export default function BusinessProfilePage() {
   const viewerEndorserId = myShop?.id ?? user?.id;
 
   useEffect(() => {
-    if (!shopData && cached.data) { setShopData(cached.data); setLoading(false); }
-  }, [cached.data, shopData]);
+    if (!cached.data) return;
+    setShopData(cached.data); setHasEndorsed(cached.data.viewer_has_endorsed ?? false); setLoading(false);
+  }, [cached.data]);
 
   useEffect(() => {
     if (!shopId) return;
-    setLoading(true);
     setError(null);
     setShowWithdrawConfirm(false);
 
     Promise.all([
-      shopApi.getShop(shopId),
       shopApi.getShopListings(shopId),
       shopApi.getEndorsements(shopId),
       discountCodeApi.listForShop(shopId).catch(() => ({ data: [] as DiscountCode[] })),
     ])
-      .then(([shopRes, listingsRes, endorseRes, discountRes]) => {
-        setShopData(shopRes.data);
+      .then(([listingsRes, endorseRes, discountRes]) => {
         setListings(listingsRes.data.items ?? listingsRes.data ?? []);
         setEndorsements(endorseRes.data.items ?? []);
         setEndorsementCount(endorseRes.data.count ?? 0);
-        setHasEndorsed(shopRes.data.viewer_has_endorsed ?? false);
         setDiscountCodes(Array.isArray(discountRes.data) ? discountRes.data : []);
       })
       .catch(() => { if (!cached.data) setError('Could not load this business profile.') })
@@ -163,8 +161,8 @@ export default function BusinessProfilePage() {
     try {
       const { data } = await runOnline(() => messageApi.startThread(shopId));
       navigate(`/messages/${data.id}`);
-    } catch {
-      // silently fail
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
     } finally {
       setMessagingLoading(false);
     }

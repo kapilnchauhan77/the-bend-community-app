@@ -260,8 +260,8 @@ export default function CreateListingPage() {
         ? `/listing/${editId}`
         : (isVolunteerCategory ? '/opportunities' : '/browse');
       setTimeout(() => navigate(successDest), 1500);
-    } catch {
-      setServerError(isEdit ? 'Failed to update listing. Please try again.' : 'Failed to create listing. Please try again.');
+    } catch (error) {
+      setServerError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : (isEdit ? 'Failed to update listing. Please try again.' : 'Failed to create listing. Please try again.'));
     } finally {
       setSubmitting(false);
     }

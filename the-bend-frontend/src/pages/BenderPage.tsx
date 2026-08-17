@@ -149,6 +149,7 @@ function CommentsDrawer({
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(
     async (cursor?: string) => {
@@ -198,7 +199,8 @@ function CommentsDrawer({
       setComments((prev) =>
         prev.map((c) => (c.id === tempId ? res.data : c))
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
       // Roll back on failure.
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setDraft(content);
@@ -215,7 +217,8 @@ function CommentsDrawer({
       onCountChange(-1);
       try {
       await runOnline(() => benderApi.deleteComment(postId, commentId));
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
         // Restore on failure.
         setComments(previous);
         onCountChange(1);
@@ -289,6 +292,7 @@ function CommentsDrawer({
           </ul>
         )}
       </div>
+      {actionError && <p role="alert" className="px-3 py-1 text-xs text-red-700">{actionError}</p>}
       {currentUserId && (
         <div className="flex items-center gap-2 px-3 py-2 border-t border-[hsl(35,18%,90%)] bg-white">
           <Input
@@ -345,6 +349,7 @@ function BenderPostCard({
   const { run: runOnline } = useOnlineMutation();
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const display = post.author.shop_name || post.author.name;
   const canDelete =
@@ -376,7 +381,8 @@ function BenderPostCard({
       } else {
         await runOnline(() => benderApi.like(post.id));
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
       // Revert.
       onPatch(post.id, {
         viewer_has_liked: wasLiked,
@@ -409,8 +415,8 @@ function BenderPostCard({
     try {
       await runOnline(() => benderApi.deletePost(post.id));
       onDelete(post.id);
-    } catch {
-      // Soft-fail — the post stays. UI doesn't block.
+    } catch (error) {
+      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
     }
   }, [post.id, onDelete, runOnline]);
 
@@ -425,6 +431,7 @@ function BenderPostCard({
           : ''
       }`}
     >
+      {actionError && <p role="alert" className="px-3 pt-2 text-xs text-red-700">{actionError}</p>}
       {/* Header row */}
       <div className="flex items-center gap-2 px-3 py-2">
         <AuthorAvatar author={post.author} size={28} />
@@ -700,8 +707,8 @@ function BenderComposer({
       await draftStore.remove('create-bender-post').catch(() => undefined);
       onCreated(res.data);
       onClose();
-    } catch {
-      setError('Could not post. Please try again.');
+    } catch (error) {
+      setError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not post. Please try again.');
       setSubmitting(false);
     }
   }, [canSubmit, caption, pending, onCreated, onClose, runOnline]);
@@ -896,13 +903,10 @@ export default function BenderPage() {
     [cached.data]
   );
 
-  // Initial load.
   useEffect(() => {
-    fetchPage();
-  }, [fetchPage]);
-  useEffect(() => {
-    if (cached.data && posts.length === 0) { setPosts(cached.data); setLoading(false); }
-  }, [cached.data, posts.length]);
+    if (!cached.data) return;
+    setPosts(cached.data); setCursor(null); setHasMore(true); setLoading(false);
+  }, [cached.data]);
 
   // IntersectionObserver — load next page when sentinel scrolls into view.
   useEffect(() => {

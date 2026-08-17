@@ -404,8 +404,9 @@ export default function EventsPage() {
 
   // Check for success return from Stripe
   useEffect(() => {
-    if (!online && cached.data) { setEvents(cached.data); setLoading(false); }
-  }, [cached.data, online]);
+    if (!cached.data) return;
+    setEvents(cached.data); setLoading(false);
+  }, [cached.data]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -419,22 +420,6 @@ export default function EventsPage() {
     const timer = setTimeout(() => setDebouncedSearch(search), 350);
     return () => clearTimeout(timer);
   }, [search]);
-
-  useEffect(() => {
-    setLoading(true);
-    const params: Record<string, string> = { limit: '300' };
-    if (category) params.category = category;
-    if (debouncedSearch) params.search = debouncedSearch;
-    eventApi.list(params)
-      .then(res => {
-        setEvents(res.data.items ?? []);
-      })
-      .catch(err => {
-        console.error('Failed to load events:', err);
-        if (!cached.data) setEvents([]);
-      })
-      .finally(() => setLoading(false));
-  }, [category, debouncedSearch, cached.data]);
 
   // Scroll to and highlight a card based on URL hash
   useEffect(() => {
@@ -457,9 +442,14 @@ export default function EventsPage() {
   const byStartAsc = (a: CommunityEvent, b: CommunityEvent) =>
     parseDate(a.start_date).getTime() - parseDate(b.start_date).getTime();
 
+  const filteredEvents = events.filter((event) => {
+    const matchesCategory = !category || event.category === category;
+    const searchText = `${event.title} ${event.description ?? ''} ${event.location ?? ''}`.toLowerCase();
+    return matchesCategory && (!debouncedSearch || searchText.includes(debouncedSearch.toLowerCase()));
+  });
   const displayedEvents: CommunityEvent[] = (() => {
     if (listMode === 'upcoming') {
-      return [...events]
+      return [...filteredEvents]
         .filter(e => parseDate(e.start_date) >= startOfToday)
         .sort(byStartAsc);
     }
@@ -467,11 +457,11 @@ export default function EventsPage() {
       // "Recent" surfaces what the community has posted lately. Feed-imported
       // events (county / Local Scoop) bulk-sync with fresh created_at and would
       // bury genuine community submissions, so scope this view to manual posts.
-      return [...events]
+      return [...filteredEvents]
         .filter(e => e.source === 'manual')
         .sort((a, b) => parseDate(b.created_at).getTime() - parseDate(a.created_at).getTime());
     }
-    return [...events].sort(byStartAsc);
+    return [...filteredEvents].sort(byStartAsc);
   })();
 
   return (
@@ -750,8 +740,8 @@ export default function EventsPage() {
                           // toast trigger.
                           window.location.href = '/events?posted=success';
                         }
-                      } catch {
-                        setPostError('Something went wrong. Please try again.');
+                      } catch (error) {
+                        setPostError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Something went wrong. Please try again.');
                       } finally {
                         setPostSubmitting(false);
                       }
