@@ -13,6 +13,12 @@ from app.models.user_block import UserBlock
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.enums import UserRole
+from app.models.message import MessageThread, Message
+from app.models.shop import Shop
+from app.models.enums import ShopStatus
+from app.models.notification import Notification
+from app.models.notification_outbox import NotificationOutbox
+from app.services.message_service import MessageService
 from app.services.block_service import BlockService
 
 
@@ -46,6 +52,80 @@ async def test_reference_search_route_passes_authenticated_viewer(monkeypatch):
     result = await reference_search("needle", "listing", db=object(), current_user=viewer, tenant=tenant)
     assert result == {"items": []}
     assert captured["viewer_id"] == viewer.id
+
+
+def test_events_have_tenant_safe_authenticated_author_identity():
+    from app.models.event import Event
+    assert "submitted_by_user_id" in Event.__table__.columns
+    constraint_names = {c.name for c in Event.__table__.constraints}
+    assert "fk_events_submitted_by_user_tenant" in constraint_names
+
+
+@pytest.mark.asyncio
+async def test_blocked_message_paths_and_side_effect_counts_are_real_pg():
+    await engine.dispose()
+    tenant_id, a_id, b_id, shop_id, thread_id = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
+    async with async_session() as db:
+        db.add(Tenant(id=tenant_id, slug=f"task5-msg-{tenant_id.hex}", subdomain=f"task5-msg-{tenant_id.hex}", display_name="Task 5"))
+        await db.flush()
+        db.add_all([
+            User(id=a_id, tenant_id=tenant_id, email=f"task5-{a_id}@example.test", password_hash="x", name="A", role=UserRole.INDIVIDUAL),
+            User(id=b_id, tenant_id=tenant_id, email=f"task5-{b_id}@example.test", password_hash="x", name="B", role=UserRole.INDIVIDUAL),
+        ])
+        await db.flush()
+        db.add_all([
+            Shop(id=shop_id, tenant_id=tenant_id, admin_user_id=b_id, name="Task5 Shop", business_type="food", status=ShopStatus.ACTIVE),
+                MessageThread(id=thread_id, tenant_id=tenant_id, participant_a=min(a_id, b_id, key=str), participant_b=max(a_id, b_id, key=str)),
+        ])
+        await db.commit()
+    try:
+        async with async_session() as db:
+            await BlockService(db).create(a_id, b_id, tenant_id)
+            await db.commit()
+        async with async_session() as db:
+            service = MessageService(db)
+            before = [
+                (await db.execute(select(Message).where(Message.thread_id == thread_id))).scalars().all(),
+                (await db.execute(select(Notification).where(Notification.tenant_id == tenant_id))).scalars().all(),
+                (await db.execute(select(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))).scalars().all(),
+            ]
+            for sender, recipient in ((a_id, b_id), (b_id, a_id)):
+                with pytest.raises(Exception) as exc:
+                    await service.send_message(thread_id, sender, "blocked", caller_tenant_id=tenant_id)
+                assert getattr(exc.value, "status_code", None) == 403
+                with pytest.raises(Exception):
+                    await service.start_direct_thread(sender, recipient, tenant_id)
+                with pytest.raises(Exception):
+                    await service.start_thread_with_shop(sender, shop_id, tenant_id=tenant_id)
+            after = [
+                (await db.execute(select(Message).where(Message.thread_id == thread_id))).scalars().all(),
+                (await db.execute(select(Notification).where(Notification.tenant_id == tenant_id))).scalars().all(),
+                (await db.execute(select(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))).scalars().all(),
+            ]
+            assert [len(x) for x in after] == [len(x) for x in before] == [0, 0, 0]
+            threads = await service.get_threads(a_id)
+            detail = await service.get_thread_messages(thread_id, a_id, caller_tenant_id=tenant_id)
+            assert threads["items"][0]["is_blocked"] is True and threads["items"][0]["can_send"] is False
+            assert detail["is_blocked"] is True and detail["can_send"] is False
+            await BlockService(db).remove(a_id, b_id, tenant_id)
+            await db.commit()
+        async with async_session() as db:
+            service = MessageService(db)
+            created = await service.start_direct_thread(a_id, b_id, tenant_id)
+            assert created["id"] == str(thread_id) and created["created"] is False
+            await service.send_message(thread_id, a_id, "restored", caller_tenant_id=tenant_id)
+            await db.commit()
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))
+            await db.execute(delete(Notification).where(Notification.tenant_id == tenant_id))
+            await db.execute(delete(Message).where(Message.thread_id == thread_id))
+            await db.execute(delete(MessageThread).where(MessageThread.id == thread_id))
+            await db.execute(delete(Shop).where(Shop.id == shop_id))
+            await db.execute(delete(User).where(User.id.in_([a_id, b_id])))
+            await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
+            await db.commit()
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

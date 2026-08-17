@@ -15,6 +15,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.add_column("events", sa.Column("submitted_by_user_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.create_foreign_key(
+        "fk_events_submitted_by_user_tenant", "events", "users",
+        ["submitted_by_user_id", "tenant_id"], ["id", "tenant_id"], ondelete="SET NULL",
+    )
     op.create_table(
         "user_blocks",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -38,3 +43,5 @@ def downgrade() -> None:
     op.drop_index("idx_user_blocks_blocked", table_name="user_blocks")
     op.drop_index("idx_user_blocks_blocker", table_name="user_blocks")
     op.drop_table("user_blocks")
+    op.drop_constraint("fk_events_submitted_by_user_tenant", "events", type_="foreignkey")
+    op.drop_column("events", "submitted_by_user_id")

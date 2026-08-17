@@ -7,8 +7,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_db
 from app.config import get_settings
-from app.core.permissions import get_current_tenant
-from app.core.permissions import get_current_user_optional
+from app.core.permissions import get_current_tenant, get_current_user_optional
 from app.core.stripe_resolver import get_stripe_keys
 from app.models.tenant import Tenant
 from app.services.event_service import EventService
@@ -108,6 +107,7 @@ async def submit_event(
     data: EventSubmitRequest,
     db: AsyncSession = Depends(get_db),
     tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit an event and create a Stripe checkout session for payment."""
     # Validate nonprofit doc if claiming nonprofit
@@ -158,6 +158,7 @@ async def submit_event(
         nonprofit_doc_url=data.nonprofit_doc_url,
         submitted_by_name=data.submitted_by_name,
         submitted_by_email=data.submitted_by_email,
+        submitted_by_user_id=current_user.id if current_user and current_user.tenant_id == (tenant.id if tenant else None) else None,
         status=EventStatus.PENDING if hasattr(EventStatus, 'PENDING') else EventStatus.ACTIVE,
         paid=False,
         tenant_id=tenant.id if tenant else None,

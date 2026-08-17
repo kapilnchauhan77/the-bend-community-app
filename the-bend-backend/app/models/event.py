@@ -1,7 +1,7 @@
 from __future__ import annotations
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Boolean, Integer, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import String, Text, Boolean, Integer, ForeignKey, ForeignKeyConstraint, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, ENUM, JSONB
 from app.database import Base
@@ -27,6 +27,7 @@ class Event(Base):
     status: Mapped[EventStatus] = mapped_column(ENUM(EventStatus, name="event_status", create_type=False), nullable=False, default=EventStatus.ACTIVE)
     submitted_by_name: Mapped[str | None] = mapped_column(String(150))
     submitted_by_email: Mapped[str | None] = mapped_column(String(255))
+    submitted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     is_nonprofit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     nonprofit_doc_url: Mapped[str | None] = mapped_column(String(500))
     stripe_session_id: Mapped[str | None] = mapped_column(String(255))
@@ -43,6 +44,7 @@ class Event(Base):
         Index("idx_events_connector", "connector_id"),
         UniqueConstraint("source_url", "connector_id", name="uq_event_source_connector"),
         Index("idx_events_tenant_id", "tenant_id"),
+        ForeignKeyConstraint(["submitted_by_user_id", "tenant_id"], ["users.id", "users.tenant_id"], name="fk_events_submitted_by_user_tenant", ondelete="SET NULL"),
     )
 
 

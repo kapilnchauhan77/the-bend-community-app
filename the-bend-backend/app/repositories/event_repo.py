@@ -37,17 +37,13 @@ class EventRepository(BaseRepository[Event]):
         if tenant_id:
             filters.append(Event.tenant_id == tenant_id)
         if viewer_id and tenant_id:
-            # Older event rows only retain submitted email; hide events whose
-            # submitter is a blocked tenant member while preserving imported
-            # connector events (which have no member author).
+            # Legacy/imported events with no authenticated author remain visible.
             from app.models.user_block import UserBlock
-            from app.models.user import User
-            blocked_emails = select(User.email).join(UserBlock, UserBlock.blocked_id == User.id).where(
+            filters.append((Event.submitted_by_user_id.is_(None)) | ~select(UserBlock.id).where(
                 UserBlock.tenant_id == tenant_id,
                 UserBlock.blocker_id == viewer_id,
-                User.tenant_id == tenant_id,
-            )
-            filters.append((Event.submitted_by_email.is_(None)) | ~Event.submitted_by_email.in_(blocked_emails))
+                UserBlock.blocked_id == Event.submitted_by_user_id,
+            ).exists())
         return await self.get_all(
             filters=filters,
             order_by=[Event.start_date.asc()],
@@ -64,13 +60,11 @@ class EventRepository(BaseRepository[Event]):
             query = query.where(Event.tenant_id == tenant_id)
         if viewer_id and tenant_id:
             from app.models.user_block import UserBlock
-            from app.models.user import User
-            blocked_emails = select(User.email).join(UserBlock, UserBlock.blocked_id == User.id).where(
+            query = query.where((Event.submitted_by_user_id.is_(None)) | ~select(UserBlock.id).where(
                 UserBlock.tenant_id == tenant_id,
                 UserBlock.blocker_id == viewer_id,
-                User.tenant_id == tenant_id,
-            )
-            query = query.where((Event.submitted_by_email.is_(None)) | ~Event.submitted_by_email.in_(blocked_emails))
+                UserBlock.blocked_id == Event.submitted_by_user_id,
+            ).exists())
         query = query.order_by(Event.start_date.asc()).limit(limit)
         result = await self.session.execute(query)
         return list(result.scalars().all())
