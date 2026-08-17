@@ -52,11 +52,11 @@ describe('native device services', () => {
     const recorder = { state: 'inactive', mimeType: 'video/mp4', start: vi.fn(function (this: { state: string }) { this.state = 'recording' }), stop: vi.fn(function (this: { state: string; onstop?: () => void }) { this.state = 'inactive'; this.onstop?.() }), ondataavailable: undefined as ((event: { data: Blob }) => void) | undefined, onstop: undefined as (() => void) | undefined }
     Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn(async () => stream) }, configurable: true })
     vi.stubGlobal('MediaRecorder', Object.assign(function () { return recorder }, { isTypeSupported: () => true }))
-    const promise = new NativeMediaService().captureVideo()
+    new NativeMediaService().captureVideo()
+    await Promise.resolve()
     await vi.advanceTimersByTimeAsync(8999)
     expect(recorder.stop).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
-    await promise
     expect(recorder.stop).toHaveBeenCalledTimes(1)
     expect(track.stop).toHaveBeenCalledTimes(1)
     vi.useRealTimers()

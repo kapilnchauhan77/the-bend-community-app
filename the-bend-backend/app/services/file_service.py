@@ -135,6 +135,11 @@ class FileService:
         if storage_key:
             return hashlib.sha256(f"{storage_key}:{suffix}".encode()).hexdigest()[:32]
         return str(uuid.uuid4())
+
+    @staticmethod
+    def _existing_path(directory: Path, file_id: str) -> Path | None:
+        matches = sorted(directory.glob(f"{file_id}.*"))
+        return matches[0] if matches else None
     async def upload_private_user_image(self, file, user_id, storage_key: str | None = None) -> dict:
         """Store an avatar under an exclusive per-user root."""
         content = await file.read()
@@ -154,6 +159,10 @@ class FileService:
         for file in files[:5]:  # Max 5
             content = await file.read()
             file_id = self._file_id(storage_key, str(len(results)))
+            existing = self._existing_path(UPLOAD_DIR / "images", file_id) if storage_key else None
+            if existing:
+                results.append({"id": file_id, "url": f"/uploads/images/{existing.name}", "thumbnail_url": f"/uploads/images/{existing.stem}_thumb{existing.suffix}"})
+                continue
             full_bytes, thumb_bytes, ext = _process_image(content)
 
             full_path = UPLOAD_DIR / "images" / f"{file_id}{ext}"
@@ -214,6 +223,10 @@ class FileService:
             ext = _VIDEO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
 
         file_id = self._file_id(storage_key)
+        existing = self._existing_path(UPLOAD_DIR / "videos", file_id) if storage_key else None
+        if existing:
+            poster = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
+            return {"url": f"/uploads/videos/{existing.name}", "thumbnail_url": f"/uploads/videos/{poster.name}" if poster.exists() else None, "duration_ms": 0}
         video_path = UPLOAD_DIR / "videos" / f"{file_id}{ext}"
         poster_path = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
 
@@ -307,6 +320,9 @@ class FileService:
             ext = _AUDIO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
 
         file_id = self._file_id(storage_key)
+        existing = self._existing_path(UPLOAD_DIR / "audio", file_id) if storage_key else None
+        if existing:
+            return {"url": f"/uploads/audio/{existing.name}", "duration_ms": 0}
         audio_path = UPLOAD_DIR / "audio" / f"{file_id}{ext}"
 
         with open(audio_path, "wb") as f:

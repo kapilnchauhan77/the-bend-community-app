@@ -38,7 +38,7 @@ export interface PushService { explainAndRequest(): Promise<'granted' | 'denied'
 export interface DeepLinkService { parse(url: string): DeepLinkTarget | null; addListener(handler: (target: DeepLinkTarget) => void): Promise<RemoveListener>; }
 export interface BrowserService { open(url: string): Promise<void>; close(): Promise<void>; }
 export interface MediaSelection { blob: Blob; localUri: string; mimeType: string; filename: string; }
-export interface MediaService { pickPhoto(): Promise<MediaSelection | null>; capturePhoto(): Promise<MediaSelection | null>; captureVideo(): Promise<MediaSelection | null>; stopVideoCapture?(): void; }
+export interface MediaService { pickPhoto(): Promise<MediaSelection | null>; capturePhoto(): Promise<MediaSelection | null>; captureVideo(onProgress?: (elapsedMs: number, progress: number) => void): Promise<MediaSelection | null>; stopVideoCapture?(): void; }
 export interface LocationService { getForegroundPosition(): Promise<{ latitude: number; longitude: number; accuracy: number }>; }
 export interface ShareService { share(input: { title: string; text: string; url: string }): Promise<'shared' | 'cancelled'>; }
 export interface NetworkService { getStatus(): Promise<'online' | 'offline'>; addListener(handler: (status: 'online' | 'offline') => void): Promise<RemoveListener>; }

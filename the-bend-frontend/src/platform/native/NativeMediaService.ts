@@ -29,6 +29,7 @@ export class NativeMediaService implements MediaService {
   private chunks: Blob[] = []
   private resolveVideo: ((value: MediaSelection | null) => void) | null = null
   private timer: number | null = null
+  private deadline: number | null = null
   async pickPhoto() {
     try {
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
@@ -49,14 +50,16 @@ export class NativeMediaService implements MediaService {
     }
   }
 
-  async captureVideo() {
+  async captureVideo(onProgress?: (elapsedMs: number, progress: number) => void) {
     // Capacitor's Camera plugin intentionally handles stills only. The native
     // WebView MediaRecorder path provides video without persisting its bytes.
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return null
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
     const candidates = ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm']
     const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported?.(type))
-    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+    let recorder: MediaRecorder
+    try { recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream) }
+    catch (error) { stream.getTracks().forEach((track) => track.stop()); this.recorder = null; this.chunks = []; this.resolveVideo = null; throw error }
     this.recorder = recorder; this.chunks = []
     return new Promise<MediaSelection | null>((resolve) => {
       this.resolveVideo = resolve
@@ -67,14 +70,23 @@ export class NativeMediaService implements MediaService {
         this.recorder = null; this.chunks = []
         this.resolveVideo = null
         if (this.timer) { window.clearTimeout(this.timer); this.timer = null }
+        if (this.deadline) { window.clearTimeout(this.deadline); this.deadline = null }
         resolve(blob.size ? { blob, localUri: URL.createObjectURL(blob), mimeType: blob.type, filename: `capture.${blob.type.includes('webm') ? 'webm' : 'mp4'}` } : null)
       }
       recorder.start()
-      this.timer = window.setTimeout(() => this.stopVideoCapture(), 9000)
+      const startedAt = Date.now()
+      const tick = () => {
+        const elapsed = Math.min(Date.now() - startedAt, 9000)
+        onProgress?.(elapsed, elapsed / 9000)
+        if (elapsed < 9000 && this.recorder === recorder) this.timer = window.setTimeout(tick, 100)
+      }
+      tick()
+      this.deadline = window.setTimeout(() => this.stopVideoCapture(), 9000)
     })
   }
 
   stopVideoCapture() {
+    if (this.deadline) { window.clearTimeout(this.deadline); this.deadline = null }
     if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop()
   }
 }

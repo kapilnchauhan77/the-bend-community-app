@@ -234,7 +234,7 @@ export function CameraCapture({
   // Video capture: MediaRecorder with mime fallback + 9 s auto-stop.
   const startRecording = useCallback(() => {
     if (Capacitor.isNativePlatform()) {
-      nativeVideoPromiseRef.current = services.media.captureVideo();
+      nativeVideoPromiseRef.current = services.media.captureVideo((elapsedMs) => { setElapsed(elapsedMs / 1000); });
       setRecording(true); setElapsed(0);
       nativeVideoPromiseRef.current.then((selection) => {
         nativeVideoPromiseRef.current = null; setRecording(false);
