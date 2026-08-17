@@ -618,6 +618,7 @@ function BenderComposer({
   // Reset on close so the next open is clean.
   useEffect(() => {
     if (!open) {
+      void draftStore.remove('create-bender-post');
       setCaption('');
       setPending(null);
       setError(null);

@@ -30,6 +30,7 @@ export function normalizePublicContent(kind: CachedContent['kind'], input: unkno
 }
 const canonicalKey = (kind: CachedContent['kind'], entityId: string) => `${kind}:${entityId}`
 const validKey = (key: string, kind: CachedContent['kind'], entityId: string) => key === canonicalKey(kind, entityId) && !/[\\/]/.test(entityId)
+const safeImagePath = (path: string) => path.startsWith('bend-public-cache/images/') && !path.includes('..') && !path.startsWith('/') && !path.includes('\\')
 
 let testMemory = new Map<string, Entry>()
 
@@ -52,10 +53,14 @@ export class NativeContentCache implements ContentCache {
       const result = await Filesystem.readFile({ path: INDEX_PATH, directory: Directory.Data, encoding: 'utf8' })
       const parsed = JSON.parse(String(result.data)) as unknown
       if (!Array.isArray(parsed)) return
+      const safeEntries: Entry[] = []
       for (const value of parsed) {
-        if (this.valid(value)) this.entries.set(value.key, value)
+        if (this.valid(value) && (!value.imagePath || safeImagePath(value.imagePath))) safeEntries.push(value)
+        else if (value && typeof value === 'object' && typeof (value as Entry).imagePath === 'string' && safeImagePath((value as Entry).imagePath)) await this.deleteImage((value as Entry).imagePath)
       }
+      safeEntries.forEach((entry) => this.entries.set(entry.key, entry))
       await this.evict()
+      if (safeEntries.length !== parsed.length) await this.persist()
     } catch { /* missing or malformed cache is treated as empty */ }
   }
 
@@ -76,7 +81,7 @@ export class NativeContentCache implements ContentCache {
   }
 
   private async deleteImage(imagePath: string | null) {
-    if (!imagePath || /(^|[\\/])\.\.?([\\/])/.test(imagePath)) return
+    if (!imagePath || !safeImagePath(imagePath)) return
     try { await Filesystem.deleteFile({ path: imagePath, directory: Directory.Data }) } catch { /* best effort */ }
   }
 
@@ -97,7 +102,7 @@ export class NativeContentCache implements ContentCache {
     await this.load()
     if (!PUBLIC_KINDS.has(content.kind)) throw new Error('PUBLIC_CONTENT_ONLY')
     if (!validKey(content.key, content.kind, content.entityId)) throw new Error('INVALID_CACHE_KEY')
-    if (content.imagePath && /(^|[\\/])\.\.?([\\/])/.test(content.imagePath)) throw new Error('INVALID_CACHE_IMAGE_PATH')
+    if (content.imagePath && !safeImagePath(content.imagePath)) throw new Error('INVALID_CACHE_IMAGE_PATH')
     const previous = this.entries.get(content.key)
     let imageBytes = 0
     if (content.imagePath) { try { imageBytes = (await Filesystem.stat({ path: content.imagePath, directory: Directory.Data })).size ?? 0 } catch { imageBytes = 0 } }
