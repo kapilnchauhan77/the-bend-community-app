@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { AxiosError } from 'axios';
 import { MapPin, Phone, MessageCircle, Store, Calendar, Package, ThumbsUp, Award, Trash2 } from 'lucide-react';
@@ -20,16 +20,14 @@ import { ShareButton } from '@/components/shared/ShareButton';
 import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { shopApi } from '@/services/shopApi';
 import { messageApi } from '@/services/messageApi';
-import { discountCodeApi } from '@/services/discountCodeApi';
 import { DiscountCodesList } from '@/components/shared/DiscountCodesList';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { businessTypeLabel } from '@/lib/businessTypes';
-import type { Shop, Listing, DiscountCode } from '@/types';
 import { useOnlineMutation } from '@/hooks/useOnlineMutation';
 import { OfflineBanner } from '@/components/native/OfflineBanner';
-import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
+import { useBusinessProfilePublicData } from '@/hooks/useBusinessProfilePublicData';
 
 const EndorsementMap = lazy(() => import('@/components/shared/EndorsementMap'));
 
@@ -51,61 +49,37 @@ export default function BusinessProfilePage() {
   const navigate = useNavigate();
   const { isAuthenticated, shop: myShop, user } = useAuthStore();
   const { online, run: runOnline } = useOnlineMutation();
-  const cached = useCachedPublicContent<Shop>(`business:${shopId ?? ''}`, useCallback(async () => (await shopApi.getShop(shopId!)).data, [shopId]));
+  const publicData = useBusinessProfilePublicData(shopId);
+  const { cached, shopData, listings, endorsements, setEndorsements, endorsementCount, setEndorsementCount, discountCodes } = publicData;
 
-  const [shopData, setShopData] = useState<Shop | null>(null);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
+  const loading = !shopData && publicData.relatedLoading;
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [messagingLoading, setMessagingLoading] = useState(false);
-  const [endorsements, setEndorsements] = useState<Array<{
-    id: string;
-    message: string | null;
-    created_at: string;
-    endorser: {
-      id: string;
-      name: string;
-      business_type: string;
-      avatar_url: string | null;
-      kind: 'business' | 'individual';
-    };
-  }>>([]);
   const [hasEndorsed, setHasEndorsed] = useState(false);
   const [endorseLoading, setEndorseLoading] = useState(false);
   const [endorseMessage, setEndorseMessage] = useState('');
   const [endorseError, setEndorseError] = useState<string | null>(null);
   const [showEndorseForm, setShowEndorseForm] = useState(false);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
-  const [endorsementCount, setEndorsementCount] = useState(0);
-  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
 
   const isOwner = myShop && shopData && myShop.id === shopData.id;
   const viewerEndorserId = myShop?.id ?? user?.id;
 
   useEffect(() => {
-    if (!cached.data) return;
-    setShopData(cached.data); setHasEndorsed(cached.data.viewer_has_endorsed ?? false); setLoading(false);
-  }, [cached.data]);
+    if (!shopData) return;
+    setHasEndorsed(shopData.viewer_has_endorsed ?? false);
+    setError(null);
+  }, [shopData]);
 
   useEffect(() => {
-    if (!shopId) return;
     setError(null);
     setShowWithdrawConfirm(false);
+  }, [shopId]);
 
-    Promise.all([
-      shopApi.getShopListings(shopId),
-      shopApi.getEndorsements(shopId),
-      discountCodeApi.listForShop(shopId).catch(() => ({ data: [] as DiscountCode[] })),
-    ])
-      .then(([listingsRes, endorseRes, discountRes]) => {
-        setListings(listingsRes.data.items ?? listingsRes.data ?? []);
-        setEndorsements(endorseRes.data.items ?? []);
-        setEndorsementCount(endorseRes.data.count ?? 0);
-        setDiscountCodes(Array.isArray(discountRes.data) ? discountRes.data : []);
-      })
-      .catch(() => { if (!cached.data) setError('Could not load this business profile.') })
-      .finally(() => setLoading(false));
-  }, [shopId, cached.data]);
+  useEffect(() => {
+    if (publicData.relatedError && !shopData) setError('Could not load this business profile.');
+  }, [publicData.relatedError, shopData]);
 
   async function handleEndorse() {
     if (!shopId) return;
@@ -162,7 +136,7 @@ export default function BusinessProfilePage() {
       const { data } = await runOnline(() => messageApi.startThread(shopId));
       navigate(`/messages/${data.id}`);
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not start this message. Please try again.');
     } finally {
       setMessagingLoading(false);
     }
@@ -206,7 +180,10 @@ export default function BusinessProfilePage() {
   return (
     <PageLayout>
       {!online && <OfflineBanner />}
-      <div className="max-w-4xl mx-auto px-4 md:px-8 pt-4"><CachedContentNotice cachedAt={cached.cachedAt} /></div>
+      <div className="max-w-4xl mx-auto px-4 md:px-8 pt-4">
+        <CachedContentNotice cachedAt={cached.cachedAt} />
+        {actionError && <p role="alert" className="mt-2 text-sm text-red-700">{actionError}</p>}
+      </div>
       {/* Museum-themed header */}
       <div className="border-b border-[hsl(35,18%,84%)]" style={{ backgroundColor: PRIMARY }}>
         <div className="max-w-4xl mx-auto px-4 md:px-8 py-10">

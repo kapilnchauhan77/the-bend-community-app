@@ -10,7 +10,10 @@ export function useCachedPublicContent<T>(key: string, fetcher: () => Promise<T>
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const inFlight = useRef<{ key: string; request: Promise<void> } | null>(null)
   const activeKey = useRef(key)
-  useEffect(() => { activeKey.current = key; setData(null); setSource(null); setCachedAt(null) }, [key])
+  const mounted = useRef(false)
+  activeKey.current = key
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => { if (mounted.current) { setData(null); setSource(null); setCachedAt(null) } }, [key])
   const refresh = useCallback(async () => {
     if (inFlight.current?.key === key) return inFlight.current.request
     const requestKey = key
@@ -19,26 +22,35 @@ export function useCachedPublicContent<T>(key: string, fetcher: () => Promise<T>
       if (online) {
         try {
           const fresh = await fetcher()
-          if (activeKey.current !== requestKey) return
-          setData(fresh); setSource('network'); setCachedAt(null)
           const value = fresh as CachedContent
-          const [prefix, ...rest] = key.split(':')
+          const [prefix, ...rest] = requestKey.split(':')
           const kind = (value && typeof value === 'object' && 'kind' in value ? value.kind : prefix) as CachedContent['kind']
-          const entityId = value && typeof value === 'object' && 'entityId' in value ? String(value.entityId) : rest.join(':') || key
+          const entityId = value && typeof value === 'object' && 'entityId' in value ? String(value.entityId) : rest.join(':') || requestKey
           if (['listing', 'business', 'event', 'bender'].includes(kind)) {
             // A cache failure must never turn a successful network read into an error.
-            await cache.put({ key, kind, entityId, cachedAt: new Date().toISOString(), payload: value, imagePath: null, sizeBytes: JSON.stringify(value).length }).catch(() => undefined)
+            const write = cache.put({ key: requestKey, kind, entityId, cachedAt: new Date().toISOString(), payload: value, imagePath: null, sizeBytes: JSON.stringify(value).length }).catch(() => undefined)
+            if (mounted.current && activeKey.current === requestKey) { setData(fresh); setSource('network'); setCachedAt(null) }
+            await write
+          } else if (mounted.current && activeKey.current === requestKey) {
+            setData(fresh); setSource('network'); setCachedAt(null)
           }
           return
         } catch { /* use cache below */ }
       }
-      const stored = await cache.get(key)
-      if (stored && activeKey.current === requestKey) { setData(stored.payload as T); setSource('cache'); setCachedAt(stored.cachedAt) }
+      const stored = await cache.get(requestKey)
+      if (stored && mounted.current && activeKey.current === requestKey) { setData(stored.payload as T); setSource('cache'); setCachedAt(stored.cachedAt) }
     })()
     inFlight.current = { key: requestKey, request }
     try { await request } finally { if (inFlight.current?.request === request) inFlight.current = null }
   }, [cache, fetcher, key, network])
-  useEffect(() => { queueMicrotask(() => { void refresh() }); const listener = network.addListener((status) => { if (status === 'online') void refresh() }); return () => { void listener.then((l) => l.remove()) } }, [network, refresh])
+  useEffect(() => {
+    let active = true
+    queueMicrotask(() => { if (active) void refresh() })
+    const listener = Promise.resolve()
+      .then(() => network.addListener((status) => { if (active && status === 'online') void refresh() }))
+      .catch(() => null)
+    return () => { active = false; void listener.then((registered) => registered?.remove()) }
+  }, [network, refresh])
   useNativeLifecycle(refresh)
   return { data, source, cachedAt, refresh }
 }

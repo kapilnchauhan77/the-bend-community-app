@@ -28,9 +28,9 @@ import { isVideoUrl, timeAgo } from '@/lib/utils';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
 import { useOnlineMutation } from '@/hooks/useOnlineMutation';
 import { OfflineBanner } from '@/components/native/OfflineBanner';
-import { draftStore } from '@/drafts/DraftStore';
-import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
+import { useBenderFeed } from '@/hooks/useBenderFeed';
+import { useBenderDraft } from '@/hooks/useBenderDraft';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -200,7 +200,7 @@ function CommentsDrawer({
         prev.map((c) => (c.id === tempId ? res.data : c))
       );
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not post that comment. Please try again.');
       // Roll back on failure.
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setDraft(content);
@@ -218,7 +218,7 @@ function CommentsDrawer({
       try {
       await runOnline(() => benderApi.deleteComment(postId, commentId));
       } catch (error) {
-        if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
+        setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not delete that comment. Please try again.');
         // Restore on failure.
         setComments(previous);
         onCountChange(1);
@@ -382,7 +382,7 @@ function BenderPostCard({
         await runOnline(() => benderApi.like(post.id));
       }
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not update that like. Please try again.');
       // Revert.
       onPatch(post.id, {
         viewer_has_liked: wasLiked,
@@ -416,7 +416,7 @@ function BenderPostCard({
       await runOnline(() => benderApi.deletePost(post.id));
       onDelete(post.id);
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setActionError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not delete that post. Please try again.');
     }
   }, [post.id, onDelete, runOnline]);
 
@@ -585,12 +585,6 @@ function BenderPostCard({
 // capture OR file picker). Submits to benderApi.createPost and prepends the
 // returned post via the supplied callback.
 // ============================================================================
-type PendingMedia = {
-  url: string;
-  thumbnail_url: string | null;
-  type: 'image' | 'video';
-};
-
 function BenderComposer({
   open,
   onClose,
@@ -600,11 +594,9 @@ function BenderComposer({
   onClose: () => void;
   onCreated: (post: BenderPost) => void;
 }) {
-  const [caption, setCaption] = useState('');
-  const [pending, setPending] = useState<PendingMedia | null>(null);
+  const { caption, setCaption, pending, setPending, discard } = useBenderDraft(open);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [draftHydrated, setDraftHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -619,30 +611,13 @@ function BenderComposer({
   }, [caption, open]);
 
   useEffect(() => {
-    if (open && draftHydrated) void draftStore.save('create-bender-post', { fields: { caption }, localMediaUris: pending?.url?.startsWith('file:') ? [pending.url] : [] });
-  }, [caption, open, pending, draftHydrated]);
-
-  // Reset on close so the next open is clean.
-  useEffect(() => {
-    if (!open) {
-      void draftStore.remove('create-bender-post');
-      setCaption('');
-      setPending(null);
-      setError(null);
-      setSubmitting(false);
-    }
+    if (!open) { setError(null); setSubmitting(false); }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    void draftStore.load('create-bender-post').then((draft) => {
-      const savedCaption = typeof draft?.fields.caption === 'string' ? draft.fields.caption : '';
-      if (savedCaption) setCaption(savedCaption);
-      const uri = draft?.localMediaUris[0];
-      if (uri) setPending({ url: uri, thumbnail_url: null, type: 'image' });
-      setDraftHydrated(true);
-    });
-  }, [open]);
+  const handleDiscard = useCallback(() => {
+    void discard();
+    onClose();
+  }, [discard, onClose]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
     setPending({
@@ -651,7 +626,7 @@ function BenderComposer({
       type: result.type,
     });
     setCameraOpen(false);
-  }, []);
+  }, [setPending]);
 
   const handleFilePicked = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -678,7 +653,7 @@ function BenderComposer({
         setError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not upload that file. Try a smaller one.');
       }
     },
-    [runOnline]
+    [runOnline, setPending]
   );
 
   const canSubmit = (caption.trim().length > 0 || pending !== null) && !submitting;
@@ -704,14 +679,14 @@ function BenderComposer({
         payload.media_type = pending.type;
       }
       const res = await runOnline(() => benderApi.createPost(payload));
-      await draftStore.remove('create-bender-post').catch(() => undefined);
+      await discard().catch(() => undefined);
       onCreated(res.data);
       onClose();
     } catch (error) {
       setError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not post. Please try again.');
       setSubmitting(false);
     }
-  }, [canSubmit, caption, pending, onCreated, onClose, runOnline]);
+  }, [canSubmit, caption, pending, onCreated, onClose, runOnline, discard]);
 
   if (!open) return null;
 
@@ -722,7 +697,7 @@ function BenderComposer({
         className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center"
         role="dialog"
         aria-modal="true"
-        onClick={onClose}
+        onClick={handleDiscard}
       >
         <div
           className="bg-white w-full md:max-w-md md:rounded-lg shadow-2xl flex flex-col max-h-[90vh] md:max-h-[80vh]"
@@ -731,7 +706,7 @@ function BenderComposer({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(35,18%,88%)]">
             <button
-              onClick={onClose}
+              onClick={handleDiscard}
               className="text-[hsl(30,10%,40%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
               aria-label="Cancel"
             >
@@ -856,15 +831,10 @@ function BenderComposer({
 // BenderPage — main feed.
 // ============================================================================
 export default function BenderPage() {
-  const cached = useCachedPublicContent<BenderPost[]>('bender:feed', useCallback(async () => (await benderApi.listPosts()).data.items, []));
+  const feed = useBenderFeed();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthStore();
-  const [posts, setPosts] = useState<BenderPost[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -876,37 +846,7 @@ export default function BenderPage() {
 
   const isCommunityAdmin = user?.role === 'community_admin';
 
-  const fetchPage = useCallback(
-    async (currentCursor?: string) => {
-      const isFirst = !currentCursor;
-      if (isFirst) setLoading(true);
-      else setLoadingMore(true);
-      try {
-        const res = await benderApi.listPosts(currentCursor);
-        const newItems = res.data.items;
-        setPosts((prev) => {
-          if (isFirst) return newItems;
-          // Dedupe — defensive against an optimistic insert that the server
-          // later returns mid-pagination.
-          const seen = new Set(prev.map((p) => p.id));
-          return [...prev, ...newItems.filter((p) => !seen.has(p.id))];
-        });
-        setCursor(res.data.next_cursor ?? null);
-        setHasMore(res.data.has_more);
-      } catch {
-      if (!cached.data) setHasMore(false);
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [cached.data]
-  );
-
-  useEffect(() => {
-    if (!cached.data) return;
-    setPosts(cached.data); setCursor(null); setHasMore(true); setLoading(false);
-  }, [cached.data]);
+  const { posts, cursor, hasMore, loading, loadingMore, loadNext, prepend, remove, patch: patchPost } = feed;
 
   // IntersectionObserver — load next page when sentinel scrolls into view.
   useEffect(() => {
@@ -915,14 +855,14 @@ export default function BenderPage() {
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore && cursor) {
-          fetchPage(cursor);
+          void loadNext();
         }
       },
       { rootMargin: '320px' }
     );
     obs.observe(node);
     return () => obs.disconnect();
-  }, [cursor, hasMore, loading, loadingMore, fetchPage]);
+  }, [cursor, hasMore, loading, loadingMore, loadNext]);
 
   // Deep-link focus — a bender reference card in a message links to
   // `/bender?post={id}`. Once the feed has loaded and the target post is
@@ -937,7 +877,7 @@ export default function BenderPage() {
     if (!el) return;
     focusedPostRef.current = focusPostId;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setHighlightedPostId(focusPostId);
+    queueMicrotask(() => setHighlightedPostId(focusPostId));
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
     highlightTimeoutRef.current = setTimeout(() => {
       setHighlightedPostId(null);
@@ -960,25 +900,25 @@ export default function BenderPage() {
   }, [isAuthenticated, navigate]);
 
   const handleCreated = useCallback((post: BenderPost) => {
-    setPosts((prev) => [post, ...prev]);
+    prepend(post);
     // After prepending, scroll up so the user sees their fresh post. Otherwise
     // the new content jumps in above the viewport and feels invisible.
     requestAnimationFrame(() => {
       feedTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-  }, []);
+  }, [prepend]);
 
   const handleDelete = useCallback((id: string) => {
-    setPosts((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+    remove(id);
+  }, [remove]);
 
-  const handlePatch = useCallback((id: string, patch: Partial<BenderPost>) => {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  }, []);
+  const handlePatch = useCallback((id: string, values: Partial<BenderPost>) => {
+    patchPost(id, values);
+  }, [patchPost]);
 
   return (
     <PageLayout showFooter={false}>
-      <CachedContentNotice cachedAt={cached.cachedAt} />
+      <CachedContentNotice cachedAt={feed.cachedAt} />
       <div ref={feedTopRef} />
       <div className="w-full max-w-md mx-auto md:py-4">
         {/* Sticky page header */}

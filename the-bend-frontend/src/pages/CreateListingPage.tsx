@@ -207,7 +207,7 @@ export default function CreateListingPage() {
       const res = await runOnline(() => uploadApi.uploadImages(Array.from(files)));
       setImages(prev => [...prev, ...(res.data.images || [])]);
     } catch (error) {
-      setServerError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : null);
+      setServerError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not upload those images. Please try again.');
     } finally {
       setUploading(false);
       e.target.value = '';

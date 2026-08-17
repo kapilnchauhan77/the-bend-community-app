@@ -1,4 +1,4 @@
-import { Directory, Filesystem } from '@capacitor/filesystem'
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import type { CachedContent, ContentCache } from '../contracts'
 
 const MAX_ITEMS = 50
@@ -7,26 +7,70 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const PUBLIC_KINDS = new Set<CachedContent['kind']>(['listing', 'business', 'event', 'bender'])
 const INDEX_PATH = 'bend-public-cache/index.json'
 type Entry = CachedContent & { lastAccessedAt: string }
-const PUBLIC_FIELDS: Record<CachedContent['kind'], string[]> = {
-  listing: ['id', 'type', 'category', 'title', 'description', 'quantity', 'unit', 'urgency', 'pricing_type', 'is_free', 'price', 'price_max', 'price_unit', 'price_text', 'expiry_date', 'status', 'images', 'shop', 'posted_by', 'created_at'],
-  business: ['id', 'name', 'business_type', 'description', 'avatar_url', 'website', 'address', 'city', 'state', 'zip_code', 'listings'],
-  event: ['id', 'title', 'description', 'start_date', 'end_date', 'location', 'category', 'source', 'source_url', 'is_featured', 'created_at'],
-  bender: ['id', 'caption', 'media_url', 'media_thumbnail_url', 'media_type', 'created_at', 'author', 'like_count', 'comment_count'],
+type PublicObject = Record<string, unknown>
+type Projector = (source: PublicObject) => PublicObject
+
+const isObject = (value: unknown): value is PublicObject => !!value && typeof value === 'object' && !Array.isArray(value)
+const pick = (source: PublicObject, fields: readonly string[]): PublicObject =>
+  Object.fromEntries(fields.filter((field) => Object.prototype.hasOwnProperty.call(source, field)).map((field) => [field, source[field]]))
+
+const projectListingImage: Projector = (source) => pick(source, ['url', 'thumbnail_url'])
+const projectListingShop: Projector = (source) => pick(source, ['id', 'name', 'business_type', 'avatar_url', 'address', 'contact_phone', 'whatsapp'])
+const projectListingPoster: Projector = (source) => pick(source, ['id', 'name', 'avatar_url'])
+const projectBenderAuthor: Projector = (source) => pick(source, ['id', 'name', 'avatar_url', 'shop_id', 'shop_name'])
+
+const projectListing: Projector = (source) => {
+  const result = pick(source, [
+    'id', 'type', 'category', 'title', 'description', 'quantity', 'unit', 'urgency', 'pricing_type', 'is_free',
+    'price', 'price_max', 'price_unit', 'price_text', 'expiry_date', 'status', 'interest_count', 'views_count', 'created_at',
+  ])
+  if (isObject(source.shop)) result.shop = projectListingShop(source.shop)
+  else if (source.shop === null) result.shop = null
+  if (isObject(source.posted_by)) result.posted_by = projectListingPoster(source.posted_by)
+  else if (source.posted_by === null) result.posted_by = null
+  if (Array.isArray(source.images)) result.images = source.images.filter(isObject).slice(0, 1).map(projectListingImage)
+  return result
 }
+
+const projectBusiness: Projector = (source) => {
+  const result = pick(source, [
+    'id', 'name', 'business_type', 'description', 'avatar_url', 'website', 'address', 'city', 'state', 'zip_code',
+    'latitude', 'longitude', 'contact_phone', 'whatsapp', 'status', 'active_listings_count', 'total_fulfilled',
+    'endorsement_count', 'member_since',
+  ])
+  if (Array.isArray(source.listings)) result.listings = source.listings.filter(isObject).map(projectListing)
+  return result
+}
+
+const projectEvent: Projector = (source) => pick(source, [
+  'id', 'title', 'description', 'start_date', 'end_date', 'location', 'category', 'image_url', 'source', 'source_url',
+  'is_featured', 'status', 'created_at',
+])
+
+const projectBender: Projector = (source) => {
+  const result = pick(source, ['id', 'caption', 'media_url', 'media_thumbnail_url', 'media_type', 'created_at', 'like_count', 'comment_count'])
+  if (isObject(source.author)) result.author = projectBenderAuthor(source.author)
+  return result
+}
+
+const PROJECTORS: Record<CachedContent['kind'], Projector> = {
+  listing: projectListing,
+  business: projectBusiness,
+  event: projectEvent,
+  bender: projectBender,
+}
+
 export function normalizePublicContent(kind: CachedContent['kind'], input: unknown): unknown {
-  if (Array.isArray(input)) return input.map((item) => normalizePublicContent(kind, item))
-  if (!input || typeof input !== 'object') return input
-  const source = input as Record<string, unknown>
-  const nested = (value: unknown, nestedKind: CachedContent['kind'] = kind) => {
-    if (Array.isArray(value)) return value.map((item) => nested(item, nestedKind))
-    if (!value || typeof value !== 'object') return value
-    const object = value as Record<string, unknown>
-    if (nestedKind === 'listing' && ('title' in object || 'description' in object)) return normalizePublicContent('listing', object)
-    if (nestedKind === 'business' && ('listings' in object || 'business_type' in object)) return normalizePublicContent('business', object)
-    const fields = ['id', 'name', 'business_type', 'avatar_url', 'shop_name', 'url', 'thumbnail_url', 'type']
-    return Object.fromEntries(fields.filter((field) => field in object).map((field) => [field, object[field]]))
+  const projector = PROJECTORS[kind]
+  if (Array.isArray(input)) return input.filter(isObject).map(projector)
+  if (!isObject(input)) return input
+  if (Array.isArray(input.items)) {
+    return {
+      items: input.items.filter(isObject).map(projector),
+      ...pick(input, ['next_cursor', 'has_more']),
+    }
   }
-  return Object.fromEntries(PUBLIC_FIELDS[kind].filter((field) => field in source).map((field) => [field, field === 'listings' ? nested(source[field], 'listing') : ['shop', 'posted_by', 'author'].includes(field) ? nested(source[field]) : field === 'images' && Array.isArray(source[field]) ? source[field].slice(0, 1).map(nested) : source[field]]))
+  return projector(input)
 }
 const canonicalKey = (kind: CachedContent['kind'], entityId: string) => `${kind}:${entityId}`
 const validKey = (key: string, kind: CachedContent['kind'], entityId: string) => key === canonicalKey(kind, entityId) && !/[\\/]/.test(entityId)
@@ -50,24 +94,33 @@ export class NativeContentCache implements ContentCache {
     this.loaded = true
     if (this.memory) { this.entries = testMemory; return }
     try {
-      const result = await Filesystem.readFile({ path: INDEX_PATH, directory: Directory.Data, encoding: 'utf8' })
+      const result = await Filesystem.readFile({ path: INDEX_PATH, directory: Directory.Data, encoding: Encoding.UTF8 })
       const parsed = JSON.parse(String(result.data)) as unknown
       if (!Array.isArray(parsed)) return
       const safeEntries: Entry[] = []
+      const possibleOrphanImages = new Set<string>()
       for (const value of parsed) {
-        if (this.valid(value) && (!value.imagePath || safeImagePath(value.imagePath))) safeEntries.push(value)
-        else if (value && typeof value === 'object' && typeof (value as Entry).imagePath === 'string' && safeImagePath((value as Entry).imagePath)) await this.deleteImage((value as Entry).imagePath)
+        if (this.valid(value) && (!value.imagePath || safeImagePath(value.imagePath))) {
+          safeEntries.push({ ...value, payload: normalizePublicContent(value.kind, value.payload) })
+        } else if (value && typeof value === 'object') {
+          const imagePath = (value as Partial<Entry>).imagePath
+          if (typeof imagePath === 'string' && safeImagePath(imagePath)) possibleOrphanImages.add(imagePath)
+        }
       }
       safeEntries.forEach((entry) => this.entries.set(entry.key, entry))
       await this.evict()
-      if (safeEntries.length !== parsed.length) await this.persist()
+      const retained = [...this.entries.values()]
+      const referencedImages = new Set(retained.map((entry) => entry.imagePath).filter((path): path is string => !!path))
+      safeEntries.forEach((entry) => { if (entry.imagePath && this.entries.get(entry.key) !== entry) possibleOrphanImages.add(entry.imagePath) })
+      await Promise.all([...possibleOrphanImages].filter((path) => !referencedImages.has(path)).map((path) => this.deleteImage(path)))
+      if (JSON.stringify(parsed) !== JSON.stringify(retained)) await this.persist()
     } catch { /* missing or malformed cache is treated as empty */ }
   }
 
   private valid(value: unknown): value is Entry {
     if (!value || typeof value !== 'object') return false
     const item = value as Partial<Entry>
-    return typeof item.key === 'string' && PUBLIC_KINDS.has(item.kind as CachedContent['kind']) && typeof item.entityId === 'string' && validKey(item.key, item.kind as CachedContent['kind'], item.entityId) && typeof item.cachedAt === 'string' && Number.isFinite(Date.parse(item.cachedAt)) && Date.now() - Date.parse(item.cachedAt) <= MAX_AGE_MS && typeof item.lastAccessedAt === 'string' && typeof item.sizeBytes === 'number' && item.sizeBytes >= 0 && item.sizeBytes <= MAX_BYTES && item.payload !== undefined
+    return typeof item.key === 'string' && PUBLIC_KINDS.has(item.kind as CachedContent['kind']) && typeof item.entityId === 'string' && validKey(item.key, item.kind as CachedContent['kind'], item.entityId) && typeof item.cachedAt === 'string' && Number.isFinite(Date.parse(item.cachedAt)) && Date.now() - Date.parse(item.cachedAt) <= MAX_AGE_MS && typeof item.lastAccessedAt === 'string' && Number.isFinite(Date.parse(item.lastAccessedAt)) && typeof item.sizeBytes === 'number' && item.sizeBytes >= 0 && item.sizeBytes <= MAX_BYTES && item.payload !== undefined
   }
 
   private async persist() {
@@ -75,7 +128,7 @@ export class NativeContentCache implements ContentCache {
     try {
       await Filesystem.mkdir({ path: 'bend-public-cache', directory: Directory.Data, recursive: true })
       const data = JSON.stringify([...this.entries.values()])
-      await Filesystem.writeFile({ path: `${INDEX_PATH}.tmp`, directory: Directory.Data, data, encoding: 'utf8' })
+      await Filesystem.writeFile({ path: `${INDEX_PATH}.tmp`, directory: Directory.Data, data, encoding: Encoding.UTF8 })
       await Filesystem.rename({ from: `${INDEX_PATH}.tmp`, to: INDEX_PATH, directory: Directory.Data })
     } catch { /* cache is best effort */ }
   }
@@ -85,6 +138,11 @@ export class NativeContentCache implements ContentCache {
     try { await Filesystem.deleteFile({ path: imagePath, directory: Directory.Data }) } catch { /* best effort */ }
   }
 
+  private async deleteImageIfUnreferenced(imagePath: string | null) {
+    if (!imagePath || [...this.entries.values()].some((entry) => entry.imagePath === imagePath)) return
+    await this.deleteImage(imagePath)
+  }
+
   private async evict() {
     const ordered = [...this.entries.values()].sort((a, b) => a.lastAccessedAt.localeCompare(b.lastAccessedAt))
     let bytes = ordered.reduce((sum, item) => sum + item.sizeBytes, 0)
@@ -92,7 +150,7 @@ export class NativeContentCache implements ContentCache {
       const item = ordered.shift()
       if (!item) break
       this.entries.delete(item.key)
-      await this.deleteImage(item.imagePath)
+      await this.deleteImageIfUnreferenced(item.imagePath)
       bytes -= item.sizeBytes
     }
   }
@@ -110,7 +168,7 @@ export class NativeContentCache implements ContentCache {
     const sizeBytes = new TextEncoder().encode(JSON.stringify({ key: content.key, kind: content.kind, entityId: content.entityId, cachedAt: content.cachedAt, payload })).byteLength + imageBytes
     if (sizeBytes > MAX_BYTES) return
     this.entries.set(content.key, { ...content, payload, imagePath: content.imagePath ?? null, sizeBytes, lastAccessedAt: new Date().toISOString() })
-    if (previous?.imagePath && previous.imagePath !== content.imagePath) await this.deleteImage(previous.imagePath)
+    if (previous?.imagePath && previous.imagePath !== content.imagePath) await this.deleteImageIfUnreferenced(previous.imagePath)
     await this.evict()
     await this.persist()
   }
@@ -120,14 +178,14 @@ export class NativeContentCache implements ContentCache {
     await this.load()
     const item = this.entries.get(key)
     if (!item) return null
-    if (!Number.isFinite(Date.parse(item.cachedAt)) || Date.now() - Date.parse(item.cachedAt) > MAX_AGE_MS) { this.entries.delete(key); await this.persist(); return null }
+    if (!Number.isFinite(Date.parse(item.cachedAt)) || Date.now() - Date.parse(item.cachedAt) > MAX_AGE_MS) { this.entries.delete(key); await this.deleteImageIfUnreferenced(item.imagePath); await this.persist(); return null }
     item.lastAccessedAt = new Date().toISOString()
     await this.persist()
     return { ...item }
   }
 
-  async remove(key: string) { return this.enqueue(async () => { await this.load(); const item = this.entries.get(key); this.entries.delete(key); if (item) await this.deleteImage(item.imagePath); await this.persist() }) }
-  async clear() { return this.enqueue(async () => { await this.load(); await Promise.all([...this.entries.values()].map((item) => this.deleteImage(item.imagePath))); this.entries.clear(); await this.persist() }) }
+  async remove(key: string) { return this.enqueue(async () => { await this.load(); const item = this.entries.get(key); this.entries.delete(key); if (item) await this.deleteImageIfUnreferenced(item.imagePath); await this.persist() }) }
+  async clear() { return this.enqueue(async () => { await this.load(); const paths = new Set([...this.entries.values()].map((item) => item.imagePath).filter((path): path is string => !!path)); this.entries.clear(); await Promise.all([...paths].map((path) => this.deleteImage(path))); await this.persist() }) }
   async stats() { return this.enqueue(async () => { await this.load(); return { items: this.entries.size, bytes: [...this.entries.values()].reduce((sum, item) => sum + item.sizeBytes, 0) } }) }
 }
 

@@ -95,6 +95,7 @@ export default function ListingDetailPage() {
   const [interestSuccess, setInterestSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('inappropriate');
   const [reportDetails, setReportDetails] = useState('');
@@ -146,7 +147,7 @@ export default function ListingDetailPage() {
         setTimeout(() => setInterestSuccess(false), 3000);
       }
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not update your interest. Please try again.');
     } finally {
       setInterestLoading(false);
     }
@@ -163,7 +164,7 @@ export default function ListingDetailPage() {
         setHasSaved(true);
       }
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not update this saved listing. Please try again.');
     }
   }
 
@@ -173,7 +174,7 @@ export default function ListingDetailPage() {
       await runOnline(() => listingApi.fulfill(id!));
       navigate('/my-shop');
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not mark this listing fulfilled. Please try again.');
       setActionLoading(false);
     }
   }
@@ -184,7 +185,7 @@ export default function ListingDetailPage() {
       await runOnline(() => listingApi.delete(id!));
       navigate('/my-shop');
     } catch (error) {
-      if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
+      setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not delete this listing. Please try again.');
       setActionLoading(false);
     }
   }
@@ -231,6 +232,7 @@ export default function ListingDetailPage() {
       {!online && <OfflineBanner />}
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
         <CachedContentNotice cachedAt={cached.cachedAt} />
+        {actionError && <p role="alert" className="mb-4 text-sm text-red-700">{actionError}</p>}
         {/* Back button */}
         <button
           onClick={() => navigate(-1)}
@@ -638,11 +640,12 @@ export default function ListingDetailPage() {
                 className="flex-1 gap-2"
                 onClick={async () => {
                   if (!listing || !listing.shop) return;
+                  const targetShopId = listing.shop.id;
                   try {
-                    const { data } = await runOnline(() => messageApi.startThread(listing.shop.id, listing.id));
+                    const { data } = await runOnline(() => messageApi.startThread(targetShopId, listing.id));
                     navigate(`/messages/${data.id}`);
-                  } catch (err) {
-                    console.error('Failed to start thread:', err);
+                  } catch (error) {
+                    setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not start this message. Please try again.');
                   }
                 }}
               >
@@ -657,11 +660,12 @@ export default function ListingDetailPage() {
                 onClick={async () => {
                   if (!isAuthenticated) { navigate('/login'); return; }
                   if (!listing.posted_by) return;
+                  const targetUserId = listing.posted_by.id;
                   try {
-                    const { data } = await runOnline(() => messageApi.createDirectThread(listing.posted_by.id));
+                    const { data } = await runOnline(() => messageApi.createDirectThread(targetUserId));
                     navigate(`/messages/${data.id}`);
-                  } catch (err) {
-                    console.error('Failed to start thread:', err);
+                  } catch (error) {
+                    setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not start this message. Please try again.');
                   }
                 }}
               >
@@ -741,7 +745,7 @@ export default function ListingDetailPage() {
                         await runOnline(() => listingApi.reportListing(id!, { reason: reportReason, details: reportDetails || undefined }));
                         setReported(true);
                       } catch (error) {
-                        if (error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE') setError('OFFLINE_ACTION_UNAVAILABLE');
+                        setActionError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not submit this report. Please try again.');
                       }
                       setReportSubmitting(false);
                     }}
@@ -749,6 +753,7 @@ export default function ListingDetailPage() {
                     {reportSubmitting ? 'Submitting...' : 'Submit Report'}
                   </Button>
                 </div>
+                {actionError && <p role="alert" className="mt-3 text-sm text-red-700">{actionError}</p>}
               </>
             )}
           </div>

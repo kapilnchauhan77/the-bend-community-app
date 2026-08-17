@@ -5,10 +5,12 @@ import { useCachedPublicContent } from './useCachedPublicContent'
 const cache = { put: vi.fn(), get: vi.fn(), remove: vi.fn(), clear: vi.fn(), stats: vi.fn() }
 let status: 'online' | 'offline' = 'online'
 let listener: ((next: 'online' | 'offline') => void) | undefined
+let removeListener = vi.fn()
 const network = {
   getStatus: vi.fn(() => Promise.resolve(status)),
-  addListener: vi.fn(async (handler: (next: 'online' | 'offline') => void) => { listener = handler; return { remove: vi.fn() } }),
+  addListener: vi.fn(async (handler: (next: 'online' | 'offline') => void) => { listener = handler; return { remove: removeListener } }),
 }
+const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done }); return { promise, resolve } }
 
 vi.mock('@/platform/createPlatformServices', () => ({
   usePlatformServices: () => ({
@@ -23,6 +25,7 @@ describe('useCachedPublicContent', () => {
   beforeEach(() => {
     status = 'online'
     listener = undefined
+    removeListener = vi.fn().mockResolvedValue(undefined)
     vi.clearAllMocks()
     cache.get.mockResolvedValue(null)
     cache.put.mockResolvedValue(undefined)
@@ -66,5 +69,35 @@ describe('useCachedPublicContent', () => {
     await act(async () => { listener?.('online') })
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(result.current.data).toEqual({ id: 'fresh' }))
+  })
+
+  it('stops listener-triggered work and state changes after unmount', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ id: 'fresh' })
+    const { unmount } = renderHook(() => useCachedPublicContent('listing:1', fetcher))
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    unmount()
+    await waitFor(() => expect(removeListener).toHaveBeenCalledTimes(1))
+    await act(async () => { listener?.('online') })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes each successful request to its own cache key even if the visible key changes', async () => {
+    const first = deferred<{ id: string }>()
+    const second = deferred<{ id: string }>()
+    const firstFetcher = vi.fn(() => first.promise)
+    const secondFetcher = vi.fn(() => second.promise)
+    const { result, rerender } = renderHook(
+      ({ key, fetcher }) => useCachedPublicContent(key, fetcher),
+      { initialProps: { key: 'listing:1', fetcher: firstFetcher } },
+    )
+    await waitFor(() => expect(firstFetcher).toHaveBeenCalledTimes(1))
+    rerender({ key: 'listing:2', fetcher: secondFetcher })
+    await waitFor(() => expect(secondFetcher).toHaveBeenCalledTimes(1))
+
+    await act(async () => { first.resolve({ id: 'first' }); await first.promise })
+    await act(async () => { second.resolve({ id: 'second' }); await second.promise })
+    await waitFor(() => expect(result.current.data).toEqual({ id: 'second' }))
+    expect(cache.put.mock.calls.map(([entry]) => entry.key)).toEqual(['listing:1', 'listing:2'])
+    expect(cache.put).toHaveBeenCalledTimes(2)
   })
 })
