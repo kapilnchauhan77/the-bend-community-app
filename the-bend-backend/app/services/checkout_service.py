@@ -66,7 +66,7 @@ class CheckoutVerificationService:
                     row.status = "cancelled"
                 else:
                     row.checkout_status = "cancelled"
-            elif checkout.get("payment_status") == "paid":
+            elif provider_status == "complete" and checkout.get("payment_status") == "paid":
                 if kind == "connector":
                     row.status = "paid"
                 else:
@@ -86,7 +86,7 @@ class CheckoutVerificationService:
                 if checkout.get("payment_intent"):
                     row.stripe_payment_intent = checkout.get("payment_intent")
             await self.db.flush()
-        except Exception:
+        except (stripe.error.StripeError, OSError, TimeoutError):
             pass
         return {"status": self._status(kind, row), "target_type": kind, "target_id": str(row.id)}
 

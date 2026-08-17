@@ -231,7 +231,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         if metadata_hint.get("tenant_id"):
             tenant_result = await db.execute(select(Tenant).where(Tenant.id == metadata_hint["tenant_id"], Tenant.is_active == True))
             tenant = tenant_result.scalar_one_or_none()
-    except Exception:
+    except (ValueError, TypeError, AttributeError):
         envelope = None
         tenant = None
     webhook_secret = get_stripe_keys(tenant).webhook
@@ -260,10 +260,10 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         from app.services.checkout_service import CheckoutVerificationService
         if target is None or not CheckoutVerificationService._matches(kind, target, session):
             return {"status": "ok"}
-        sponsor_id = metadata.get("sponsor_id")
+        sponsor_id = metadata.get("sponsor_id") or (target_id if kind == "sponsor" else None)
         pricing_id = metadata.get("pricing_id")
-        event_id = metadata.get("event_id")
-        payment_type = metadata.get("type")
+        event_id = metadata.get("event_id") or (target_id if kind == "event" else None)
+        payment_type = metadata.get("type") or ("connector_purchase" if kind == "connector" else "event_posting" if kind == "event" else None)
 
         # Handle connector purchase — notify admin
         if payment_type == "connector_purchase":
@@ -300,7 +300,9 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     db.add(notif)
                 await db.flush()
             except Exception:
-                pass
+                # Never hide database/notification failures: the request must
+                # roll back rather than acknowledging a partially-applied payment.
+                raise
 
         # Handle event posting payment
         if payment_type == "event_posting" and event_id:
