@@ -19,6 +19,7 @@ from app.models.enums import ShopStatus
 from app.models.notification import Notification
 from app.models.notification_outbox import NotificationOutbox
 from app.services.message_service import MessageService
+from app.services.notification_service import NotificationService
 from app.services.block_service import BlockService
 
 
@@ -122,6 +123,74 @@ async def test_blocked_message_paths_and_side_effect_counts_are_real_pg():
             await db.execute(delete(Message).where(Message.thread_id == thread_id))
             await db.execute(delete(MessageThread).where(MessageThread.id == thread_id))
             await db.execute(delete(Shop).where(Shop.id == shop_id))
+            await db.execute(delete(User).where(User.id.in_([a_id, b_id])))
+            await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
+            await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_real_websocket_handler_rejects_blocked_and_accepts_after_unblock(monkeypatch):
+    await engine.dispose()
+    tenant_id, a_id, b_id, thread_id = uuid4(), uuid4(), uuid4(), uuid4()
+    async with async_session() as db:
+        db.add(Tenant(id=tenant_id, slug=f"task5-ws-{tenant_id.hex}", subdomain=f"task5-ws-{tenant_id.hex}", display_name="Task 5"))
+        await db.flush()
+        db.add_all([
+            User(id=a_id, tenant_id=tenant_id, email=f"task5-{a_id}@example.test", password_hash="x", name="A", role=UserRole.INDIVIDUAL),
+            User(id=b_id, tenant_id=tenant_id, email=f"task5-{b_id}@example.test", password_hash="x", name="B", role=UserRole.INDIVIDUAL),
+        ])
+        await db.flush()
+        db.add(MessageThread(id=thread_id, tenant_id=tenant_id, participant_a=min(a_id, b_id, key=str), participant_b=max(a_id, b_id, key=str)))
+        await db.commit()
+    from app.api import ws as ws_pkg
+    from app.api.ws import chat
+    from fastapi import WebSocketDisconnect
+    class Socket:
+        def __init__(self, user_id):
+            self.user_id = user_id
+            self.query_params = {"token": "task5-token"}
+            self.sent = []
+            self.accepted = False
+        async def accept(self): self.accepted = True
+        async def receive_text(self):
+            if not hasattr(self, "done"):
+                self.done = True
+                return json.dumps({"type": "message", "thread_id": str(thread_id), "content": "hello"})
+            raise WebSocketDisconnect()
+        async def send_json(self, value): self.sent.append(value)
+    import json
+    async def run(user_id):
+        socket = Socket(user_id)
+        monkeypatch.setattr(chat, "decode_access_token", lambda token: {"sub": str(user_id)})
+        await chat.websocket_chat(socket)
+        return socket
+    try:
+        async with async_session() as db:
+            await BlockService(db).create(a_id, b_id, tenant_id)
+            await db.commit()
+        blocked_a = await run(a_id)
+        blocked_b = await run(b_id)
+        assert all(item["type"] == "error" and item["data"]["code"] == "FORBIDDEN" for item in blocked_a.sent + blocked_b.sent)
+        async with async_session() as db:
+            assert (await db.execute(select(Message).where(Message.thread_id == thread_id))).scalar_one_or_none() is None
+            assert (await db.execute(select(Notification).where(Notification.tenant_id == tenant_id))).scalar_one_or_none() is None
+            assert (await db.execute(select(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))).scalar_one_or_none() is None
+            await BlockService(db).remove(a_id, b_id, tenant_id)
+            await db.commit()
+        accepted = await run(a_id)
+        async with async_session() as db:
+            assert (await db.execute(select(Message).where(Message.thread_id == thread_id))).scalar_one_or_none() is not None
+            notification = (await db.execute(select(Notification).where(Notification.tenant_id == tenant_id))).scalar_one()
+            assert (await db.execute(select(NotificationOutbox).where(NotificationOutbox.notification_id == notification.id))).scalar_one_or_none() is not None
+        assert chat.manager.is_online(str(a_id)) is False
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))
+            await db.execute(delete(Notification).where(Notification.tenant_id == tenant_id))
+            await db.execute(delete(Message).where(Message.thread_id == thread_id))
+            await db.execute(delete(MessageThread).where(MessageThread.id == thread_id))
+            await db.execute(delete(UserBlock).where(UserBlock.tenant_id == tenant_id))
             await db.execute(delete(User).where(User.id.in_([a_id, b_id])))
             await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
             await db.commit()
