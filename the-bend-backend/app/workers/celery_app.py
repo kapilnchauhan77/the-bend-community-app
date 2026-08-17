@@ -9,6 +9,12 @@ celery_app = Celery(
     "thebend",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
+    include=(
+        "app.workers.push_tasks",
+        "app.workers.account_tasks",
+        "app.workers.scheduled_tasks",
+        "app.workers.email_tasks",
+    ),
 )
 
 celery_app.conf.update(
@@ -46,3 +52,12 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["app.workers"])
+
+# These modules intentionally do not use Celery's conventional ``tasks.py``
+# filename. Import them after the app is fully configured so a bare
+# ``from app.workers.celery_app import celery_app`` (the worker entrypoint)
+# has the same registry as a Celery worker process.
+from app.workers import account_tasks as _account_tasks  # noqa: F401,E402
+from app.workers import push_tasks as _push_tasks  # noqa: F401,E402
+from app.workers import scheduled_tasks as _scheduled_tasks  # noqa: F401,E402
+from app.workers import email_tasks as _email_tasks  # noqa: F401,E402
