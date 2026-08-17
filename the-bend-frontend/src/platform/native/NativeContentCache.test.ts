@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { NativeContentCache } from './NativeContentCache'
+import { NativeContentCache, normalizePublicContent } from './NativeContentCache'
 
 const MB = 1024 * 1024
 
@@ -33,5 +33,10 @@ describe('NativeContentCache', () => {
     const cache = new NativeContentCache({ storage: 'memory' })
     await cache.put({ key: 'listing:large', kind: 'listing', entityId: 'large', cachedAt: new Date().toISOString(), payload: { body: 'x'.repeat(100) }, imagePath: null, sizeBytes: 0 })
     expect((await cache.get('listing:large'))?.sizeBytes).toBeGreaterThan(0)
+  })
+
+  it('projects nested public content and strips private viewer fields', () => {
+    const result = normalizePublicContent('listing', { id: '1', title: 'Public', viewer_has_saved: true, access_token: 'secret', shop: { id: 's', name: 'Shop', email: 'private', stripe_account_id: 'secret' }, images: [{ url: '/a.jpg' }, { url: '/b.jpg' }] }) as Record<string, unknown>
+    expect(result).toEqual({ id: '1', title: 'Public', shop: { id: 's', name: 'Shop' }, images: [{ url: '/a.jpg' }] })
   })
 })

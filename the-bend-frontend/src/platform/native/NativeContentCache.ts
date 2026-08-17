@@ -16,7 +16,13 @@ const PUBLIC_FIELDS: Record<CachedContent['kind'], string[]> = {
 export function normalizePublicContent(kind: CachedContent['kind'], input: unknown): unknown {
   if (!input || typeof input !== 'object') return input
   const source = input as Record<string, unknown>
-  return Object.fromEntries(PUBLIC_FIELDS[kind].filter((field) => field in source).map((field) => [field, source[field]]))
+  const nested = (value: unknown) => {
+    if (!value || typeof value !== 'object') return value
+    const object = value as Record<string, unknown>
+    const fields = ['id', 'name', 'business_type', 'avatar_url', 'shop_name', 'url', 'thumbnail_url', 'type']
+    return Object.fromEntries(fields.filter((field) => field in object).map((field) => [field, object[field]]))
+  }
+  return Object.fromEntries(PUBLIC_FIELDS[kind].filter((field) => field in source).map((field) => [field, ['shop', 'posted_by', 'author'].includes(field) ? nested(source[field]) : field === 'images' && Array.isArray(source[field]) ? source[field].slice(0, 1).map(nested) : source[field]]))
 }
 const canonicalKey = (kind: CachedContent['kind'], entityId: string) => `${kind}:${entityId}`
 const validKey = (key: string, kind: CachedContent['kind'], entityId: string) => key === canonicalKey(kind, entityId) && !/[\\/]/.test(entityId)
