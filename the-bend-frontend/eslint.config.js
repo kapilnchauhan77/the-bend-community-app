@@ -32,23 +32,25 @@ export default defineConfig([
     ],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
-  // React 19 compiler diagnostics flag these established imperative hooks:
-  // refs are deliberately used for media/socket lifetimes and effects start
-  // asynchronous API synchronization. Keep the checks active elsewhere.
+  // These modules deliberately use refs for media/socket lifetimes.
   {
     files: [
       'src/pages/LandingPage.tsx',
       'src/components/shared/VoiceNoteRecorder.tsx',
       'src/hooks/useWebSocket.ts',
-      'src/components/shared/CameraCapture.tsx',
+    ],
+    rules: { 'react-hooks/refs': 'off' },
+  },
+  // These legacy pages start external API synchronization from effects. Keep
+  // the rule enabled for all other files.
+  {
+    files: [
       'src/pages/AdvertisePage.tsx',
       'src/pages/DirectoryPage.tsx',
       'src/pages/NotificationsPage.tsx',
       'src/pages/admin/ReportsPage.tsx',
+      'src/components/shared/CameraCapture.tsx',
     ],
-    rules: {
-      'react-hooks/refs': 'off',
-      'react-hooks/set-state-in-effect': 'off',
-    },
+    rules: { 'react-hooks/set-state-in-effect': 'off' },
   },
 ])

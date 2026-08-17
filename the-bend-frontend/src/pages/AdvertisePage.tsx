@@ -4,6 +4,7 @@ import type { AdPricing } from '@/types';
 import { advertisingApi } from '@/services/advertisingApi';
 import { eventApi } from '@/services/eventApi';
 import { PageLayout } from '@/components/layout/PageLayout';
+import { getInitialAdvertiseStep } from '@/lib/task0InitialState';
 
 const HEADER_BG = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -30,7 +31,7 @@ export default function AdvertisePage() {
     logo_url: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<'select' | 'details' | 'connector' | 'success'>(() => sessionId ? 'success' : 'select');
+  const [step, setStep] = useState<'select' | 'details' | 'connector' | 'success'>(() => getInitialAdvertiseStep(sessionId));
   const [statusMessage, setStatusMessage] = useState('');
   const [loadingPricing, setLoadingPricing] = useState(true);
 

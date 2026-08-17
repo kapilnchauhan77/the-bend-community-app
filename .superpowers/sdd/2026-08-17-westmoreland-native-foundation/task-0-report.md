@@ -2,7 +2,7 @@
 
 ## Root-cause investigation
 
-The baseline was reproduced from the clean task branch in `the-bend-frontend` with `npm run lint`; it exited 1 with 45 errors and 3 warnings across 22 source files. The complete raw reproduction was retained during the run at `/tmp/task0-lint-baseline.txt` (421 lines). `npm ci --legacy-peer-deps` was already present and the lockfile/package versions were not changed. `npm run build` succeeded before edits, confirming this was lint/tooling debt rather than a compile failure.
+The baseline was reproduced from the clean task branch in `the-bend-frontend` with `npm run lint`; it exited 1 with 45 errors and 3 warnings across 22 source files. The complete raw reproduction is reviewable in `task-0-lint-baseline.txt` beside this report (421 lines). `npm ci --legacy-peer-deps` was already present and the lockfile/package versions were not changed. `npm run build` succeeded before edits, confirming this was lint/tooling debt rather than a compile failure.
 
 `package.json` uses ESLint 9, `typescript-eslint` 8, `eslint-plugin-react-hooks` 7, and React 19.2. `eslint.config.js` enables the recommended React Hooks compiler rules and the Vite Fast Refresh convention. Recent history showed the ESLint configuration was introduced with the original frontend setup; no task-branch feature commit caused these diagnostics. Classification:
 
@@ -27,7 +27,7 @@ The baseline was reproduced from the clean task branch in `the-bend-frontend` wi
 
 RED: baseline `npm run lint` exited 1 with `✖ 48 problems (45 errors, 3 warnings)`; representative failures included `react-hooks/immutability`, `react-hooks/refs`, `react-hooks/static-components`, `react-hooks/set-state-in-effect`, unused variables, explicit `any`, and empty object types.
 
-GREEN: after the minimal source/config corrections, `npm run lint` exited 0 with exactly the normal npm script header and no diagnostics. No focused behavioral test file was added because the task's changes were lint baseline corrections and API-preserving structural fixes; the frontend has no test script. The production build is the compile/integration check for these changes.
+GREEN: after the minimal source/config corrections, `npm run lint` exited 0 with exactly the normal npm script header and no diagnostics. The production build is the compile/integration check for these changes.
 
 Commands and summaries:
 
@@ -47,3 +47,24 @@ Reviewed the diff for API/routing/package changes and checked that all edits are
 ## Concerns
 
 The build retains pre-existing warnings: missing `%VITE_CF_ANALYTICS_TOKEN%`, an ineffective dynamic import of `src/services/api.ts`, and a large minified chunk. They are not lint regressions and were not altered by this task. The narrow `react-hooks/set-state-in-effect` exceptions should be revisited if those legacy effects are later modernized.
+
+## Fix Round 1 — review follow-up
+
+The first review identified two behavioral initialization refactors without focused tests and an overly broad combined ESLint exception. I added `src/lib/task0InitialState.ts` as the shared, side-effect-free implementation for the iOS install-banner and Advertise checkout-session initial-state decisions, plus `tests/task0-initial-state.test.mjs` using Node's built-in test runner. This adds no dependency or package change.
+
+TDD evidence:
+
+```text
+RED (controlled mutation): temporarily returning `false` from `getInitialIOSBannerState` produced exit 1 with the iOS eligibility assertion failing (`false !== true`); temporarily returning `'select'` from `getInitialAdvertiseStep` produced exit 1 with the checkout assertion failing (`actual select`, `expected success`). Both mutations were reverted before verification.
+GREEN: `node --experimental-strip-types tests/task0-initial-state.test.mjs` exited 0 — 2 tests passed, 0 failed.
+```
+
+The ESLint compatibility configuration now has separate rule blocks: `react-hooks/refs` is disabled only for LandingPage, VoiceNoteRecorder, and useWebSocket; `react-hooks/set-state-in-effect` is disabled only for the four pages where the baseline explicitly demonstrated the existing API-synchronization pattern plus CameraCapture's existing stream initialization effect. No file has both exceptions, and all other files retain both rules.
+
+Fix-round verification:
+
+```text
+node --experimental-strip-types tests/task0-initial-state.test.mjs  # exit 0; 2 passed
+npm run lint                                                       # exit 0; pristine
+npm run build                                                      # exit 0; only pre-existing Vite warnings above
+```

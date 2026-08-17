@@ -1,25 +1,21 @@
 import { useState } from 'react';
 import { Download, X, Share } from 'lucide-react';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
-
-function isIOS(): boolean {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
-}
+import { getInitialIOSBannerState } from '@/lib/task0InitialState';
 
 function isInStandaloneMode(): boolean {
   return window.matchMedia('(display-mode: standalone)').matches
     || (navigator as unknown as { standalone?: boolean }).standalone === true;
 }
 
-function isMobile(): boolean {
-  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
-}
-
 export function InstallBanner() {
   const { canInstall, install, dismiss } = useInstallPrompt();
   const [showIOSBanner, setShowIOSBanner] = useState(() => {
-    if (!isIOS() || !isMobile() || isInStandaloneMode()) return false;
-    return localStorage.getItem('pwa-ios-dismissed') !== 'true';
+    return getInitialIOSBannerState({
+      userAgent: navigator.userAgent,
+      standalone: isInStandaloneMode(),
+      dismissed: localStorage.getItem('pwa-ios-dismissed') === 'true',
+    });
   });
   const [dismissed, setDismissed] = useState(false);
 
