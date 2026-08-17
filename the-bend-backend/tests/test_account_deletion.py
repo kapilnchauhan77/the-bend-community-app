@@ -254,6 +254,7 @@ async def test_real_postgres_workers_are_idempotent_and_email_attempt_is_once(mo
 
 
 def test_every_users_fk_has_explicit_retention_policy():
+    import app.models  # populate the complete declarative metadata
     from app.database import Base
     from app.services.account_deletion_service import AccountDeletionService
     inventory = AccountDeletionService.retention_inventory()

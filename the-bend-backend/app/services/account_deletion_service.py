@@ -30,6 +30,21 @@ from app.models.talent import Talent
 class AccountDeletionService:
     RECEIPT_TTL = timedelta(days=7)
 
+    @staticmethod
+    def retention_inventory() -> dict[str, str]:
+        """Explicit policy for every current table with a users FK."""
+        return {
+            "users": "anonymize", "refresh_sessions": "delete", "device_installations": "delete",
+            "notification_preferences": "delete", "notifications": "delete", "push_subscriptions": "delete",
+            "saved_listings": "delete", "interests": "delete", "user_blocks": "delete", "endorsements": "delete",
+            "volunteers": "delete", "talent": "delete", "talent_inquiries": "delete", "bender_likes": "delete",
+            "bender_comments": "delete", "bender_posts": "retain", "message_threads": "retain", "messages": "retain",
+            "reports": "retain", "report_audits": "retain", "listings": "detach", "listing_images": "retain",
+            "shops": "detach", "events": "detach", "tenant_referrals": "detach", "guidelines": "retain",
+            "employees": "detach", "discount_codes": "retain",
+            "account_deletions": "retain", "account_owned_uploads": "delete",
+        }
+
     def __init__(self, db: AsyncSession, *, queue=None):
         self.db = db
         self.queue = queue
