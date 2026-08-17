@@ -264,6 +264,42 @@ def test_every_users_fk_has_explicit_retention_policy():
 
 
 @pytest.mark.asyncio
+async def test_real_two_tenant_erasure_policy_and_shared_tombstone():
+    from datetime import datetime, timedelta
+    from app.core.security import hash_password
+    from app.models.listing import Listing
+    from app.models.enums import ListingType, ListingCategory, PricingType, UrgencyLevel, ListingStatus
+    from app.models.saved_listing import SavedListing
+    from app.models.notification import Notification
+    from app.models.notification_preference import NotificationPreference
+    from app.models.user_block import UserBlock
+    from app.models.volunteer import Volunteer
+    from app.models.bender import BenderPost, BenderLike, BenderComment
+    from app.models.message import MessageThread, Message
+    from app.services.account_deletion_service import AccountDeletionService
+    marker=uuid.uuid4().hex; ta,tb,ua,ub=uuid.uuid4(),uuid.uuid4(),uuid.uuid4(),uuid.uuid4(); listing_id,thread_id=uuid.uuid4(),uuid.uuid4(); deletion_id=uuid.uuid4()
+    try:
+        async with async_session() as db:
+            db.add_all([Tenant(id=ta,slug="ret-a-"+marker,subdomain="ret-a-"+marker,display_name="A"),Tenant(id=tb,slug="ret-b-"+marker,subdomain="ret-b-"+marker,display_name="B")]); await db.flush()
+            db.add_all([User(id=ua,tenant_id=ta,email=marker+"a@example.com",password_hash=hash_password("Correct1"),name="Alice",role=UserRole.INDIVIDUAL),User(id=ub,tenant_id=tb,email=marker+"b@example.com",password_hash=hash_password("Correct1"),name="Bob",role=UserRole.INDIVIDUAL)]); await db.flush()
+            db.add(Listing(id=listing_id,tenant_id=ta,type=ListingType.OFFER,category=ListingCategory.MATERIALS,title="A",description="A",pricing_type=PricingType.FREE,is_free=True,urgency=UrgencyLevel.NORMAL,status=ListingStatus.ACTIVE,posted_by_user_id=ua)); await db.flush()
+            db.add_all([SavedListing(user_id=ua,listing_id=listing_id), Notification(user_id=ua,tenant_id=ta,type="NEW_MESSAGE",title="x",body="x"), NotificationPreference(user_id=ua,tenant_id=ta), Volunteer(user_id=ua,tenant_id=ta,name="Alice",skills="x",available_time="x")])
+            post=BenderPost(id=uuid.uuid4(),tenant_id=ta,author_user_id=ua,caption="public"); db.add(post); await db.flush(); db.add_all([BenderLike(post_id=post.id,user_id=ua),BenderComment(post_id=post.id,user_id=ua,content="public")])
+            db.add(MessageThread(id=thread_id,tenant_id=ta,participant_a=ua,participant_b=ub)); await db.flush(); db.add(Message(id=uuid.uuid4(),thread_id=thread_id,sender_id=ua,content="shared")); db.add(AccountDeletion(id=deletion_id,user_id=ua,tenant_id=ta)); await db.commit()
+        async with async_session() as db: await AccountDeletionService(db).erase(str(deletion_id))
+        async with async_session() as db:
+            a=(await db.execute(select(User).where(User.id==ua))).scalar_one(); b=(await db.execute(select(User).where(User.id==ub))).scalar_one(); assert a.name=="Deleted member" and a.email==f"deleted-{ua}@deleted.invalid" and b.name=="Bob" and b.is_active
+            assert (await db.execute(select(SavedListing).where(SavedListing.user_id==ua))).scalar_one_or_none() is None
+            assert (await db.execute(select(Volunteer).where(Volunteer.user_id==ua))).scalar_one_or_none() is None
+            assert (await db.execute(select(UserBlock).where((UserBlock.blocker_id==ua)|(UserBlock.blocked_id==ua)))).scalar_one_or_none() is None
+            assert (await db.execute(select(Message).where(Message.thread_id==thread_id))).scalar_one().content=="shared"
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(Message).where(Message.thread_id==thread_id)); await db.execute(delete(MessageThread).where(MessageThread.id==thread_id)); await db.execute(delete(BenderLike)); await db.execute(delete(BenderComment)); await db.execute(delete(BenderPost)); await db.execute(delete(UserBlock).where(UserBlock.tenant_id.in_([ta,tb]))); await db.execute(delete(Volunteer).where(Volunteer.user_id.in_([ua,ub]))); await db.execute(delete(NotificationPreference).where(NotificationPreference.user_id.in_([ua,ub]))); await db.execute(delete(Notification).where(Notification.user_id.in_([ua,ub]))); await db.execute(delete(SavedListing).where(SavedListing.user_id.in_([ua,ub]))); await db.execute(delete(Listing).where(Listing.id==listing_id)); await db.execute(delete(User).where(User.id.in_([ua,ub]))); await db.execute(delete(Tenant).where(Tenant.id.in_([ta,tb])))
+            await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
