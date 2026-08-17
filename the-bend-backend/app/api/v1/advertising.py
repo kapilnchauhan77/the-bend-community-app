@@ -249,6 +249,17 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
         metadata = session.get("metadata", {})
+        kind = metadata.get("kind")
+        target_id = metadata.get("target_id")
+        if kind not in {"sponsor", "event", "connector"} or not target_id or not tenant or session.get("payment_status") != "paid":
+            return {"status": "ok"}
+        from app.models.connector_purchase import ConnectorPurchase
+        target_model = {"sponsor": Sponsor, "event": __import__("app.models.event", fromlist=["Event"]).Event, "connector": ConnectorPurchase}[kind]
+        target_result = await db.execute(select(target_model).where(target_model.id == target_id, target_model.tenant_id == tenant.id))
+        target = target_result.scalar_one_or_none()
+        from app.services.checkout_service import CheckoutVerificationService
+        if target is None or not CheckoutVerificationService._matches(kind, target, session):
+            return {"status": "ok"}
         sponsor_id = metadata.get("sponsor_id")
         pricing_id = metadata.get("pricing_id")
         event_id = metadata.get("event_id")
