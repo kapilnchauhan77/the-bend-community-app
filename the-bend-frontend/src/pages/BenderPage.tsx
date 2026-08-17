@@ -26,6 +26,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
+import { useOnlineMutation } from '@/hooks/useOnlineMutation';
+import { OfflineBanner } from '@/components/native/OfflineBanner';
+import { draftStore } from '@/drafts/DraftStore';
+import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
+import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -593,6 +598,7 @@ function BenderComposer({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { online, run: runOnline } = useOnlineMutation();
 
   // Autosize textarea — grows up to ~12 lines then scrolls.
   useEffect(() => {
@@ -601,6 +607,10 @@ function BenderComposer({
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [caption, open]);
+
+  useEffect(() => {
+    if (open) void draftStore.save('create-bender-post', { fields: { caption }, localMediaUris: pending?.url?.startsWith('file:') ? [pending.url] : [] });
+  }, [caption, open, pending]);
 
   // Reset on close so the next open is clean.
   useEffect(() => {
@@ -663,19 +673,21 @@ function BenderComposer({
         if (pending.thumbnail_url) payload.media_thumbnail_url = pending.thumbnail_url;
         payload.media_type = pending.type;
       }
-      const res = await benderApi.createPost(payload);
+      const res = await runOnline(() => benderApi.createPost(payload));
+      await draftStore.remove('create-bender-post').catch(() => undefined);
       onCreated(res.data);
       onClose();
     } catch {
       setError('Could not post. Please try again.');
       setSubmitting(false);
     }
-  }, [canSubmit, caption, pending, onCreated, onClose]);
+  }, [canSubmit, caption, pending, onCreated, onClose, runOnline]);
 
   if (!open) return null;
 
   return (
     <>
+      {!online && <OfflineBanner />}
       <div
         className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center"
         role="dialog"
@@ -814,6 +826,7 @@ function BenderComposer({
 // BenderPage — main feed.
 // ============================================================================
 export default function BenderPage() {
+  const cached = useCachedPublicContent<BenderPost[]>('bender:feed', useCallback(async () => (await benderApi.listPosts()).data.items, []));
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuthStore();
@@ -864,6 +877,9 @@ export default function BenderPage() {
   useEffect(() => {
     fetchPage();
   }, [fetchPage]);
+  useEffect(() => {
+    if (cached.data && posts.length === 0) { setPosts(cached.data); setLoading(false); }
+  }, [cached.data, posts.length]);
 
   // IntersectionObserver — load next page when sentinel scrolls into view.
   useEffect(() => {
@@ -935,6 +951,7 @@ export default function BenderPage() {
 
   return (
     <PageLayout showFooter={false}>
+      <CachedContentNotice cachedAt={cached.cachedAt} />
       <div ref={feedTopRef} />
       <div className="w-full max-w-md mx-auto md:py-4">
         {/* Sticky page header */}

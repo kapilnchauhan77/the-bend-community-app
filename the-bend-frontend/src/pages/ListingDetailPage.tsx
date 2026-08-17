@@ -47,6 +47,10 @@ import { discountCodeApi } from '@/services/discountCodeApi';
 import { DiscountCodesList } from '@/components/shared/DiscountCodesList';
 import { useAuthStore } from '@/stores/authStore';
 import type { ListingDetail, DiscountCode } from '@/types';
+import { useOnlineMutation } from '@/hooks/useOnlineMutation';
+import { OfflineBanner } from '@/components/native/OfflineBanner';
+import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
+import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 
 const urgencyStyles = {
   normal: { badge: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400', label: 'Normal' },
@@ -79,6 +83,8 @@ export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, shop, user } = useAuthStore();
+  const { online, run: runOnline } = useOnlineMutation();
+  const cached = useCachedPublicContent<ListingDetail>(`listing:${id ?? ''}`, useCallback(async () => (await listingApi.getDetail(id!)).data, [id]));
 
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,6 +107,10 @@ export default function ListingDetailPage() {
 
   // Fetch discount codes for community-member-posted listings only.
   // Shop-owned listings surface codes on the business profile page instead.
+  useEffect(() => {
+    if (!listing && cached.data) { setListing(cached.data); setHasInterest(cached.data.viewer_has_interest); setHasSaved(cached.data.viewer_has_saved); setLoading(false); }
+  }, [cached.data, listing]);
+
   useEffect(() => {
     if (!listing) return;
     if (listing.shop) {
@@ -142,10 +152,10 @@ export default function ListingDetailPage() {
     setInterestLoading(true);
     try {
       if (hasInterest) {
-        await listingApi.withdrawInterest(id!);
+        await runOnline(() => listingApi.withdrawInterest(id!));
         setHasInterest(false);
       } else {
-        await listingApi.expressInterest(id!);
+        await runOnline(() => listingApi.expressInterest(id!));
         setHasInterest(true);
         setInterestSuccess(true);
         setTimeout(() => setInterestSuccess(false), 3000);
@@ -161,10 +171,10 @@ export default function ListingDetailPage() {
     if (!isAuthenticated) { navigate('/login'); return; }
     try {
       if (hasSaved) {
-        await listingApi.unsaveListing(id!);
+        await runOnline(() => listingApi.unsaveListing(id!));
         setHasSaved(false);
       } else {
-        await listingApi.saveListing(id!);
+        await runOnline(() => listingApi.saveListing(id!));
         setHasSaved(true);
       }
     } catch {
@@ -175,7 +185,7 @@ export default function ListingDetailPage() {
   async function handleFulfill() {
     setActionLoading(true);
     try {
-      await listingApi.fulfill(id!);
+      await runOnline(() => listingApi.fulfill(id!));
       navigate('/my-shop');
     } catch {
       setActionLoading(false);
@@ -185,7 +195,7 @@ export default function ListingDetailPage() {
   async function handleDelete() {
     setActionLoading(true);
     try {
-      await listingApi.delete(id!);
+      await runOnline(() => listingApi.delete(id!));
       navigate('/my-shop');
     } catch {
       setActionLoading(false);
@@ -231,7 +241,9 @@ export default function ListingDetailPage() {
 
   return (
     <PageLayout>
+      {!online && <OfflineBanner />}
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
+        <CachedContentNotice cachedAt={cached.cachedAt} />
         {/* Back button */}
         <button
           onClick={() => navigate(-1)}

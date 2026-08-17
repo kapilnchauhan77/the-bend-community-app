@@ -1,0 +1,1 @@
+export function CachedContentNotice({ cachedAt }: { cachedAt: string | null }) { if (!cachedAt) return null; return <p role="status" className="text-xs text-muted-foreground mb-3">Showing saved content from {new Date(cachedAt).toLocaleString()}.</p> }

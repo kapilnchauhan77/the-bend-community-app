@@ -3,6 +3,7 @@ import type { AuthSnapshot, RuntimeConfig, SessionStore } from '@/platform/contr
 import type { AuthTokens, Shop, User } from '@/types'
 import { createPlatformServices } from '@/platform/createPlatformServices'
 import { getRuntimeConfig } from '@/platform/runtimeConfig'
+import { draftStore } from '@/drafts/DraftStore'
 
 export type RefreshResponse = Pick<AuthTokens, 'access_token'> & Partial<Pick<AuthTokens, 'refresh_token' | 'user' | 'shop'>>
 
@@ -171,6 +172,7 @@ export class SessionManager {
       this.currentUser = null
       this.currentShop = null
       await this.options.sessionStore.clear().catch(() => undefined)
+      await draftStore.clearPrivateDrafts().catch(() => undefined)
       const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
       if (browserStorage && typeof browserStorage.removeItem === 'function') {
         browserStorage.removeItem('access_token')

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, ChevronDown, Calendar, List, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ShareButton } from '@/components/shared/ShareButton';
 import { EventThumb } from '@/components/shared/EventThumb';
+import { useOnlineMutation } from '@/hooks/useOnlineMutation';
+import { OfflineBanner } from '@/components/native/OfflineBanner';
+import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
+import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -372,6 +376,8 @@ function CalendarView({ events }: { events: CommunityEvent[] }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EventsPage() {
+  const { online, run: runOnline } = useOnlineMutation();
+  const cached = useCachedPublicContent<CommunityEvent[]>('event:feed', useCallback(async () => (await eventApi.list({ limit: '300' })).data.items ?? [], []));
   const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [category, setCategory] = useState<string | null>(null);
@@ -397,6 +403,10 @@ export default function EventsPage() {
   const [postSuccess, setPostSuccess] = useState(false);
 
   // Check for success return from Stripe
+  useEffect(() => {
+    if (!online && cached.data) { setEvents(cached.data); setLoading(false); }
+  }, [cached.data, online]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('posted') === 'success') {
@@ -466,6 +476,8 @@ export default function EventsPage() {
 
   return (
     <PageLayout>
+      {!online && <OfflineBanner />}
+      <div className="max-w-7xl mx-auto px-4 md:px-8 pt-3"><CachedContentNotice cachedAt={cached.cachedAt} /></div>
       <SponsorBanner placement="events" />
       {/* ── Page Header ── */}
       <section className="py-8" style={{ backgroundColor: PRIMARY }}>
@@ -723,12 +735,12 @@ export default function EventsPage() {
                       }
                       setPostSubmitting(true);
                       try {
-                        const res = await eventApi.submit({
+                        const res = await runOnline(() => eventApi.submit({
                           ...postForm,
                           is_nonprofit: postTier === 'nonprofit',
                           nonprofit_doc_url: nonprofitDocUrl || undefined,
                           coupon_code: couponCode.trim() || undefined,
-                        });
+                        }));
                         const checkoutUrl = res.data?.checkout_url;
                         if (checkoutUrl) {
                           window.location.href = checkoutUrl;

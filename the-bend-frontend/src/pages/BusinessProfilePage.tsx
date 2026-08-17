@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { AxiosError } from 'axios';
 import { MapPin, Phone, MessageCircle, Store, Calendar, Package, ThumbsUp, Award, Trash2 } from 'lucide-react';
@@ -26,6 +26,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
 import { businessTypeLabel } from '@/lib/businessTypes';
 import type { Shop, Listing, DiscountCode } from '@/types';
+import { useOnlineMutation } from '@/hooks/useOnlineMutation';
+import { OfflineBanner } from '@/components/native/OfflineBanner';
+import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
+import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 
 const EndorsementMap = lazy(() => import('@/components/shared/EndorsementMap'));
 
@@ -45,6 +49,8 @@ export default function BusinessProfilePage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, shop: myShop, user } = useAuthStore();
+  const { online, run: runOnline } = useOnlineMutation();
+  const cached = useCachedPublicContent<Shop>(`business:${shopId ?? ''}`, useCallback(async () => (await shopApi.getShop(shopId!)).data, [shopId]));
 
   const [shopData, setShopData] = useState<Shop | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -76,6 +82,10 @@ export default function BusinessProfilePage() {
   const viewerEndorserId = myShop?.id ?? user?.id;
 
   useEffect(() => {
+    if (!shopData && cached.data) { setShopData(cached.data); setLoading(false); }
+  }, [cached.data, shopData]);
+
+  useEffect(() => {
     if (!shopId) return;
     setLoading(true);
     setError(null);
@@ -104,7 +114,7 @@ export default function BusinessProfilePage() {
     setEndorseLoading(true);
     setEndorseError(null);
     try {
-      await shopApi.endorse(shopId, endorseMessage || undefined);
+      await runOnline(() => shopApi.endorse(shopId, endorseMessage || undefined));
       setHasEndorsed(true);
       setEndorsementCount((c) => c + 1);
       setShowEndorseForm(false);
@@ -127,7 +137,7 @@ export default function BusinessProfilePage() {
     setEndorseLoading(true);
     setEndorseError(null);
     try {
-      await shopApi.withdrawEndorsement(shopId);
+      await runOnline(() => shopApi.withdrawEndorsement(shopId));
       setHasEndorsed(false);
       setShowWithdrawConfirm(false);
 
@@ -151,7 +161,7 @@ export default function BusinessProfilePage() {
     if (!shopId) return;
     setMessagingLoading(true);
     try {
-      const { data } = await messageApi.startThread(shopId);
+      const { data } = await runOnline(() => messageApi.startThread(shopId));
       navigate(`/messages/${data.id}`);
     } catch {
       // silently fail
@@ -197,6 +207,8 @@ export default function BusinessProfilePage() {
 
   return (
     <PageLayout>
+      {!online && <OfflineBanner />}
+      <div className="max-w-4xl mx-auto px-4 md:px-8 pt-4"><CachedContentNotice cachedAt={cached.cachedAt} /></div>
       {/* Museum-themed header */}
       <div className="border-b border-[hsl(35,18%,84%)]" style={{ backgroundColor: PRIMARY }}>
         <div className="max-w-4xl mx-auto px-4 md:px-8 py-10">

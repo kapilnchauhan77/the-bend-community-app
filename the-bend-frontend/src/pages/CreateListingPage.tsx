@@ -22,6 +22,9 @@ import { uploadApi } from '@/services/uploadApi';
 import { resolveAssetUrl } from '@/lib/constants';
 import { isVideoUrl } from '@/lib/utils';
 import { CameraCapture } from '@/components/shared/CameraCapture';
+import { useOnlineMutation } from '@/hooks/useOnlineMutation';
+import { OfflineBanner } from '@/components/native/OfflineBanner';
+import { draftStore } from '@/drafts/DraftStore';
 
 const schema = z
   .object({
@@ -97,6 +100,7 @@ export default function CreateListingPage() {
   const [uploading, setUploading] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEdit);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const { online, run: runOnline } = useOnlineMutation();
 
   const initialCategory: FormData['category'] =
     presetCategory === 'volunteer' || presetCategory === 'staff' || presetCategory === 'materials' || presetCategory === 'equipment'
@@ -170,6 +174,14 @@ export default function CreateListingPage() {
   const watchedCategory = watch('category');
   const isVolunteer = watchedCategory === 'volunteer';
 
+  useEffect(() => {
+    if (isEdit) return;
+    const subscription = watch((fields) => {
+      void draftStore.save('create-listing', { fields: fields as Record<string, unknown>, localMediaUris: [] });
+    });
+    return () => subscription.unsubscribe();
+  }, [isEdit, watch]);
+
   // Volunteer opportunities are always free + always a "request" (org seeking help).
   useEffect(() => {
     if (isVolunteer) {
@@ -232,11 +244,8 @@ export default function CreateListingPage() {
         payload.price_text = (data.price_text || '').trim();
       }
 
-      if (isEdit && editId) {
-        await listingApi.update(editId, payload);
-      } else {
-        await listingApi.create(payload);
-      }
+      await runOnline(() => isEdit && editId ? listingApi.update(editId, payload).then(() => undefined) : listingApi.create(payload).then(() => undefined));
+      await draftStore.remove('create-listing').catch(() => undefined);
       setSuccess(true);
       const successDest = isEdit && editId
         ? `/listing/${editId}`
@@ -267,6 +276,7 @@ export default function CreateListingPage() {
     <PageLayout>
       <div className="max-w-2xl mx-auto px-4 md:px-8 py-8">
         <h1 className="text-2xl font-bold mb-6">{isEdit ? 'Edit Listing' : 'Post a Listing'}</h1>
+        {!online && <OfflineBanner />}
         {loadingExisting && (
           <div className="flex items-center gap-2 text-muted-foreground mb-6">
             <Loader2 size={16} className="animate-spin" />
