@@ -72,7 +72,7 @@ async def upload_images(
     claim = await _claim("/upload/images", idempotency_key, current_user)
     if isinstance(claim, JSONResponse): return claim
     try:
-        results = await file_service.upload_images(files)
+        results = await file_service.upload_images(files, claim.claim_key if claim else None)
         return await _complete(claim, {"images": results})
     except Exception:
         await _release(claim); raise
@@ -129,7 +129,7 @@ async def upload_public_photo(
     claim = await _claim("/upload/photo", idempotency_key, None, str(tenant_id), anonymous_client_id)
     if isinstance(claim, JSONResponse): return claim
     try:
-        service = FileService(); result = await service.upload_images([file])
+        service = FileService(); result = await service.upload_images([file], claim.claim_key if claim else None)
         if not result: raise HTTPException(status_code=400, detail="Upload failed")
         return await _complete(claim, {"photo_url": result[0]["url"]})
     except Exception:
@@ -173,7 +173,7 @@ async def upload_media(
       if content_type in ALLOWED_IMAGE_MIME_TYPES:
         # Image pipeline expects a list; reuse it so behavior matches
         # /upload/images exactly (EXIF strip, 1600px cap, _thumb sibling).
-          results = await file_service.upload_images([file])
+          results = await file_service.upload_images([file], claim.claim_key if claim else None)
           if not results:
             raise HTTPException(status_code=400, detail="Upload failed")
           first = results[0]
@@ -185,7 +185,7 @@ async def upload_media(
 
       if content_type in ALLOWED_VIDEO_MIME_TYPES:
         # Video branch. upload_video handles size + duration + poster.
-          result = await file_service.upload_video(file)
+          result = await file_service.upload_video(file, claim.claim_key if claim else None)
           return await _complete(claim, {
             "url": result["url"],
             "thumbnail_url": result["thumbnail_url"],
@@ -195,7 +195,7 @@ async def upload_media(
 
     # Audio branch (voice notes). No thumbnail — there's no frame to render.
       assert content_type in ALLOWED_AUDIO_MIME_TYPES
-      result = await file_service.upload_audio(file)
+      result = await file_service.upload_audio(file, claim.claim_key if claim else None)
       return await _complete(claim, {
         "url": result["url"],
         "thumbnail_url": None,
@@ -219,7 +219,7 @@ async def upload_avatar(
     try:
       service = FileService()
       private = current_user.shop_id is None
-      result = [await service.upload_private_user_image(file, current_user.id)] if private else await service.upload_images([file])
+      result = [await service.upload_private_user_image(file, current_user.id, claim.claim_key if claim else None)] if private else await service.upload_images([file], claim.claim_key if claim else None)
       if not result:
         raise HTTPException(status_code=400, detail="Upload failed")
 

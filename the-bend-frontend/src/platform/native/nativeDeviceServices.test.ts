@@ -45,6 +45,23 @@ describe('native device services', () => {
     Object.defineProperty(navigator, 'mediaDevices', { value: original, configurable: true })
   })
 
+  it('auto-stops native video at nine seconds and releases tracks', async () => {
+    vi.useFakeTimers()
+    const track = { stop: vi.fn() }
+    const stream = { getTracks: () => [track] }
+    const recorder = { state: 'inactive', mimeType: 'video/mp4', start: vi.fn(function (this: { state: string }) { this.state = 'recording' }), stop: vi.fn(function (this: { state: string; onstop?: () => void }) { this.state = 'inactive'; this.onstop?.() }), ondataavailable: undefined as ((event: { data: Blob }) => void) | undefined, onstop: undefined as (() => void) | undefined }
+    Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn(async () => stream) }, configurable: true })
+    vi.stubGlobal('MediaRecorder', Object.assign(function () { return recorder }, { isTypeSupported: () => true }))
+    const promise = new NativeMediaService().captureVideo()
+    await vi.advanceTimersByTimeAsync(8999)
+    expect(recorder.stop).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    await promise
+    expect(recorder.stop).toHaveBeenCalledTimes(1)
+    expect(track.stop).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
   it('returns cancelled when native sharing is dismissed', async () => {
     vi.mocked(Share.share).mockRejectedValueOnce(new Error('cancelled'))
     await expect(new NativeShareService().share({ title: 'A', text: 'B', url: 'https://example.test' })).resolves.toBe('cancelled')

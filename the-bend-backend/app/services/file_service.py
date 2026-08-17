@@ -16,6 +16,7 @@ import io
 import logging
 import os
 import uuid
+import hashlib
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
@@ -129,10 +130,15 @@ def _process_image(content: bytes) -> tuple[bytes, bytes, str]:
 
 
 class FileService:
-    async def upload_private_user_image(self, file, user_id) -> dict:
+    @staticmethod
+    def _file_id(storage_key: str | None, suffix: str = "") -> str:
+        if storage_key:
+            return hashlib.sha256(f"{storage_key}:{suffix}".encode()).hexdigest()[:32]
+        return str(uuid.uuid4())
+    async def upload_private_user_image(self, file, user_id, storage_key: str | None = None) -> dict:
         """Store an avatar under an exclusive per-user root."""
         content = await file.read()
-        file_id = str(uuid.uuid4())
+        file_id = self._file_id(storage_key)
         full_bytes, thumb_bytes, ext = _process_image(content)
         private_dir = UPLOAD_DIR / "users" / str(user_id)
         private_dir.mkdir(parents=True, exist_ok=True)
@@ -142,12 +148,12 @@ class FileService:
         thumb_path.write_bytes(thumb_bytes)
         return {"id": file_id, "url": f"/uploads/users/{user_id}/{file_id}{ext}", "thumbnail_url": f"/uploads/users/{user_id}/{file_id}_thumb{ext}"}
 
-    async def upload_images(self, files: list) -> list[dict]:
+    async def upload_images(self, files: list, storage_key: str | None = None) -> list[dict]:
         (UPLOAD_DIR / "images").mkdir(parents=True, exist_ok=True)
         results = []
         for file in files[:5]:  # Max 5
             content = await file.read()
-            file_id = str(uuid.uuid4())
+            file_id = self._file_id(storage_key, str(len(results)))
             full_bytes, thumb_bytes, ext = _process_image(content)
 
             full_path = UPLOAD_DIR / "images" / f"{file_id}{ext}"
@@ -179,7 +185,7 @@ class FileService:
             "file_size": len(content),
         }
 
-    async def upload_video(self, file: UploadFile) -> dict:
+    async def upload_video(self, file: UploadFile, storage_key: str | None = None) -> dict:
         """Persist a short video and generate a poster JPEG.
 
         Raises HTTPException(413) if the file exceeds MAX_UPLOAD_BYTES, and
@@ -207,7 +213,7 @@ class FileService:
         if not ext:
             ext = _VIDEO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
 
-        file_id = str(uuid.uuid4())
+        file_id = self._file_id(storage_key)
         video_path = UPLOAD_DIR / "videos" / f"{file_id}{ext}"
         poster_path = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
 
@@ -272,7 +278,7 @@ class FileService:
             "duration_ms": int(duration * 1000),
         }
 
-    async def upload_audio(self, file: UploadFile) -> dict:
+    async def upload_audio(self, file: UploadFile, storage_key: str | None = None) -> dict:
         """Persist a short voice note and probe its duration.
 
         Mirrors ``upload_video`` but skips poster generation — audio doesn't
@@ -300,7 +306,7 @@ class FileService:
         if not ext:
             ext = _AUDIO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
 
-        file_id = str(uuid.uuid4())
+        file_id = self._file_id(storage_key)
         audio_path = UPLOAD_DIR / "audio" / f"{file_id}{ext}"
 
         with open(audio_path, "wb") as f:

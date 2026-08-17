@@ -54,3 +54,18 @@ async def test_concurrent_claims_allow_only_one_owner(monkeypatch):
         service.claim('tenant', 'member', '/upload/media', '00000000-0000-4000-8000-000000000123'),
     )
     assert sum(not claim.in_progress for claim in (first, second)) == 1
+
+
+@pytest.mark.asyncio
+async def test_deterministic_storage_identity_reuses_one_object_after_completion_retry(tmp_path, monkeypatch):
+    from io import BytesIO
+    from PIL import Image
+    from fastapi import UploadFile
+    from app.services import file_service as module
+    monkeypatch.setattr(module, 'UPLOAD_DIR', tmp_path)
+    service = module.FileService()
+    image = BytesIO(); Image.new('RGB', (2, 2), 'red').save(image, format='JPEG'); image.seek(0)
+    first = await service.upload_images([UploadFile(filename='a.jpg', file=BytesIO(image.getvalue()))], 'claim-key')
+    second = await service.upload_images([UploadFile(filename='a.jpg', file=BytesIO(image.getvalue()))], 'claim-key')
+    assert first[0]['id'] == second[0]['id']
+    assert len(list((tmp_path / 'images').glob('*'))) == 2
