@@ -101,6 +101,56 @@ describe('NativeContentCache', () => {
       .toEqual({ id: 'p1', caption: 'Hello', author: { id: 'u1', name: 'Alex', avatar_url: '/a.jpg', shop_id: 's1', shop_name: 'Workshop' } })
   })
 
+  it('never persists precise business coordinates while retaining public rendering fields', () => {
+    expect(normalizePublicContent('business', {
+      id: 's1',
+      name: 'Workshop',
+      business_type: 'maker',
+      address: '1 Main',
+      city: 'Westmoreland',
+      state: 'VA',
+      zip_code: '22520',
+      latitude: 38.123456,
+      longitude: -76.654321,
+      location: { latitude: 38.123456, longitude: -76.654321 },
+      coordinates: { lat: 38.123456, lng: -76.654321 },
+      geo: { point: { latitude: 38.123456, longitude: -76.654321 } },
+      listings: [{
+        id: 'l1',
+        title: 'Desk',
+        shop: { id: 's1', name: 'Workshop', latitude: 38.123456, longitude: -76.654321 },
+        posted_by: { id: 'u1', name: 'Alex', location: { latitude: 38.123456, longitude: -76.654321 } },
+      }],
+    })).toEqual({
+      id: 's1',
+      name: 'Workshop',
+      business_type: 'maker',
+      address: '1 Main',
+      city: 'Westmoreland',
+      state: 'VA',
+      zip_code: '22520',
+      listings: [{
+        id: 'l1',
+        title: 'Desk',
+        shop: { id: 's1', name: 'Workshop' },
+        posted_by: { id: 'u1', name: 'Alex' },
+      }],
+    })
+
+    expect(normalizePublicContent('listing', {
+      id: 'l2', title: 'Chair', latitude: 38.1, longitude: -76.6,
+      shop: { id: 's2', name: 'Carpenter', location: { latitude: 38.1, longitude: -76.6 } },
+    })).toEqual({ id: 'l2', title: 'Chair', shop: { id: 's2', name: 'Carpenter' } })
+    expect(normalizePublicContent('event', {
+      id: 'e1', title: 'Market', location: 'Town square', latitude: 38.1, longitude: -76.6,
+      coordinates: { latitude: 38.1, longitude: -76.6 },
+    })).toEqual({ id: 'e1', title: 'Market', location: 'Town square' })
+    expect(normalizePublicContent('bender', {
+      id: 'p1', caption: 'Hello', latitude: 38.1, longitude: -76.6,
+      author: { id: 'u1', name: 'Alex', geo: { latitude: 38.1, longitude: -76.6 } },
+    })).toEqual({ id: 'p1', caption: 'Hello', author: { id: 'u1', name: 'Alex' } })
+  })
+
   it('projects paginated payloads without leaking private fields at any depth', () => {
     expect(normalizePublicContent('bender', {
       items: [{ id: 'p1', caption: 'Hello', viewer_has_liked: true, author: { id: 'u1', name: 'Alex', email: 'private', profile: { access_token: 'secret' } } }],

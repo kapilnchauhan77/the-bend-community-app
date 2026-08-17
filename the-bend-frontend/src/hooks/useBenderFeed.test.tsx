@@ -58,6 +58,34 @@ describe('useBenderFeed', () => {
     expect(result.current.hasMore).toBe(false)
   })
 
+  it('contains a failed next-page request without corrupting the current feed', async () => {
+    cachedData = { items: [post('1')], next_cursor: 'cursor-2', has_more: true }
+    const { result } = renderHook(() => useBenderFeed())
+    listPosts.mockRejectedValueOnce(new Error('network unavailable'))
+
+    await act(async () => { await expect(result.current.loadNext()).resolves.toBeUndefined() })
+
+    expect(result.current.posts.map((item) => item.id)).toEqual(['1'])
+    expect(result.current.cursor).toBe('cursor-2')
+    expect(result.current.hasMore).toBe(true)
+    expect(result.current.loadingMore).toBe(false)
+    expect(result.current.loadMoreError).toBe('Unable to load more posts. Try again.')
+  })
+
+  it('clears a pagination error when refreshed first-page data arrives', async () => {
+    cachedData = { items: [post('1')], next_cursor: 'cursor-2', has_more: true }
+    const { result, rerender } = renderHook(() => useBenderFeed())
+    listPosts.mockRejectedValueOnce(new Error('network unavailable'))
+    await act(async () => { await result.current.loadNext() })
+    expect(result.current.loadMoreError).not.toBeNull()
+
+    cachedData = { items: [post('fresh')], next_cursor: 'cursor-3', has_more: true }
+    rerender()
+
+    await waitFor(() => expect(result.current.posts.map((item) => item.id)).toEqual(['fresh']))
+    expect(result.current.loadMoreError).toBeNull()
+  })
+
   it('restores next-page capability when a reconnect refresh supplies a new cursor', async () => {
     cachedData = { items: [post('cached')], has_more: false }
     cachedSource = 'cache'

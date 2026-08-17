@@ -14,11 +14,13 @@ export function useBenderFeed() {
   const [cursor, setCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const generation = useRef(0)
 
   useEffect(() => {
     if (!cached.data) return
     generation.current += 1
+    setLoadMoreError(null)
     if (Array.isArray(cached.data)) {
       setPosts(cached.data)
       setCursor(null)
@@ -34,6 +36,7 @@ export function useBenderFeed() {
     if (!cursor || !hasMore || loadingMore) return
     const requestGeneration = generation.current
     setLoadingMore(true)
+    setLoadMoreError(null)
     try {
       const response = await benderApi.listPosts(cursor)
       if (generation.current !== requestGeneration) return
@@ -43,6 +46,8 @@ export function useBenderFeed() {
       })
       setCursor(response.data.next_cursor ?? null)
       setHasMore(response.data.has_more)
+    } catch {
+      if (generation.current === requestGeneration) setLoadMoreError('Unable to load more posts. Try again.')
     } finally {
       if (generation.current === requestGeneration) setLoadingMore(false)
     }
@@ -60,6 +65,7 @@ export function useBenderFeed() {
     hasMore,
     loading: cached.data === null,
     loadingMore,
+    loadMoreError,
     cachedAt: cached.cachedAt,
     source: cached.source,
     refresh: cached.refresh,

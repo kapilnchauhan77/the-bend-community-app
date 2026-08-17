@@ -846,15 +846,15 @@ export default function BenderPage() {
 
   const isCommunityAdmin = user?.role === 'community_admin';
 
-  const { posts, cursor, hasMore, loading, loadingMore, loadNext, prepend, remove, patch: patchPost } = feed;
+  const { posts, cursor, hasMore, loading, loadingMore, loadMoreError, loadNext, prepend, remove, patch: patchPost } = feed;
 
   // IntersectionObserver — load next page when sentinel scrolls into view.
   useEffect(() => {
     const node = sentinelRef.current;
-    if (!node || !hasMore || loading || loadingMore) return;
+    if (!node || !hasMore || loading || loadingMore || loadMoreError) return;
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && hasMore && !loadingMore && cursor) {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore && !loadMoreError && cursor) {
           void loadNext();
         }
       },
@@ -862,7 +862,7 @@ export default function BenderPage() {
     );
     obs.observe(node);
     return () => obs.disconnect();
-  }, [cursor, hasMore, loading, loadingMore, loadNext]);
+  }, [cursor, hasMore, loading, loadingMore, loadMoreError, loadNext]);
 
   // Deep-link focus — a bender reference card in a message links to
   // `/bender?post={id}`. Once the feed has loaded and the target post is
@@ -998,6 +998,19 @@ export default function BenderPage() {
                     <span className="text-[11px] text-[hsl(30,10%,55%)]">
                       Loading…
                     </span>
+                  )}
+                  {loadMoreError && !loadingMore && (
+                    <div className="space-y-2" role="alert">
+                      <p className="text-[11px] text-[hsl(0,55%,45%)]">{loadMoreError}</p>
+                      <button
+                        type="button"
+                        onClick={() => { void loadNext(); }}
+                        className="text-[11px] font-medium underline underline-offset-2"
+                        style={{ color: BRONZE }}
+                      >
+                        Try again
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

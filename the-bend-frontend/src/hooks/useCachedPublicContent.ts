@@ -51,6 +51,10 @@ export function useCachedPublicContent<T>(key: string, fetcher: () => Promise<T>
       .catch(() => null)
     return () => { active = false; void listener.then((registered) => registered?.remove()) }
   }, [network, refresh])
-  useNativeLifecycle(refresh)
+  const lifecycleRefresh = useCallback(async () => {
+    if (!mounted.current) return
+    await refresh()
+  }, [refresh])
+  useNativeLifecycle(lifecycleRefresh)
   return { data, source, cachedAt, refresh }
 }

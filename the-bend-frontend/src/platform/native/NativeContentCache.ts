@@ -35,7 +35,7 @@ const projectListing: Projector = (source) => {
 const projectBusiness: Projector = (source) => {
   const result = pick(source, [
     'id', 'name', 'business_type', 'description', 'avatar_url', 'website', 'address', 'city', 'state', 'zip_code',
-    'latitude', 'longitude', 'contact_phone', 'whatsapp', 'status', 'active_listings_count', 'total_fulfilled',
+    'contact_phone', 'whatsapp', 'status', 'active_listings_count', 'total_fulfilled',
     'endorsement_count', 'member_since',
   ])
   if (Array.isArray(source.listings)) result.listings = source.listings.filter(isObject).map(projectListing)

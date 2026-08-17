@@ -5,6 +5,7 @@ import { useCachedPublicContent } from './useCachedPublicContent'
 const cache = { put: vi.fn(), get: vi.fn(), remove: vi.fn(), clear: vi.fn(), stats: vi.fn() }
 let status: 'online' | 'offline' = 'online'
 let listener: ((next: 'online' | 'offline') => void) | undefined
+let lifecycleRefresh: (() => Promise<void>) | undefined
 let removeListener = vi.fn()
 const network = {
   getStatus: vi.fn(() => Promise.resolve(status)),
@@ -19,12 +20,13 @@ vi.mock('@/platform/createPlatformServices', () => ({
   }),
 }))
 
-vi.mock('./useNativeLifecycle', () => ({ useNativeLifecycle: () => undefined }))
+vi.mock('./useNativeLifecycle', () => ({ useNativeLifecycle: (refresh: () => Promise<void>) => { lifecycleRefresh = refresh } }))
 
 describe('useCachedPublicContent', () => {
   beforeEach(() => {
     status = 'online'
     listener = undefined
+    lifecycleRefresh = undefined
     removeListener = vi.fn().mockResolvedValue(undefined)
     vi.clearAllMocks()
     cache.get.mockResolvedValue(null)
@@ -79,6 +81,22 @@ describe('useCachedPublicContent', () => {
     await waitFor(() => expect(removeListener).toHaveBeenCalledTimes(1))
     await act(async () => { listener?.('online') })
     expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes the lifecycle refresh callback inert after unmount', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ id: 'fresh' })
+    const { unmount } = renderHook(() => useCachedPublicContent('listing:1', fetcher))
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    const refreshAfterUnmount = lifecycleRefresh
+    unmount()
+    vi.clearAllMocks()
+
+    await act(async () => { await refreshAfterUnmount?.() })
+
+    expect(network.getStatus).not.toHaveBeenCalled()
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(cache.get).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
   })
 
   it('writes each successful request to its own cache key even if the visible key changes', async () => {

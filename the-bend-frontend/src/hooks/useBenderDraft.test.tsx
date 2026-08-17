@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
+import { StrictMode, useLayoutEffect, type PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBenderDraft } from './useBenderDraft'
 
@@ -21,13 +22,42 @@ describe('useBenderDraft', () => {
     expect(store.save).toHaveBeenCalledWith('create-bender-post', { fields: { caption: 'First draft' }, localMediaUris: [] })
 
     rerender({ open: false })
-    store.load.mockResolvedValueOnce({ fields: { caption: 'Second draft' }, localMediaUris: ['file://second.jpg'] })
+    await waitFor(() => expect(result.current.caption).toBe(''))
+    const second = deferred<{ fields: { caption: string }; localMediaUris: string[] } | null>()
+    store.load.mockReturnValueOnce(second.promise)
     rerender({ open: true })
-    expect(result.current.caption).toBe('')
+    await waitFor(() => expect(result.current.caption).toBe(''))
     expect(result.current.pending).toBeNull()
+    await act(async () => { second.resolve({ fields: { caption: 'Second draft' }, localMediaUris: ['file://second.jpg'] }); await second.promise })
     await waitFor(() => expect(result.current.caption).toBe('Second draft'))
     expect(result.current.pending?.url).toBe('file://second.jpg')
     expect(store.load).toHaveBeenCalledTimes(2)
+  })
+
+  it('coalesces StrictMode effect replay into one draft hydration', async () => {
+    store.load.mockResolvedValueOnce({ fields: { caption: 'Strict draft' }, localMediaUris: [] })
+    const wrapper = ({ children }: PropsWithChildren) => <StrictMode>{children}</StrictMode>
+    const { result } = renderHook(() => useBenderDraft(true), { wrapper })
+
+    await waitFor(() => expect(result.current.caption).toBe('Strict draft'))
+    expect(store.load).toHaveBeenCalledTimes(1)
+  })
+
+  it('resets a closed composer after commit instead of updating state during render', async () => {
+    store.load.mockResolvedValueOnce({ fields: { caption: 'Stored' }, localMediaUris: [] })
+    const committedCaptions: string[] = []
+    function Probe({ open }: { open: boolean }) {
+      const { caption } = useBenderDraft(open)
+      useLayoutEffect(() => { committedCaptions.push(caption) }, [caption, open])
+      return null
+    }
+    const view = render(<Probe open />)
+    await waitFor(() => expect(committedCaptions).toContain('Stored'))
+    committedCaptions.length = 0
+
+    view.rerender(<Probe open={false} />)
+
+    await waitFor(() => expect(committedCaptions).toEqual(['Stored', '']))
   })
 
   it('ignores a late storage load after the composer closes', async () => {
