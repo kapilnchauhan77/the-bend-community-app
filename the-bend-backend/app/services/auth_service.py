@@ -269,7 +269,7 @@ class AuthService:
         payload = decode_reset_token(token)
         user_id = payload.get("sub")
         user = await self.user_repo.get_by_id(user_id)
-        if not user:
+        if not user or not user.is_active:
             raise NotFoundError("User")
 
         user.password_hash = hash_password(new_password)
