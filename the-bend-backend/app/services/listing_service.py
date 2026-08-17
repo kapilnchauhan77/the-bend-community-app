@@ -86,12 +86,15 @@ class ListingService:
             raise NotFoundError("Listing")
         if current_user is not None and current_user.tenant_id is not None:
             from app.services.block_service import BlockService
-            author_ids = [listing.posted_by_user_id]
-            if listing.shop is not None:
-                author_ids.append(listing.shop.admin_user_id)
-            for author_id in author_ids:
-                if author_id and await BlockService(self.db).is_blocked_by(current_user.id, author_id, current_user.tenant_id):
-                    raise NotFoundError("Listing")
+            # Match browse/shop-listing semantics: an explicit poster owns
+            # the listing; only listings without one inherit shop ownership.
+            author_id = listing.posted_by_user_id
+            if author_id is None and listing.shop is not None:
+                author_id = listing.shop.admin_user_id
+            if author_id and await BlockService(self.db).is_blocked_by(
+                current_user.id, author_id, current_user.tenant_id
+            ):
+                raise NotFoundError("Listing")
 
         # Increment views (simplified - Redis dedup in Phase 8)
         await self.listing_repo.increment_views(listing_id)
