@@ -67,6 +67,11 @@ ALLOWED_AUDIO_MIME_TYPES = frozenset({
 ALLOWED_MEDIA_MIME_TYPES = (
     ALLOWED_IMAGE_MIME_TYPES | ALLOWED_VIDEO_MIME_TYPES | ALLOWED_AUDIO_MIME_TYPES
 )
+_STORED_IMAGE_SUFFIXES_BY_FORMAT = {
+    "JPEG": frozenset({".jpg", ".jpeg"}),
+    "PNG": frozenset({".png"}),
+    "WEBP": frozenset({".webp"}),
+}
 
 # Fallback extension when the upload didn't carry a filename.
 _VIDEO_EXT_BY_MIME = {
@@ -143,17 +148,67 @@ class FileService:
         matches = sorted(path for path in directory.glob(f"{file_id}.*") if path.stem == file_id)
         return matches[0] if matches else None
 
+    @staticmethod
+    def _stored_image_error() -> HTTPException:
+        return HTTPException(
+            status_code=422,
+            detail="Could not read stored image",
+        )
+
+    @classmethod
+    def _existing_image_pair(cls, directory: Path, file_id: str) -> tuple[Path, Path] | None:
+        """Return one complete, readable deterministic image pair or fail closed."""
+        primaries = sorted(
+            path for path in directory.glob(f"{file_id}.*") if path.stem == file_id
+        )
+        thumbnails = sorted(
+            path
+            for path in directory.glob(f"{file_id}_thumb.*")
+            if path.stem == f"{file_id}_thumb"
+        )
+        if not primaries and not thumbnails:
+            return None
+        if len(primaries) != 1 or len(thumbnails) != 1:
+            raise cls._stored_image_error()
+
+        primary = primaries[0]
+        thumbnail = thumbnails[0]
+        if thumbnail != directory / f"{file_id}_thumb{primary.suffix}":
+            raise cls._stored_image_error()
+
+        for path in (primary, thumbnail):
+            if path.is_symlink() or not path.is_file():
+                raise cls._stored_image_error()
+            try:
+                content = path.read_bytes()
+                with Image.open(io.BytesIO(content)) as image:
+                    image_format = image.format
+                    if (
+                        image_format not in _STORED_IMAGE_SUFFIXES_BY_FORMAT
+                        or path.suffix.lower() not in _STORED_IMAGE_SUFFIXES_BY_FORMAT[image_format]
+                    ):
+                        raise ValueError("unsupported stored image format")
+                    image.verify()
+                # ``verify`` checks structure without decoding pixels; load a
+                # fresh image too so truncated/corrupt payloads fail closed.
+                with Image.open(io.BytesIO(content)) as image:
+                    image.load()
+            except Exception as exc:
+                raise cls._stored_image_error() from exc
+        return primary, thumbnail
+
     async def upload_private_user_image(self, file, user_id, storage_key: str | None = None) -> dict:
         """Store an avatar under an exclusive per-user root."""
         file_id = self._file_id(storage_key)
         private_dir = UPLOAD_DIR / "users" / str(user_id)
         private_dir.mkdir(parents=True, exist_ok=True)
-        existing = self._existing_path(private_dir, file_id) if storage_key else None
+        existing = self._existing_image_pair(private_dir, file_id) if storage_key else None
         if existing:
+            primary, thumbnail = existing
             return {
                 "id": file_id,
-                "url": f"/uploads/users/{user_id}/{existing.name}",
-                "thumbnail_url": f"/uploads/users/{user_id}/{file_id}_thumb{existing.suffix}",
+                "url": f"/uploads/users/{user_id}/{primary.name}",
+                "thumbnail_url": f"/uploads/users/{user_id}/{thumbnail.name}",
             }
 
         content = await file.read()
@@ -168,12 +223,17 @@ class FileService:
         (UPLOAD_DIR / "images").mkdir(parents=True, exist_ok=True)
         results = []
         for file in files[:5]:  # Max 5
-            content = await file.read()
             file_id = self._file_id(storage_key, str(len(results)))
-            existing = self._existing_path(UPLOAD_DIR / "images", file_id) if storage_key else None
+            existing = self._existing_image_pair(UPLOAD_DIR / "images", file_id) if storage_key else None
             if existing:
-                results.append({"id": file_id, "url": f"/uploads/images/{existing.name}", "thumbnail_url": f"/uploads/images/{existing.stem}_thumb{existing.suffix}"})
+                primary, thumbnail = existing
+                results.append({
+                    "id": file_id,
+                    "url": f"/uploads/images/{primary.name}",
+                    "thumbnail_url": f"/uploads/images/{thumbnail.name}",
+                })
                 continue
+            content = await file.read()
             full_bytes, thumb_bytes, ext = _process_image(content)
 
             full_path = UPLOAD_DIR / "images" / f"{file_id}{ext}"

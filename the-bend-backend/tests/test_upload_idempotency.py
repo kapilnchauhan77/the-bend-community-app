@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from fastapi import FastAPI, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from PIL import Image
 
 from app.api.deps import get_db
@@ -171,6 +171,189 @@ def png_payload() -> bytes:
     payload = io.BytesIO()
     image.save(payload, format="PNG")
     return payload.getvalue()
+
+
+async def stored_image_retry(
+    service, scope: str, upload: UploadFile, user_id, storage_key: str
+) -> dict:
+    if scope == "avatar":
+        return await service.upload_private_user_image(upload, user_id, storage_key)
+    return (await service.upload_images([upload], storage_key))[0]
+
+
+def stored_image_directory(tmp_path, scope: str, user_id):
+    return tmp_path / "users" / str(user_id) if scope == "avatar" else tmp_path / "images"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["image", "avatar"])
+@pytest.mark.parametrize("damage", ["missing-thumbnail", "corrupt-thumbnail", "corrupt-primary"])
+async def test_deterministic_image_retry_fails_closed_for_partial_or_corrupt_existing_pair(
+    tmp_path, monkeypatch, scope, damage
+):
+    """Removing validation of either stored image must make this test fail."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    service, user_id = files.FileService(), uuid4()
+    storage_key = f"upload-idempotency:{scope}"
+    first = await stored_image_retry(
+        service, scope, upload_file("first.png", "image/png", png_payload()), user_id, storage_key
+    )
+    directory = stored_image_directory(tmp_path, scope, user_id)
+    primary = directory / first["url"].rsplit("/", 1)[-1]
+    thumbnail = directory / first["thumbnail_url"].rsplit("/", 1)[-1]
+
+    if damage == "missing-thumbnail":
+        thumbnail.unlink()
+    elif damage == "corrupt-thumbnail":
+        thumbnail.write_bytes(b"not an image")
+    else:
+        primary.write_bytes(b"not an image")
+    before = {path.name: path.read_bytes() for path in directory.iterdir()}
+
+    with pytest.raises(HTTPException) as exc_info:
+        await stored_image_retry(
+            service, scope, upload_file("retry.jpg", "image/jpeg", png_payload()), user_id, storage_key
+        )
+
+    assert getattr(exc_info.value, "status_code", None) == 422
+    assert getattr(exc_info.value, "detail", None) == "Could not read stored image"
+    assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["image", "avatar"])
+async def test_deterministic_image_retry_rejects_pillow_readable_unsupported_stored_format(
+    tmp_path, monkeypatch, scope
+):
+    """A Pillow-readable GIF must not qualify as a supported stored upload."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    service, user_id = files.FileService(), uuid4()
+    storage_key = f"upload-idempotency:{scope}:unsupported"
+    file_id = service._file_id(storage_key, "0" if scope == "image" else "")
+    directory = stored_image_directory(tmp_path, scope, user_id)
+    directory.mkdir(parents=True)
+    image = Image.new("RGB", (2, 2), "red")
+    image.save(directory / f"{file_id}.gif", format="GIF")
+    image.save(directory / f"{file_id}_thumb.gif", format="GIF")
+    before = {path.name: path.read_bytes() for path in directory.iterdir()}
+
+    with pytest.raises(HTTPException) as exc_info:
+        await stored_image_retry(
+            service, scope, upload_file("retry.png", "image/png", png_payload()), user_id, storage_key
+        )
+
+    assert getattr(exc_info.value, "status_code", None) == 422
+    assert getattr(exc_info.value, "detail", None) == "Could not read stored image"
+    assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["image", "avatar"])
+async def test_deterministic_image_retry_does_not_overwrite_or_complete_derivative_only_partial_write(
+    tmp_path, monkeypatch, scope
+):
+    """Ignoring an orphan thumbnail would silently overwrite a partial object."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    service, user_id = files.FileService(), uuid4()
+    storage_key = f"upload-idempotency:{scope}:orphan"
+    file_id = service._file_id(storage_key, "0" if scope == "image" else "")
+    directory = stored_image_directory(tmp_path, scope, user_id)
+    directory.mkdir(parents=True)
+    orphan = directory / f"{file_id}_thumb.png"
+    orphan.write_bytes(png_payload())
+    before = {path.name: path.read_bytes() for path in directory.iterdir()}
+
+    with pytest.raises(HTTPException) as exc_info:
+        await stored_image_retry(
+            service, scope, upload_file("retry.jpg", "image/jpeg", png_payload()), user_id, storage_key
+        )
+
+    assert getattr(exc_info.value, "status_code", None) == 422
+    assert getattr(exc_info.value, "detail", None) == "Could not read stored image"
+    assert {path.name: path.read_bytes() for path in directory.iterdir()} == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["image", "avatar"])
+async def test_deterministic_image_retry_reuses_valid_pair_with_stable_response_and_no_second_write(
+    tmp_path, monkeypatch, scope
+):
+    """Replacing reuse with another physical write must make this test fail."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    service, user_id = files.FileService(), uuid4()
+    storage_key = f"upload-idempotency:{scope}:valid"
+    first = await stored_image_retry(
+        service, scope, upload_file("alpha.png", "image/png", png_payload()), user_id, storage_key
+    )
+    directory = stored_image_directory(tmp_path, scope, user_id)
+    before = {path.name: (path.stat().st_ino, path.read_bytes()) for path in directory.iterdir()}
+
+    retry = await stored_image_retry(
+        service, scope, upload_file("extension-variant.jpg", "image/jpeg", PAYLOAD), user_id, storage_key
+    )
+    after = {path.name: (path.stat().st_ino, path.read_bytes()) for path in directory.iterdir()}
+
+    assert retry == first
+    assert after == before
+    assert len(after) == 2
+    assert {name.split("_thumb", 1)[0].split(".", 1)[0] for name in after} == {first["id"]}
+
+
+@pytest.mark.asyncio
+async def test_deterministic_avatar_reuse_remains_scoped_to_each_user(tmp_path, monkeypatch):
+    """Looking outside the requested user's directory must make this test fail."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    service, storage_key = files.FileService(), "upload-idempotency:avatar:scoped"
+    first_user, second_user = uuid4(), uuid4()
+    first = await service.upload_private_user_image(
+        upload_file("first.png", "image/png", png_payload()), first_user, storage_key
+    )
+    second = await service.upload_private_user_image(
+        upload_file("second.png", "image/png", png_payload()), second_user, storage_key
+    )
+
+    assert first["id"] == second["id"]
+    assert first["url"] != second["url"]
+    assert len(list((tmp_path / "users" / str(first_user)).iterdir())) == 2
+    assert len(list((tmp_path / "users" / str(second_user)).iterdir())) == 2
+
+
+@pytest.mark.asyncio
+async def test_deterministic_avatar_reuse_rejects_symlink_escape_to_another_user(tmp_path, monkeypatch):
+    """Following stored-object symlinks would cross the private user boundary."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    service, storage_key = files.FileService(), "upload-idempotency:avatar:symlink"
+    owner_id, attacker_id = uuid4(), uuid4()
+    owner = await service.upload_private_user_image(
+        upload_file("owner.png", "image/png", png_payload()), owner_id, storage_key
+    )
+    owner_dir = tmp_path / "users" / str(owner_id)
+    attacker_dir = tmp_path / "users" / str(attacker_id)
+    attacker_dir.mkdir(parents=True)
+    for response_key in ("url", "thumbnail_url"):
+        source = owner_dir / owner[response_key].rsplit("/", 1)[-1]
+        (attacker_dir / source.name).symlink_to(source)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.upload_private_user_image(
+            upload_file("attacker.jpg", "image/jpeg", png_payload()), attacker_id, storage_key
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == "Could not read stored image"
+    assert all(path.is_symlink() for path in attacker_dir.iterdir())
 
 
 @pytest.mark.asyncio
