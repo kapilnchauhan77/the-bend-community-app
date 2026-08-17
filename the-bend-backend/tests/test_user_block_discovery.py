@@ -368,6 +368,61 @@ async def test_user_block_database_constraints_reject_cross_tenant_self_and_dupl
 
 
 @pytest.mark.asyncio
+async def test_safety_api_real_asgi_ownership_and_safe_invalid_targets():
+    await engine.dispose()
+    ids = {name: uuid4() for name in ("tenant", "other_tenant", "caller_a", "caller_b", "active", "inactive", "other")}
+    missing = uuid4()
+    async with async_session() as db:
+        db.add_all([
+            Tenant(id=ids["tenant"], slug=f"task5-safety-{ids['tenant'].hex}", subdomain=f"task5-safety-{ids['tenant'].hex}", display_name="Task5 Safety"),
+            Tenant(id=ids["other_tenant"], slug=f"task5-safety-other-{ids['other_tenant'].hex}", subdomain=f"task5-safety-other-{ids['other_tenant'].hex}", display_name="Task5 Other"),
+        ])
+        await db.flush()
+        db.add_all([
+            User(id=ids["caller_a"], tenant_id=ids["tenant"], email=f"task5-{ids['caller_a']}@example.test", password_hash="x", name="Caller A", role=UserRole.INDIVIDUAL),
+            User(id=ids["caller_b"], tenant_id=ids["tenant"], email=f"task5-{ids['caller_b']}@example.test", password_hash="x", name="Caller B", role=UserRole.INDIVIDUAL),
+            User(id=ids["active"], tenant_id=ids["tenant"], email=f"task5-{ids['active']}@example.test", password_hash="x", name="Active Target", role=UserRole.INDIVIDUAL),
+            User(id=ids["inactive"], tenant_id=ids["tenant"], email=f"task5-{ids['inactive']}@example.test", password_hash="x", name="Inactive Target", role=UserRole.INDIVIDUAL, is_active=False),
+            User(id=ids["other"], tenant_id=ids["other_tenant"], email=f"task5-{ids['other']}@example.test", password_hash="x", name="Other Target", role=UserRole.INDIVIDUAL),
+        ])
+        await db.commit()
+        current = {"user": await db.get(User, ids["caller_a"])}
+        from app.api.deps import get_db
+        from app.api.v1.safety import router as safety_router
+        from app.core.permissions import get_current_user
+        app = FastAPI()
+        app.include_router(safety_router, prefix="/api/v1")
+        app.dependency_overrides[get_db] = lambda: db
+        app.dependency_overrides[get_current_user] = lambda: current["user"]
+        try:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+                created = await client.post(f"/api/v1/safety/blocks/{ids['active']}")
+                current["user"] = await db.get(User, ids["caller_b"])
+                caller_b_list = await client.get("/api/v1/safety/blocks")
+                caller_b_delete = await client.delete(f"/api/v1/safety/blocks/{ids['active']}")
+                current["user"] = await db.get(User, ids["caller_a"])
+                caller_a_delete_1 = await client.delete(f"/api/v1/safety/blocks/{ids['active']}")
+                caller_a_delete_2 = await client.delete(f"/api/v1/safety/blocks/{ids['active']}")
+                invalid = []
+                for target in (ids["caller_a"], ids["inactive"], ids["other"], missing):
+                    invalid.append(await client.post(f"/api/v1/safety/blocks/{target}"))
+            assert created.status_code == 201
+            assert caller_b_list.json()["items"] == []
+            assert caller_b_delete.status_code == 204
+            assert caller_a_delete_1.status_code == caller_a_delete_2.status_code == 204
+            assert (await db.execute(select(UserBlock).where(UserBlock.tenant_id == ids["tenant"]))).scalars().all() == []
+            assert len({(response.status_code, response.text) for response in invalid}) == 1
+            assert invalid[0].status_code == 404
+        finally:
+            await db.execute(delete(UserBlock).where(UserBlock.tenant_id.in_([ids["tenant"], ids["other_tenant"]])))
+            await db.execute(delete(User).where(User.id.in_(list(ids.values())[2:])))
+            await db.execute(delete(Tenant).where(Tenant.id.in_([ids["tenant"], ids["other_tenant"]])))
+            await db.commit()
+            assert (await db.execute(select(Tenant).where(Tenant.id.in_([ids["tenant"], ids["other_tenant"]])))).scalars().all() == []
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_public_shop_listing_route_propagates_authenticated_and_anonymous_viewers(discovery_rows):
     ids = discovery_rows
     async with async_session() as db:
