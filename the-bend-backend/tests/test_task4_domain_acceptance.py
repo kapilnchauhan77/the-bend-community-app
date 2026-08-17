@@ -18,6 +18,17 @@ from app.services.listing_service import queue_urgent_listing_notifications
 from app.workers import scheduled_tasks
 from datetime import datetime, timedelta
 import asyncio
+from types import SimpleNamespace
+
+
+def _is_test_owned_westmoreland(tenant):
+    return bool(tenant and tenant.slug == "westmoreland" and tenant.subdomain.startswith(("task4-west-", "task4-success-")))
+
+
+def test_test_owned_westmoreland_marker_is_reclaimed_but_canonical_is_preserved():
+    assert _is_test_owned_westmoreland(SimpleNamespace(slug="westmoreland", subdomain="task4-west-reused"))
+    assert _is_test_owned_westmoreland(SimpleNamespace(slug="westmoreland", subdomain="task4-success-reused"))
+    assert not _is_test_owned_westmoreland(SimpleNamespace(slug="westmoreland", subdomain="westmoreland.bend.community"))
 from app.services.admin_service import AdminService
 from app.services.notification_service import NotificationService
 from app.services.push_dispatcher import build_native_payload
@@ -132,7 +143,7 @@ async def test_westmoreland_fanout_filters_and_is_concurrently_idempotent():
     await engine.dispose()
     async with async_session() as db:
         tenant = (await db.execute(select(Tenant).where(Tenant.slug == "westmoreland"))).scalar_one_or_none()
-        owns_tenant = tenant is None
+        owns_tenant = tenant is None or _is_test_owned_westmoreland(tenant)
         if tenant is None:
             tenant = Tenant(id=uuid4(), slug="westmoreland", subdomain=f"task4-west-{uuid4().hex[:10]}", display_name="Westmoreland")
             db.add(tenant)
@@ -202,7 +213,7 @@ async def test_westmoreland_fanout_filters_and_is_concurrently_idempotent():
             await db.execute(delete(User).where(User.id.in_([author_id, shop_admin_id, eligible_id, inactive_id, other_id])))
             await db.execute(delete(Tenant).where(Tenant.id == other.id))
             if owns_tenant:
-                await db.execute(delete(Tenant).where(Tenant.id == tenant.id, Tenant.slug == "westmoreland"))
+                await db.execute(delete(Tenant).where(Tenant.id == tenant.id, Tenant.slug == "westmoreland", Tenant.subdomain.like("task4-%")))
             await db.commit()
             assert (await db.execute(select(Listing.id).where(Listing.id.in_([listing_id, shop_listing_id])))).scalars().all() == []
             assert (await db.execute(select(Shop.id).where(Shop.id == shop_id))).scalar_one_or_none() is None
@@ -235,7 +246,7 @@ async def test_scheduled_expiration_success_commits_urgent_fanout():
     await engine.dispose()
     async with async_session() as db:
         tenant = (await db.execute(select(Tenant).where(Tenant.slug == "westmoreland"))).scalar_one_or_none()
-        owns_tenant = tenant is None
+        owns_tenant = tenant is None or _is_test_owned_westmoreland(tenant)
         if tenant is None:
             tenant = Tenant(id=uuid4(), slug="westmoreland", subdomain=f"task4-success-{uuid4().hex[:10]}", display_name="Westmoreland")
             db.add(tenant)
@@ -264,6 +275,6 @@ async def test_scheduled_expiration_success_commits_urgent_fanout():
             await db.execute(delete(Listing).where(Listing.id == listing_id))
             await db.execute(delete(User).where(User.id.in_([author_id, eligible_id]), User.tenant_id == tenant.id))
             if owns_tenant:
-                await db.execute(delete(Tenant).where(Tenant.id == tenant.id, Tenant.slug == "westmoreland"))
+                await db.execute(delete(Tenant).where(Tenant.id == tenant.id, Tenant.slug == "westmoreland", Tenant.subdomain.like("task4-%")))
             await db.commit()
         await engine.dispose()
