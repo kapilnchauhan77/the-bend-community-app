@@ -25,7 +25,7 @@ class CheckoutVerificationService:
         if not self.tenant or kind not in _KINDS or not _SESSION.fullmatch(session_id):
             return None
         model = {"sponsor": Sponsor, "event": Event, "connector": ConnectorPurchase}[kind]
-        result = await self.db.execute(select(model).where(model.tenant_id == self.tenant.id, model.stripe_session_id == session_id))
+        result = await self.db.execute(select(model).where(model.tenant_id == self.tenant.id, model.stripe_session_id == session_id).with_for_update())
         return result.scalar_one_or_none()
 
     @staticmethod

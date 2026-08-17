@@ -255,7 +255,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             return {"status": "ok"}
         from app.models.connector_purchase import ConnectorPurchase
         target_model = {"sponsor": Sponsor, "event": __import__("app.models.event", fromlist=["Event"]).Event, "connector": ConnectorPurchase}[kind]
-        target_result = await db.execute(select(target_model).where(target_model.id == target_id, target_model.tenant_id == tenant.id))
+        target_result = await db.execute(select(target_model).where(target_model.id == target_id, target_model.tenant_id == tenant.id).with_for_update())
         target = target_result.scalar_one_or_none()
         from app.services.checkout_service import CheckoutVerificationService
         if target is None or not CheckoutVerificationService._matches(kind, target, session):
