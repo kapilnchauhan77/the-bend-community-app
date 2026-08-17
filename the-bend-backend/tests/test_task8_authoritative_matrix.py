@@ -309,6 +309,33 @@ async def test_signed_expired_webhook_cancels_local_checkout(monkeypatch, db_con
 
 
 @pytest.mark.asyncio
+async def test_capabilities_exact_contract_and_credential_matrix(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    settings = get_settings()
+    tenant.slug = "westmoreland"
+    tenant.stripe_secret_key = tenant.stripe_publishable_key = tenant.stripe_webhook_secret = ""
+    app = make_app(sessions, tenant)
+    async def getcap():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            return await client.get("/api/v1/capabilities/native")
+    response = await getcap()
+    assert set(response.json()) == {"native_commerce_enabled", "tenant_slug", "support_url", "privacy_url", "account_deletion_url"}
+    assert response.json()["tenant_slug"] == tenant.slug
+    assert response.json()["support_url"] == f"https://{tenant.slug}.bend.community/support"
+    assert response.json()["privacy_url"] == f"https://{tenant.slug}.bend.community/privacy"
+    assert response.json()["account_deletion_url"] == f"https://{tenant.slug}.bend.community/delete-account"
+    assert response.json()["native_commerce_enabled"] is False
+    original = settings.NATIVE_COMMERCE_ENABLED
+    settings.NATIVE_COMMERCE_ENABLED = True
+    tenant.stripe_secret_key, tenant.stripe_publishable_key, tenant.stripe_webhook_secret = "sk_test_x", "pk_test_x", "whsec_x"
+    assert (await getcap()).json()["native_commerce_enabled"] is True
+    for attr, value in (("stripe_secret_key", ""), ("stripe_publishable_key", ""), ("stripe_webhook_secret", ""), ("stripe_secret_key", "sk_live_x"), ("stripe_publishable_key", "pk_test_x")):
+        setattr(tenant, attr, value)
+        assert (await getcap()).json()["native_commerce_enabled"] is False
+    settings.NATIVE_COMMERCE_ENABLED = original
+
+
+@pytest.mark.asyncio
 async def test_two_asgi_status_clients_share_one_locked_transition(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     calls = []

@@ -62,6 +62,10 @@ class CheckoutVerificationService:
             await self.db.flush()
         except (stripe.error.StripeError, OSError, TimeoutError):
             pass
+        except (AttributeError, TypeError, KeyError):
+            # Malformed provider payloads are non-authoritative and retryable;
+            # database/logic exceptions intentionally propagate.
+            pass
         return {"status": self._status(kind, row), "target_type": kind, "target_id": str(row.id)}
 
     async def apply_provider_transition(self, kind: str, row: Any, checkout: dict) -> bool:
