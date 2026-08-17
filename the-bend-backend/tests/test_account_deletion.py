@@ -171,6 +171,40 @@ async def test_real_postgres_concurrent_confirmation_has_one_active_request():
 
 
 @pytest.mark.asyncio
+async def test_real_asgi_deletion_status_and_auth_denials(monkeypatch):
+    import httpx
+    from app.main import create_app
+    from app.core.security import create_access_token, create_reset_token, hash_password
+    from app.workers.account_tasks import erase_account
+    marker = uuid.uuid4().hex; tenant_id, other_tenant_id, user_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    try:
+        async with async_session() as db:
+            db.add_all([Tenant(id=tenant_id, slug="asgi-"+marker, subdomain="asgi-"+marker, display_name="ASGI"), Tenant(id=other_tenant_id, slug="asgi-other-"+marker, subdomain="asgi-other-"+marker, display_name="Other")]); await db.flush()
+            db.add(User(id=user_id, tenant_id=tenant_id, email=marker+"@example.test", password_hash=hash_password("Correct1"), name="ASGI User", role=UserRole.INDIVIDUAL)); await db.commit()
+        token = create_access_token(user_id, UserRole.INDIVIDUAL.value)
+        monkeypatch.setattr(erase_account, "delay", lambda value: None)
+        transport = httpx.ASGITransport(app=create_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            wrong = await client.post("/api/v1/account/deletion/confirm", headers={"authorization": f"Bearer {token}", "x-tenant-slug": "asgi-"+marker}, json={"password":"wrong","send_confirmation":False}); assert wrong.status_code == 401
+            unknown = await client.post("/api/v1/account/deletion/confirm", headers={"authorization": f"Bearer {token}", "x-tenant-slug": "missing-"+marker}, json={"password":"Correct1","send_confirmation":False}); assert unknown.status_code in (401, 404)
+            confirmed = await client.post("/api/v1/account/deletion/confirm", headers={"authorization": f"Bearer {token}", "x-tenant-slug": "asgi-"+marker}, json={"password":"Correct1","send_confirmation":False}); assert confirmed.status_code == 200
+            receipt = confirmed.json()["status_receipt"]
+            pending = await client.get("/api/v1/account/deletion/status", params={"receipt":receipt}, headers={"x-tenant-slug":"asgi-"+marker}); assert pending.status_code == 200 and pending.json()["status"] == "pending"
+            old_token = await client.get("/api/v1/auth/me", headers={"authorization":f"Bearer {token}","x-tenant-slug":"asgi-"+marker}); assert old_token.status_code == 403
+            login = await client.post("/api/v1/auth/login", headers={"x-tenant-slug":"asgi-"+marker}, json={"email":marker+"@example.test","password":"Correct1"}); assert login.status_code == 403
+            cross = await client.get("/api/v1/account/deletion/status", params={"receipt":receipt}, headers={"x-tenant-slug":"asgi-other-"+marker}); assert cross.status_code == 404
+        async with async_session() as db:
+            row = (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_id))).scalar_one(); await __import__("app.services.account_deletion_service", fromlist=["AccountDeletionService"]).AccountDeletionService(db).erase(str(row.id))
+            await db.commit()
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            first = await client.get("/api/v1/account/deletion/status", params={"receipt":receipt}, headers={"x-tenant-slug":"asgi-"+marker}); assert first.status_code == 200 and first.json()["status"] == "completed"
+            second = await client.get("/api/v1/account/deletion/status", params={"receipt":receipt}, headers={"x-tenant-slug":"asgi-"+marker}); assert second.status_code == 404
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id == user_id)); await db.execute(delete(User).where(User.id == user_id)); await db.execute(delete(Tenant).where(Tenant.id.in_([tenant_id, other_tenant_id]))); await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
