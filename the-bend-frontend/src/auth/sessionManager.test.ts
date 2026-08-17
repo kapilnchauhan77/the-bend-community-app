@@ -7,6 +7,7 @@ const runtime: RuntimeConfig = { kind: 'ios', isNative: true, apiBaseUrl: 'https
 const user: User = { id: 'u1', name: 'Ada', email: 'ada@example.com', role: 'individual' }
 const shop: Shop = { id: 's1', name: 'Shop', business_type: 'cafe', status: 'active' }
 const tokens: AuthTokens = { access_token: 'access', refresh_token: 'refresh', token_type: 'bearer', user, shop }
+const newerUser: User = { ...user, id: 'u2', name: 'Bea', email: 'bea@example.com' }
 
 function store(initial: StoredSession | null = null): SessionStore {
   let value = initial
@@ -114,5 +115,54 @@ describe('SessionManager', () => {
     expect(manager.getAccessToken()).toBeNull()
     expect(manager.getSnapshot().isAuthenticated).toBe(false)
     expect(await sessionStore.load()).toBeNull()
+  })
+
+  it('does not clear a newer login when hydration refresh fails', async () => {
+    let rejectRefresh!: (error: Error) => void
+    const manager = new SessionManager({ runtime, sessionStore: store({ refreshToken: 'restore' }), refresh: vi.fn(() => new Promise<never>((_, reject) => { rejectRefresh = reject })), getCurrentSession: vi.fn() })
+    const hydration = manager.initialize()
+    await vi.waitFor(() => expect(rejectRefresh).toBeTypeOf('function'))
+    await manager.setAuthenticated({ ...tokens, access_token: 'login', refresh_token: 'login-refresh' })
+    rejectRefresh(new Error('offline'))
+    await hydration
+    expect(manager.getAccessToken()).toBe('login')
+    expect(manager.getSnapshot().user).toEqual(user)
+    expect(manager.getSnapshot().isAuthenticated).toBe(true)
+  })
+
+  it('does not overwrite a newer login when stale hydration /me resolves', async () => {
+    let resolveMe!: (value: { user: User; shop: Shop | null }) => void
+    const getCurrentSession = vi.fn(() => new Promise<{ user: User; shop: Shop | null }>((resolve) => { resolveMe = resolve }))
+    const manager = new SessionManager({ runtime, sessionStore: store({ refreshToken: 'restore' }), refresh: vi.fn(async () => ({ access_token: 'restored' })), getCurrentSession })
+    const hydration = manager.initialize()
+    await vi.waitFor(() => expect(resolveMe).toBeTypeOf('function'))
+    await manager.setAuthenticated({ ...tokens, access_token: 'login', user: newerUser })
+    resolveMe({ user, shop })
+    await hydration
+    expect(manager.getAccessToken()).toBe('login')
+    expect(manager.getSnapshot().user).toEqual(newerUser)
+  })
+
+  it('keeps logout authoritative over in-flight hydration', async () => {
+    let resolveRefresh!: (value: RefreshResponse) => void
+    const manager = new SessionManager({ runtime, sessionStore: store({ refreshToken: 'restore' }), refresh: vi.fn(() => new Promise<RefreshResponse>((resolve) => { resolveRefresh = resolve })), getCurrentSession: vi.fn() })
+    const hydration = manager.initialize()
+    await vi.waitFor(() => expect(resolveRefresh).toBeTypeOf('function'))
+    const logout = manager.logout()
+    resolveRefresh({ access_token: 'stale' })
+    await Promise.all([hydration, logout])
+    expect(manager.getSnapshot()).toMatchObject({ user: null, shop: null, isAuthenticated: false, isLoading: false })
+    expect(manager.getAccessToken()).toBeNull()
+  })
+
+  it('coalesces simultaneous initialization into one restore sequence', async () => {
+    const refresh = vi.fn(async () => ({ access_token: 'restored' }))
+    const getCurrentSession = vi.fn(async () => ({ user, shop }))
+    const manager = new SessionManager({ runtime, sessionStore: store({ refreshToken: 'restore' }), refresh, getCurrentSession })
+    const first = manager.initialize()
+    const second = manager.initialize()
+    await Promise.all([first, second])
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(getCurrentSession).toHaveBeenCalledTimes(1)
   })
 })

@@ -25,6 +25,7 @@ export class SessionManager {
   private refreshInFlight: Promise<string | null> | null = null
   private initialized = false
   private initializing = false
+  private initializeInFlight: Promise<AuthSnapshot> | null = null
   private epoch = 0
   private mutationQueue: Promise<void> = Promise.resolve()
   private listeners = new Set<(snapshot: AuthSnapshot) => void>()
@@ -58,7 +59,7 @@ export class SessionManager {
     await this.applyAuthenticated(response, this.epoch)
   }
 
-  private async applyAuthenticated(response: AuthTokens | RefreshResponse, expectedEpoch: number): Promise<void> {
+  private async applyAuthenticated(response: AuthTokens | RefreshResponse, expectedEpoch: number, markReady = true): Promise<void> {
     await this.enqueueMutation(async () => {
       if (expectedEpoch !== this.epoch) return
       if (response.refresh_token) await this.options.sessionStore.save({ refreshToken: response.refresh_token })
@@ -67,34 +68,59 @@ export class SessionManager {
       if (response.refresh_token) this.refreshToken = response.refresh_token
       if (response.user) this.currentUser = response.user
       if (response.shop !== undefined) this.currentShop = response.shop ?? null
+      if (markReady) this.initializing = false
       const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
       if (browserStorage && typeof browserStorage.setItem === 'function') {
         browserStorage.setItem('access_token', response.access_token)
         if (this.currentUser) browserStorage.setItem('user', JSON.stringify(this.currentUser))
         browserStorage.setItem('shop', JSON.stringify(this.currentShop))
       }
-      this.initialized = true
-      this.publish()
+      if (markReady) {
+        this.initialized = true
+        this.publish()
+      }
     })
   }
 
   async initialize(): Promise<AuthSnapshot> {
     if (this.initialized) return this.snapshot()
+    if (this.initializeInFlight) return this.initializeInFlight
+    const hydrationEpoch = this.epoch
     this.initializing = true
+    this.publish()
+    this.initializeInFlight = this.hydrate(hydrationEpoch).finally(() => { this.initializeInFlight = null })
+    return this.initializeInFlight
+  }
+
+  private async hydrate(hydrationEpoch: number): Promise<AuthSnapshot> {
     const stored = await this.options.sessionStore.load().catch(() => null)
-    if (!stored) { this.initializing = false; this.initialized = true; this.publish(); return emptySnapshot() }
-    try {
-      this.refreshToken = stored.refreshToken
-      await this.refresh()
-      const current = await this.options.getCurrentSession()
-      this.currentUser = current.user
-      this.currentShop = current.shop
+    if (hydrationEpoch !== this.epoch) return this.snapshot()
+    if (!stored) {
       this.initializing = false
       this.initialized = true
       this.publish()
+      return emptySnapshot()
+    }
+    try {
+      this.refreshToken = stored.refreshToken
+      const token = await this.refresh(false)
+      if (hydrationEpoch !== this.epoch) return this.snapshot()
+      if (!token) throw new Error('Session refresh returned no access token')
+      const current = await this.options.getCurrentSession()
+      if (hydrationEpoch !== this.epoch) return this.snapshot()
+      await this.enqueueMutation(async () => {
+        if (hydrationEpoch !== this.epoch) return
+        this.currentUser = current.user
+        this.currentShop = current.shop
+        this.initializing = false
+        this.initialized = true
+        this.publish()
+      })
       return this.snapshot()
     } catch {
+      if (hydrationEpoch !== this.epoch) return this.snapshot()
       await this.clearLocalSession()
+      if (hydrationEpoch !== this.epoch) return this.snapshot()
       this.initializing = false
       this.initialized = true
       this.publish()
@@ -102,13 +128,13 @@ export class SessionManager {
     }
   }
 
-  async refresh(): Promise<string | null> {
+  async refresh(markReady = true): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight
-    this.refreshInFlight = this.doRefresh().finally(() => { this.refreshInFlight = null })
+    this.refreshInFlight = this.doRefresh(markReady).finally(() => { this.refreshInFlight = null })
     return this.refreshInFlight
   }
 
-  private async doRefresh(): Promise<string | null> {
+  private async doRefresh(markReady: boolean): Promise<string | null> {
     const requestEpoch = this.epoch
     if (!this.refreshToken) {
       const stored = await this.options.sessionStore.load().catch(() => null)
@@ -118,7 +144,7 @@ export class SessionManager {
     try {
       const response = await this.options.refresh(this.refreshToken)
       if (requestEpoch !== this.epoch) return null
-      await this.applyAuthenticated({ ...response, refresh_token: response.refresh_token ?? this.refreshToken }, requestEpoch)
+      await this.applyAuthenticated({ ...response, refresh_token: response.refresh_token ?? this.refreshToken }, requestEpoch, markReady)
       return response.access_token
     } catch (error) {
       if (requestEpoch === this.epoch) await this.clearLocalSession()
@@ -133,6 +159,7 @@ export class SessionManager {
     if (requestEpoch !== this.epoch) return
     try { if (refreshToken && this.options.logoutRequest) await this.options.logoutRequest(refreshToken) } catch { /* local cleanup is authoritative */ }
     await this.clearLocalSession()
+    this.initializing = false
     this.initialized = true
     this.publish()
   }
