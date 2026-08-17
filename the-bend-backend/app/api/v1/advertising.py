@@ -261,8 +261,10 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         if target is None or not CheckoutVerificationService._matches(kind, target, session):
             return {"status": "ok"}
         transition_service = CheckoutVerificationService(db, tenant)
-        transitioned = await transition_service.apply_provider_transition(kind, target, session)
-        if not transitioned:
+        transition_outcome = await transition_service.apply_provider_transition(kind, target, session)
+        if not transition_outcome:
+            return {"status": "ok"}
+        if transition_outcome == "cancelled":
             return {"status": "ok"}
         sponsor_id = metadata.get("sponsor_id") or (target_id if kind == "sponsor" else None)
         pricing_id = metadata.get("pricing_id")
@@ -294,6 +296,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     notif = Notification(
                         id=uuid4(),
                         user_id=admin.id,
+                        tenant_id=purchase.tenant_id,
                         type=NotificationType.REGISTRATION_SUBMITTED,
                         title="New Connector Purchase",
                         body=f"{biz_name} purchased a 90-day Automatic Website Events Linker for {website}. Please set up the connector.",

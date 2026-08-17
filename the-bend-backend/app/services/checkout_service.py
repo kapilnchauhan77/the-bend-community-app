@@ -71,11 +71,11 @@ class CheckoutVerificationService:
         if provider_status in {"expired", "canceled"}:
             if kind == "connector": row.status = "cancelled"
             else: row.checkout_status = "cancelled"
-            return True
+            return "cancelled"
         if provider_status != "complete" or checkout.get("payment_status") != "paid":
-            return False
+            return None
         if self._status(kind, row) in {"paid", "complete", "cancelled"}:
-            return False
+            return None
         if kind == "sponsor":
             from app.api.v1.advertising import _mark_paid_and_notify
             from app.models.ad_pricing import AdPricing
@@ -94,7 +94,7 @@ class CheckoutVerificationService:
             row.status = "paid"
         if checkout.get("payment_intent"):
             row.stripe_payment_intent = checkout.get("payment_intent")
-        return True
+        return "paid"
 
     @staticmethod
     def _matches(kind: str, row: Any, checkout: dict) -> bool:

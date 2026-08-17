@@ -204,6 +204,26 @@ async def test_event_and_connector_creation_bind_exact_checkout_contract(monkeyp
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("path,payload,model,marker", [
+    ("/api/v1/advertising/checkout", {"pricing_id": "pricing", "name": "Rollback sponsor", "contact_email": "rollback-s@example.test", "contact_name": "Rollback"}, Sponsor, "rollback-s@example.test"),
+    ("/api/v1/events/submit", {"title": "Rollback event", "start_date": "2026-09-01T10:00:00", "submitted_by_name": "Rollback", "submitted_by_email": "rollback-e@example.test"}, Event, "Rollback event"),
+    ("/api/v1/events/connector-checkout", {"website_url": "https://rollback.example.test", "contact_name": "Rollback", "contact_email": "rollback-c@example.test", "business_name": "Rollback"}, ConnectorPurchase, "https://rollback.example.test"),
+])
+async def test_each_paid_creation_rolls_back_authority_on_provider_failure(monkeypatch, db_context, path, payload, model, marker):
+    sessions, tenant, ids = db_context
+    if path.endswith("advertising/checkout"):
+        payload["pricing_id"] = str(ids[3])
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("provider unavailable")))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        with pytest.raises(RuntimeError):
+            await client.post(path, json=payload)
+    async with sessions() as db:
+        column = model.contact_email if model is ConnectorPurchase else model.submitted_by_email if model is Event else model.contact_email
+        assert (await db.execute(__import__("sqlalchemy").select(__import__("sqlalchemy").func.count()).select_from(model).where(column == marker))).scalar_one() == 0
+
+
+@pytest.mark.asyncio
 async def test_connector_creation_rolls_back_local_row_on_provider_failure(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     def fail(**kwargs):
@@ -248,6 +268,13 @@ async def test_signed_webhook_transitions_each_kind_once(monkeypatch, db_context
         model = [Sponsor, Event, ConnectorPurchase][index]
         row = await db.get(model, target)
         assert (row.paid if kind != "connector" else row.status) in (True, "paid")
+        if kind == "connector":
+            notifications = (await db.execute(__import__("sqlalchemy").select(Notification).where(Notification.tenant_id == tenant.id))).scalars().all()
+            assert len(notifications) == 1
+            recipient = await db.get(User, notifications[0].user_id)
+            assert recipient.tenant_id == tenant.id
+            assert all("contact_email" not in (n.body + str(n.data or {})) and "cs_" not in (n.body + str(n.data or {})) and "sk_" not in (n.body + str(n.data or {})) and "whsec" not in (n.body + str(n.data or {})) for n in notifications)
+            assert all(n.user_id != uuid.UUID("00000000-0000-0000-0000-000000000000") for n in notifications)
 
 
 @pytest.mark.asyncio
@@ -277,7 +304,8 @@ async def test_signed_expired_webhook_cancels_local_checkout(monkeypatch, db_con
         response = await client.post("/api/v1/advertising/webhook", content=__import__("json").dumps(event), headers={"stripe-signature": "valid", "x-tenant-slug": tenant.slug})
     assert response.json() == {"status": "ok"}
     async with sessions() as db:
-        assert (await db.get(Sponsor, ids[0])).checkout_status == "cancelled"
+        row = await db.get(Sponsor, ids[0])
+        assert row.checkout_status == "cancelled" and row.paid is False
 
 
 @pytest.mark.asyncio
