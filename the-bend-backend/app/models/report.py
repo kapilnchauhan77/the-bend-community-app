@@ -26,7 +26,7 @@ class Report(Base):
     __table_args__ = (
         Index("idx_reports_target", "target_type", "target_id"),
         Index("idx_reports_resolved", "resolved"),
-        UniqueConstraint("tenant_id", "reporter_id", "target_type", "target_id", name="uq_reports_reporter_target"),
+        Index("uq_reports_reporter_target", "tenant_id", "reporter_id", "target_type", "target_id", unique=True, postgresql_where=(status == "open")),
         UniqueConstraint("id", "tenant_id", name="uq_reports_id_tenant"),
         ForeignKeyConstraint(["reporter_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="RESTRICT"),
         ForeignKeyConstraint(["resolved_by_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="SET NULL"),

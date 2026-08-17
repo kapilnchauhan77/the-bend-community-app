@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +40,7 @@ class ReportService:
         await self._target(target_type, target_id, tenant_id, reporter_id)
         details = details.strip()[:1000] if details else None
         candidate_id = uuid4()
-        stmt = insert(Report).values(id=candidate_id, target_type=target_type, target_id=target_id, reporter_id=reporter_id, tenant_id=tenant_id, reason=reason, details=details, status="open", resolved=False).on_conflict_do_nothing(constraint="uq_reports_reporter_target").returning(Report.id)
+        stmt = insert(Report).values(id=candidate_id, target_type=target_type, target_id=target_id, reporter_id=reporter_id, tenant_id=tenant_id, reason=reason, details=details, status="open", resolved=False).on_conflict_do_nothing(index_elements=["tenant_id", "reporter_id", "target_type", "target_id"], index_where=text("status = 'open'")).returning(Report.id)
         won = (await self.db.execute(stmt)).scalar_one_or_none() is not None
         row = (await self.db.execute(select(Report).where(Report.tenant_id == tenant_id, Report.reporter_id == reporter_id, Report.target_type == target_type, Report.target_id == target_id))).scalar_one()
         return row, not won

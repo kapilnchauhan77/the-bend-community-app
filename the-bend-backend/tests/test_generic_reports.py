@@ -1,10 +1,12 @@
 from app.models.report import Report
 from app.models.report_audit import ReportAudit
 import asyncio
+import subprocess
+from pathlib import Path
 from uuid import uuid4
 from datetime import datetime
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from app.database import async_session, engine
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.tenant import Tenant
@@ -117,3 +119,36 @@ async def test_admin_hydrates_all_six_types_and_concurrent_resolve_once():
     finally:
         async with async_session() as db:
             await db.execute(ReportAudit.__table__.delete().where(ReportAudit.tenant_id.in_([tid,oid]))); await db.execute(Report.__table__.delete().where(Report.tenant_id.in_([tid,oid]))); await db.execute(Message.__table__.delete().where(Message.id==ids["message"])); await db.execute(MessageThread.__table__.delete().where(MessageThread.id==ids["thread"])); await db.execute(BenderPost.__table__.delete().where(BenderPost.id==ids["bender"])); await db.execute(Event.__table__.delete().where(Event.tenant_id.in_([tid,oid]))); await db.execute(Listing.__table__.delete().where(Listing.tenant_id.in_([tid,oid]))); await db.execute(Shop.__table__.delete().where(Shop.tenant_id.in_([tid,oid]))); await db.execute(User.__table__.delete().where(User.tenant_id.in_([tid,oid]))); await db.execute(Tenant.__table__.delete().where(Tenant.id.in_([tid,oid]))); await db.commit()
+
+@pytest.mark.asyncio
+async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
+    root = Path(__file__).resolve().parents[1]
+    def alembic(*args):
+        return subprocess.run([str(root/".venv/bin/alembic"), *args], cwd=root, check=True, capture_output=True, text=True)
+    marker=f"task6-migration-{uuid4().hex}"; tid, uid, lid = uuid4(), uuid4(), uuid4(); open_id, resolved_id = uuid4(), uuid4(); created_open=datetime(2025,1,2,3,4,5); created_resolved=datetime(2025,2,3,4,5,6)
+    try:
+        await engine.dispose()
+        async with async_session() as cleanup:
+            await cleanup.execute(text("DELETE FROM reports WHERE details LIKE 'task6-migration-%'")); await cleanup.commit()
+        try: alembic("upgrade","head")
+        except Exception: pass
+        alembic("downgrade","nat003")
+        async with async_session() as db:
+            await db.execute(text("INSERT INTO tenants (id,slug,subdomain,display_name) VALUES (:id,:slug,:sub,:name)"),{"id":tid,"slug":marker,"sub":marker,"name":marker})
+            await db.execute(text("INSERT INTO users (id,email,password_hash,name,role,tenant_id,is_active,created_at,updated_at) VALUES (:id,:email,'x',:name,'INDIVIDUAL',:tenant,true,now(),now())"),{"id":uid,"email":marker+"@test","name":marker,"tenant":tid})
+            await db.execute(text("INSERT INTO listings (id,tenant_id,type,category,title,description,pricing_type,is_free,urgency,status,views_count,interest_count,created_at,updated_at) VALUES (:id,:tenant,'OFFER','MATERIALS',:title,'legacy','free',true,'NORMAL','ACTIVE',0,0,now(),now())"),{"id":lid,"tenant":tid,"title":marker})
+            for rid, reason, details, resolved, created in ((open_id,"spam",marker+"-open",False,created_open),(resolved_id,"misleading",marker+"-resolved",True,created_resolved)):
+                await db.execute(text("INSERT INTO reports (id,listing_id,reporter_id,reason,details,resolved,tenant_id,created_at) VALUES (:id,:listing,:user,:reason,:details,:resolved,:tenant,:created)"),{"id":rid,"listing":lid,"user":uid,"reason":reason,"details":details,"resolved":resolved,"tenant":tid,"created":created})
+            await db.commit()
+        alembic("upgrade","head")
+        async with async_session() as db:
+            rows=(await db.execute(text("SELECT id,target_type,target_id,tenant_id,reason,details,created_at,status,resolved,resolved_at FROM reports WHERE id IN (:a,:b)"),{"a":open_id,"b":resolved_id})).mappings().all(); assert len(rows)==2
+            by={r["id"]:r for r in rows}; assert by[open_id]["target_type"]=="listing" and by[open_id]["target_id"]==lid and by[open_id]["tenant_id"]==tid and by[open_id]["status"]=="open" and by[open_id]["resolved_at"] is None; assert by[resolved_id]["status"]=="resolved" and by[resolved_id]["resolved_at"]==created_resolved; assert by[open_id]["created_at"]==created_open and by[resolved_id]["details"]==marker+"-resolved"
+            cols=(await db.execute(text("SELECT column_name,is_nullable FROM information_schema.columns WHERE table_name='reports' AND column_name IN ('tenant_id','target_type','target_id','status')"))).all(); assert all(r[1]=='NO' for r in cols); await db.execute(text("DELETE FROM listings WHERE id=:id"),{"id":lid}); assert (await db.execute(text("SELECT count(*) FROM reports WHERE id IN (:a,:b)"),{"a":open_id,"b":resolved_id})).scalar_one()==2; await db.execute(text("INSERT INTO listings (id,tenant_id,type,category,title,description,pricing_type,is_free,urgency,status,views_count,interest_count,created_at,updated_at) VALUES (:id,:tenant,'OFFER','MATERIALS',:title,'legacy','free',true,'NORMAL','ACTIVE',0,0,now(),now())"),{"id":lid,"tenant":tid,"title":marker}); await db.commit()
+        alembic("downgrade","nat003")
+        async with async_session() as db:
+            assert (await db.execute(text("SELECT listing_id FROM reports WHERE id=:id"),{"id":open_id})).scalar_one()==lid; await db.execute(text("DELETE FROM reports WHERE id IN (:a,:b)"),{"a":open_id,"b":resolved_id}); await db.execute(text("DELETE FROM listings WHERE id=:id"),{"id":lid}); await db.execute(text("DELETE FROM users WHERE id=:id"),{"id":uid}); await db.execute(text("DELETE FROM tenants WHERE id=:id"),{"id":tid}); await db.commit()
+        alembic("upgrade","head")
+    finally:
+        try: alembic("upgrade","head")
+        except Exception: pass
