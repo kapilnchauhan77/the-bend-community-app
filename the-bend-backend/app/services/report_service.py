@@ -21,7 +21,7 @@ REASONS = {"spam", "inappropriate", "misleading", "harassment", "other"}
 class ReportService:
     def __init__(self, db: AsyncSession): self.db = db
 
-    async def _target(self, target_type: str, target_id: UUID, tenant_id: UUID | None, reporter_id: UUID | None = None):
+    async def _target(self, target_type: str, target_id: UUID, tenant_id: UUID | None, reporter_id: UUID | None = None, enforce_participant: bool = True):
         model = TARGETS.get(target_type)
         if not model: raise ValidationError("Unsupported report target")
         q = select(model).where(model.id == target_id)
@@ -32,17 +32,18 @@ class ReportService:
         if target_type == "user" and reporter_id == target_id: raise NotFoundError("Target")
         if target_type == "message":
             thread = (await self.db.execute(select(MessageThread).where(MessageThread.id == row.thread_id, (MessageThread.tenant_id == tenant_id) | MessageThread.tenant_id.is_(None)))).scalar_one_or_none()
-            if not thread or reporter_id not in (thread.participant_a, thread.participant_b): raise NotFoundError("Target")
+            if not thread or (enforce_participant and reporter_id not in (thread.participant_a, thread.participant_b)): raise NotFoundError("Target")
         return row
 
     async def create(self, target_type: str, target_id: UUID, reason: str, details: str | None, reporter_id: UUID, tenant_id: UUID | None):
         if tenant_id is None or reason not in REASONS: raise ValidationError("Invalid report")
         await self._target(target_type, target_id, tenant_id, reporter_id)
         details = details.strip()[:1000] if details else None
-        stmt = insert(Report).values(id=uuid4(), target_type=target_type, target_id=target_id, reporter_id=reporter_id, tenant_id=tenant_id, reason=reason, details=details, status="open", resolved=False).on_conflict_do_nothing(constraint="uq_reports_reporter_target")
-        await self.db.execute(stmt)
+        candidate_id = uuid4()
+        stmt = insert(Report).values(id=candidate_id, target_type=target_type, target_id=target_id, reporter_id=reporter_id, tenant_id=tenant_id, reason=reason, details=details, status="open", resolved=False).on_conflict_do_nothing(constraint="uq_reports_reporter_target").returning(Report.id)
+        won = (await self.db.execute(stmt)).scalar_one_or_none() is not None
         row = (await self.db.execute(select(Report).where(Report.tenant_id == tenant_id, Report.reporter_id == reporter_id, Report.target_type == target_type, Report.target_id == target_id))).scalar_one()
-        return row, False
+        return row, not won
 
     async def resolve(self, report_id: UUID, actor_id: UUID, tenant_id: UUID | None, action: str = "resolved"):
         row = (await self.db.execute(select(Report).where(Report.id == report_id, Report.tenant_id == tenant_id).with_for_update())).scalar_one_or_none()
@@ -59,7 +60,12 @@ class ReportService:
         rows = (await self.db.execute(q)).scalars().all(); items = []
         for row in rows:
             target = None
-            try: target = await self._target(row.target_type, row.target_id, tenant_id)
+            try: target = await self._target(row.target_type, row.target_id, tenant_id, enforce_participant=False)
             except NotFoundError: pass
-            items.append({"id": str(row.id), "target_type": row.target_type, "target_id": str(row.target_id), "target_summary": {"id": str(target.id), "title": getattr(target, "title", getattr(target, "name", None))} if target else {"unavailable": True}, "reason": row.reason, "details": row.details, "status": row.status, "resolved": row.status == "resolved", "resolved_at": row.resolved_at, "resolved_by_id": str(row.resolved_by_id) if row.resolved_by_id else None, "created_at": str(row.created_at)})
+            summary = {"id": str(target.id), "target_type": row.target_type}
+            if target and row.target_type != "message":
+                summary["title"] = getattr(target, "title", getattr(target, "name", None))
+            elif not target:
+                summary = {"unavailable": True, "target_type": row.target_type}
+            items.append({"id": str(row.id), "target_type": row.target_type, "target_id": str(row.target_id), "target_summary": summary, "reason": row.reason, "details": row.details, "status": row.status, "resolved": row.status == "resolved", "resolved_at": row.resolved_at, "resolved_by_id": str(row.resolved_by_id) if row.resolved_by_id else None, "created_at": str(row.created_at)})
         return {"items": items}

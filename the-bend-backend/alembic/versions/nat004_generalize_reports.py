@@ -35,6 +35,7 @@ def upgrade():
     op.create_unique_constraint("uq_reports_reporter_target", "reports", ["tenant_id", "reporter_id", "target_type", "target_id"])
     op.create_table("report_audits", sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True), sa.Column("report_id", postgresql.UUID(as_uuid=True), nullable=False), sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False), sa.Column("actor_id", postgresql.UUID(as_uuid=True), nullable=False), sa.Column("action", sa.String(64), nullable=False), sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")), sa.ForeignKeyConstraint(["report_id", "tenant_id"], ["reports.id", "reports.tenant_id"], ondelete="RESTRICT"), sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="RESTRICT"), sa.ForeignKeyConstraint(["actor_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="RESTRICT"))
     op.create_index("idx_report_audits_report", "report_audits", ["report_id", "created_at"])
+    op.create_unique_constraint("uq_report_audits_action", "report_audits", ["report_id", "action"])
     op.drop_constraint("reports_listing_id_fkey", "reports", type_="foreignkey")
     op.drop_column("reports", "listing_id")
 

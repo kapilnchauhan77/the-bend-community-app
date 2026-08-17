@@ -40,6 +40,8 @@ class AuthService:
             Skip shop creation and skip the community-admin notification — individuals
             don't require approval.
         """
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"owner_name": data.owner_name, "shop_name": data.shop_name, "business_type": data.business_type, "address": data.address})
         # Check duplicate email
         existing = await self.user_repo.get_by_email(data.email)
         if existing:
