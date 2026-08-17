@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import sys
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile
+from PIL import Image
 
 from app.api.deps import get_db
 from app.api.v1.upload import router as upload_router
@@ -157,6 +160,69 @@ async def test_completion_failure_retry_uses_one_deterministic_storage_identity(
     assert (await post(matrix, "/upload/images")).status_code == 503
     assert (await post(matrix, "/upload/images")).status_code == 200
     assert matrix.storage.calls == 2 and len(matrix.storage.identities) == 1
+
+
+def upload_file(filename: str, content_type: str, payload: bytes = PAYLOAD) -> UploadFile:
+    return UploadFile(filename=filename, file=io.BytesIO(payload), headers={"content-type": content_type})
+
+
+def png_payload() -> bytes:
+    image = Image.new("RGBA", (2, 2), (1, 2, 3, 4))
+    payload = io.BytesIO()
+    image.save(payload, format="PNG")
+    return payload.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_avatar_retry_after_completion_failure_reuses_one_private_object_despite_extension_variant(tmp_path, monkeypatch):
+    """Changing a retry filename must not produce another private avatar object."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    user_id = uuid4()
+    storage_key = "upload-idempotency:avatar"
+    first = await files.FileService().upload_private_user_image(
+        upload_file("first.png", "image/png", png_payload()), user_id, storage_key
+    )
+    retry = await files.FileService().upload_private_user_image(
+        upload_file("retry.jpg", "image/jpeg"), user_id, storage_key
+    )
+
+    stored = list((tmp_path / "users" / str(user_id)).iterdir())
+    assert retry == first
+    assert len(stored) == 2  # full image + thumbnail, exactly once
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "directory", "first_name", "retry_name", "content_type", "expected"),
+    [
+        ("upload_video", "videos", "first.mp4", "retry.mov", "video/mp4", {"type": "video", "duration_ms": 2750}),
+        ("upload_audio", "audio", "first.webm", "retry.mp3", "audio/webm", {"type": "audio", "duration_ms": 2750}),
+    ],
+)
+async def test_media_retry_after_completion_failure_reuses_one_object_and_exact_metadata(
+    tmp_path, monkeypatch, method, directory, first_name, retry_name, content_type, expected
+):
+    """A deterministic media retry must retain the original duration and URL metadata."""
+    from app.services import file_service as files
+
+    monkeypatch.setattr(files, "UPLOAD_DIR", tmp_path)
+    fake_ffmpeg = SimpleNamespace(
+        probe=lambda _path: {"format": {"duration": "2.75"}},
+        input=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("no poster in unit test")),
+    )
+    monkeypatch.setitem(sys.modules, "ffmpeg", fake_ffmpeg)
+    (tmp_path / directory).mkdir()
+    storage_key = f"upload-idempotency:{directory}"
+    service = files.FileService()
+    first = await getattr(service, method)(upload_file(first_name, content_type), storage_key)
+    retry = await getattr(service, method)(upload_file(retry_name, content_type), storage_key)
+
+    stored = list((tmp_path / directory).iterdir())
+    assert retry == first
+    assert first["duration_ms"] == expected["duration_ms"]
+    assert len(stored) == 1
 
 
 @pytest.mark.asyncio

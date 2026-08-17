@@ -138,15 +138,26 @@ class FileService:
 
     @staticmethod
     def _existing_path(directory: Path, file_id: str) -> Path | None:
-        matches = sorted(directory.glob(f"{file_id}.*"))
+        # Do not mistake a video poster or image thumbnail for the primary
+        # object if a previous write was interrupted after generating it.
+        matches = sorted(path for path in directory.glob(f"{file_id}.*") if path.stem == file_id)
         return matches[0] if matches else None
+
     async def upload_private_user_image(self, file, user_id, storage_key: str | None = None) -> dict:
         """Store an avatar under an exclusive per-user root."""
-        content = await file.read()
         file_id = self._file_id(storage_key)
-        full_bytes, thumb_bytes, ext = _process_image(content)
         private_dir = UPLOAD_DIR / "users" / str(user_id)
         private_dir.mkdir(parents=True, exist_ok=True)
+        existing = self._existing_path(private_dir, file_id) if storage_key else None
+        if existing:
+            return {
+                "id": file_id,
+                "url": f"/uploads/users/{user_id}/{existing.name}",
+                "thumbnail_url": f"/uploads/users/{user_id}/{file_id}_thumb{existing.suffix}",
+            }
+
+        content = await file.read()
+        full_bytes, thumb_bytes, ext = _process_image(content)
         full_path = private_dir / f"{file_id}{ext}"
         thumb_path = private_dir / f"{file_id}_thumb{ext}"
         full_path.write_bytes(full_bytes)
@@ -207,6 +218,28 @@ class FileService:
         # Imported lazily so unit tests / image-only paths don't require it.
         import ffmpeg  # type: ignore
 
+        (UPLOAD_DIR / "videos").mkdir(parents=True, exist_ok=True)
+        file_id = self._file_id(storage_key)
+        existing = self._existing_path(UPLOAD_DIR / "videos", file_id) if storage_key else None
+        if existing:
+            try:
+                probe = ffmpeg.probe(str(existing))
+                duration_str = probe.get("format", {}).get("duration")
+                duration = float(duration_str) if duration_str is not None else 0.0
+            except Exception as exc:  # pragma: no cover - damaged stored media is exceptional
+                logger.warning("ffprobe failed for stored video %s: %s", file_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Could not read video metadata",
+                ) from exc
+            poster = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
+            return {
+                "id": file_id,
+                "url": f"/uploads/videos/{existing.name}",
+                "thumbnail_url": f"/uploads/videos/{poster.name}" if poster.exists() else None,
+                "duration_ms": int(duration * 1000),
+            }
+
         content = await file.read()
         if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(
@@ -222,11 +255,6 @@ class FileService:
         if not ext:
             ext = _VIDEO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
 
-        file_id = self._file_id(storage_key)
-        existing = self._existing_path(UPLOAD_DIR / "videos", file_id) if storage_key else None
-        if existing:
-            poster = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
-            return {"url": f"/uploads/videos/{existing.name}", "thumbnail_url": f"/uploads/videos/{poster.name}" if poster.exists() else None, "duration_ms": 0}
         video_path = UPLOAD_DIR / "videos" / f"{file_id}{ext}"
         poster_path = UPLOAD_DIR / "videos" / f"{file_id}_poster.jpg"
 
@@ -303,6 +331,26 @@ class FileService:
         # ffmpeg-python wraps the ffprobe CLI we already install for video.
         import ffmpeg  # type: ignore
 
+        (UPLOAD_DIR / "audio").mkdir(parents=True, exist_ok=True)
+        file_id = self._file_id(storage_key)
+        existing = self._existing_path(UPLOAD_DIR / "audio", file_id) if storage_key else None
+        if existing:
+            try:
+                probe = ffmpeg.probe(str(existing))
+                duration_str = probe.get("format", {}).get("duration")
+                duration = float(duration_str) if duration_str is not None else 0.0
+            except Exception as exc:  # pragma: no cover - damaged stored media is exceptional
+                logger.warning("ffprobe failed for stored audio %s: %s", file_id, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Could not read audio metadata",
+                ) from exc
+            return {
+                "id": file_id,
+                "url": f"/uploads/audio/{existing.name}",
+                "duration_ms": int(duration * 1000),
+            }
+
         content = await file.read()
         if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(
@@ -319,10 +367,6 @@ class FileService:
         if not ext:
             ext = _AUDIO_EXT_BY_MIME.get((file.content_type or "").lower(), ".webm")
 
-        file_id = self._file_id(storage_key)
-        existing = self._existing_path(UPLOAD_DIR / "audio", file_id) if storage_key else None
-        if existing:
-            return {"url": f"/uploads/audio/{existing.name}", "duration_ms": 0}
         audio_path = UPLOAD_DIR / "audio" / f"{file_id}{ext}"
 
         with open(audio_path, "wb") as f:
