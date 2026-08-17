@@ -87,17 +87,16 @@ class InterestService:
         await self.db.flush()
 
         if listing_owner_id:
-            try:
-                notification_service = NotificationService(self.db)
-                await notification_service.notify(
-                    user_id=listing_owner_id,
-                    type=NotificationType.LISTING_INTEREST,
-                    title="Someone is interested!",
-                    body=f"A community member expressed interest in your listing '{listing.title}'.",
-                    data={"listing_id": str(listing.id)},
-                )
-            except Exception:
-                pass
+            notification_service = NotificationService(self.db)
+            await notification_service.notify(
+                user_id=listing_owner_id,
+                type=NotificationType.LISTING_INTEREST,
+                title="Someone is interested!",
+                body="Someone is interested in your listing",
+                data={"target_type": "listing", "target_id": str(listing.id)},
+                category="listing_interest_received",
+                tenant_id=listing.tenant_id,
+            )
             try:
                 from app.services.email_service import email_service
                 owner_result = await self.db.execute(select(User).where(User.id == listing_owner_id))

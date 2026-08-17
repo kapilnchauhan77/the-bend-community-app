@@ -17,7 +17,8 @@ async def _check_expiring():
     from app.database import async_session
     from app.models.listing import Listing
     from app.models.enums import ListingStatus, UrgencyLevel
-    from sqlalchemy import select, update
+    from sqlalchemy import select
+    from app.services.listing_service import queue_urgent_listing_notifications
 
     async with async_session() as session:
         threshold = datetime.utcnow() + timedelta(hours=24)
@@ -32,6 +33,8 @@ async def _check_expiring():
         listings = result.scalars().all()
         for listing in listings:
             listing.urgency = UrgencyLevel.URGENT
+            await session.flush()
+            await queue_urgent_listing_notifications(session, listing)
             logger.info(f"Boosted urgency for listing {listing.id} (expiring {listing.expiry_date})")
         await session.commit()
         logger.info(f"Checked expiring listings: {len(listings)} boosted")

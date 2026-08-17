@@ -2,12 +2,58 @@ from uuid import UUID, uuid4
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
 
 from app.repositories.listing_repo import ListingRepository
 from app.models.user import User
+from app.models.tenant import Tenant
+from app.models.shop import Shop
 from app.models.enums import ListingStatus, UrgencyLevel
 from app.core.exceptions import NotFoundError, ForbiddenError, BusinessRuleViolation
 from app.schemas.listing import ListingCreate, ListingUpdate
+from app.models.enums import NotificationType
+from app.services.notification_service import NotificationService
+
+
+async def queue_urgent_listing_notifications(db: AsyncSession, listing):
+    """Queue one native event per eligible Westmoreland recipient.
+
+    The transaction advisory lock serializes duplicate attempts while the JSONB
+    marker makes retries idempotent without adding an outbox schema column.
+    """
+    tenant = (await db.execute(select(Tenant).where(Tenant.id == listing.tenant_id))).scalar_one_or_none()
+    if not tenant or tenant.slug != "westmoreland":
+        return
+    author_id = listing.posted_by_user_id
+    if author_id is None and listing.shop_id:
+        author_id = (await db.execute(select(Shop.admin_user_id).where(Shop.id == listing.shop_id))).scalar_one_or_none()
+    users = (await db.execute(select(User).where(User.tenant_id == listing.tenant_id, User.is_active.is_(True)))).scalars().all()
+    from app.models.notification import Notification
+    for user in users:
+        if user.id == author_id:
+            continue
+        key = f"urgent-listing:{listing.id}:{user.id}"
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key})
+        existing = await db.execute(select(Notification.id).where(
+            Notification.user_id == user.id,
+            Notification.tenant_id == listing.tenant_id,
+            Notification.type == NotificationType.NEW_URGENT_LISTING,
+            Notification.data["_idempotency_key"].astext == key,
+        ).limit(1))
+        if existing.scalar_one_or_none() is not None:
+            continue
+        await NotificationService(db).notify(
+            user_id=user.id,
+            type=NotificationType.NEW_URGENT_LISTING,
+            title="Urgent listing",
+            body="A new urgent listing is available",
+            data={
+                "target_type": "listing", "target_id": str(listing.id),
+                "_idempotency_key": key,
+            },
+            category="urgent_listing_published",
+            tenant_id=listing.tenant_id,
+        )
 
 
 def _user_owns_listing(listing, current_user: User) -> bool:
@@ -123,7 +169,9 @@ class ListingService:
                 self.db.add(image)
             await self.db.flush()
 
-        # TODO: Broadcast notification for urgent (Phase 6)
+        await self.db.flush()
+        if data.urgency == "urgent":
+            await queue_urgent_listing_notifications(self.db, listing)
         return listing
 
     async def update_listing(self, listing_id: UUID, data: ListingUpdate, current_user: User):

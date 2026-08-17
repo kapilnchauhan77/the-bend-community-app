@@ -104,6 +104,7 @@ async def websocket_chat(websocket: WebSocket):
                                         "attachment_url": msg.attachment_url,
                                         "attachment_type": msg.attachment_type,
                                         "attachment_thumbnail_url": msg.attachment_thumbnail_url,
+                                        "notification_id": str(service.last_notification_id) if service.last_notification_id else None,
                                     },
                                 })
 

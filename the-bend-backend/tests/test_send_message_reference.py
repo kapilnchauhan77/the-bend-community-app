@@ -7,6 +7,7 @@ from app.schemas.message import SendMessageRequest
 from app.services.message_service import MessageService
 from app.core.exceptions import ValidationError as AppValidationError
 from app.api.v1.messages import send_message
+import app.services.message_service as _ms
 
 
 def test_reference_only_is_valid():
@@ -203,6 +204,9 @@ async def test_send_resolves_reference_against_caller_tenant_not_thread(monkeypa
         return {"type": "listing", "id": str(rid)} if tenant_id == caller_tenant else None
 
     monkeypatch.setattr(_rs, "resolve_reference", _fake_resolve)
+    async def _fake_notify(self, **kwargs):
+        return types.SimpleNamespace(id=uuid4())
+    monkeypatch.setattr(_ms.NotificationService, "notify", _fake_notify)
 
     svc = _ms.MessageService(db=object())
     svc.message_repo = _Repo()

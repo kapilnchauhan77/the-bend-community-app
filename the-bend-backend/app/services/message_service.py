@@ -26,6 +26,7 @@ class MessageService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.message_repo = MessageRepository(db)
+        self.last_notification_id = None
 
     async def get_threads(self, user_id: UUID, cursor=None, limit=20):
         result = await self.message_repo.get_threads(user_id, cursor, limit)
@@ -217,35 +218,20 @@ class MessageService:
             reference_type=ref_type,
             reference_id=ref_id,
         )
-        try:
-            thread = await self.message_repo.get_thread_by_id(thread_id)
-            if thread:
-                recipient_id = thread.participant_b if thread.participant_a == sender_id else thread.participant_a
-                # Notification body: prefer the text, fall back to a media
-                # placeholder when the message is attachment-only.
-                if body:
-                    notif_body = f"You have a new message: '{body[:50]}{'...' if len(body) > 50 else ''}'"
-                elif attachment_url:
-                    if attachment_type == "image":
-                        notif_body = "You have a new photo"
-                    elif attachment_type == "audio":
-                        notif_body = "You have a new voice note"
-                    else:
-                        notif_body = "You have a new video"
-                elif ref_type:
-                    notif_body = f"Shared a {ref_type}"
-                else:
-                    notif_body = "You have a new message"
-                notification_service = NotificationService(self.db)
-                await notification_service.notify(
-                    user_id=recipient_id,
-                    type=NotificationType.NEW_MESSAGE,
-                    title="New Message",
-                    body=notif_body,
-                    data={"thread_id": str(thread_id)},
-                )
-        except Exception:
-            pass
+        thread = await self.message_repo.get_thread_by_id(thread_id)
+        if thread:
+            recipient_id = thread.participant_b if thread.participant_a == sender_id else thread.participant_a
+            notification_service = NotificationService(self.db)
+            notification = await notification_service.notify(
+                user_id=recipient_id,
+                type=NotificationType.NEW_MESSAGE,
+                title="New Message",
+                body="You have a new message",
+                data={"target_type": "message", "target_id": str(thread_id)},
+                category="message_received",
+                tenant_id=thread.tenant_id or caller_tenant_id,
+            )
+            self.last_notification_id = notification.id
         return msg
 
     async def get_unread_count(self, user_id: UUID) -> int:

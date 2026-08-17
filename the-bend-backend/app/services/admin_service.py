@@ -133,17 +133,16 @@ class AdminService:
             raise NotFoundError("Shop")
         shop.status = ShopStatus.ACTIVE
         await self.db.flush()
-        try:
-            notification_service = NotificationService(self.db)
-            await notification_service.notify(
-                user_id=shop.admin_user_id,
-                type=NotificationType.REGISTRATION_APPROVED,
-                title="Registration Approved!",
-                body=f"Your business '{shop.name}' has been approved. You can now post listings and connect with the community.",
-                data={"shop_id": str(shop.id)},
-            )
-        except Exception:
-            pass
+        notification_service = NotificationService(self.db)
+        await notification_service.notify(
+            user_id=shop.admin_user_id,
+            type=NotificationType.REGISTRATION_APPROVED,
+            title="Registration Approved!",
+            body="Your registration has been approved.",
+            data={"target_type": "shop", "target_id": str(shop.id)},
+            category="registration_decision",
+            tenant_id=shop.tenant_id or self.tenant_id,
+        )
         try:
             from app.services.email_service import email_service
             admin_result = await self.db.execute(select(User).where(User.id == shop.admin_user_id))
@@ -161,17 +160,16 @@ class AdminService:
             raise NotFoundError("Shop")
         shop.rejection_reason = reason
         await self.db.flush()
-        try:
-            notification_service = NotificationService(self.db)
-            await notification_service.notify(
-                user_id=shop.admin_user_id,
-                type=NotificationType.REGISTRATION_REJECTED,
-                title="Registration Not Approved",
-                body=f"Your business '{shop.name}' registration was not approved. Reason: {reason}",
-                data={"shop_id": str(shop.id)},
-            )
-        except Exception:
-            pass
+        notification_service = NotificationService(self.db)
+        await notification_service.notify(
+            user_id=shop.admin_user_id,
+            type=NotificationType.REGISTRATION_REJECTED,
+            title="Registration Not Approved",
+            body=f"Your registration was not approved. Reason: {reason}",
+            data={"target_type": "shop", "target_id": str(shop.id)},
+            category="registration_decision",
+            tenant_id=shop.tenant_id or self.tenant_id,
+        )
         try:
             from app.services.email_service import email_service
             admin_result = await self.db.execute(select(User).where(User.id == shop.admin_user_id))

@@ -6,7 +6,18 @@ from app.repositories.notification_repo import NotificationRepository
 from app.models.enums import NotificationType
 from app.models.push_subscription import PushSubscription
 from app.models.notification_preference import NotificationPreference
-from app.core.exceptions import NotFoundError
+from app.models.notification_outbox import NotificationOutbox
+from app.models.user import User
+from app.core.exceptions import NotFoundError, ValidationError
+
+
+REQUIRED_NOTIFICATION_CATEGORIES = {
+    NotificationType.NEW_MESSAGE: "message_received",
+    NotificationType.LISTING_INTEREST: "listing_interest_received",
+    NotificationType.REGISTRATION_APPROVED: "registration_decision",
+    NotificationType.REGISTRATION_REJECTED: "registration_decision",
+    NotificationType.NEW_URGENT_LISTING: "urgent_listing_published",
+}
 
 
 class NotificationService:
@@ -38,11 +49,57 @@ class NotificationService:
         return await self.repo.get_unread_count(user_id)
 
     async def notify(
-        self, user_id: UUID, type: NotificationType, title: str, body: str, data: dict | None = None
+        self,
+        user_id: UUID,
+        type: NotificationType,
+        title: str,
+        body: str,
+        data: dict | None = None,
+        category: str | None = None,
+        tenant_id: UUID | None = None,
     ):
-        notification = await self.repo.create(user_id, type, title, body, data)
+        """Create an in-app notification and, for native types, its outbox row.
+
+        This method deliberately never commits.  Both rows therefore share the
+        caller transaction and a notification failure rolls back its domain
+        operation as well.
+        """
+        recipient_result = await self.db.execute(select(User).where(User.id == user_id))
+        recipient = recipient_result.scalar_one_or_none()
+        if recipient is None:
+            raise NotFoundError("User")
+        recipient_tenant = recipient.tenant_id
+        if tenant_id is None:
+            tenant_id = recipient_tenant
+        if tenant_id is None or recipient_tenant != tenant_id:
+            raise ValidationError("Notification recipient is not in the requested tenant")
+
+        expected_category = REQUIRED_NOTIFICATION_CATEGORIES.get(type)
+        if expected_category is None and category is not None:
+            raise ValidationError("Notification category is only valid for native notification types")
+        if expected_category and category is not None and category != expected_category:
+            raise ValidationError("Notification category does not match notification type")
+        if category is not None and category not in set(REQUIRED_NOTIFICATION_CATEGORIES.values()):
+            raise ValidationError("Invalid notification category")
+        if expected_category:
+            category = expected_category
+
+        # Keep repository available for read APIs; create directly so tenant is
+        # populated before the first flush.
+        from app.models.notification import Notification
+        notification = Notification(
+            id=uuid4(), user_id=user_id, tenant_id=tenant_id, type=type,
+            title=title, body=body, data=data,
+        )
+        self.db.add(notification)
+        await self.db.flush()
+        if expected_category:
+            self.db.add(NotificationOutbox(
+                notification_id=notification.id,
+                tenant_id=tenant_id,
+            ))
+            await self.db.flush()
         # TODO: WebSocket delivery if online
-        # TODO: Queue push notification task
         return notification
 
     async def register_push_subscription(
