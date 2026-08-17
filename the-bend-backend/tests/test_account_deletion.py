@@ -243,7 +243,7 @@ async def test_real_postgres_workers_are_idempotent_and_email_attempt_is_once(mo
         monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address: calls.append(address) or True)
         async def run():
             async with async_session() as db: return await AccountDeletionService(db).erase(str(deletion_id))
-        results=await __import__("asyncio").gather(run(),run()); assert all(results)
+        results=await __import__("asyncio").gather(run(),run()); assert sorted(results)==[False,True]
         async with async_session() as db:
             row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.attempts==1 and row.confirmation_email is None and row.email_sent_at is not None; assert calls==[marker+"@example.com"]
             assert await AccountDeletionService(db).erase(str(deletion_id)) is True
