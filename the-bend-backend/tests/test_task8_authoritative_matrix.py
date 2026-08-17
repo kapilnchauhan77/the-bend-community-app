@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.core.permissions import get_current_tenant
 from app.main import create_app
 from app.models.connector_purchase import ConnectorPurchase
+from app.models.ad_pricing import AdPricing
 from app.models.event import Event
 from app.models.enums import EventCategory, EventStatus
 from app.models.sponsor import Sponsor
@@ -26,21 +27,23 @@ async def db_context(monkeypatch):
     monkeypatch.setattr("app.middleware.tenant.async_session", sessions)
     tenant_id = uuid.uuid4()
     tenant = Tenant(id=tenant_id, slug=f"task8-{tenant_id.hex[:10]}", subdomain=f"task8-{tenant_id.hex[:10]}", display_name="Task 8", stripe_secret_key="sk_test_task8", stripe_publishable_key="pk_test_task8", stripe_webhook_secret="whsec_task8")
-    sponsor_id, event_id, connector_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    sponsor_id, event_id, connector_id, pricing_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     async with sessions() as db:
         db.add(tenant)
         await db.flush()
         db.add_all([
             Sponsor(id=sponsor_id, tenant_id=tenant_id, name="Matrix sponsor", placement="homepage", stripe_session_id="cs_sponsor_1", expected_amount=1200, expected_currency="usd"),
+            AdPricing(id=pricing_id, tenant_id=tenant_id, name="Matrix", placement="homepage", duration_days=30, price_cents=1200, is_active=True),
             Event(id=event_id, tenant_id=tenant_id, title="Matrix event", start_date=__import__("datetime").datetime.utcnow(), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="submission", stripe_session_id="cs_event_1", expected_amount=1999, expected_currency="usd"),
             ConnectorPurchase(id=connector_id, tenant_id=tenant_id, website_url="https://example.test", contact_name="Matrix", contact_email="matrix@example.test", business_name="Matrix", expected_amount=39900, expected_currency="usd", stripe_session_id="cs_connector_1"),
         ])
         await db.commit()
-    yield sessions, tenant, (sponsor_id, event_id, connector_id)
+    yield sessions, tenant, (sponsor_id, event_id, connector_id, pricing_id)
     async with sessions() as db:
         await db.execute(delete(ConnectorPurchase).where(ConnectorPurchase.tenant_id == tenant_id))
         await db.execute(delete(Event).where(Event.tenant_id == tenant_id))
         await db.execute(delete(Sponsor).where(Sponsor.tenant_id == tenant_id))
+        await db.execute(delete(AdPricing).where(AdPricing.tenant_id == tenant_id))
         await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
         await db.commit()
     await engine.dispose()
@@ -140,3 +143,40 @@ async def test_paid_sponsor_requires_approval_for_complete_without_provider(monk
         response = await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
     assert response.json()["status"] == "paid"
     assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_sponsor_creation_persists_before_provider_and_binds_exact_metadata(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    created = []
+    def create(**kwargs):
+        created.append(kwargs)
+        return __import__("types").SimpleNamespace(id="cs_new_matrix", url="https://checkout.test")
+    monkeypatch.setattr(stripe.checkout.Session, "create", create)
+    app = make_app(sessions, tenant)
+    payload = {"pricing_id": str(ids[3]), "name": "New", "contact_email": "new@example.test", "contact_name": "New"}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/advertising/checkout", json=payload)
+    assert response.status_code == 200
+    assert created[0]["api_key"] == "sk_test_task8"
+    assert created[0]["metadata"]["kind"] == "sponsor"
+    assert created[0]["metadata"]["expected_amount"] == "1200"
+    async with sessions() as db:
+        row = (await db.execute(__import__("sqlalchemy").select(Sponsor).where(Sponsor.stripe_session_id == "cs_new_matrix"))).scalar_one()
+        assert row.tenant_id == tenant.id
+
+
+@pytest.mark.asyncio
+async def test_connector_creation_rolls_back_local_row_on_provider_failure(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    def fail(**kwargs):
+        raise RuntimeError("provider unavailable")
+    monkeypatch.setattr(stripe.checkout.Session, "create", fail)
+    app = make_app(sessions, tenant)
+    payload = {"website_url": "https://new.example.test", "contact_name": "New", "contact_email": "new@example.test", "business_name": "New"}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        with pytest.raises(RuntimeError):
+            await client.post("/api/v1/events/connector-checkout", json=payload)
+    async with sessions() as db:
+        count = (await db.execute(__import__("sqlalchemy").select(__import__("sqlalchemy").func.count()).select_from(ConnectorPurchase).where(ConnectorPurchase.website_url == payload["website_url"]))).scalar_one()
+        assert count == 0
