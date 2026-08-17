@@ -29,7 +29,7 @@ class UploadIdempotencyService:
     def _key(self, tenant_id: Any, user_id: Any, endpoint: str, key: str) -> str:
         if not _KEY_RE.fullmatch(key):
             raise ValueError("Idempotency-Key must be UUID-shaped")
-        if str(user_id) in {"anonymous", "None"} or (str(tenant_id) == "public" and not _KEY_RE.fullmatch(str(user_id))):
+        if str(user_id) in {"anonymous", "None"} or not _KEY_RE.fullmatch(str(user_id)):
             raise ValueError("Anonymous client ID must be UUID-shaped")
         digest = hashlib.sha256(key.encode()).hexdigest()
         return f"upload-idempotency:{tenant_id}:{user_id}:{endpoint}:{digest}"
