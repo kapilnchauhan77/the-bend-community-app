@@ -191,3 +191,95 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
             await cleanup.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         public_current = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
         assert "nat005" in public_current, public_current
+
+
+@pytest.mark.asyncio
+async def test_nat005_isolated_upgrade_downgrade_reupgrade_preserves_legacy_rows_and_public_head():
+    """Exercise nat005 against real PostgreSQL schemas without touching public."""
+    root = Path(__file__).resolve().parents[1]
+    settings = get_settings()
+    schemas = [f"task7_nat005_{uuid4().hex}" for _ in range(3)]
+    tenant_id, user_id, refresh_id, device_id = (uuid4() for _ in range(4))
+
+    def alembic(schema, *args):
+        env = os.environ.copy()
+        env["ALEMBIC_SCHEMA"] = schema
+        return subprocess.run(
+            [str(root / ".venv/bin/alembic"), *args],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    public_before = subprocess.run(
+        [str(root / ".venv/bin/alembic"), "current"], cwd=root,
+        capture_output=True, text=True, check=True,
+    ).stdout
+    assert "nat005" in public_before
+    isolated_engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+    isolated_sessions = async_sessionmaker(isolated_engine, expire_on_commit=False)
+    try:
+        async with isolated_engine.begin() as conn:
+            for schema in schemas:
+                await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+
+        # Two independent schemas migrate concurrently all the way to nat005.
+        results = await asyncio.gather(
+            *(asyncio.to_thread(alembic, schema, "upgrade", "nat005") for schema in schemas[:2])
+        )
+        assert all(result.returncode == 0 for result in results), [r.stderr for r in results]
+
+        # Seed a real nat004 schema with rows that exercise the tables added by
+        # nat001/nat002, then upgrade to nat005.
+        result = alembic(schemas[2], "upgrade", "nat004")
+        assert result.returncode == 0, result.stderr
+        async with isolated_sessions() as db:
+            await db.execute(text(f'SET search_path TO "{schemas[2]}"'))
+            await db.execute(text("INSERT INTO tenants (id,slug,subdomain,display_name) VALUES (:id,:slug,:sub,:name)"), {"id": tenant_id, "slug": str(tenant_id), "sub": str(tenant_id), "name": "legacy"})
+            await db.execute(text("INSERT INTO users (id,email,password_hash,name,role,tenant_id,is_active,created_at,updated_at) VALUES (:id,:email,'legacy-hash','Legacy','INDIVIDUAL',:tenant,true,now(),now())"), {"id": user_id, "email": f"legacy-{user_id}@example.test", "tenant": tenant_id})
+            await db.execute(text("INSERT INTO refresh_sessions (id,user_id,expires_at,created_at) VALUES (:id,:user,now()+interval '1 day',now())"), {"id": refresh_id, "user": user_id})
+            await db.execute(text("INSERT INTO device_installations (id,user_id,tenant_id,platform,provider_token,revocation_secret_hash,app_version,build_number) VALUES (:id,:user,:tenant,'ios','legacy-token','legacy-secret','1','1')"), {"id": device_id, "user": user_id, "tenant": tenant_id})
+            await db.commit()
+
+        result = alembic(schemas[2], "upgrade", "nat005")
+        assert result.returncode == 0, result.stderr
+        async with isolated_sessions() as db:
+            await db.execute(text(f'SET search_path TO "{schemas[2]}"'))
+            assert (await db.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "nat005"
+            assert (await db.execute(text("SELECT count(*) FROM users WHERE id=:id"), {"id": user_id})).scalar_one() == 1
+            assert (await db.execute(text("SELECT count(*) FROM refresh_sessions WHERE id=:id"), {"id": refresh_id})).scalar_one() == 1
+            assert (await db.execute(text("SELECT provider_token FROM device_installations WHERE id=:id"), {"id": device_id})).scalar_one() == "legacy-token"
+            assert (await db.execute(text("SELECT count(*) FROM account_deletions"))).scalar_one() == 0
+
+        result = alembic(schemas[2], "downgrade", "nat004")
+        assert result.returncode == 0, result.stderr
+        async with isolated_sessions() as db:
+            await db.execute(text(f'SET search_path TO "{schemas[2]}"'))
+            assert (await db.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "nat004"
+            assert (await db.execute(text("SELECT count(*) FROM users WHERE id=:id"), {"id": user_id})).scalar_one() == 1
+            assert (await db.execute(text("SELECT count(*) FROM refresh_sessions WHERE id=:id"), {"id": refresh_id})).scalar_one() == 1
+            assert (await db.execute(text("SELECT count(*) FROM device_installations WHERE id=:id"), {"id": device_id})).scalar_one() == 1
+        result = alembic(schemas[2], "upgrade", "nat005")
+        assert result.returncode == 0, result.stderr
+
+        for schema in schemas[:2]:
+            async with isolated_sessions() as db:
+                await db.execute(text(f'SET search_path TO "{schema}"'))
+                assert (await db.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "nat005"
+                assert (await db.execute(text("SELECT to_regclass('account_deletions')"))).scalar_one() == "account_deletions"
+
+        invalid = alembic("bad-schema;drop", "current")
+        assert invalid.returncode != 0
+        assert "ALEMBIC_SCHEMA" in invalid.stderr + invalid.stdout
+    finally:
+        async with isolated_engine.begin() as conn:
+            for schema in schemas:
+                await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        await isolated_engine.dispose()
+        public_after = subprocess.run(
+            [str(root / ".venv/bin/alembic"), "current"], cwd=root,
+            capture_output=True, text=True, check=True,
+        ).stdout
+        assert "nat005" in public_after
