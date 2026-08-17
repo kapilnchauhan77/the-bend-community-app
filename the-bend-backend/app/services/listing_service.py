@@ -1,4 +1,5 @@
 from uuid import UUID, uuid4
+import hashlib
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,13 +28,15 @@ async def queue_urgent_listing_notifications(db: AsyncSession, listing):
     author_id = listing.posted_by_user_id
     if author_id is None and listing.shop_id:
         author_id = (await db.execute(select(Shop.admin_user_id).where(Shop.id == listing.shop_id))).scalar_one_or_none()
-    users = (await db.execute(select(User).where(User.tenant_id == listing.tenant_id, User.is_active.is_(True)))).scalars().all()
+    users = (await db.execute(select(User).where(User.tenant_id == listing.tenant_id, User.is_active.is_(True)).order_by(User.id))).scalars().all()
     from app.models.notification import Notification
     for user in users:
         if user.id == author_id:
             continue
         key = f"urgent-listing:{listing.id}:{user.id}"
-        await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key})
+        lock_digest = hashlib.sha256(key.encode("utf-8")).digest()[:8]
+        lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
+        await db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
         existing = await db.execute(select(Notification.id).where(
             Notification.user_id == user.id,
             Notification.tenant_id == listing.tenant_id,

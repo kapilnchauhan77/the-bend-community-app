@@ -127,7 +127,7 @@ class AdminService:
         }
 
     async def approve_registration(self, shop_id: UUID):
-        result = await self.db.execute(select(Shop).where(Shop.id == shop_id))
+        result = await self.db.execute(select(Shop).where(Shop.id == shop_id, self._tenant_filter(Shop)))
         shop = result.scalar_one_or_none()
         if not shop:
             raise NotFoundError("Shop")
@@ -154,7 +154,7 @@ class AdminService:
         return shop
 
     async def reject_registration(self, shop_id: UUID, reason: str):
-        result = await self.db.execute(select(Shop).where(Shop.id == shop_id))
+        result = await self.db.execute(select(Shop).where(Shop.id == shop_id, self._tenant_filter(Shop)))
         shop = result.scalar_one_or_none()
         if not shop:
             raise NotFoundError("Shop")
