@@ -7,6 +7,7 @@ import pytest_asyncio
 import httpx
 from fastapi import FastAPI
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from app.database import async_session, engine
 from app.models.tenant import Tenant
@@ -195,6 +196,41 @@ async def test_all_named_discovery_surfaces_are_directional_and_tenant_scoped(di
         assert ids["cross_listing"] not in {row.id for row in cross_page.items}
         assert ids["cross_listing"] in {row.id for row in (await ListingService(db).browse_listings(tenant_id=ids["other_tenant"], viewer_id=ids["cross_blocked"], limit=20)).items}
 
+        refs = {"listing": ids["listing"], "shop": ids["shop"], "user": ids["blocked"], "bender": ids["bender"]}
+        for ref_type, ref_id in refs.items():
+            assert await resolve_reference(db, ids["tenant"], ref_type, ref_id, ids["blocker"]) is None
+            assert await resolve_reference(db, ids["tenant"], ref_type, ref_id, ids["blocked"])
+            assert await resolve_reference(db, ids["tenant"], ref_type, ref_id, ids["other"])
+            assert await resolve_reference(db, ids["tenant"], ref_type, ref_id, None)
+            search_term = "Blocked" if ref_type == "user" else "Task5"
+            found_blocker = await search_references(db, ids["tenant"], search_term, ref_type, ids["blocker"])
+            found_reverse = await search_references(db, ids["tenant"], search_term, ref_type, ids["blocked"])
+            found_other = await search_references(db, ids["tenant"], search_term, ref_type, ids["other"])
+            found_anon = await search_references(db, ids["tenant"], search_term, ref_type, None)
+            assert str(ref_id) not in {x["id"] for x in found_blocker}
+            assert str(ref_id) in {x["id"] for x in found_reverse}, ref_type
+            assert str(ref_id) in {x["id"] for x in found_other}
+            assert str(ref_id) in {x["id"] for x in found_anon}
+            assert len(found_blocker) <= 8 and len(found_reverse) <= 8
+        assert await resolve_reference(db, ids["tenant"], "listing", ids["cross_listing"], ids["other"]) is None
+        assert await search_references(db, ids["tenant"], "Task5 Other Tenant", "listing", ids["other"]) == []
+
+
+@pytest.mark.asyncio
+async def test_user_block_database_constraints_reject_cross_tenant_self_and_duplicates(discovery_rows):
+    ids = discovery_rows
+    async with async_session() as db:
+        for bad in (
+            UserBlock(id=uuid4(), tenant_id=ids["tenant"], blocker_id=ids["blocker"], blocked_id=ids["cross_blocked"]),
+            UserBlock(id=uuid4(), tenant_id=ids["tenant"], blocker_id=ids["blocker"], blocked_id=ids["blocker"]),
+            UserBlock(id=uuid4(), tenant_id=ids["tenant"], blocker_id=ids["blocker"], blocked_id=ids["blocked"]),
+        ):
+            db.add(bad)
+            with pytest.raises(IntegrityError):
+                await db.flush()
+            await db.rollback()
+        assert (await db.execute(select(UserBlock).where(UserBlock.tenant_id == ids["tenant"], UserBlock.blocker_id == ids["blocker"], UserBlock.blocked_id == ids["blocked"]))).scalar_one_or_none() is not None
+
 
 @pytest.mark.asyncio
 async def test_public_shop_listing_route_propagates_authenticated_and_anonymous_viewers(discovery_rows):
@@ -204,10 +240,14 @@ async def test_public_shop_listing_route_propagates_authenticated_and_anonymous_
         blocker = await db.get(User, ids["blocker"])
         from app.api.deps import get_db
         from app.api.v1.shops import router
+        from app.api.v1.listings import router as listing_router
+        from app.api.v1.events import router as event_router
         from app.core.permissions import get_current_tenant, get_current_user_optional
 
         app = FastAPI()
         app.include_router(router, prefix="/api/v1")
+        app.include_router(listing_router, prefix="/api/v1")
+        app.include_router(event_router, prefix="/api/v1")
         app.dependency_overrides[get_db] = lambda: db
         app.dependency_overrides[get_current_tenant] = lambda: tenant
         app.dependency_overrides[get_current_user_optional] = lambda: blocker
@@ -221,3 +261,15 @@ async def test_public_shop_listing_route_propagates_authenticated_and_anonymous_
             anonymous = await client.get(f"/api/v1/shops/{ids['shop']}/listings")
         assert anonymous.status_code == 200
         assert str(ids["listing"]) in {row["id"] for row in anonymous.json()["items"]}
+        app.dependency_overrides[get_current_user_optional] = lambda: blocker
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            listing_auth = await client.get("/api/v1/listings", params={"limit": 20})
+            event_auth = await client.get("/api/v1/events", params={"limit": 20})
+        assert str(ids["listing"]) not in {row["id"] for row in listing_auth.json()["items"]}
+        assert str(ids["event"]) not in {row["id"] for row in event_auth.json()["items"]}
+        app.dependency_overrides[get_current_user_optional] = lambda: None
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            listing_anon = await client.get("/api/v1/listings", params={"limit": 20})
+            event_anon = await client.get("/api/v1/events", params={"limit": 20})
+        assert str(ids["listing"]) in {row["id"] for row in listing_anon.json()["items"]}
+        assert str(ids["event"]) in {row["id"] for row in event_anon.json()["items"]}
