@@ -5,12 +5,9 @@ import { isRootDomain } from '@/lib/constants';
 import LandingPage from '@/pages/LandingPage';
 import { getRuntimeConfig } from '@/platform/runtimeConfig';
 import { NativeRoutes } from '@/routes/NativeRoutes';
-import { PublicMemberRoutes } from '@/routes/PublicMemberRoutes';
-import { WebAdminRoutes } from '@/routes/WebAdminRoutes';
+import { WebRoutes } from '@/routes/WebRoutes';
 
 function ScrollToTop() { const { pathname, hash } = useLocation(); useEffect(() => { if (!hash) window.scrollTo(0, 0); }, [pathname, hash]); return null; }
-function WebRoutes() { return <><PublicMemberRoutes /><WebAdminRoutes /></>; }
-
 function App() {
   const runtime = getRuntimeConfig();
   if (runtime.isNative) return <TenantProvider><BrowserRouter><ScrollToTop /><NativeRoutes /></BrowserRouter></TenantProvider>;

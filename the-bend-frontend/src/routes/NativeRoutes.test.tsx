@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NativeRoutes } from './NativeRoutes';
 
@@ -8,6 +8,7 @@ vi.mock('@/stores/authStore', () => ({
     selector ? selector({ isAuthenticated: false, isLoading: false, user: null }) : { isAuthenticated: false, isLoading: false, user: null },
 }));
 vi.mock('@/pages/HomePage', () => ({ default: () => <div>Native home</div> }));
+vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
 
 afterEach(() => cleanup());
 
@@ -31,5 +32,35 @@ describe('NativeRoutes', () => {
     for (const label of ['Home', 'Explore', 'Post', 'Inbox', 'You']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
+  });
+
+  it('redirects a guest protected route to the native login surface', () => {
+    renderNativeAt('/messages');
+    expect(screen.getByText('Login page: /messages')).toBeInTheDocument();
+  });
+
+  it('opens post actions and retains a guest continuation', () => {
+    renderNativeAt('/');
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Offer listing' }));
+    expect(screen.getByText('Login page: /create?type=offer')).toBeInTheDocument();
+  });
+
+  it('dismisses the post sheet with Escape and backdrop clicks, but not panel clicks', async () => {
+    renderNativeAt('/');
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    const dialog = screen.getByRole('dialog');
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
+    fireEvent.click(screen.getByText('What do you want to post?'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('What do you want to post?'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('dialog'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

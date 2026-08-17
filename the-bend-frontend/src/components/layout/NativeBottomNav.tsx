@@ -1,7 +1,7 @@
 import { Home, Compass, Plus, Inbox, User } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PostActionSheet } from './PostActionSheet';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 const actions = [
   { label: 'Home', path: '/', icon: Home },
@@ -14,6 +14,7 @@ export function NativeBottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const [postOpen, setPostOpen] = useState(false);
+  const postTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <>
@@ -25,7 +26,7 @@ export function NativeBottomNav() {
               <span>{label}</span>
             </button>
           ))}
-          <button type="button" aria-label="Post" onClick={() => setPostOpen(true)} className="flex min-w-14 flex-col items-center gap-1 p-2 text-xs">
+          <button ref={postTriggerRef} type="button" aria-label="Post" onClick={() => setPostOpen(true)} className="flex min-w-14 flex-col items-center gap-1 p-2 text-xs">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(160,25%,24%)] text-white"><Plus size={20} aria-hidden="true" /></span>
             <span>Post</span>
           </button>
@@ -37,7 +38,7 @@ export function NativeBottomNav() {
           ))}
         </div>
       </nav>
-      <PostActionSheet open={postOpen} onClose={() => setPostOpen(false)} />
+      <PostActionSheet open={postOpen} onClose={() => setPostOpen(false)} returnFocusRef={postTriggerRef} />
     </>
   );
 }
