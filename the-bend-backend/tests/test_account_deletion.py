@@ -352,6 +352,49 @@ async def test_erasure_cleans_user_owned_null_tenant_legacy_rows_but_keeps_tenan
 
 
 @pytest.mark.asyncio
+async def test_erasure_retains_shared_content_and_hydrates_deleted_identity():
+    """Reports, conversations, feed content, guidelines, and image refs survive."""
+    from datetime import datetime
+    from app.core.security import hash_password
+    from app.models.enums import ListingType, ListingCategory, PricingType, UrgencyLevel, ListingStatus
+    from app.models.listing import Listing, ListingImage
+    from app.models.report import Report
+    from app.models.report_audit import ReportAudit
+    from app.models.message import MessageThread, Message
+    from app.models.guideline import Guideline
+    from app.models.bender import BenderPost
+    from app.services.account_deletion_service import AccountDeletionService
+    from app.services.report_service import ReportService
+    marker = uuid.uuid4().hex
+    tenant_a, tenant_b, user_a, user_b = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    listing_id, image_id, report_id, audit_id, thread_id, message_id, guideline_id, post_id = (uuid.uuid4() for _ in range(8))
+    try:
+        async with async_session() as db:
+            db.add_all([Tenant(id=tenant_a, slug=f"retain-a-{marker}", subdomain=f"retain-a-{marker}", display_name="A"), Tenant(id=tenant_b, slug=f"retain-b-{marker}", subdomain=f"retain-b-{marker}", display_name="B")]); await db.flush()
+            db.add_all([User(id=user_a, tenant_id=tenant_a, email=f"former-{marker}@example.test", password_hash=hash_password("Correct1"), name="Former Name", phone="555-0101", avatar_url="/uploads/users/private.png", role=UserRole.INDIVIDUAL), User(id=user_b, tenant_id=tenant_b, email=f"other-{marker}@example.test", password_hash="x", name="Other", role=UserRole.INDIVIDUAL)]); await db.flush()
+            db.add(Listing(id=listing_id, tenant_id=tenant_a, posted_by_user_id=user_a, type=ListingType.OFFER, category=ListingCategory.MATERIALS, title="Shared listing", description="community content", pricing_type=PricingType.FREE, is_free=True, urgency=UrgencyLevel.NORMAL, status=ListingStatus.ACTIVE)); await db.flush()
+            db.add_all([ListingImage(id=image_id, listing_id=listing_id, url="/uploads/images/shared.jpg", thumbnail_url="/uploads/images/shared_thumb.jpg"), Report(id=report_id, target_type="listing", target_id=listing_id, reporter_id=user_a, tenant_id=tenant_a, reason="spam", details="shared report"), ReportAudit(id=audit_id, report_id=report_id, tenant_id=tenant_a, actor_id=user_a, action="reviewed"), MessageThread(id=thread_id, tenant_id=tenant_a, participant_a=min(user_a, user_b, key=str), participant_b=max(user_a, user_b, key=str)), Guideline(id=guideline_id, tenant_id=tenant_a, uploaded_by=user_a, file_url="/uploads/guidelines/public.pdf", file_name="public.pdf", file_type="pdf", file_size=12), BenderPost(id=post_id, tenant_id=tenant_a, author_user_id=user_a, caption="shared post")]); await db.flush()
+            db.add(Message(id=message_id, thread_id=thread_id, sender_id=user_a, content="shared message", attachment_url="/uploads/images/shared.jpg", attachment_type="image")); db.add(AccountDeletion(user_id=user_a, tenant_id=tenant_a)); await db.commit()
+            row = (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_a))).scalar_one(); assert await AccountDeletionService(db).erase(str(row.id))
+            tombstone = (await db.execute(select(User).where(User.id == user_a))).scalar_one(); assert tombstone.name == "Deleted member" and tombstone.email == f"deleted-{user_a}@deleted.invalid" and tombstone.phone is None and tombstone.avatar_url is None
+            assert (await db.execute(select(Report).where(Report.id == report_id))).scalar_one().reporter_id == user_a
+            assert (await db.execute(select(ReportAudit).where(ReportAudit.id == audit_id))).scalar_one().actor_id == user_a
+            message = (await db.execute(select(Message).where(Message.id == message_id))).scalar_one(); assert message.sender_id == user_a and message.attachment_url == "/uploads/images/shared.jpg"
+            assert (await db.execute(select(MessageThread).where(MessageThread.id == thread_id))).scalar_one_or_none() is not None
+            assert (await db.execute(select(Guideline).where(Guideline.id == guideline_id))).scalar_one().uploaded_by == user_a
+            assert (await db.execute(select(ListingImage).where(ListingImage.id == image_id))).scalar_one().url == "/uploads/images/shared.jpg"
+            post = (await db.execute(select(BenderPost).where(BenderPost.id == post_id))).scalar_one(); assert post.author_user_id == user_a
+            hydrated = (await ReportService(db).list_admin(tenant_a))["items"]; assert any(item["target_id"] == str(listing_id) and item["target_summary"]["title"] == "Shared listing" for item in hydrated)
+            assert "Former Name" not in str(hydrated) and marker not in str(hydrated)
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id.in_([user_a, user_b])))
+            for model in (ReportAudit, Report, Message, MessageThread, Guideline, ListingImage, BenderPost, Listing, User, Tenant):
+                await db.execute(delete(model).where(model.id.in_([listing_id, image_id, report_id, audit_id, thread_id, message_id, guideline_id, post_id, user_a, user_b, tenant_a, tenant_b])))
+            await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_real_postgres_concurrent_confirmation_has_one_active_request():
     from datetime import datetime, timedelta
     from sqlalchemy.ext.asyncio import async_sessionmaker
