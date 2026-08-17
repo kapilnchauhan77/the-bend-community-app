@@ -1,4 +1,4 @@
-"""Task 7 contract tests.
+"""Account deletion contract tests.
 
 These tests intentionally exercise the public service contract without mocks;
 integration fixtures can opt in to PostgreSQL through the normal test setup.
