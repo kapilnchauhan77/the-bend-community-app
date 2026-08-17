@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './index.css';
+import { PlatformServicesProvider } from './platform/createPlatformServices';
+import { getRuntimeConfig } from './platform/runtimeConfig';
 
 // Apply dark mode immediately before render to prevent flash
 if (localStorage.getItem('theme') === 'dark') {
@@ -30,6 +32,8 @@ registerSW({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <PlatformServicesProvider config={getRuntimeConfig()}>
+      <App />
+    </PlatformServicesProvider>
   </StrictMode>
 );
