@@ -22,6 +22,14 @@ describe('parseDeepLink', () => {
     'https://user:pass@westmoreland.bend.community/notifications:443',
     'https://westmoreland.bend.community/notifications#x',
     'javascript://westmoreland.bend.community/notifications',
+    ' https://westmoreland.bend.community/notifications',
+    'https://westmoreland.bend.community/notifications ',
+    'HTTPS://westmoreland.bend.community/notifications',
+    'https://WESTMORELAND.BEND.COMMUNITY/notifications',
+    'https://westmoreland.bend.community:443/notifications',
+    'https://westmoreland.bend.community/listing/0000000-0000-0000-0000-000000000001',
+    'https://westmoreland.bend.community/listing/00000000-0000-0000-0000-00000000000g',
+    'https://westmoreland.bend.community/listing/00000000-0000-0000-0000-0000000000011',
   ])('rejects unsafe URL %s', (url) => expect(parseDeepLink(url)).toBeNull())
 
   it.each([
@@ -32,4 +40,6 @@ describe('parseDeepLink', () => {
     ['https://westmoreland.bend.community/messages/00000000-0000-0000-0000-000000000005', true],
     ['https://westmoreland.bend.community/notifications', true],
   ])('sets requiresAuth for %s', (url, requiresAuth) => expect(parseDeepLink(url)?.requiresAuth).toBe(requiresAuth))
+
+  it('accepts the canonical root URL without a trailing path segment', () => expect(parseDeepLink('https://westmoreland.bend.community')?.path).toBe('/'))
 })

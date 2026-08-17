@@ -24,6 +24,7 @@ export class SessionManager {
   private currentShop: Shop | null = null
   private refreshInFlight: Promise<string | null> | null = null
   private initialized = false
+  private initializing = false
   private epoch = 0
   private mutationQueue: Promise<void> = Promise.resolve()
   private listeners = new Set<(snapshot: AuthSnapshot) => void>()
@@ -32,7 +33,7 @@ export class SessionManager {
   constructor(options: SessionManagerOptions) { this.options = options }
 
   private snapshot(): AuthSnapshot {
-    return { user: this.currentUser, shop: this.currentShop, isAuthenticated: !!this.accessToken && !!this.currentUser, isLoading: false }
+    return { user: this.currentUser, shop: this.currentShop, isAuthenticated: !!this.accessToken && !!this.currentUser, isLoading: this.initializing }
   }
 
   private publish() {
@@ -79,19 +80,22 @@ export class SessionManager {
 
   async initialize(): Promise<AuthSnapshot> {
     if (this.initialized) return this.snapshot()
+    this.initializing = true
     const stored = await this.options.sessionStore.load().catch(() => null)
-    if (!stored) { this.initialized = true; this.publish(); return emptySnapshot() }
+    if (!stored) { this.initializing = false; this.initialized = true; this.publish(); return emptySnapshot() }
     try {
       this.refreshToken = stored.refreshToken
       await this.refresh()
       const current = await this.options.getCurrentSession()
       this.currentUser = current.user
       this.currentShop = current.shop
+      this.initializing = false
       this.initialized = true
       this.publish()
       return this.snapshot()
     } catch {
       await this.clearLocalSession()
+      this.initializing = false
       this.initialized = true
       this.publish()
       return emptySnapshot()

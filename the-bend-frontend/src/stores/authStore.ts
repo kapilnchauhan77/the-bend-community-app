@@ -23,7 +23,9 @@ export const useAuthStore = create<AuthState>((set) => {
   sessionManager.subscribe((snapshot) => set(snapshot))
   return {
     user: initial.user ?? (!sessionManager.isNative ? storedUser : null), shop: initial.shop ?? (!sessionManager.isNative ? storedShop : null),
-    isAuthenticated: initial.isAuthenticated, isLoading: false,
+    // Session hydration starts before the first route decision; ProtectedRoute keeps
+    // protected cold links behind its loading gate until initialize() settles.
+    isAuthenticated: initial.isAuthenticated, isLoading: true,
     setAuth: async (user, shop, accessToken, refreshToken) => sessionManager.setAuthenticated({ access_token: accessToken, refresh_token: refreshToken, token_type: 'bearer', user, shop } as AuthTokens),
     initialize: async () => { set({ isLoading: true }); set(await sessionManager.initialize()) },
     logout: async () => { await sessionManager.logout(); set(sessionManager.getSnapshot()) },

@@ -14,6 +14,22 @@ function store(initial: StoredSession | null = null): SessionStore {
 }
 
 describe('SessionManager', () => {
+  it('keeps snapshots loading throughout secure-session hydration', async () => {
+    let releaseMe!: () => void
+    const me = new Promise<void>((resolve) => { releaseMe = resolve })
+    const snapshots: Array<{ isLoading: boolean; isAuthenticated: boolean }> = []
+    const manager = new SessionManager({
+      runtime, sessionStore: store({ refreshToken: 'refresh' }), refresh: vi.fn(async () => tokens),
+      getCurrentSession: vi.fn(async () => { await me; return { user, shop } }), onSnapshot: (snapshot) => snapshots.push(snapshot),
+    })
+    const initialize = manager.initialize()
+    await Promise.resolve()
+    expect(manager.getSnapshot().isLoading).toBe(true)
+    expect(snapshots.every((snapshot) => snapshot.isLoading)).toBe(true)
+    releaseMe()
+    await initialize
+    expect(manager.getSnapshot()).toMatchObject({ isLoading: false, isAuthenticated: true })
+  })
   it('keeps native access tokens in memory only', async () => {
     const sessionStore = store()
     const manager = new SessionManager({ runtime, sessionStore, refresh: vi.fn(), getCurrentSession: vi.fn(async () => ({ user, shop })) })
