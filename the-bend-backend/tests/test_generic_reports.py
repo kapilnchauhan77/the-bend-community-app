@@ -69,6 +69,7 @@ async def test_real_report_service_all_targets_replay_and_safe_matrix():
         async with async_session() as db:
             for table in (ReportAudit, Report, Message, MessageThread, BenderPost, Event, Listing, Shop, User, Tenant):
                 if hasattr(table, "tenant_id"): await db.execute(table.__table__.delete().where(table.tenant_id.in_([tenant_id, other_tenant_id])))
+            await db.execute(Tenant.__table__.delete().where(Tenant.id.in_([tenant_id, other_tenant_id])))
             await db.commit()
 
 @pytest.mark.asyncio
@@ -126,12 +127,13 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
     def alembic(*args):
         return subprocess.run([str(root/".venv/bin/alembic"), *args], cwd=root, check=True, capture_output=True, text=True)
     marker=f"task6-migration-{uuid4().hex}"; tid, uid, lid = uuid4(), uuid4(), uuid4(); open_id, resolved_id = uuid4(), uuid4(); created_open=datetime(2025,1,2,3,4,5); created_resolved=datetime(2025,2,3,4,5,6)
+    await engine.dispose()
+    lock_conn = await engine.connect()
+    await lock_conn.execute(text("SELECT pg_advisory_lock(62841006)"))
     try:
         await engine.dispose()
-        async with async_session() as cleanup:
-            await cleanup.execute(text("DELETE FROM reports WHERE details LIKE 'task6-migration-%'")); await cleanup.commit()
-        try: alembic("upgrade","head")
-        except Exception: pass
+        current = alembic("current").stdout
+        assert "nat004" in current, current
         alembic("downgrade","nat003")
         async with async_session() as db:
             await db.execute(text("INSERT INTO tenants (id,slug,subdomain,display_name) VALUES (:id,:slug,:sub,:name)"),{"id":tid,"slug":marker,"sub":marker,"name":marker})
@@ -150,5 +152,16 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
             assert (await db.execute(text("SELECT listing_id FROM reports WHERE id=:id"),{"id":open_id})).scalar_one()==lid; await db.execute(text("DELETE FROM reports WHERE id IN (:a,:b)"),{"a":open_id,"b":resolved_id}); await db.execute(text("DELETE FROM listings WHERE id=:id"),{"id":lid}); await db.execute(text("DELETE FROM users WHERE id=:id"),{"id":uid}); await db.execute(text("DELETE FROM tenants WHERE id=:id"),{"id":tid}); await db.commit()
         alembic("upgrade","head")
     finally:
-        try: alembic("upgrade","head")
-        except Exception: pass
+        # Restore the shared schema first; cleanup uses nat004 columns only.
+        alembic("upgrade","head")
+        async with async_session() as cleanup:
+            await cleanup.execute(text("DELETE FROM reports WHERE id IN (:a,:b)"), {"a":open_id,"b":resolved_id})
+            await cleanup.execute(text("DELETE FROM listings WHERE id=:id"), {"id":lid})
+            await cleanup.execute(text("DELETE FROM users WHERE id=:id"), {"id":uid})
+            await cleanup.execute(text("DELETE FROM tenants WHERE id=:id"), {"id":tid})
+            await cleanup.commit()
+            assert (await cleanup.execute(text("SELECT count(*) FROM tenants WHERE id=:id"), {"id":tid})).scalar_one() == 0
+            assert (await cleanup.execute(text("SELECT count(*) FROM reports WHERE id IN (:a,:b)"), {"a":open_id,"b":resolved_id})).scalar_one() == 0
+        await lock_conn.execute(text("SELECT pg_advisory_unlock(62841006)"))
+        await lock_conn.close()
+        await engine.dispose()

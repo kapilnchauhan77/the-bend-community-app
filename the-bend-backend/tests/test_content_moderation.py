@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from pathlib import Path
 from uuid import uuid4
 from datetime import datetime
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from app.database import async_session, engine
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -301,3 +301,26 @@ async def test_real_asgi_bender_volunteer_talent_and_private_message_paths(monke
         async with async_session() as db:
             await db.execute(Message.__table__.delete().where(Message.sender_id.in_([sender_id,recipient_id]))); await db.execute(MessageThread.__table__.delete().where(MessageThread.participant_a.in_([sender_id,recipient_id]) | MessageThread.participant_b.in_([sender_id,recipient_id]))); await db.execute(BenderComment.__table__.delete().where(BenderComment.user_id.in_([sender_id,recipient_id]))); await db.execute(BenderLike.__table__.delete().where(BenderLike.user_id.in_([sender_id,recipient_id]))); await db.execute(BenderPost.__table__.delete().where(BenderPost.tenant_id==tid)); await db.execute(TalentInquiry.__table__.delete().where(TalentInquiry.talent_id.in_(select(Talent.id).where(Talent.tenant_id==tid)))); await db.execute(Talent.__table__.delete().where(Talent.tenant_id==tid)); await db.execute(Volunteer.__table__.delete().where(Volunteer.tenant_id==tid)); await db.execute(NotificationOutbox.__table__.delete().where(NotificationOutbox.tenant_id==tid)); await db.execute(Notification.__table__.delete().where(Notification.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_task6_marker_probe_is_empty():
+    probes = {
+        "tenants": "slug LIKE 'task6-%' OR subdomain LIKE 'task6-%'",
+        "users": "email LIKE 'task6-%' OR name LIKE 'task6-%'",
+        "reports": "details LIKE '%task6-%'",
+        "listings": "title LIKE '%task6-%' OR description LIKE '%task6-%'",
+        "events": "title LIKE '%task6-%' OR description LIKE '%task6-%' OR submitted_by_email LIKE 'task6-%'",
+        "shops": "name LIKE '%task6-%' OR address LIKE '%task6-%'",
+        "bender_posts": "caption LIKE '%task6-%'",
+        "volunteers": "name LIKE '%task6-%' OR email LIKE 'task6-%' OR skills LIKE '%task6-%'",
+        "talent": "name LIKE '%task6-%' OR email LIKE 'task6-%' OR skills LIKE '%task6-%'",
+        "talent_inquiries": "name LIKE '%task6-%' OR message LIKE '%task6-%'",
+        "messages": "content LIKE '%task6-%'",
+        "notifications": "title LIKE '%task6-%' OR body LIKE '%task6-%'",
+    }
+    async with async_session() as db:
+        for table, predicate in probes.items():
+            count = (await db.execute(text(f"SELECT count(*) FROM {table} WHERE {predicate}"))).scalar_one()
+            assert count == 0, f"Task6 marker leak in {table}: {count}"
+    await engine.dispose()
