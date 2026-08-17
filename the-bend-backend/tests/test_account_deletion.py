@@ -125,6 +125,60 @@ def _png_upload(name="avatar.png"):
 
 
 @pytest.mark.asyncio
+async def test_connected_websocket_is_denied_after_database_lock():
+    from app.core.security import hash_password, create_access_token
+    from app.api.ws import chat
+    marker=uuid.uuid4().hex; tenant_id,user_id=uuid.uuid4(),uuid.uuid4(); token=create_access_token(user_id,UserRole.INDIVIDUAL.value)
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id,slug="ws-lock-"+marker,subdomain="ws-lock-"+marker,display_name="WS")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash=hash_password("Correct1"),name="WS",role=UserRole.INDIVIDUAL)); await db.commit()
+        class Socket:
+            query_params={"token":token}; accepted=False
+            async def accept(self): self.accepted=True
+            async def close(self,**kwargs): self.closed=kwargs
+            async def receive_text(self):
+                async with async_session() as db: await db.execute(__import__("sqlalchemy").update(User).where(User.id==user_id).values(is_active=False)); await db.commit()
+                return '{"type":"typing","thread_id":"00000000-0000-0000-0000-000000000000"}'
+        socket=Socket(); await chat.websocket_chat(socket); assert socket.accepted and getattr(socket,"closed",None)
+    finally:
+        async with async_session() as db: await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_stale_lease_and_partial_worker_failure_recover(monkeypatch):
+    from datetime import datetime, timedelta
+    from app.services.account_deletion_service import AccountDeletionService
+    marker=uuid.uuid4().hex; tenant_id,user_id,deletion_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4()
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id,slug="lease-"+marker,subdomain="lease-"+marker,display_name="Lease")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Lease",role=UserRole.INDIVIDUAL)); await db.flush(); db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,status="processing",claimed_at=datetime.utcnow()-timedelta(hours=1))); await db.commit()
+        original=AccountDeletionService.safe_owned_upload
+        monkeypatch.setattr(AccountDeletionService,"safe_owned_upload",staticmethod(lambda *args,**kwargs: (_ for _ in ()).throw(RuntimeError("partial"))))
+        with pytest.raises(RuntimeError):
+            async with async_session() as db: await AccountDeletionService(db).erase(str(deletion_id))
+        monkeypatch.setattr(AccountDeletionService,"safe_owned_upload",original)
+        async with async_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
+    finally:
+        async with async_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_email_provider_failure_attempt_marker_still_completes(monkeypatch):
+    from app.services.account_deletion_service import AccountDeletionService
+    marker=uuid.uuid4().hex; tenant_id,user_id,deletion_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4(); calls=[]
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id,slug="mail-"+marker,subdomain="mail-"+marker,display_name="Mail")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Mail",role=UserRole.INDIVIDUAL)); await db.flush(); db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,send_confirmation=True,confirmation_email=marker+"@example.com")); await db.commit()
+        monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address: calls.append(address) or False)
+        async with async_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
+        async with async_session() as db: row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.email_sent_at is not None and row.confirmation_email is None
+        async with async_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
+        assert calls==[marker+"@example.com"]
+    finally:
+        async with async_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_real_upload_routes_keep_photo_public_and_avatar_private(monkeypatch, tmp_path):
     from app.api.v1 import upload as routes
     monkeypatch.setattr("app.services.file_service.UPLOAD_DIR", tmp_path)
