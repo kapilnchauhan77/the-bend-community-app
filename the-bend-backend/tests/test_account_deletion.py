@@ -6,6 +6,7 @@ integration fixtures can opt in to PostgreSQL through the normal test setup.
 import uuid
 
 import pytest
+import pytest_asyncio
 from io import BytesIO
 from fastapi import UploadFile
 from PIL import Image
@@ -21,6 +22,12 @@ import app.database as _database
 # factory during these tests.
 _test_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
 async_session = async_sessionmaker(_test_engine, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture(scope="module", autouse=True)
+async def _dispose_account_deletion_test_engine():
+    yield
+    await _test_engine.dispose()
 
 
 @pytest.fixture(autouse=True)

@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from sqlalchemy import delete, select
@@ -22,6 +23,12 @@ from app.config import get_settings
 # This module creates one transaction per test across pytest event loops.
 # NullPool ensures no asyncpg connection is reused by a later loop.
 test_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
+
+
+@pytest_asyncio.fixture(scope="module", autouse=True)
+async def _dispose_device_test_engine():
+    yield
+    await test_engine.dispose()
 from app.models.device_installation import DeviceInstallation
 from app.models.enums import UserRole
 from app.models.tenant import Tenant
