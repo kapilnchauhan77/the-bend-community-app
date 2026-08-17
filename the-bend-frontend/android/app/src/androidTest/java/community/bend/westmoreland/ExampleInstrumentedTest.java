@@ -1,6 +1,6 @@
-package com.getcapacitor.myapp;
+package community.bend.westmoreland;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import android.content.Context;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -9,18 +9,15 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * Instrumented test, which will execute on an Android device.
- *
- * @see <a href="http://d.android.com/tools/testing">Testing documentation</a>
+ * Instrumented smoke test for the Westmoreland Android application.
  */
 @RunWith(AndroidJUnit4.class)
 public class ExampleInstrumentedTest {
 
     @Test
-    public void useAppContext() throws Exception {
-        // Context of the app under test.
+    public void useAppContext() {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
-        assertEquals("com.getcapacitor.app", appContext.getPackageName());
+        assertEquals("community.bend.westmoreland", appContext.getPackageName());
     }
 }
