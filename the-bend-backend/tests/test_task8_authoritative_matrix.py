@@ -13,6 +13,10 @@ from app.core.permissions import get_current_tenant
 from app.main import create_app
 from app.models.connector_purchase import ConnectorPurchase
 from app.models.ad_pricing import AdPricing
+from app.models.discount_code import DiscountCode
+from app.models.notification import Notification
+from app.models.user import User
+from app.models.enums import UserRole
 from app.models.event import Event
 from app.models.enums import EventCategory, EventStatus
 from app.models.sponsor import Sponsor
@@ -27,15 +31,21 @@ async def db_context(monkeypatch):
     monkeypatch.setattr("app.middleware.tenant.async_session", sessions)
     tenant_id = uuid.uuid4()
     tenant = Tenant(id=tenant_id, slug=f"task8-{tenant_id.hex[:10]}", subdomain=f"task8-{tenant_id.hex[:10]}", display_name="Task 8", stripe_secret_key="sk_test_task8", stripe_publishable_key="pk_test_task8", stripe_webhook_secret="whsec_task8")
-    sponsor_id, event_id, connector_id, pricing_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    sponsor_id, event_id, connector_id, pricing_id, sponsor_coupon, event_coupon = (uuid.uuid4() for _ in range(6))
+    admin_id, foreign_tenant_id, foreign_admin_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     async with sessions() as db:
         db.add(tenant)
         await db.flush()
         db.add_all([
-            Sponsor(id=sponsor_id, tenant_id=tenant_id, name="Matrix sponsor", placement="homepage", stripe_session_id="cs_sponsor_1", expected_amount=1200, expected_currency="usd"),
+            Sponsor(id=sponsor_id, tenant_id=tenant_id, name="Matrix sponsor", placement="homepage", stripe_session_id="cs_sponsor_1", expected_amount=1200, expected_currency="usd", coupon_code_id=sponsor_coupon),
             AdPricing(id=pricing_id, tenant_id=tenant_id, name="Matrix", placement="homepage", duration_days=30, price_cents=1200, is_active=True),
-            Event(id=event_id, tenant_id=tenant_id, title="Matrix event", start_date=__import__("datetime").datetime.utcnow(), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="submission", stripe_session_id="cs_event_1", expected_amount=1999, expected_currency="usd"),
+            Event(id=event_id, tenant_id=tenant_id, title="Matrix event", start_date=__import__("datetime").datetime.utcnow(), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="submission", stripe_session_id="cs_event_1", expected_amount=1999, expected_currency="usd", coupon_code_id=event_coupon),
             ConnectorPurchase(id=connector_id, tenant_id=tenant_id, website_url="https://example.test", contact_name="Matrix", contact_email="matrix@example.test", business_name="Matrix", expected_amount=39900, expected_currency="usd", stripe_session_id="cs_connector_1"),
+            DiscountCode(id=sponsor_coupon, tenant_id=tenant_id, code=f"SP{tenant_id.hex[:8]}", name="Sponsor", discount_type="flat", discount_value=1200, coupon_type="sponsor", max_uses=5),
+            DiscountCode(id=event_coupon, tenant_id=tenant_id, code=f"EV{tenant_id.hex[:8]}", name="Event", discount_type="flat", discount_value=1999, coupon_type="event", max_uses=5),
+            User(id=admin_id, tenant_id=tenant_id, email=f"admin-{tenant_id.hex[:8]}@test", password_hash="x", name="Admin", role=UserRole.COMMUNITY_ADMIN),
+            Tenant(id=foreign_tenant_id, slug=f"foreign-{tenant_id.hex[:8]}", subdomain=f"foreign-{tenant_id.hex[:8]}", display_name="Foreign"),
+            User(id=foreign_admin_id, tenant_id=foreign_tenant_id, email=f"foreign-{tenant_id.hex[:8]}@test", password_hash="x", name="Foreign", role=UserRole.COMMUNITY_ADMIN),
         ])
         await db.commit()
     yield sessions, tenant, (sponsor_id, event_id, connector_id, pricing_id)
@@ -44,6 +54,10 @@ async def db_context(monkeypatch):
         await db.execute(delete(Event).where(Event.tenant_id == tenant_id))
         await db.execute(delete(Sponsor).where(Sponsor.tenant_id == tenant_id))
         await db.execute(delete(AdPricing).where(AdPricing.tenant_id == tenant_id))
+        await db.execute(delete(Notification).where(Notification.tenant_id.in_([tenant_id, foreign_tenant_id])))
+        await db.execute(delete(User).where(User.id.in_([admin_id, foreign_admin_id])))
+        await db.execute(delete(DiscountCode).where(DiscountCode.tenant_id == tenant_id))
+        await db.execute(delete(Tenant).where(Tenant.id == foreign_tenant_id))
         await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
         await db.commit()
     await engine.dispose()
@@ -167,6 +181,29 @@ async def test_sponsor_creation_persists_before_provider_and_binds_exact_metadat
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("path,payload,kind,amount", [
+    ("/api/v1/events/submit", {"title": "New event", "start_date": "2026-09-01T10:00:00", "submitted_by_name": "Org", "submitted_by_email": "org@example.test"}, "event", 1999),
+    ("/api/v1/events/connector-checkout", {"website_url": "https://create.example.test", "contact_name": "Org", "contact_email": "org@example.test", "business_name": "Org"}, "connector", 39900),
+])
+async def test_event_and_connector_creation_bind_exact_checkout_contract(monkeypatch, db_context, path, payload, kind, amount):
+    sessions, tenant, ids = db_context
+    created = []
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kwargs: (created.append(kwargs) or __import__("types").SimpleNamespace(id=f"cs_new_{kind}", url="https://checkout.test")))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(path, json=payload)
+    assert response.status_code == 200
+    contract = created[0]
+    assert contract["api_key"] == "sk_test_task8"
+    assert contract["metadata"]["kind"] == kind
+    assert contract["metadata"]["tenant_id"] == str(tenant.id)
+    assert contract["metadata"]["expected_amount"] == str(amount)
+    assert contract["metadata"]["expected_currency"] == "usd"
+    assert contract["line_items"][0]["price_data"]["unit_amount"] == amount
+    assert contract["line_items"][0]["price_data"]["currency"] == "usd"
+
+
+@pytest.mark.asyncio
 async def test_connector_creation_rolls_back_local_row_on_provider_failure(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     def fail(**kwargs):
@@ -259,3 +296,29 @@ async def test_two_asgi_status_clients_share_one_locked_transition(monkeypatch, 
     assert first.json()["status"] in {"paid", "complete"}
     assert second.json()["status"] in {"paid", "complete"}
     assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_verified_paid_transitions_redeem_each_coupon_once_and_notify_same_tenant(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    payloads = {
+        "cs_sponsor_1": {"kind": "sponsor", "target_id": str(ids[0]), "expected_amount": "1200"},
+        "cs_event_1": {"kind": "event", "target_id": str(ids[1]), "expected_amount": "1999"},
+    }
+    def retrieve(session_id, **kwargs):
+        m = payloads[session_id]
+        return {"id": session_id, "status": "complete", "payment_status": "paid", "amount_total": int(m["expected_amount"]), "currency": "usd", "metadata": {**m, "tenant_id": str(tenant.id), "expected_currency": "usd"}}
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", retrieve)
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+        await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+        await client.get("/api/v1/checkout/status/event/cs_event_1")
+        await client.get("/api/v1/checkout/status/event/cs_event_1")
+    async with sessions() as db:
+        sponsor = await db.get(Sponsor, ids[0]); event = await db.get(Event, ids[1])
+        sponsor_code = await db.get(DiscountCode, sponsor.coupon_code_id); event_code = await db.get(DiscountCode, event.coupon_code_id)
+        assert sponsor_code.usage_count == 1 and event_code.usage_count == 1
+        notifications = (await db.execute(__import__("sqlalchemy").select(Notification).where(Notification.tenant_id == tenant.id))).scalars().all()
+        assert len(notifications) == 1
+        assert all(secret not in (n.body + str(n.data or {})) for n in notifications for secret in ("cs_sponsor_1", "sk_test_task8", "whsec_task8", "admin-"))
