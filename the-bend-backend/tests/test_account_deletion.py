@@ -142,6 +142,34 @@ async def test_real_upload_routes_keep_photo_public_and_avatar_private(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_real_postgres_concurrent_confirmation_has_one_active_request():
+    from datetime import datetime, timedelta
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from app.database import engine
+    from app.core.security import hash_password
+    from app.services.account_deletion_service import AccountDeletionService
+    marker = uuid.uuid4().hex; tenant_id, user_id = uuid.uuid4(), uuid.uuid4()
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id, slug="t7c-"+marker, subdomain="t7c-"+marker, display_name="T7")); await db.flush()
+            db.add(User(id=user_id, tenant_id=tenant_id, email=marker+"@example.test", password_hash=hash_password("Correct1"), name="Concurrent", role=UserRole.INDIVIDUAL)); await db.commit()
+        async def attempt():
+            async with async_session() as db:
+                try:
+                    row, _ = await AccountDeletionService(db, queue=type("Q", (), {"delay": lambda self, value: None})()).confirm((await db.execute(select(User).where(User.id == user_id))).scalar_one(), "Correct1")
+                    return row.id
+                except Exception:
+                    return None
+        ids = await __import__("asyncio").gather(attempt(), attempt())
+        assert len([x for x in ids if x]) == 1
+        async with async_session() as db:
+            assert (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_id, AccountDeletion.status.in_(["pending", "processing"]))).scalars().all()).__len__() == 1
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id == user_id)); await db.execute(delete(User).where(User.id == user_id)); await db.execute(delete(Tenant).where(Tenant.id == tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
