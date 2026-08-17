@@ -101,4 +101,11 @@ describe('NativePushService', () => {
     await service.register(authenticatedMember)
     expect(api.revokeInstallation).toHaveBeenCalledWith('stable-installation-id', expect.any(String))
   })
+
+  it('removes the native tap listener without leaving a callback registered', async () => {
+    const service = new NativePushService(deps)
+    const removal = await service.addTapListener(vi.fn())
+    await removal.remove()
+    expect(listeners.pushNotificationActionPerformed).toBeUndefined()
+  })
 })

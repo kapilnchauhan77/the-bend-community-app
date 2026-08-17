@@ -4,10 +4,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { usePlatformServices } from '@/platform/createPlatformServices'
 import { Capacitor } from '@capacitor/core'
 import { useNavigate } from 'react-router-dom'
+import { setPendingDestination } from '@/auth/pendingDestination'
 
-export function createTapNavigator(navigate: (path: string) => void) {
+export function createTapNavigator(navigate: (path: string) => void, isAuthenticated = true) {
   return (target: { path: string; requiresAuth: boolean }) => {
     if (!target.path.startsWith('/') || target.path.startsWith('//')) return
+    if (target.requiresAuth && !isAuthenticated) { setPendingDestination(target.path); navigate('/login'); return }
     navigate(target.path)
   }
 }
@@ -23,11 +25,14 @@ export function usePushNotifications() {
   const [permission, setPermission] = useState<string>(Capacitor.isNativePlatform() ? 'prompt' : (typeof Notification !== 'undefined' ? Notification.permission : 'default'))
   const [isSubscribed, setIsSubscribed] = useState(false)
   useEffect(() => {
+    const tap = services.push.addTapListener(createTapNavigator(navigate, session.isAuthenticated))
+    return () => { void tap.then((listener) => listener.remove()) }
+  }, [services, navigate, session.isAuthenticated])
+  useEffect(() => {
     if (!session.isAuthenticated || session.isLoading) return
     void services.push.register(session)
-    const tap = services.push.addTapListener(createTapNavigator(navigate))
-    return () => { void tap.then((listener) => listener.remove()); void services.push.unregister('online') }
-  }, [services, session, navigate])
+    return () => { void services.push.unregister('online') }
+  }, [services, session])
   const requestPermission = useCallback(async () => {
     if (Capacitor.isNativePlatform()) {
       const result = await services.push.explainAndRequest(); setPermission(result)
