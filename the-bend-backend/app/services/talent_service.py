@@ -25,13 +25,17 @@ class TalentService:
         })
         return talent
 
-    async def list_talent(self, category=None, cursor=None, limit=20):
+    async def list_talent(self, category=None, cursor=None, limit=20, viewer_id=None):
         from app.models.talent import Talent
         filters = []
         if category:
             filters.append(Talent.category == category)
         if self.tenant_id:
             filters.append(Talent.tenant_id == self.tenant_id)
+        if viewer_id:
+            from sqlalchemy import select
+            from app.models.user_block import UserBlock
+            filters.append(~Talent.user_id.in_(select(UserBlock.blocked_id).where(UserBlock.tenant_id == self.tenant_id, UserBlock.blocker_id == viewer_id)))
         return await self.repo.get_all(filters=filters, limit=limit, cursor=cursor)
 
     async def create_inquiry(self, talent_id: UUID, data: TalentInquiryCreate):

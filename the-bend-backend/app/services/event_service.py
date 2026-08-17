@@ -48,7 +48,7 @@ class EventService:
             raise NotFoundError("Event")
         return event
 
-    async def browse_events(self, category=None, start_after=None, start_before=None, search=None, cursor=None, limit=50):
+    async def browse_events(self, category=None, start_after=None, start_before=None, search=None, cursor=None, limit=50, viewer_id=None):
         return await self.event_repo.browse(
             category=category,
             start_after=start_after,
@@ -57,10 +57,11 @@ class EventService:
             cursor=cursor,
             limit=limit,
             tenant_id=self.tenant_id,
+            viewer_id=viewer_id,
         )
 
-    async def get_upcoming(self, limit=5):
-        return await self.event_repo.get_upcoming(limit, tenant_id=self.tenant_id)
+    async def get_upcoming(self, limit=5, viewer_id=None):
+        return await self.event_repo.get_upcoming(limit, tenant_id=self.tenant_id, viewer_id=viewer_id)
 
     async def list_all_events(self, cursor=None, limit=20):
         from app.models.event import Event

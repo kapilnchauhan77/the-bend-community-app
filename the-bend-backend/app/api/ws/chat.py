@@ -142,6 +142,12 @@ async def websocket_chat(websocket: WebSocket):
 
             except json.JSONDecodeError:
                 await websocket.send_json({"type": "error", "data": {"code": "INVALID_JSON", "message": "Invalid JSON"}})
+            except Exception as exc:
+                # AppException carries the stable HTTP-style error payload;
+                # keep blocked sends on the socket instead of persisting or
+                # tearing down the connection.
+                if getattr(exc, "status_code", None) == 403:
+                    await websocket.send_json({"type": "error", "data": {"code": "FORBIDDEN", "message": "Messaging is blocked"}})
 
     except WebSocketDisconnect:
         manager.disconnect(user_id, websocket)

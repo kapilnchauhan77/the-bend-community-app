@@ -28,7 +28,7 @@ class ListingRepository(BaseRepository[Listing]):
         cursor: str | None = None,
         limit: int = 20,
         status: str | None = None,
-        tenant_id=None,
+        tenant_id=None, viewer_id=None,
     ) -> PaginatedResult:
         if status:
             status_filter = ListingStatus(status.lower())
@@ -47,6 +47,17 @@ class ListingRepository(BaseRepository[Listing]):
 
         if tenant_id:
             query = query.where(Listing.tenant_id == tenant_id)
+
+        if viewer_id and tenant_id:
+            from app.models.user_block import UserBlock
+            from sqlalchemy import exists, not_, func
+            query = query.outerjoin(Shop, Shop.id == Listing.shop_id)
+            author_id = func.coalesce(Listing.posted_by_user_id, Shop.admin_user_id)
+            query = query.where(~exists(select(UserBlock.id).where(
+                UserBlock.tenant_id == tenant_id,
+                UserBlock.blocker_id == viewer_id,
+                UserBlock.blocked_id == author_id,
+            )))
 
         # Filters
         if category:

@@ -10,13 +10,21 @@ from app.models.listing import Listing
 from app.models.enums import NotificationType
 from app.core.exceptions import ForbiddenError
 from app.services.notification_service import NotificationService
+from app.services.block_service import BlockService
 
 
-async def build_message_reference(db, tenant_id, m):
+async def build_message_reference(db, tenant_id, m, viewer_id=None):
     if not m.reference_type or not m.reference_id:
         return None
     from app.services.reference_service import resolve_reference
-    card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id)
+    try:
+        card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id, viewer_id=viewer_id)
+    except TypeError as exc:
+        # Keep compatibility with lightweight repository adapters that expose
+        # the pre-viewer resolver signature.
+        if "viewer_id" not in str(exc):
+            raise
+        card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id)
     if card is None:
         return {"type": m.reference_type, "id": str(m.reference_id), "unavailable": True}
     return card
@@ -83,6 +91,8 @@ class MessageService:
                     listing_info = {"id": str(listing.id), "title": listing.title, "urgency": listing.urgency.value}
 
             unread = await self.message_repo.get_unread_count_for_thread(thread.id, user_id)
+            tenant_id = thread.tenant_id or getattr(other_user, "tenant_id", None)
+            is_blocked = bool(tenant_id) and await BlockService(self.db).is_blocked_between(user_id, other_id, tenant_id)
 
             enriched.append({
                 "id": str(thread.id),
@@ -95,11 +105,13 @@ class MessageService:
                 "last_message": last_msg,
                 "unread_count": unread,
                 "last_message_at": str(thread.last_message_at) if thread.last_message_at else None,
+                "is_blocked": is_blocked,
+                "can_send": not is_blocked,
             })
 
         return {"items": enriched, "next_cursor": result.next_cursor, "has_more": result.has_more}
 
-    async def start_thread_with_shop(self, current_user_id: UUID, shop_id: UUID, listing_id: UUID | None = None):
+    async def start_thread_with_shop(self, current_user_id: UUID, shop_id: UUID, listing_id: UUID | None = None, tenant_id=None):
         """Get or create a thread between current user and a shop's admin."""
         from app.core.exceptions import NotFoundError
 
@@ -107,16 +119,21 @@ class MessageService:
         shop = shop_result.scalar_one_or_none()
         if not shop or not shop.admin_user_id:
             raise NotFoundError("Shop not found")
+        tenant_id = tenant_id or shop.tenant_id
+        if tenant_id is not None and shop.tenant_id != tenant_id:
+            raise NotFoundError("Shop not found")
 
         if current_user_id == shop.admin_user_id:
             raise ForbiddenError("Cannot start a thread with your own shop")
+        if tenant_id and await BlockService(self.db).is_blocked_between(current_user_id, shop.admin_user_id, tenant_id):
+            raise ForbiddenError("Messaging is blocked")
 
         thread, created = await self.message_repo.get_or_create_thread(
-            current_user_id, shop.admin_user_id, listing_id
+            current_user_id, shop.admin_user_id, listing_id, tenant_id
         )
         return {"id": str(thread.id), "created": created}
 
-    async def start_direct_thread(self, current_user_id: UUID, recipient_user_id: UUID):
+    async def start_direct_thread(self, current_user_id: UUID, recipient_user_id: UUID, tenant_id=None):
         """Get or create a direct (no-listing) thread between two users.
 
         Used by Volunteer/Talent "Message" buttons where there is no listing.
@@ -135,9 +152,15 @@ class MessageService:
         recipient = recipient_result.scalar_one_or_none()
         if not recipient or not recipient.is_active:
             raise NotFoundError("Recipient not found")
+        if tenant_id is None:
+            tenant_id = recipient.tenant_id
+        if tenant_id is not None and recipient.tenant_id != tenant_id:
+            raise NotFoundError("Recipient not found")
+        if tenant_id and await BlockService(self.db).is_blocked_between(current_user_id, recipient_user_id, tenant_id):
+            raise ForbiddenError("Messaging is blocked")
 
         thread, created = await self.message_repo.get_or_create_thread(
-            current_user_id, recipient_user_id, None
+            current_user_id, recipient_user_id, None, tenant_id
         )
         return {"id": str(thread.id), "created": created}
 
@@ -153,9 +176,13 @@ class MessageService:
         # direct threads and would otherwise render valid references as
         # "unavailable". Fall back to the thread's tenant only if unknown.
         thread = await self.message_repo.get_thread_by_id(thread_id)
+        if thread and caller_tenant_id is not None and thread.tenant_id not in (None, caller_tenant_id):
+            raise ForbiddenError("Not a participant of this thread")
         tenant_id = caller_tenant_id if caller_tenant_id is not None else (thread.tenant_id if thread else None)
 
         result = await self.message_repo.get_thread_messages(thread_id, cursor, limit)
+        other_id = thread.participant_b if thread.participant_a == user_id else thread.participant_a
+        is_blocked = bool(tenant_id) and await BlockService(self.db).is_blocked_between(user_id, other_id, tenant_id)
         messages = [{
             "id": str(m.id), "thread_id": str(m.thread_id),
             "sender_id": str(m.sender_id), "content": m.content,
@@ -164,10 +191,11 @@ class MessageService:
             "attachment_url": m.attachment_url,
             "attachment_type": m.attachment_type,
             "attachment_thumbnail_url": m.attachment_thumbnail_url,
-            "reference": await build_message_reference(self.db, tenant_id, m),
+            "reference": await build_message_reference(self.db, tenant_id, m, viewer_id=user_id),
         } for m in result.items]
 
-        return {"items": messages, "next_cursor": result.next_cursor, "has_more": result.has_more}
+        return {"items": messages, "next_cursor": result.next_cursor, "has_more": result.has_more,
+                "is_blocked": is_blocked, "can_send": not is_blocked}
 
     async def send_message(
         self,
@@ -184,6 +212,18 @@ class MessageService:
         if not await self.message_repo.is_participant(thread_id, sender_id):
             raise ForbiddenError("Not a participant of this thread")
 
+        thread_for_block = await self.message_repo.get_thread_by_id(thread_id)
+        if thread_for_block and caller_tenant_id is not None and thread_for_block.tenant_id not in (None, caller_tenant_id):
+            raise ForbiddenError("Not a participant of this thread")
+        if thread_for_block and hasattr(thread_for_block, "participant_a") and hasattr(thread_for_block, "participant_b"):
+            recipient_id = thread_for_block.participant_b if thread_for_block.participant_a == sender_id else thread_for_block.participant_a
+            tenant_id = caller_tenant_id or thread_for_block.tenant_id
+            if tenant_id is None:
+                sender_result = await self.db.execute(select(User.tenant_id).where(User.id == sender_id))
+                tenant_id = sender_result.scalar_one_or_none()
+            if tenant_id and hasattr(self.db, "execute") and await BlockService(self.db).is_blocked_between(sender_id, recipient_id, tenant_id):
+                raise ForbiddenError("Messaging is blocked")
+
         ref_type = ref_id = None
         if reference_type and reference_id:
             from app.services.reference_service import resolve_reference
@@ -199,7 +239,12 @@ class MessageService:
                     ref_id = UUID(str(reference_id))
                 except (ValueError, AttributeError, TypeError):
                     raise AppValidationError("Referenced item is unavailable")
-            card = await resolve_reference(self.db, tenant_id, reference_type, ref_id)
+            try:
+                card = await resolve_reference(self.db, tenant_id, reference_type, ref_id, viewer_id=sender_id)
+            except TypeError as exc:
+                if "viewer_id" not in str(exc):
+                    raise
+                card = await resolve_reference(self.db, tenant_id, reference_type, ref_id)
             if card is None:
                 raise AppValidationError("Referenced item is unavailable")
             ref_type = reference_type

@@ -12,7 +12,7 @@ class EventRepository(BaseRepository[Event]):
     def __init__(self, session: AsyncSession):
         super().__init__(Event, session)
 
-    async def browse(self, category=None, status=None, start_after=None, start_before=None, search=None, cursor=None, limit=20, tenant_id=None) -> PaginatedResult:
+    async def browse(self, category=None, status=None, start_after=None, start_before=None, search=None, cursor=None, limit=20, tenant_id=None, viewer_id=None) -> PaginatedResult:
         from sqlalchemy import or_
         filters = []
         if category:
@@ -36,6 +36,18 @@ class EventRepository(BaseRepository[Event]):
             )
         if tenant_id:
             filters.append(Event.tenant_id == tenant_id)
+        if viewer_id and tenant_id:
+            # Older event rows only retain submitted email; hide events whose
+            # submitter is a blocked tenant member while preserving imported
+            # connector events (which have no member author).
+            from app.models.user_block import UserBlock
+            from app.models.user import User
+            blocked_emails = select(User.email).join(UserBlock, UserBlock.blocked_id == User.id).where(
+                UserBlock.tenant_id == tenant_id,
+                UserBlock.blocker_id == viewer_id,
+                User.tenant_id == tenant_id,
+            )
+            filters.append((Event.submitted_by_email.is_(None)) | ~Event.submitted_by_email.in_(blocked_emails))
         return await self.get_all(
             filters=filters,
             order_by=[Event.start_date.asc()],
@@ -43,13 +55,22 @@ class EventRepository(BaseRepository[Event]):
             cursor=cursor,
         )
 
-    async def get_upcoming(self, limit=5, tenant_id=None):
+    async def get_upcoming(self, limit=5, tenant_id=None, viewer_id=None):
         query = (
             select(Event)
             .where(Event.status == EventStatus.ACTIVE, Event.start_date >= datetime.utcnow())
         )
         if tenant_id:
             query = query.where(Event.tenant_id == tenant_id)
+        if viewer_id and tenant_id:
+            from app.models.user_block import UserBlock
+            from app.models.user import User
+            blocked_emails = select(User.email).join(UserBlock, UserBlock.blocked_id == User.id).where(
+                UserBlock.tenant_id == tenant_id,
+                UserBlock.blocker_id == viewer_id,
+                User.tenant_id == tenant_id,
+            )
+            query = query.where((Event.submitted_by_email.is_(None)) | ~Event.submitted_by_email.in_(blocked_emails))
         query = query.order_by(Event.start_date.asc()).limit(limit)
         result = await self.session.execute(query)
         return list(result.scalars().all())

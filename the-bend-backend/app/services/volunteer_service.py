@@ -21,9 +21,13 @@ class VolunteerService:
         })
         return volunteer
 
-    async def list_volunteers(self, cursor=None, limit=20):
+    async def list_volunteers(self, cursor=None, limit=20, viewer_id=None):
         from app.models.volunteer import Volunteer
         filters = []
         if self.tenant_id:
             filters.append(Volunteer.tenant_id == self.tenant_id)
+        if viewer_id:
+            from sqlalchemy import select
+            from app.models.user_block import UserBlock
+            filters.append(~Volunteer.user_id.in_(select(UserBlock.blocked_id).where(UserBlock.tenant_id == self.tenant_id, UserBlock.blocker_id == viewer_id)))
         return await self.repo.get_all(filters=filters, limit=limit, cursor=cursor)

@@ -148,7 +148,7 @@ class MessageRepository:
         return result.scalar_one()
 
     async def get_or_create_thread(
-        self, participant_a: UUID, participant_b: UUID, listing_id: UUID | None = None
+        self, participant_a: UUID, participant_b: UUID, listing_id: UUID | None = None, tenant_id=None
     ) -> tuple[MessageThread, bool]:
         """Get existing thread or create a new one. Returns (thread, created)."""
         from uuid import uuid4
@@ -174,6 +174,7 @@ class MessageRepository:
             participant_a=a,
             participant_b=b,
             listing_id=listing_id,
+            tenant_id=tenant_id,
         )
         self.session.add(thread)
         await self.session.flush()

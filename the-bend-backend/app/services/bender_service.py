@@ -126,6 +126,9 @@ class BenderService:
 
         if tenant_id is not None:
             query = query.where(BenderPost.tenant_id == tenant_id)
+        if current_user is not None and tenant_id is not None:
+            from app.models.user_block import UserBlock
+            query = query.where(~BenderPost.author_user_id.in_(select(UserBlock.blocked_id).where(UserBlock.tenant_id == tenant_id, UserBlock.blocker_id == current_user.id)))
 
         if cursor:
             cursor_data = decode_cursor(cursor)

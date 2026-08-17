@@ -37,7 +37,7 @@ async def start_thread(
     listing_id = UUID(data.listing_id) if data.listing_id else None
     if data.shop_id:
         return await service.start_thread_with_shop(
-            current_user.id, UUID(data.shop_id), listing_id
+            current_user.id, UUID(data.shop_id), listing_id, current_user.tenant_id
         )
     if data.recipient_user_id:
         recipient_id = UUID(data.recipient_user_id)
@@ -46,7 +46,7 @@ async def start_thread(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot start a thread with yourself",
             )
-        return await service.start_direct_thread(current_user.id, recipient_id)
+        return await service.start_direct_thread(current_user.id, recipient_id, current_user.tenant_id)
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Provide listing_id, shop_id, or recipient_user_id",
@@ -104,7 +104,7 @@ async def send_message(
         "attachment_url": msg.attachment_url,
         "attachment_type": msg.attachment_type,
         "attachment_thumbnail_url": msg.attachment_thumbnail_url,
-        "reference": await build_message_reference(service.db, tenant_id, msg),
+        "reference": await build_message_reference(service.db, tenant_id, msg, viewer_id=current_user.id),
     }
 
 
@@ -117,7 +117,7 @@ async def reference_search(
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
     from app.services.reference_service import search_references
-    items = await search_references(db, tenant.id if tenant else None, q, type)
+    items = await search_references(db, tenant.id if tenant else None, q, type, viewer_id=current_user.id)
     return {"items": items}
 
 

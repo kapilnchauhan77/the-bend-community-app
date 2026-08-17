@@ -77,13 +77,21 @@ class ListingService:
         self.db = db
         self.listing_repo = ListingRepository(db)
 
-    async def browse_listings(self, status: str | None = None, tenant_id=None, **kwargs):
-        return await self.listing_repo.browse(status=status, tenant_id=tenant_id, **kwargs)
+    async def browse_listings(self, status: str | None = None, tenant_id=None, viewer_id=None, **kwargs):
+        return await self.listing_repo.browse(status=status, tenant_id=tenant_id, viewer_id=viewer_id, **kwargs)
 
     async def get_listing(self, listing_id: UUID, current_user=None):
         listing = await self.listing_repo.get_detail(listing_id)
         if not listing:
             raise NotFoundError("Listing")
+        if current_user is not None and current_user.tenant_id is not None:
+            from app.services.block_service import BlockService
+            author_ids = [listing.posted_by_user_id]
+            if listing.shop is not None:
+                author_ids.append(listing.shop.admin_user_id)
+            for author_id in author_ids:
+                if author_id and await BlockService(self.db).is_blocked_by(current_user.id, author_id, current_user.tenant_id):
+                    raise NotFoundError("Listing")
 
         # Increment views (simplified - Redis dedup in Phase 8)
         await self.listing_repo.increment_views(listing_id)

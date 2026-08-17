@@ -120,7 +120,7 @@ async def list_talent(
     current_user: User | None = Depends(get_current_user_optional),
 ):
     service.tenant_id = tenant.id if tenant else None
-    result = await service.list_talent(category, cursor, limit)
+    result = await service.list_talent(category, cursor, limit, current_user.id if current_user else None)
     is_authed = current_user is not None
     items = [{
         "id": str(t.id),

@@ -83,6 +83,7 @@ async def browse_listings(
     limit: int = Query(20, le=50),
     service: ListingService = Depends(get_listing_service),
     tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     tenant_id = tenant.id if tenant else None
     result = await service.browse_listings(
@@ -91,6 +92,7 @@ async def browse_listings(
         is_free=is_free, search=search, sort=sort,
         status=status, cursor=cursor, limit=limit,
         tenant_id=tenant_id,
+        viewer_id=current_user.id if current_user else None,
     )
     items = [_serialize_listing(l) for l in result.items]
     return ListingListResponse(items=items, next_cursor=result.next_cursor, has_more=result.has_more)
@@ -107,6 +109,7 @@ async def browse_opportunities(
     limit: int = Query(20, le=50),
     service: ListingService = Depends(get_listing_service),
     tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Convenience wrapper that returns only Volunteer Opportunity listings.
     Shape is identical to /listings; the frontend doesn't need to know the
@@ -118,6 +121,7 @@ async def browse_opportunities(
         is_free=None, search=search, sort=sort,
         status=status, cursor=cursor, limit=limit,
         tenant_id=tenant_id,
+        viewer_id=current_user.id if current_user else None,
     )
     items = [_serialize_listing(l) for l in result.items]
     return ListingListResponse(items=items, next_cursor=result.next_cursor, has_more=result.has_more)

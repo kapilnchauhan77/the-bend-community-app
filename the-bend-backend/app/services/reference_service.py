@@ -67,16 +67,18 @@ async def _bender_card_async(db, obj) -> dict:
     return _bender_card(obj, author)
 
 
-async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: UUID) -> dict | None:
+async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: UUID, viewer_id: UUID | None = None) -> dict | None:
     if ref_type not in REFERENCE_TYPES:
         return None
 
     if ref_type == "listing":
         res = await db.execute(
-            select(Listing).options(selectinload(Listing.images)).where(Listing.id == ref_id)
+            select(Listing).options(selectinload(Listing.images), selectinload(Listing.shop)).where(Listing.id == ref_id)
         )
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
+            return None
+        if viewer_id and await _author_blocked(db, tenant_id, viewer_id, obj.posted_by_user_id or (obj.shop.admin_user_id if obj.shop else None)):
             return None
         return _listing_card(obj)
 
@@ -85,12 +87,16 @@ async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: U
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
             return None
+        if viewer_id and await _author_blocked(db, tenant_id, viewer_id, obj.admin_user_id):
+            return None
         return _shop_card(obj)
 
     if ref_type == "bender":
         res = await db.execute(select(BenderPost).where(BenderPost.id == ref_id))
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
+            return None
+        if viewer_id and await _author_blocked(db, tenant_id, viewer_id, obj.author_user_id):
             return None
         return await _bender_card_async(db, obj)
 
@@ -99,10 +105,20 @@ async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: U
     obj = res.scalar_one_or_none()
     if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
         return None
+    if viewer_id and await _author_blocked(db, tenant_id, viewer_id, obj.id):
+        return None
     return _user_card(obj)
 
 
-async def search_references(db, tenant_id, q, type_filter=None) -> list[dict]:
+async def _author_blocked(db, tenant_id, viewer_id, author_id):
+    if not author_id or not tenant_id:
+        return False
+    from app.models.user_block import UserBlock
+    result = await db.execute(select(UserBlock.id).where(UserBlock.tenant_id == tenant_id, UserBlock.blocker_id == viewer_id, UserBlock.blocked_id == author_id).limit(1))
+    return result.scalar_one_or_none() is not None
+
+
+async def search_references(db, tenant_id, q, type_filter=None, viewer_id=None) -> list[dict]:
     q = (q or "").strip()
     if not q:
         return []
@@ -110,16 +126,20 @@ async def search_references(db, tenant_id, q, type_filter=None) -> list[dict]:
     out = []
     types_ = [type_filter] if type_filter in REFERENCE_TYPES else list(REFERENCE_TYPES)
     if "listing" in types_:
-        rows = (await db.execute(select(Listing).options(selectinload(Listing.images))
-                .where(Listing.tenant_id == tenant_id, Listing.title.ilike(like)).limit(8))).scalars().all()
+        rows = (await db.execute(select(Listing).options(selectinload(Listing.images), selectinload(Listing.shop))
+                .where(Listing.tenant_id == tenant_id, Listing.title.ilike(like)))).scalars().all()
+        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.posted_by_user_id or (o.shop.admin_user_id if o.shop else None))][:8]
         out += [_listing_card(o) for o in rows]
     if "shop" in types_:
-        rows = (await db.execute(select(Shop).where(Shop.tenant_id == tenant_id, Shop.name.ilike(like)).limit(8))).scalars().all()
+        rows = (await db.execute(select(Shop).where(Shop.tenant_id == tenant_id, Shop.name.ilike(like)))).scalars().all()
+        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.admin_user_id)][:8]
         out += [_shop_card(o) for o in rows]
     if "user" in types_:
-        rows = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.name.ilike(like)).limit(8))).scalars().all()
+        rows = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.name.ilike(like)))).scalars().all()
+        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.id)][:8]
         out += [_user_card(o) for o in rows]
     if "bender" in types_:
-        rows = (await db.execute(select(BenderPost).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like)).limit(8))).scalars().all()
+        rows = (await db.execute(select(BenderPost).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like)))).scalars().all()
+        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.author_user_id)][:8]
         out += [await _bender_card_async(db, o) for o in rows]
     return out

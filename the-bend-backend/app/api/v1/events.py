@@ -8,11 +8,13 @@ from pydantic import BaseModel
 from app.api.deps import get_db
 from app.config import get_settings
 from app.core.permissions import get_current_tenant
+from app.core.permissions import get_current_user_optional
 from app.core.stripe_resolver import get_stripe_keys
 from app.models.tenant import Tenant
 from app.services.event_service import EventService
 from app.models.event import Event
 from app.models.enums import EventCategory, EventStatus
+from app.models.user import User
 from app.middleware.tenant import get_frontend_url as _frontend_url
 
 router = APIRouter(prefix="/events", tags=["Events"])
@@ -70,11 +72,12 @@ async def list_events(
     limit: int = Query(50, le=500),
     service: EventService = Depends(get_service),
     tenant: Tenant | None = Depends(get_current_tenant),
+    viewer: User | None = Depends(get_current_user_optional),
 ):
     service.tenant_id = tenant.id if tenant else None
     sa = datetime.fromisoformat(start_after) if start_after else None
     sb = datetime.fromisoformat(start_before) if start_before else None
-    result = await service.browse_events(category=category, start_after=sa, start_before=sb, search=search, cursor=cursor, limit=limit)
+    result = await service.browse_events(category=category, start_after=sa, start_before=sb, search=search, cursor=cursor, limit=limit, viewer_id=viewer.id if viewer else None)
     items = [_serialize_event(e) for e in result.items]
     return {"items": items, "next_cursor": result.next_cursor, "has_more": result.has_more}
 
@@ -84,9 +87,10 @@ async def upcoming_events(
     limit: int = Query(5, le=20),
     service: EventService = Depends(get_service),
     tenant: Tenant | None = Depends(get_current_tenant),
+    viewer: User | None = Depends(get_current_user_optional),
 ):
     service.tenant_id = tenant.id if tenant else None
-    events = await service.get_upcoming(limit)
+    events = await service.get_upcoming(limit, viewer_id=viewer.id if viewer else None)
     return {"items": [_serialize_event(e) for e in events]}
 
 

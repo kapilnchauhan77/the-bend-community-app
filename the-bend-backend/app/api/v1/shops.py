@@ -63,6 +63,9 @@ async def list_shops(
     query = select(Shop, endorsement_count).where(Shop.status == ShopStatus.ACTIVE)
     if tenant:
         query = query.where(Shop.tenant_id == tenant.id)
+    if current_user and tenant:
+        from app.models.user_block import UserBlock
+        query = query.where(~Shop.admin_user_id.in_(select(UserBlock.blocked_id).where(UserBlock.tenant_id == tenant.id, UserBlock.blocker_id == current_user.id)))
 
     if search:
         query = query.where(Shop.name.ilike(f"%{search}%"))
@@ -116,6 +119,11 @@ async def get_shop(
 ):
     result = await service.get_shop(shop_id)
     shop = result["shop"]
+    if current_user and current_user.tenant_id is not None and shop.admin_user_id:
+        from app.services.block_service import BlockService
+        from app.core.exceptions import NotFoundError
+        if await BlockService(db).is_blocked_by(current_user.id, shop.admin_user_id, current_user.tenant_id):
+            raise NotFoundError("Shop")
 
     # Check if current user has endorsed this shop
     viewer_has_endorsed = False

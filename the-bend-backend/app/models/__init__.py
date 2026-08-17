@@ -29,6 +29,7 @@ from app.models.refresh_session import RefreshSession
 from app.models.device_installation import DeviceInstallation
 from app.models.notification_preference import NotificationPreference
 from app.models.notification_outbox import NotificationOutbox
+from app.models.user_block import UserBlock
 
 __all__ = [
     "UserRole", "ShopStatus", "ListingType", "ListingCategory",
@@ -48,5 +49,5 @@ __all__ = [
     "DiscountCode",
     "BenderPost", "BenderLike", "BenderComment",
     "RefreshSession",
-    "DeviceInstallation", "NotificationPreference", "NotificationOutbox",
+    "DeviceInstallation", "NotificationPreference", "NotificationOutbox", "UserBlock",
 ]
