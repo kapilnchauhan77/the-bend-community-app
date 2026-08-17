@@ -10,7 +10,18 @@ from io import BytesIO
 from fastapi import UploadFile
 from PIL import Image
 from sqlalchemy import delete, select
-from app.database import async_session
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.pool import NullPool
+from app.config import get_settings
+import app.database as _database
+
+# Every test in this module may run on a fresh pytest event loop.  A local
+# NullPool prevents asyncpg connections from crossing those loops; dynamic
+# application consumers (notably the WebSocket handler) use this same session
+# factory during these tests.
+_test_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
+async_session = async_sessionmaker(_test_engine, expire_on_commit=False)
+_database.async_session = async_session
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.device_installation import DeviceInstallation
