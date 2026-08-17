@@ -10,7 +10,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         UNUserNotificationCenter.current().delegate = self
-        application.registerForRemoteNotifications()
         return true
     }
 
@@ -50,7 +49,14 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        // Capacitor receives the payload; foreground suppression is decided by the JS conversation state.
+        let userInfo = notification.request.content.userInfo
+        let category = userInfo["target_type"] as? String
+        let targetId = userInfo["target_id"] as? String
+        let activeId = UserDefaults.standard.string(forKey: "native.activeConversationId")
+        if category == "message_received", targetId != nil, targetId == activeId {
+            completionHandler([])
+            return
+        }
         completionHandler([.badge, .sound])
     }
 }

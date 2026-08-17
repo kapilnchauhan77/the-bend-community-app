@@ -43,6 +43,8 @@ describe('NativePushService', () => {
   beforeEach(() => {
     secure.clear()
     vi.clearAllMocks()
+    push.checkPermissions.mockResolvedValue({ receive: 'granted' })
+    push.requestPermissions.mockResolvedValue({ receive: 'granted' })
     Object.keys(listeners).forEach((key) => delete listeners[key])
   })
 
@@ -51,11 +53,20 @@ describe('NativePushService', () => {
     expect(push.requestPermissions).not.toHaveBeenCalled()
   })
 
+  it('does not request permission from authenticated lifecycle registration', async () => {
+    push.checkPermissions.mockResolvedValue({ receive: 'prompt' })
+    const service = new NativePushService(deps)
+    await service.register(authenticatedMember)
+    expect(push.requestPermissions).not.toHaveBeenCalled()
+    expect(push.register).not.toHaveBeenCalled()
+  })
+
   it('registers a rotated token against the stable installation id', async () => {
     const service = new NativePushService(deps)
     await service.explainAndRequest()
     await service.register(authenticatedMember)
-    listeners.registration?.({ value: 'new-token' })
+    const registrationHandler = push.addListener.mock.calls.find(([name]) => name === 'registration')?.[1] as ((event: { value: string }) => void)
+    registrationHandler({ value: 'new-token' })
     await Promise.resolve()
     expect(api.registerInstallation).toHaveBeenCalledWith('stable-installation-id', expect.objectContaining({ provider_token: 'new-token', platform: 'ios' }))
   })
@@ -63,10 +74,10 @@ describe('NativePushService', () => {
   it('maps a notification tap through the same deep-link allowlist', async () => {
     const service = new NativePushService(deps)
     const handler = vi.fn()
-    expect(targetFromData({ target_type: 'message', target_id: 'thread-id' })).toEqual({ path: '/messages/thread-id', requiresAuth: true })
+    expect(targetFromData({ target_type: 'message_received', target_id: 'thread-id' })).toEqual({ path: '/messages/thread-id', requiresAuth: true })
     await service.addTapListener(handler)
     const tapHandler = push.addListener.mock.calls.find(([name]) => name === 'pushNotificationActionPerformed')?.[1] as ((event: unknown) => void)
-    tapHandler({ notification: { data: { target_type: 'message', target_id: 'thread-id' } } })
+    tapHandler({ notification: { data: { target_type: 'message_received', target_id: 'thread-id' } } })
     expect(handler).toHaveBeenCalledWith({ path: '/messages/thread-id', requiresAuth: true })
   })
 
@@ -76,9 +87,18 @@ describe('NativePushService', () => {
     const handler = vi.fn()
     await service.addForegroundListener(handler)
     const foregroundHandler = push.addListener.mock.calls.find(([name]) => name === 'pushNotificationReceived')?.[1] as ((event: unknown) => void)
-    foregroundHandler({ data: { target_type: 'message', target_id: 'thread-id' } })
+    foregroundHandler({ data: { target_type: 'message_received', target_id: 'thread-id' } })
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({ suppressed: true, target: { path: '/messages/thread-id', requiresAuth: true } }))
-    foregroundHandler({ data: { target_type: 'message', target_id: 'other-thread' } })
+    foregroundHandler({ data: { target_type: 'message_received', target_id: 'other-thread' } })
     expect(handler).toHaveBeenLastCalledWith(expect.objectContaining({ suppressed: false }))
+  })
+
+  it('reconciles an offline unregister secret before a later registration', async () => {
+    const service = new NativePushService(deps)
+    await service.register(authenticatedMember)
+    await service.unregister('offline')
+    api.revokeInstallation.mockResolvedValue(undefined)
+    await service.register(authenticatedMember)
+    expect(api.revokeInstallation).toHaveBeenCalledWith('stable-installation-id', expect.any(String))
   })
 })

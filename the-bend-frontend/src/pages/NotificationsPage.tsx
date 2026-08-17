@@ -40,7 +40,7 @@ function getIconStyle(type: string): { bg: string; color: string } {
 // ─── Navigate target from notification data ───────────────────────────────────
 function getTargetRoute(n: Notification): string {
   const data = n.data ?? {};
-  if (data.target_type === 'message_received' || data.target_type === 'message') return data.target_id ? `/messages/${data.target_id}` : '/messages';
+  if (data.target_type === 'message_received') return data.target_id ? `/messages/${data.target_id}` : '/messages';
   if (data.target_type === 'listing_interest_received' || data.target_type === 'urgent_listing_published') return data.target_id ? `/listing/${data.target_id}` : '/browse';
   if (data.target_type === 'registration_decision') return '/notifications';
   // Report notifications land on the flagged-posts admin queue, where

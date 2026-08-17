@@ -1,10 +1,12 @@
 import { PushNotifications, type PermissionStatus } from '@capacitor/push-notifications'
+import { Preferences } from '@capacitor/preferences'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 import type { AuthSnapshot, DeepLinkTarget, PushCategory, PushForegroundEvent, PushService, RemoveListener } from '../contracts'
 import { notificationApi } from '@/services/notificationApi'
 
 const INSTALLATION_KEY = 'bend.push.installation-id'
 const REVOCATION_KEY = 'bend.push.revocation-secret'
+const PENDING_REVOCATION_KEY = 'bend.push.pending-revocation'
 
 type PushPermission = PermissionStatus['receive']
 type PushApi = typeof PushNotifications
@@ -44,8 +46,7 @@ function targetFromData(data: Record<string, unknown> | undefined): DeepLinkTarg
   const type = data?.target_type
   const id = data?.target_id
   if (typeof type !== 'string' || typeof id !== 'string') return null
-  const category = type === 'message' ? 'message_received' : type
-  const target = PUSH_TARGETS[category as PushCategory]
+  const target = PUSH_TARGETS[type as PushCategory]
   return target ? target(id) : null
 }
 
@@ -70,13 +71,20 @@ export class NativePushService implements PushService {
 
   async register(session: AuthSnapshot): Promise<void> {
     if (!session.isAuthenticated || session.isLoading) return
-    if (this.permission !== 'granted') {
-      const status = await this.explainAndRequest()
-      if (status !== 'granted') return
-    }
+    const checked = await this.deps.push!.checkPermissions()
+    this.permission = checked.receive
+    // Registration never triggers a permission prompt. The caller must show
+    // contextual rationale and invoke explainAndRequest from a user action.
+    if (this.permission !== 'granted') return
     const store = this.deps.secureStorage!
     let installationId = await store.get(INSTALLATION_KEY)
     if (!installationId) { installationId = this.deps.createInstallationId!(); await store.set(INSTALLATION_KEY, installationId) }
+    if (await store.get(PENDING_REVOCATION_KEY) === 'true') {
+      const oldSecret = await store.get(REVOCATION_KEY)
+      if (oldSecret) await this.deps.api!.revokeInstallation(installationId, oldSecret)
+      await store.remove(PENDING_REVOCATION_KEY)
+      await store.remove(REVOCATION_KEY)
+    }
     if (!await store.get(REVOCATION_KEY)) await store.set(REVOCATION_KEY, this.deps.createRevocationSecret!())
     const push = this.deps.push!
     this.registrationListener?.remove()
@@ -85,7 +93,7 @@ export class NativePushService implements PushService {
   }
 
   private async sendRegistration(installationId: string, token: string) {
-    const response = await this.deps.api!.registerInstallation(installationId, { platform: this.deps.platform, provider_token: token, token, app_version: this.deps.appVersion, build_number: this.deps.buildNumber, locale: this.deps.locale } as Parameters<typeof notificationApi.registerInstallation>[1])
+    const response = await this.deps.api!.registerInstallation(installationId, { platform: this.deps.platform, provider_token: token, app_version: this.deps.appVersion, build_number: this.deps.buildNumber, locale: this.deps.locale })
     const replacement = (response as { data?: { revocation_secret?: string } }).data?.revocation_secret
     if (replacement) await this.deps.secureStorage!.set(REVOCATION_KEY, replacement)
   }
@@ -98,6 +106,9 @@ export class NativePushService implements PushService {
     if (mode === 'online') {
       await this.deps.api!.disableInstallation(installationId)
       await this.deps.secureStorage!.remove(REVOCATION_KEY)
+      await this.deps.secureStorage!.remove(PENDING_REVOCATION_KEY)
+    } else {
+      await this.deps.secureStorage!.set(PENDING_REVOCATION_KEY, 'true')
     }
   }
 
@@ -109,14 +120,14 @@ export class NativePushService implements PushService {
     return { remove: async () => { await listener.remove() } }
   }
 
-  setActiveConversation(id: string | null) { this.activeConversationId = id }
+  setActiveConversation(id: string | null) { this.activeConversationId = id; void Preferences.set({ key: 'native.activeConversationId', value: id ?? '' }).catch(() => undefined) }
 
   async addForegroundListener(handler: (event: PushForegroundEvent) => void): Promise<RemoveListener> {
     const listener = await this.deps.push!.addListener('pushNotificationReceived', (event: { data?: Record<string, unknown> }) => {
       const data = event.data ?? {}
       const target = targetFromData(data)
       const targetId = typeof data.target_id === 'string' ? data.target_id : null
-      const suppressed = data.target_type === 'message_received' || data.target_type === 'message'
+      const suppressed = data.target_type === 'message_received'
         ? targetId !== null && targetId === this.activeConversationId
         : false
       handler({ target, suppressed, data })
@@ -133,4 +144,4 @@ export class NativePushService implements PushService {
   }
 }
 
-export { INSTALLATION_KEY, REVOCATION_KEY, PUSH_TARGETS, targetFromData }
+export { INSTALLATION_KEY, REVOCATION_KEY, PENDING_REVOCATION_KEY, PUSH_TARGETS, targetFromData }

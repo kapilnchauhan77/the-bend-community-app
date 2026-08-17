@@ -57,6 +57,7 @@ import { sessionManager } from '@/auth/sessionManager';
 import { notificationApi } from '@/services/notificationApi';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { usePlatformServices } from '@/platform/createPlatformServices';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -795,6 +796,7 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, shop, setAuth, logout } = useAuthStore();
+  const platformServices = usePlatformServices();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isDark, toggle: toggleDark } = useDarkMode();
 
@@ -864,9 +866,9 @@ export default function SettingsPage() {
     return () => { cancelled = true };
   }, []);
 
-  const updatePushPreferences = async (next: Partial<{ push_enabled: boolean; message_received: boolean; listing_interest_received: boolean; registration_decision: boolean; urgent_listing_published: boolean }>) => {
+  const updatePushPreferences = async (next: Partial<{ push_enabled: boolean; message_received: boolean; listing_interest_received: boolean; registration_decision: boolean; urgent_listing_published: boolean }>, rollback?: () => void) => {
     const current = { push_enabled: pushEnabled, message_received: gigAlerts, listing_interest_received: materialsAlerts, registration_decision: equipmentAlerts, urgent_listing_published: urgencyThreshold === 'normal', ...next };
-    await notificationApi.updatePreferences(current).catch(() => {});
+    try { await notificationApi.updatePreferences(current) } catch { rollback?.() }
   };
 
   const handleSaveProfile = async () => {
@@ -1154,12 +1156,18 @@ export default function SettingsPage() {
               label="Push Notifications"
               description="Receive alerts on this device"
               checked={pushEnabled}
-              onCheckedChange={(value) => { setPushEnabled(value); void updatePushPreferences({ push_enabled: value }) }}
+              onCheckedChange={(value) => { const old = pushEnabled; setPushEnabled(value); void updatePushPreferences({ push_enabled: value }, () => setPushEnabled(old)) }}
             />
             {Capacitor.isNativePlatform() && pushPermission === 'denied' && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                 Push is disabled in system settings. Re-enable it in App settings to receive alerts.
                 <Button type="button" variant="outline" size="sm" className="mt-2 h-8" onClick={() => { window.location.href = Capacitor.getPlatform() === 'ios' ? 'app-settings:' : 'intent:#Intent;action=android.settings.APP_NOTIFICATION_SETTINGS;S.android.provider.extra.APP_PACKAGE=community.bend.westmoreland;end' }}>Open App Settings</Button>
+              </div>
+            )}
+            {Capacitor.isNativePlatform() && pushPermission === 'prompt' && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                Get timely alerts for messages, listing interest, registration decisions, and urgent listings.
+                <Button type="button" size="sm" className="mt-2 h-8" onClick={() => { void platformServices.push.explainAndRequest().then(async (result) => { setPushPermission(result); if (result === 'granted') await platformServices.push.register({ user, shop, isAuthenticated: true, isLoading: false }) }) }}>Enable push notifications</Button>
               </div>
             )}
             <Separator />
@@ -1181,21 +1189,21 @@ export default function SettingsPage() {
                   label="Gig Alerts"
                   description="New gig postings and availability"
                   checked={gigAlerts}
-                  onCheckedChange={(value) => { setGigAlerts(value); void updatePushPreferences({ message_received: value }) }}
+                  onCheckedChange={(value) => { const old = gigAlerts; setGigAlerts(value); void updatePushPreferences({ message_received: value }, () => setGigAlerts(old)) }}
                   disabled={pushPermission === 'denied'}
                 />
                 <SwitchRow
                   label="Materials"
                   description="Flour, dairy, produce and more"
                   checked={materialsAlerts}
-                  onCheckedChange={(value) => { setMaterialsAlerts(value); void updatePushPreferences({ listing_interest_received: value }) }}
+                  onCheckedChange={(value) => { const old = materialsAlerts; setMaterialsAlerts(value); void updatePushPreferences({ listing_interest_received: value }, () => setMaterialsAlerts(old)) }}
                   disabled={pushPermission === 'denied'}
                 />
                 <SwitchRow
                   label="Equipment"
                   description="Mixers, ovens, and tools"
                   checked={equipmentAlerts}
-                  onCheckedChange={(value) => { setEquipmentAlerts(value); void updatePushPreferences({ registration_decision: value }) }}
+                  onCheckedChange={(value) => { const old = equipmentAlerts; setEquipmentAlerts(value); void updatePushPreferences({ registration_decision: value }, () => setEquipmentAlerts(old)) }}
                   disabled={pushPermission === 'denied'}
                 />
               </div>
@@ -1208,7 +1216,7 @@ export default function SettingsPage() {
                 Urgency Threshold
               </Label>
               <p className="text-xs text-gray-400">Only notify me for listings at or above this urgency level</p>
-              <Select value={urgencyThreshold} onValueChange={setUrgencyThreshold}>
+              <Select value={urgencyThreshold} onValueChange={(value) => { const old = urgencyThreshold; setUrgencyThreshold(value); void updatePushPreferences({ urgent_listing_published: value === 'normal' }, () => setUrgencyThreshold(old)) }}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>

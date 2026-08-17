@@ -1,39 +1,43 @@
-import { useCallback, useState } from 'react';
-import { notificationApi } from '@/services/notificationApi';
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { notificationApi } from '@/services/notificationApi'
+import { useAuthStore } from '@/stores/authStore'
+import { usePlatformServices } from '@/platform/createPlatformServices'
+import { Capacitor } from '@capacitor/core'
 
 export function usePushNotifications() {
-  const [permission, setPermission] = useState<NotificationPermission>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'default'
-  );
-  const [isSubscribed, setIsSubscribed] = useState(false);
-
+  const services = usePlatformServices()
+  const user = useAuthStore((state) => state.user)
+  const shop = useAuthStore((state) => state.shop)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
+  const session = useMemo(() => ({ user, shop, isAuthenticated, isLoading }), [user, shop, isAuthenticated, isLoading])
+  const [permission, setPermission] = useState<string>(Capacitor.isNativePlatform() ? 'prompt' : (typeof Notification !== 'undefined' ? Notification.permission : 'default'))
+  const [isSubscribed, setIsSubscribed] = useState(false)
+  useEffect(() => {
+    if (!session.isAuthenticated || session.isLoading) return
+    void services.push.register(session)
+    const tap = services.push.addTapListener(async (target) => { window.dispatchEvent(new CustomEvent('native-push-target', { detail: target })) })
+    return () => { void tap.then((listener) => listener.remove()); void services.push.unregister('online') }
+  }, [services, session])
   const requestPermission = useCallback(async () => {
-    if (typeof Notification === 'undefined') return false;
-    const result = await Notification.requestPermission();
-    setPermission(result);
-    return result === 'granted';
-  }, []);
-
-  const subscribe = useCallback(async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY,
-      });
-      const json = subscription.toJSON();
-      await notificationApi.registerPushSubscription({
-        endpoint: json.endpoint!,
-        keys: json.keys as Record<string, string>,
-      });
-      setIsSubscribed(true);
-      return true;
-    } catch (error) {
-      console.error('Push subscription failed:', error);
-      return false;
+    if (Capacitor.isNativePlatform()) {
+      const result = await services.push.explainAndRequest(); setPermission(result)
+      if (result === 'granted' && session.isAuthenticated) { await services.push.register(session); setIsSubscribed(true) }
+      return result === 'granted'
     }
-  }, []);
-
-  return { permission, isSubscribed, requestPermission, subscribe };
+    if (typeof Notification === 'undefined') return false
+    const result = await Notification.requestPermission(); setPermission(result); return result === 'granted'
+  }, [services, session])
+  const subscribe = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) return requestPermission()
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+    try {
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY })
+      const json = subscription.toJSON()
+      await notificationApi.registerPushSubscription({ endpoint: json.endpoint!, keys: json.keys as Record<string, string> })
+      setIsSubscribed(true); return true
+    } catch { return false }
+  }, [requestPermission])
+  return { permission, isSubscribed, requestPermission, subscribe }
 }
