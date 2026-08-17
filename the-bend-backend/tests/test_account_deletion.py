@@ -163,7 +163,8 @@ async def test_real_postgres_concurrent_confirmation_has_one_active_request():
         ids = await __import__("asyncio").gather(attempt(), attempt())
         assert len([x for x in ids if x]) == 1
         async with async_session() as db:
-            assert (await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_id, AccountDeletion.status.in_(["pending", "processing"]))).scalars().all()).__len__() == 1
+            result = await db.execute(select(AccountDeletion).where(AccountDeletion.user_id == user_id, AccountDeletion.status.in_(["pending", "processing"])))
+            assert len(result.scalars().all()) == 1
     finally:
         async with async_session() as db:
             await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id == user_id)); await db.execute(delete(User).where(User.id == user_id)); await db.execute(delete(Tenant).where(Tenant.id == tenant_id)); await db.commit()
