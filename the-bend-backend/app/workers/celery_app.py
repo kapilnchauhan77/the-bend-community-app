@@ -38,6 +38,10 @@ celery_app.conf.update(
             "task": "app.workers.push_tasks.dispatch_push_outbox",
             "schedule": schedule(10.0),
         },
+        "reconcile-account-deletions": {
+            "task": "app.workers.account_tasks.reconcile_account_deletions",
+            "schedule": schedule(30.0),
+        },
     },
 )
 

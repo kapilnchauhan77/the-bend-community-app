@@ -15,3 +15,13 @@ def erase_account(self, deletion_id: str):
         return asyncio.run(run())
     except Exception as exc:
         raise self.retry(exc=exc)
+
+
+@celery_app.task(name="app.workers.account_tasks.reconcile_account_deletions")
+def reconcile_account_deletions(limit: int = 100):
+    async def run():
+        from app.database import async_session
+        from app.services.account_deletion_service import AccountDeletionService
+        async with async_session() as db:
+            return await AccountDeletionService(db).reconcile_pending(limit)
+    return asyncio.run(run())

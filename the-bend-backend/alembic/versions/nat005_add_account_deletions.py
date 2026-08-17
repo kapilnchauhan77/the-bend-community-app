@@ -23,6 +23,7 @@ def upgrade():
         sa.Column("receipt_expires_at", sa.DateTime(), nullable=True),
         sa.Column("send_confirmation", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("confirmation_email", sa.Text(), nullable=True),
+        sa.Column("email_sent_at", sa.DateTime(), nullable=True),
         sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("available_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("claimed_at", sa.DateTime(), nullable=True),
@@ -35,6 +36,17 @@ def upgrade():
     )
     op.create_index("idx_account_deletions_claim", "account_deletions", ["status", "available_at"])
     op.create_index("idx_account_deletions_receipt", "account_deletions", ["receipt_hash"])
+    op.create_table(
+        "account_owned_uploads",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("path", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.ForeignKeyConstraint(["user_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
+    )
+    op.create_index("idx_account_owned_uploads_user", "account_owned_uploads", ["user_id", "tenant_id"])
     # Only one active request is possible; completed history is retained.
     op.create_index(
         "uq_account_deletions_user_active",
@@ -46,6 +58,8 @@ def upgrade():
 
 
 def downgrade():
+    op.drop_index("idx_account_owned_uploads_user", table_name="account_owned_uploads")
+    op.drop_table("account_owned_uploads")
     op.drop_index("uq_account_deletions_user_active", table_name="account_deletions")
     op.drop_index("idx_account_deletions_receipt", table_name="account_deletions")
     op.drop_index("idx_account_deletions_claim", table_name="account_deletions")

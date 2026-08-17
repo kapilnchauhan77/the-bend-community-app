@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError
 from app.core.security import hash_password, verify_password
-from app.models.account_deletion import AccountDeletion
+from app.models.account_deletion import AccountDeletion, AccountOwnedUpload
 from app.models.device_installation import DeviceInstallation
 from app.models.notification import Notification
 from app.models.notification_preference import NotificationPreference
@@ -114,12 +114,46 @@ class AccountDeletionService:
             await self.db.commit()
             return True
         uid = user.id
+        # Claim the optional email before any network call.  The marker is
+        # durable, so a crash/retry can never send twice.
+        if row.send_confirmation and row.confirmation_email and row.email_sent_at is None:
+            address = row.confirmation_email
+            row.email_sent_at = datetime.utcnow()
+            await self.db.commit()
+            try:
+                from app.services.email_service import email_service
+                email_service.send_registration_confirmation(address, "Deleted member")
+            except Exception:
+                row.last_error_code = "confirmation_delivery_failed"
+                row.status = "pending"
+                await self.db.commit()
+                return False
         # Delete private/account-owned rows. Shared messages, reports, audits,
         # public listings, shops and legally retained transactions remain.
         for model, column in ((SavedListing, SavedListing.user_id), (Interest, Interest.user_id), (Notification, Notification.user_id), (PushSubscription, PushSubscription.user_id), (NotificationPreference, NotificationPreference.user_id), (DeviceInstallation, DeviceInstallation.user_id), (RefreshSession, RefreshSession.user_id), (Volunteer, Volunteer.user_id), (Talent, Talent.user_id)):
             await self.db.execute(delete(model).where(column == uid))
         await self.db.execute(delete(UserBlock).where((UserBlock.blocker_id == uid) | (UserBlock.blocked_id == uid)))
         await self.db.execute(delete(Endorsement).where(Endorsement.endorser_user_id == uid))
+        from app.models.bender import BenderLike, BenderComment
+        await self.db.execute(delete(BenderLike).where(BenderLike.user_id == uid))
+        await self.db.execute(delete(BenderComment).where(BenderComment.user_id == uid))
+        from app.models.shop import Shop
+        await self.db.execute(update(Shop).where(Shop.admin_user_id == uid).values(admin_user_id=None))
+        from app.models.event import Event
+        await self.db.execute(update(Event).where(Event.submitted_by_user_id == uid).values(submitted_by_user_id=None))
+        from app.models.tenant_referral import TenantReferral
+        await self.db.execute(update(TenantReferral).where(TenantReferral.referrer_user_id == uid).values(referrer_user_id=None))
+        # Only ledgered paths under uploads/users/<id> can be removed.  Legacy
+        # URLs have no ownership proof and are deliberately retained.
+        owned = (await self.db.execute(select(AccountOwnedUpload).where(AccountOwnedUpload.user_id == uid, AccountOwnedUpload.tenant_id == row.tenant_id))).scalars().all()
+        for upload in owned:
+            path = self.safe_owned_upload(upload.path, user_id=uid)
+            if path is not None:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+        await self.db.execute(delete(AccountOwnedUpload).where(AccountOwnedUpload.user_id == uid, AccountOwnedUpload.tenant_id == row.tenant_id))
         # Detach authored community records rather than deleting shared data.
         from app.models.listing import Listing
         await self.db.execute(update(Listing).where(Listing.posted_by_user_id == uid).values(posted_by_user_id=None))
@@ -139,6 +173,14 @@ class AccountDeletionService:
         await self.db.commit()
         return True
 
+    async def reconcile_pending(self, limit: int = 100) -> int:
+        """Durable queue repair for committed locks whose enqueue failed."""
+        from app.workers.account_tasks import erase_account
+        rows = (await self.db.execute(select(AccountDeletion).where(AccountDeletion.status == "pending", AccountDeletion.available_at <= datetime.utcnow()).order_by(AccountDeletion.created_at).limit(limit))).scalars().all()
+        for row in rows:
+            erase_account.delay(str(row.id))
+        return len(rows)
+
     @staticmethod
     def safe_owned_upload(path_value: str | None, *, user_id: uuid.UUID, upload_root: str = "uploads") -> Path | None:
         """Return only a provably user-owned path under uploads/user/<id>."""
@@ -147,6 +189,8 @@ class AccountDeletionService:
         root = Path(upload_root).resolve()
         candidate = Path(path_value)
         if not candidate.is_absolute():
+            if candidate.parts and candidate.parts[0] == Path(upload_root).name:
+                candidate = Path(*candidate.parts[1:])
             candidate = root / candidate
         candidate = candidate.resolve()
         owned_root = (root / "users" / str(user_id)).resolve()

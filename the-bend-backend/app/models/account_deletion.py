@@ -21,6 +21,7 @@ class AccountDeletion(Base):
     receipt_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     send_confirmation: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     confirmation_email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     available_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, server_default="CURRENT_TIMESTAMP")
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -40,3 +41,17 @@ class AccountDeletion(Base):
         kwargs.setdefault("status", "pending")
         kwargs.setdefault("attempts", 0)
         super().__init__(**kwargs)
+
+
+class AccountOwnedUpload(Base):
+    """Forward-safe ownership ledger; legacy arbitrary URLs are never inferred."""
+    __tablename__ = "account_owned_uploads"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (
+        ForeignKeyConstraint(["user_id", "tenant_id"], ["users.id", "users.tenant_id"], ondelete="CASCADE"),
+        Index("idx_account_owned_uploads_user", "user_id", "tenant_id"),
+    )

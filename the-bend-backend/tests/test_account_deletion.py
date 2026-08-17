@@ -30,6 +30,19 @@ def test_account_erasure_task_is_registered_under_exact_name():
     assert erase_account.name == "app.workers.account_tasks.erase_account"
 
 
+def test_reconciler_is_registered_for_committed_enqueue_failures():
+    from app.workers.account_tasks import reconcile_account_deletions
+    assert reconcile_account_deletions.name == "app.workers.account_tasks.reconcile_account_deletions"
+
+
+def test_owned_upload_guard_rejects_legacy_and_traversal_paths():
+    from app.services.account_deletion_service import AccountDeletionService
+    user_id = uuid.uuid4()
+    assert AccountDeletionService.safe_owned_upload("uploads/avatar.png", user_id=user_id) is None
+    assert AccountDeletionService.safe_owned_upload(f"uploads/users/{user_id}/avatar.png", user_id=user_id)
+    assert AccountDeletionService.safe_owned_upload(f"uploads/users/{user_id}/../other/avatar.png", user_id=user_id) is None
+
+
 @pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
@@ -37,4 +50,3 @@ async def test_confirmation_requires_opaque_receipt_and_locks_member():
     payload = AccountDeletionConfirm(password="correct-password", send_confirmation=False)
     assert payload.password == "correct-password"
     assert payload.send_confirmation is False
-
