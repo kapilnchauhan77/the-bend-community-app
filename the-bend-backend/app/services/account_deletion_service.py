@@ -41,7 +41,7 @@ class AccountDeletionService:
             "bender_comments": "delete", "bender_posts": "retain", "message_threads": "retain", "messages": "retain",
             "reports": "retain", "report_audits": "retain", "listings": "detach", "listing_images": "retain",
             "shops": "detach", "events": "detach", "tenant_referrals": "detach", "guidelines": "retain",
-            "employees": "detach", "discount_codes": "retain",
+            "employees": "detach", "discount_codes": "delete",
             "account_deletions": "retain", "account_owned_uploads": "delete",
         }
 
