@@ -180,13 +180,17 @@ class AuthService:
         )
 
     async def refresh_token(self, refresh_token: str) -> dict:
-        """Refresh an expired access token."""
+        """Refresh an access token while retaining the refresh session.
+
+        Refresh-token rotation is intentionally not used here: the existing
+        client contract returns only a new access token, so a valid refresh
+        session remains reusable and records ``last_used_at``.
+        """
         payload = decode_refresh_token(refresh_token)
-        try:
-            user_id = UUID(payload["sub"])
-            session_id = UUID(payload["sid"])
-        except (KeyError, TypeError, ValueError):
+        claims = self._parse_refresh_claims(payload)
+        if claims is None:
             raise UnauthorizedError("Invalid refresh token")
+        user_id, session_id = claims
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise UnauthorizedError("Invalid refresh token")
@@ -210,16 +214,30 @@ class AuthService:
         """Revoke a refresh session, without disclosing session existence."""
         try:
             payload = decode_refresh_token(refresh_token)
-            user_id = UUID(payload["sub"])
-            session_id = UUID(payload["sid"])
-        except (UnauthorizedError, KeyError, TypeError, ValueError):
+        except UnauthorizedError:
             return None
+        claims = self._parse_refresh_claims(payload)
+        if claims is None:
+            return None
+        user_id, session_id = claims
 
         session = await self.db.get(RefreshSession, session_id)
         if session and session.user_id == user_id and session.revoked_at is None:
             session.revoked_at = datetime.utcnow()
             await self.db.flush()
         return None
+
+    @staticmethod
+    def _parse_refresh_claims(payload: dict) -> tuple[UUID, UUID] | None:
+        """Parse only string UUID claims; malformed claims are untrusted."""
+        user_claim = payload.get("sub")
+        session_claim = payload.get("sid")
+        if not isinstance(user_claim, str) or not isinstance(session_claim, str):
+            return None
+        try:
+            return UUID(user_claim), UUID(session_claim)
+        except ValueError:
+            return None
 
     async def forgot_password(self, email: str) -> dict:
         """Send password reset email (always returns success for security)."""

@@ -13,6 +13,9 @@ from app.services import auth_service as auth_module
 from app.services.auth_service import AuthService
 
 
+MISSING = object()
+
+
 class FakeSession:
     def __init__(self):
         self.refresh_sessions = {}
@@ -106,6 +109,20 @@ async def test_refresh_accepts_active_owned_session_and_updates_last_used(servic
 
 
 @pytest.mark.asyncio
+async def test_refresh_token_can_be_reused_for_compatible_session_protocol(service):
+    auth, db, user = service
+    tokens = await auth.login(user.email, "correct-password")
+    session = next(iter(db.refresh_sessions.values()))
+
+    await auth.refresh_token(tokens.refresh_token)
+    first_last_used = session.last_used_at
+    await auth.refresh_token(tokens.refresh_token)
+
+    assert session.revoked_at is None
+    assert session.last_used_at >= first_last_used
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("case", ["missing", "wrong-owner", "revoked", "expired"])
 async def test_refresh_rejects_invalid_session_state(service, case):
     auth, db, user = service
@@ -140,6 +157,48 @@ async def test_refresh_rejects_malformed_claims_and_missing_sid(service):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("claim_value", [123, True, [], {}, None, MISSING, "not-a-uuid"])
+@pytest.mark.parametrize("claim_name", ["sub", "sid"])
+async def test_refresh_rejects_non_string_or_malformed_claims(service, claim_name, claim_value):
+    auth, _, user = service
+    settings = get_settings()
+    claims = {
+        "sub": str(user.id),
+        "sid": str(uuid4()),
+        "type": REFRESH_TOKEN_TYPE,
+    }
+    if claim_value is MISSING:
+        claims.pop(claim_name)
+    else:
+        claims[claim_name] = claim_value
+    token = jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm="HS256")
+
+    with pytest.raises(UnauthorizedError):
+        await auth.refresh_token(token)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("claim_value", [123, True, [], {}, None, MISSING, "not-a-uuid"])
+@pytest.mark.parametrize("claim_name", ["sub", "sid"])
+async def test_logout_ignores_non_string_or_malformed_claims_without_mutation(
+    service, claim_name, claim_value
+):
+    auth, db, user = service
+    tokens = await auth.login(user.email, "correct-password")
+    session = next(iter(db.refresh_sessions.values()))
+    settings = get_settings()
+    claims = jwt.get_unverified_claims(tokens.refresh_token)
+    if claim_value is MISSING:
+        claims.pop(claim_name)
+    else:
+        claims[claim_name] = claim_value
+    token = jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm="HS256")
+
+    assert await auth.logout(token) is None
+    assert session.revoked_at is None
+
+
+@pytest.mark.asyncio
 async def test_logout_is_idempotent_and_does_not_disclose_session_existence(service):
     auth, db, user = service
     tokens = await auth.login(user.email, "correct-password")
@@ -161,3 +220,42 @@ def test_logout_request_and_refresh_response_shapes_remain_compatible():
         "access_token": "token",
         "token_type": "bearer",
     }
+
+
+@pytest.mark.asyncio
+async def test_logout_route_accepts_body_and_returns_generic_success_response():
+    from app.api.v1.auth import logout as logout_route
+    from app.schemas.auth import LogoutRequest
+
+    class RecordingService:
+        def __init__(self):
+            self.received = None
+
+        async def logout(self, refresh_token):
+            self.received = refresh_token
+
+    service = RecordingService()
+    response = await logout_route(LogoutRequest(refresh_token="refresh-token"), service=service)
+
+    assert service.received == "refresh-token"
+    assert response == {"message": "Logged out successfully"}
+
+
+@pytest.mark.asyncio
+async def test_refresh_route_preserves_access_only_response_shape():
+    from app.api.v1.auth import refresh_token as refresh_route
+    from app.schemas.auth import RefreshRequest
+
+    class RecordingService:
+        def __init__(self):
+            self.received = None
+
+        async def refresh_token(self, refresh_token):
+            self.received = refresh_token
+            return {"access_token": "access-token", "token_type": "bearer"}
+
+    service = RecordingService()
+    response = await refresh_route(RefreshRequest(refresh_token="refresh-token"), service=service)
+
+    assert service.received == "refresh-token"
+    assert response == {"access_token": "access-token", "token_type": "bearer"}
