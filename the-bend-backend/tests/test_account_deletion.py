@@ -300,6 +300,33 @@ async def test_real_two_tenant_erasure_policy_and_shared_tombstone():
 
 
 @pytest.mark.asyncio
+async def test_real_refresh_reset_and_websocket_denial_after_lock(monkeypatch):
+    from datetime import datetime, timedelta
+    from fastapi import WebSocketDisconnect
+    from app.core.security import hash_password, create_access_token, create_refresh_token, create_reset_token
+    from app.services.auth_service import AuthService
+    from app.api.ws import chat
+    marker=uuid.uuid4().hex; tenant_id,user_id,session_id=uuid.uuid4(),uuid.uuid4(),uuid.uuid4()
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id,slug="auth-"+marker,subdomain="auth-"+marker,display_name="Auth")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash=hash_password("Correct1"),name="Auth",role=UserRole.INDIVIDUAL)); db.add(__import__("app.models.refresh_session",fromlist=["RefreshSession"]).RefreshSession(id=session_id,user_id=user_id,expires_at=datetime.utcnow()+timedelta(days=1))); await db.commit()
+        refresh=create_refresh_token(user_id,session_id); access=create_access_token(user_id,UserRole.INDIVIDUAL.value); reset=create_reset_token(user_id)
+        async with async_session() as db:
+            user=(await db.execute(select(User).where(User.id==user_id))).scalar_one(); user.is_active=False; await db.execute(__import__("sqlalchemy").update(__import__("app.models.refresh_session",fromlist=["RefreshSession"]).RefreshSession).where(__import__("app.models.refresh_session",fromlist=["RefreshSession"]).RefreshSession.id==session_id).values(revoked_at=datetime.utcnow())); await db.commit()
+            with pytest.raises(Exception): await AuthService(db).refresh_token(refresh)
+            with pytest.raises(Exception): await AuthService(db).reset_password(reset,"Newpass1")
+        class Socket:
+            query_params={"token":access}; accepted=False
+            async def accept(self): self.accepted=True
+            async def close(self,**kwargs): self.closed=kwargs
+            async def receive_text(self): raise WebSocketDisconnect()
+        socket=Socket(); await chat.websocket_chat(socket); assert not socket.accepted
+    finally:
+        async with async_session() as db:
+            RS=__import__("app.models.refresh_session",fromlist=["RefreshSession"]).RefreshSession; await db.execute(delete(RS).where(RS.user_id==user_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
