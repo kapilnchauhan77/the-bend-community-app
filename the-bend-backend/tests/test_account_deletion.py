@@ -6,6 +6,14 @@ integration fixtures can opt in to PostgreSQL through the normal test setup.
 import uuid
 
 import pytest
+from sqlalchemy import delete, select
+from app.database import async_session
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.models.device_installation import DeviceInstallation
+from app.models.refresh_session import RefreshSession
+from app.models.account_deletion import AccountDeletion
+from app.models.enums import UserRole
 
 
 def test_account_deletion_model_has_bounded_lifecycle_and_receipt_hash():
@@ -69,6 +77,43 @@ async def test_terminal_receipt_is_consumed_only_after_terminal_poll():
 def test_private_upload_path_is_distinct_from_shared_upload_paths():
     from app.services.file_service import FileService
     assert hasattr(FileService, "upload_private_user_image")
+
+
+@pytest.mark.asyncio
+async def test_real_postgres_confirmation_scrubs_all_devices_and_tombstones_user():
+    from app.core.security import hash_password
+    from app.services.account_deletion_service import AccountDeletionService
+    marker = uuid.uuid4().hex
+    tenant_id, user_id = uuid.uuid4(), uuid.uuid4()
+    class Queue:
+        calls = []
+        def delay(self, value): self.calls.append(value)
+    try:
+        async with async_session() as db:
+            db.add(Tenant(id=tenant_id, slug="t7-"+marker, subdomain="t7-"+marker, display_name="T7"))
+            await db.flush()
+            user = User(id=user_id, tenant_id=tenant_id, email=marker+"@example.test", password_hash=hash_password("Correct1"), name="Real User", role=UserRole.INDIVIDUAL)
+            db.add(user); await db.flush()
+            db.add_all([RefreshSession(user_id=user_id, expires_at=__import__("datetime").datetime.utcnow()), DeviceInstallation(user_id=user_id, tenant_id=tenant_id, platform="ios", provider_token=marker+"-1", revocation_secret_hash="x", app_version="1", build_number="1"), DeviceInstallation(user_id=user_id, tenant_id=tenant_id, platform="android", provider_token=marker+"-2", revocation_secret_hash="x", app_version="1", build_number="1")]); await db.commit()
+            queue = Queue(); row, receipt = await AccountDeletionService(db, queue=queue).confirm(user, "Correct1")
+            assert len(queue.calls) == 1 and not user.is_active
+            devices = (await db.execute(select(DeviceInstallation).where(DeviceInstallation.user_id == user_id))).scalars().all()
+            assert len(devices) == 2 and len({d.provider_token for d in devices}) == 2 and all(not d.enabled for d in devices)
+            await AccountDeletionService(db).erase(str(row.id))
+            tombstone = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
+            assert tombstone.name == "Deleted member" and tombstone.email == f"deleted-{user_id}@deleted.invalid"
+            completed = await AccountDeletionService(db).consume_terminal_receipt(receipt, tenant_id)
+            assert completed.status == "completed"
+            await db.commit()
+            from app.core.exceptions import NotFoundError
+            with pytest.raises(NotFoundError):
+                await AccountDeletionService(db).status(receipt, tenant_id)
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(AccountDeletion).where(AccountDeletion.user_id == user_id))
+            await db.execute(delete(DeviceInstallation).where(DeviceInstallation.user_id == user_id))
+            await db.execute(delete(RefreshSession).where(RefreshSession.user_id == user_id))
+            await db.execute(delete(User).where(User.id == user_id)); await db.execute(delete(Tenant).where(Tenant.id == tenant_id)); await db.commit()
 
 
 @pytest.mark.asyncio

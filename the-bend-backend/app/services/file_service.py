@@ -129,6 +129,19 @@ def _process_image(content: bytes) -> tuple[bytes, bytes, str]:
 
 
 class FileService:
+    async def upload_private_user_image(self, file, user_id) -> dict:
+        """Store an avatar under an exclusive per-user root."""
+        content = await file.read()
+        file_id = str(uuid.uuid4())
+        full_bytes, thumb_bytes, ext = _process_image(content)
+        private_dir = UPLOAD_DIR / "users" / str(user_id)
+        private_dir.mkdir(parents=True, exist_ok=True)
+        full_path = private_dir / f"{file_id}{ext}"
+        thumb_path = private_dir / f"{file_id}_thumb{ext}"
+        full_path.write_bytes(full_bytes)
+        thumb_path.write_bytes(thumb_bytes)
+        return {"id": file_id, "url": f"/uploads/users/{user_id}/{file_id}{ext}", "thumbnail_url": f"/uploads/users/{user_id}/{file_id}_thumb{ext}"}
+
     async def upload_images(self, files: list) -> list[dict]:
         results = []
         for file in files[:5]:  # Max 5

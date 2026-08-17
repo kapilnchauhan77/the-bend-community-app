@@ -76,7 +76,8 @@ async def upload_public_photo(
 ):
     """Upload a photo for talent/volunteer profiles (no auth required)."""
     service = FileService()
-    result = await service.upload_images([file])
+    private = current_user.shop_id is None
+    result = [await service.upload_private_user_image(file, current_user.id)] if private else await service.upload_images([file])
     if not result:
         raise HTTPException(status_code=400, detail="Upload failed")
     return {"photo_url": result[0]["url"]}
@@ -159,7 +160,7 @@ async def upload_avatar(
 
     avatar_url = result[0]["url"]
     from app.models.account_deletion import AccountOwnedUpload
-    if current_user.tenant_id:
+    if private and current_user.tenant_id:
         db.add(AccountOwnedUpload(user_id=current_user.id, tenant_id=current_user.tenant_id, path=avatar_url))
 
     # Update user avatar

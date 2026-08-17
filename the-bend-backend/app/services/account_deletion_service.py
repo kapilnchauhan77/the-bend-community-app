@@ -95,7 +95,16 @@ class AccountDeletionService:
         row = (await self.db.execute(query)).scalar_one_or_none()
         if row is None or row.receipt_expires_at is None or row.receipt_expires_at <= datetime.utcnow():
             raise NotFoundError("Deletion status")
+        if row.status == "completed":
+            # Consume terminal receipts exactly once.  The response is built
+            # from this row, and the dependency transaction commits the clear.
+            row.receipt_hash = None
+            row.receipt_expires_at = None
+            await self.db.flush()
         return row
+
+    async def consume_terminal_receipt(self, receipt: str, tenant_id: uuid.UUID | None = None) -> AccountDeletion:
+        return await self.status(receipt, tenant_id)
 
     async def erase(self, deletion_id: str) -> bool:
         try:
@@ -129,10 +138,10 @@ class AccountDeletionService:
                 if not email_service.send_account_deletion_confirmation(address):
                     raise RuntimeError("delivery failed")
             except Exception:
+                # Delivery outcome is deliberately non-retryable: the attempt
+                # marker is durable and prevents duplicate email on retries.
                 row.last_error_code = "confirmation_delivery_failed"
-                row.status = "pending"
-                await self.db.commit()
-                return False
+                await self.db.flush()
         # Delete private/account-owned rows. Shared messages, reports, audits,
         # public listings, shops and legally retained transactions remain.
         for model, column in ((SavedListing, SavedListing.user_id), (Interest, Interest.user_id), (Notification, Notification.user_id), (PushSubscription, PushSubscription.user_id), (NotificationPreference, NotificationPreference.user_id), (DeviceInstallation, DeviceInstallation.user_id), (RefreshSession, RefreshSession.user_id), (Volunteer, Volunteer.user_id), (Talent, Talent.user_id)):
