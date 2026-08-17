@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_CLAIM_EMAIL: str = "admin@thebend.app"
 
+    # Native push providers (initialized lazily by the worker)
+    FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
+    APNS_TEAM_ID: str = ""
+    APNS_KEY_ID: str = ""
+    APNS_PRIVATE_KEY: str = ""
+    APNS_BUNDLE_ID: str = "community.bend.westmoreland"
+    APNS_USE_SANDBOX: bool = False
+
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"

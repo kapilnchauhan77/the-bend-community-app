@@ -32,6 +32,8 @@ lxml = ">=4.9.0"
 stripe = ">=8.0.0"
 sendgrid = ">=6.0.0"
 ffmpeg-python = ">=0.2.0"
+firebase-admin = ">=6.5.0"
+aioapns = ">=3.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0"

@@ -1,6 +1,6 @@
 """Celery application configuration."""
 from celery import Celery
-from celery.schedules import crontab
+from celery.schedules import crontab, schedule
 from app.config import get_settings
 
 settings = get_settings()
@@ -33,6 +33,10 @@ celery_app.conf.update(
         "cleanup-read-notifications": {
             "task": "app.workers.scheduled_tasks.cleanup_read_notifications",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Weekly Sunday 3 AM
+        },
+        "dispatch-push-outbox": {
+            "task": "app.workers.push_tasks.dispatch_push_outbox",
+            "schedule": schedule(10.0),
         },
     },
 )

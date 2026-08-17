@@ -1,5 +1,6 @@
 """Push notification background tasks."""
 import logging
+import json
 from app.workers.celery_app import celery_app
 from app.config import get_settings
 
@@ -13,7 +14,6 @@ def _send_push(subscription_info: dict, title: str, body: str, data: dict | None
         return
     try:
         from pywebpush import webpush
-        import json
         payload = json.dumps({"title": title, "body": body, "data": data or {}})
         webpush(
             subscription_info=subscription_info,
@@ -52,3 +52,11 @@ def push_registration_decision(subscription_info: dict, approved: bool, shop_nam
         _send_push(subscription_info, "Registration Approved!", f"{shop_name} is now active on The Bend")
     else:
         _send_push(subscription_info, "Registration Update", f"Your registration for {shop_name} has been reviewed")
+
+
+@celery_app.task(name="app.workers.push_tasks.dispatch_push_outbox")
+def dispatch_push_outbox(batch_size: int = 100) -> int:
+    """Dispatch native outbox rows, safely owning the async session in the sync worker."""
+    from app.services.push_dispatcher import dispatch_pending_outbox
+
+    return dispatch_pending_outbox(batch_size)
