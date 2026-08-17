@@ -253,6 +253,15 @@ async def test_real_postgres_workers_are_idempotent_and_email_attempt_is_once(mo
             await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
 
 
+def test_every_users_fk_has_explicit_retention_policy():
+    from app.database import Base
+    from app.services.account_deletion_service import AccountDeletionService
+    inventory = AccountDeletionService.retention_inventory()
+    user_tables = {fk.parent.table.name for table in Base.metadata.tables.values() for fk in table.foreign_keys if fk.target_fullname.endswith("users.id")}
+    assert user_tables <= set(inventory)
+    assert all(inventory[name] in {"delete", "detach", "anonymize", "retain"} for name in user_tables)
+
+
 @pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
