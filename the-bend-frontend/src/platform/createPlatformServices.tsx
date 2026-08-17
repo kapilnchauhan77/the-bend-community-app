@@ -5,7 +5,7 @@ import { createNativePlatformServices } from './native/NativePlatformServices'
 import { createWebPlatformServices } from './web/WebPlatformServices'
 
 export function createPlatformServices(config: RuntimeConfig): PlatformServices {
-  return config.isNative ? createNativePlatformServices() : createWebPlatformServices()
+  return config.kind === 'ios' || config.kind === 'android' ? createNativePlatformServices() : createWebPlatformServices()
 }
 
 const PlatformServicesContext = createContext<PlatformServices | null>(null)

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderHook } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
 const secureValues = new Map<string, string>()
 vi.mock('@aparajita/capacitor-secure-storage', () => ({
   KeychainAccess: { whenUnlockedThisDeviceOnly: 1 },
@@ -13,6 +15,8 @@ import { createPlatformServices } from './createPlatformServices'
 import type { RuntimeConfig } from './contracts'
 import { NativeSessionStore } from './native/NativeSessionStore'
 import { WebSessionStore } from './web/WebSessionStore'
+import { UnsupportedPlatformOperation } from './unsupportedPlatformOperation'
+import { PlatformServicesProvider, usePlatformServices } from './createPlatformServices'
 
 function config(kind: RuntimeConfig['kind']): RuntimeConfig {
   return {
@@ -33,6 +37,10 @@ describe('createPlatformServices', () => {
     expect(createPlatformServices(config('ios')).sessionStore).toBeInstanceOf(NativeSessionStore)
   })
 
+  it('selects native services for Android', () => {
+    expect(createPlatformServices(config('android')).sessionStore).toBeInstanceOf(NativeSessionStore)
+  })
+
   it('selects web services for the browser', () => {
     expect(createPlatformServices(config('web')).sessionStore).toBeInstanceOf(WebSessionStore)
   })
@@ -43,5 +51,27 @@ describe('createPlatformServices', () => {
 
     expect(await nativeStore.load()).toEqual({ refreshToken: 'refresh-only' })
     expect(JSON.stringify(await nativeStore.load())).not.toContain('accessToken')
+  })
+
+  it('selects from the runtime kind even when isNative is inconsistent', () => {
+    expect(createPlatformServices({ ...config('ios'), isNative: false }).sessionStore).toBeInstanceOf(NativeSessionStore)
+    expect(createPlatformServices({ ...config('web'), isNative: true }).sessionStore).toBeInstanceOf(WebSessionStore)
+  })
+
+  it('rejects unsupported async native operations lazily', async () => {
+    const services = createPlatformServices(config('ios'))
+    await expect(services.browser.open('https://example.test')).rejects.toBeInstanceOf(UnsupportedPlatformOperation)
+  })
+
+  it('throws unsupported synchronous native operations only when called', () => {
+    const services = createPlatformServices(config('ios'))
+    expect(() => services.deepLinks.parse('https://example.test')).toThrow(UnsupportedPlatformOperation)
+    expect(() => services.analytics.capture('event')).toThrow(UnsupportedPlatformOperation)
+  })
+
+  it('provides platform services through the provider and hook', () => {
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(PlatformServicesProvider, { config: config('web') }, children)
+    const { result } = renderHook(() => usePlatformServices(), { wrapper })
+    expect(result.current.sessionStore).toBeInstanceOf(WebSessionStore)
   })
 })
