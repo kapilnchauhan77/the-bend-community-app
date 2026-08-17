@@ -402,6 +402,28 @@ async def test_capabilities_other_tenant_and_unknown_are_disabled_or_not_found(d
 
 
 @pytest.mark.asyncio
+async def test_capabilities_endpoint_dependency_isolation_for_other_tenant_and_none(db_context):
+    sessions, tenant, ids = db_context
+    other = Tenant(id=uuid.uuid4(), slug="another-valid-tenant", subdomain="another-valid-tenant", display_name="Another")
+    async with sessions() as db:
+        db.add(other)
+        await db.commit()
+    app = make_app(sessions, tenant)
+    app.dependency_overrides[get_current_tenant] = lambda: other
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        disabled = await client.get("/api/v1/capabilities/native")
+    assert disabled.status_code == 200
+    assert disabled.json()["native_commerce_enabled"] is False
+    app.dependency_overrides[get_current_tenant] = lambda: None
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        missing = await client.get("/api/v1/capabilities/native")
+    assert missing.status_code == 404 and missing.json() == {"detail": "Tenant not found"}
+    async with sessions() as db:
+        await db.delete(other)
+        await db.commit()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("kind,index", [("sponsor", 0), ("event", 1), ("connector", 2)])
 async def test_status_provider_variants_remain_pending_or_transition_authoritatively(monkeypatch, db_context, kind, index):
     sessions, tenant, ids = db_context
@@ -492,6 +514,33 @@ async def test_legacy_advertising_status_is_tenant_safe_and_compatible(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_legacy_advertising_status_local_shape_and_foreign_zero_provider(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: calls.append(1))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        local = await client.get("/api/v1/advertising/status/cs_sponsor_1")
+    assert local.status_code == 200
+    assert set(local.json()) == {"status", "paid", "approved", "is_active", "name"}
+    assert isinstance(local.json()["paid"], bool)
+    calls_before_foreign = len(calls)
+    foreign_tenant_id, foreign_id = uuid.uuid4(), uuid.uuid4()
+    async with sessions() as db:
+        db.add(Tenant(id=foreign_tenant_id, slug=f"legacy-foreign-{foreign_id.hex[:8]}", subdomain=f"legacy-foreign-{foreign_id.hex[:8]}", display_name="Foreign"))
+        await db.flush()
+        db.add(Sponsor(id=foreign_id, tenant_id=foreign_tenant_id, name="Foreign", placement="homepage", stripe_session_id="cs_legacy_foreign", expected_amount=1200, expected_currency="usd"))
+        await db.commit()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        foreign = await client.get("/api/v1/advertising/status/cs_legacy_foreign")
+    assert foreign.status_code == 404 and len(calls) == calls_before_foreign
+    async with sessions() as db:
+        await db.execute(__import__("sqlalchemy").delete(Sponsor).where(Sponsor.id == foreign_id))
+        await db.execute(__import__("sqlalchemy").delete(Tenant).where(Tenant.id == foreign_tenant_id))
+        await db.commit()
+
+
+@pytest.mark.asyncio
 async def test_two_asgi_status_clients_share_one_locked_transition(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     calls = []
@@ -507,6 +556,79 @@ async def test_two_asgi_status_clients_share_one_locked_transition(monkeypatch, 
     assert first.json()["status"] in {"paid", "complete"}
     assert second.json()["status"] in {"paid", "complete"}
     assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,state", [("sponsor", "paid"), ("sponsor", "complete"), ("sponsor", "cancelled"), ("event", "paid"), ("event", "complete"), ("event", "cancelled"), ("connector", "paid"), ("connector", "complete"), ("connector", "cancelled")])
+async def test_local_paid_complete_cancelled_maps_without_provider(monkeypatch, db_context, kind, state):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: calls.append(1))
+    async with sessions() as db:
+        if kind == "sponsor":
+            row = await db.get(Sponsor, ids[0])
+            row.checkout_status = "paid" if state != "cancelled" else "cancelled"
+            row.paid = state != "cancelled"
+            row.approved = state == "complete"
+            row.is_active = state == "complete"
+        elif kind == "event":
+            row = await db.get(Event, ids[1])
+            row.checkout_status = "paid" if state != "cancelled" else "cancelled"
+            row.paid = state != "cancelled"
+            row.status = EventStatus.ACTIVE if state == "complete" else EventStatus.CANCELLED
+        else:
+            row = await db.get(ConnectorPurchase, ids[2])
+            row.status = "cancelled" if state == "cancelled" else "paid"
+            row.setup_complete = state == "complete"
+        await db.commit()
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(f"/api/v1/checkout/status/{kind}/{['cs_sponsor_1', 'cs_event_1', 'cs_connector_1'][ids.index(row.id)]}")
+    assert response.status_code == 200 and response.json()["status"] == state
+    assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,index", [("sponsor", 0), ("event", 1), ("connector", 2)])
+async def test_actual_signed_cancellation_replay_each_kind(db_context, kind, index):
+    sessions, tenant, ids = db_context
+    expected = [1200, 1999, 39900][index]
+    sid = ["cs_sponsor_1", "cs_event_1", "cs_connector_1"][index]
+    import json, time
+    payload = {"id": f"evt_cancel_{kind}", "type": "checkout.session.expired", "data": {"object": {"id": sid, "status": "expired", "payment_status": "unpaid", "amount_total": expected, "currency": "usd", "metadata": {"kind": kind, "target_id": str(ids[index]), "tenant_id": str(tenant.id), "expected_amount": str(expected), "expected_currency": "usd"}}}}
+    raw = json.dumps(payload)
+    timestamp = int(time.time())
+    signature = stripe.WebhookSignature._compute_signature(f"{timestamp}.{raw}", tenant.stripe_webhook_secret)
+    headers = {"stripe-signature": f"t={timestamp},v1={signature}", "x-tenant-slug": tenant.slug}
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        first = await client.post("/api/v1/advertising/webhook", content=raw, headers=headers)
+        second = await client.post("/api/v1/advertising/webhook", content=raw, headers=headers)
+    assert first.status_code == second.status_code == 200
+    async with sessions() as db:
+        row = await db.get([Sponsor, Event, ConnectorPurchase][index], ids[index])
+        assert (row.checkout_status if kind != "connector" else row.status) == "cancelled"
+        assert row.paid is False if kind != "connector" else True
+
+
+@pytest.mark.asyncio
+async def test_actual_signed_connector_replay_concurrency_notifies_once(db_context):
+    sessions, tenant, ids = db_context
+    import asyncio, json, time
+    payload = {"id": "evt_connector_paid", "type": "checkout.session.completed", "data": {"object": {"id": "cs_connector_1", "status": "complete", "payment_status": "paid", "amount_total": 39900, "currency": "usd", "metadata": {"kind": "connector", "target_id": str(ids[2]), "tenant_id": str(tenant.id), "expected_amount": "39900", "expected_currency": "usd", "type": "connector_purchase"}}}}
+    raw = json.dumps(payload)
+    timestamp = int(time.time())
+    signature = stripe.WebhookSignature._compute_signature(f"{timestamp}.{raw}", tenant.stripe_webhook_secret)
+    headers = {"stripe-signature": f"t={timestamp},v1={signature}", "x-tenant-slug": tenant.slug}
+    app = make_app(sessions, tenant)
+    async def post_once():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            return await client.post("/api/v1/advertising/webhook", content=raw, headers=headers)
+    first, second = await asyncio.gather(post_once(), post_once())
+    assert first.status_code == second.status_code == 200
+    async with sessions() as db:
+        notifications = (await db.execute(__import__("sqlalchemy").select(Notification).where(Notification.tenant_id == tenant.id))).scalars().all()
+        assert len(notifications) == 1
 
 
 @pytest.mark.asyncio
