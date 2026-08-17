@@ -9,14 +9,19 @@ import pytest
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.api.deps import get_db
 from app.api.v1.devices import router as devices_router
 from app.api.v1.notifications import router as notifications_router
 from app.core.exceptions import AppException
 from app.core.permissions import get_current_user
-from app.database import engine
+from app.config import get_settings
+
+# This module creates one transaction per test across pytest event loops.
+# NullPool ensures no asyncpg connection is reused by a later loop.
+test_engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
 from app.models.device_installation import DeviceInstallation
 from app.models.enums import UserRole
 from app.models.tenant import Tenant
@@ -27,7 +32,7 @@ from app.services.device_service import DeviceService
 
 @pytest.fixture
 async def postgres_db():
-    async with engine.connect() as connection:
+    async with test_engine.connect() as connection:
         transaction = await connection.begin()
         session = AsyncSession(bind=connection, expire_on_commit=False)
         try:
@@ -35,7 +40,6 @@ async def postgres_db():
         finally:
             await session.close()
             await transaction.rollback()
-            await engine.dispose()
 
 
 async def make_user(db: AsyncSession, tenant_id: UUID | None = None):
@@ -49,7 +53,7 @@ async def make_user(db: AsyncSession, tenant_id: UUID | None = None):
 
 
 async def make_committed_user():
-    async with engine.connect() as connection:
+    async with test_engine.connect() as connection:
         transaction = await connection.begin()
         session = AsyncSession(bind=connection, expire_on_commit=False)
         try:
@@ -201,7 +205,7 @@ async def test_concurrent_unowned_provider_token_claims_are_serialized(postgres_
 
     async def claim(user_data):
         await barrier.wait()
-        async with engine.connect() as connection:
+        async with test_engine.connect() as connection:
             transaction = await connection.begin()
             session = AsyncSession(bind=connection, expire_on_commit=False)
             try:
@@ -215,7 +219,7 @@ async def test_concurrent_unowned_provider_token_claims_are_serialized(postgres_
     try:
         results = await asyncio.gather(*(claim(user_data) for user_data in claims), return_exceptions=True)
         assert not any(isinstance(result, Exception) for result in results), results
-        async with engine.connect() as connection:
+        async with test_engine.connect() as connection:
             check = AsyncSession(bind=connection, expire_on_commit=False)
             rows = (await check.execute(select(DeviceInstallation).where(DeviceInstallation.provider_token == token))).scalars().all()
             all_rows = (await check.execute(select(DeviceInstallation).where(DeviceInstallation.user_id.in_([claim[0] for claim in claims])))).scalars().all()
@@ -223,9 +227,9 @@ async def test_concurrent_unowned_provider_token_claims_are_serialized(postgres_
         assert len(rows) == 1 and rows[0].enabled is True
         assert sum(row.enabled for row in all_rows) == 1
     finally:
-        async with engine.begin() as connection:
+        async with test_engine.begin() as connection:
             await connection.execute(delete(Tenant).where(Tenant.id.in_(created_tenant_ids)))
-        async with engine.connect() as connection:
+        async with test_engine.connect() as connection:
             check = AsyncSession(bind=connection, expire_on_commit=False)
             leaked = (await check.execute(select(DeviceInstallation).where(DeviceInstallation.provider_token == token))).scalars().all()
             await check.close()
