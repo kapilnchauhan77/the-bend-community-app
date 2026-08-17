@@ -1,5 +1,5 @@
 from uuid import uuid4, UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,8 @@ from app.repositories.user_repo import UserRepository
 from app.repositories.shop_repo import ShopRepository
 from app.models.enums import UserRole, ShopStatus, NotificationType
 from app.models.user import User
+from app.models.refresh_session import RefreshSession
+from app.config import get_settings
 from app.schemas.auth import RegisterRequest, TokenResponse, UserResponse, ShopResponse
 from app.services.notification_service import NotificationService
 
@@ -160,7 +162,15 @@ class AuthService:
 
         # Generate tokens
         access_token = create_access_token(user.id, user.role.value, user.shop_id)
-        refresh_token = create_refresh_token(user.id)
+        now = datetime.utcnow()
+        refresh_session = RefreshSession(
+            id=uuid4(),
+            user_id=user.id,
+            expires_at=now + timedelta(days=get_settings().JWT_REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+        self.db.add(refresh_session)
+        await self.db.flush()
+        refresh_token = create_refresh_token(user.id, refresh_session.id)
 
         return TokenResponse(
             access_token=access_token,
@@ -172,13 +182,44 @@ class AuthService:
     async def refresh_token(self, refresh_token: str) -> dict:
         """Refresh an expired access token."""
         payload = decode_refresh_token(refresh_token)
-        user_id = payload.get("sub")
+        try:
+            user_id = UUID(payload["sub"])
+            session_id = UUID(payload["sid"])
+        except (KeyError, TypeError, ValueError):
+            raise UnauthorizedError("Invalid refresh token")
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise UnauthorizedError("Invalid refresh token")
 
+        session = await self.db.get(RefreshSession, session_id)
+        now = datetime.utcnow()
+        if (
+            not session
+            or session.user_id != user_id
+            or session.revoked_at is not None
+            or session.expires_at <= now
+        ):
+            raise UnauthorizedError("Invalid refresh token")
+        session.last_used_at = now
+        await self.db.flush()
+
         access_token = create_access_token(user.id, user.role.value, user.shop_id)
         return {"access_token": access_token, "token_type": "bearer"}
+
+    async def logout(self, refresh_token: str) -> None:
+        """Revoke a refresh session, without disclosing session existence."""
+        try:
+            payload = decode_refresh_token(refresh_token)
+            user_id = UUID(payload["sub"])
+            session_id = UUID(payload["sid"])
+        except (UnauthorizedError, KeyError, TypeError, ValueError):
+            return None
+
+        session = await self.db.get(RefreshSession, session_id)
+        if session and session.user_id == user_id and session.revoked_at is None:
+            session.revoked_at = datetime.utcnow()
+            await self.db.flush()
+        return None
 
     async def forgot_password(self, email: str) -> dict:
         """Send password reset email (always returns success for security)."""

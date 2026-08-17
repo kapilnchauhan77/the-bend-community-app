@@ -25,6 +25,7 @@ from app.models.report import Report
 from app.models.endorsement import Endorsement
 from app.models.discount_code import DiscountCode
 from app.models.bender import BenderPost, BenderLike, BenderComment
+from app.models.refresh_session import RefreshSession
 
 __all__ = [
     "UserRole", "ShopStatus", "ListingType", "ListingCategory",
@@ -43,4 +44,5 @@ __all__ = [
     "Endorsement",
     "DiscountCode",
     "BenderPost", "BenderLike", "BenderComment",
+    "RefreshSession",
 ]

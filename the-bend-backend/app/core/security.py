@@ -44,11 +44,12 @@ def create_access_token(
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
 
 
-def create_refresh_token(user_id: UUID) -> str:
+def create_refresh_token(user_id: UUID, session_id: UUID) -> str:
     """Create a long-lived refresh token (7 days)."""
     expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": str(user_id),
+        "sid": str(session_id),
         "exp": expire,
         "type": REFRESH_TOKEN_TYPE,
     }

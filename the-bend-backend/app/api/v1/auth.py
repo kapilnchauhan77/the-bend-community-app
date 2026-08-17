@@ -8,7 +8,7 @@ from app.services.auth_service import AuthService
 from app.schemas.auth import (
     RegisterRequest, RegisterResponse, LoginRequest, TokenResponse,
     RefreshRequest, RefreshResponse, ForgotPasswordRequest,
-    ResetPasswordRequest, MessageResponse,
+    ResetPasswordRequest, MessageResponse, LogoutRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -45,6 +45,16 @@ async def refresh_token(
 ):
     """Refresh an expired access token."""
     return await service.refresh_token(data.refresh_token)
+
+
+@router.post("/logout", response_model=MessageResponse)
+async def logout(
+    data: LogoutRequest,
+    service: AuthService = Depends(get_auth_service),
+):
+    """Revoke a refresh token."""
+    await service.logout(data.refresh_token)
+    return {"message": "Logged out successfully"}
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
