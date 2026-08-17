@@ -68,7 +68,7 @@ class CheckoutVerificationService:
             pass
         return {"status": self._status(kind, row), "target_type": kind, "target_id": str(row.id)}
 
-    async def apply_provider_transition(self, kind: str, row: Any, checkout: dict) -> bool:
+    async def apply_provider_transition(self, kind: str, row: Any, checkout: dict) -> str | None:
         if not self._matches(kind, row, checkout):
             return False
         provider_status = checkout.get("status")

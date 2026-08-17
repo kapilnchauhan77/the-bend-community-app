@@ -336,6 +336,53 @@ async def test_capabilities_exact_contract_and_credential_matrix(monkeypatch, db
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("kind,index", [("sponsor", 0), ("event", 1), ("connector", 2)])
+async def test_status_provider_variants_remain_pending_or_transition_authoritatively(monkeypatch, db_context, kind, index):
+    sessions, tenant, ids = db_context
+    sid = ["cs_sponsor_1", "cs_event_1", "cs_connector_1"][index]
+    expected = [1200, 1999, 39900][index]
+    calls = []
+    app = make_app(sessions, tenant)
+    def retrieve(session_id, **kwargs):
+        calls.append(kwargs)
+        return {"id": session_id, "status": "open", "payment_status": "unpaid", "amount_total": expected, "currency": "usd", "metadata": {"kind": kind, "target_id": str(ids[index]), "tenant_id": str(tenant.id), "expected_amount": str(expected), "expected_currency": "usd"}}
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", retrieve)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(f"/api/v1/checkout/status/{kind}/{sid}")
+    assert response.json()["status"] == "pending"
+    assert len(calls) == 1
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: {"id": sid, "status": "complete", "payment_status": "paid", "amount_total": expected, "currency": "usd", "metadata": {"kind": kind, "target_id": str(ids[index]), "tenant_id": str(tenant.id), "expected_amount": str(expected), "expected_currency": "usd"}})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(f"/api/v1/checkout/status/{kind}/{sid}")
+    assert response.json()["status"] in {"paid", "complete"}
+
+
+@pytest.mark.asyncio
+async def test_status_rejects_wrong_kind_cross_tenant_deleted_and_oversized_without_provider(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: calls.append(1))
+    app = make_app(sessions, tenant)
+    paths = ["/api/v1/checkout/status/nope/cs_sponsor_1", "/api/v1/checkout/status/sponsor/" + "cs_" + "a" * 250, "/api/v1/checkout/status/event/cs_sponsor_1"]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        for path in paths:
+            assert (await client.get(path)).status_code == 404
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_legacy_advertising_status_is_tenant_safe_and_compatible(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *a, **k: calls.append(1))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/advertising/status/cs_unknown")
+    assert response.status_code == 404
+    assert calls == []
+
+
+@pytest.mark.asyncio
 async def test_two_asgi_status_clients_share_one_locked_transition(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     calls = []
