@@ -14,6 +14,9 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.message import MessageThread, Message
 from app.services.message_service import MessageService
+from app.core.security import create_access_token
+from fastapi import WebSocketDisconnect
+from app.api.ws import chat as chat_ws
 from app.services.notification_service import NotificationService
 from app.services.push_dispatcher import build_native_payload, CATEGORY_SPECS
 
@@ -108,6 +111,58 @@ async def test_legacy_direct_thread_derives_recipient_tenant_and_notification_id
             assert notification.data == {"target_type": "message", "target_id": str(thread_id)}
             assert (await db.execute(select(NotificationOutbox).where(NotificationOutbox.notification_id == notification.id, NotificationOutbox.tenant_id == tenant_id))).scalar_one_or_none() is not None
     finally:
+        async with async_session() as db:
+            await db.execute(delete(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))
+            await db.execute(delete(Notification).where(Notification.tenant_id == tenant_id))
+            await db.execute(delete(Message).where(Message.thread_id == thread_id))
+            await db.execute(delete(MessageThread).where(MessageThread.id == thread_id))
+            await db.execute(delete(User).where(User.id == sender_id, User.tenant_id == tenant_id))
+            await db.commit()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_websocket_handler_legacy_thread_without_caller_tenant(pg_subject):
+    tenant_id, recipient_id = pg_subject
+    sender_id, thread_id = uuid4(), uuid4()
+    async with async_session() as db:
+        db.add(User(id=sender_id, tenant_id=tenant_id, email=f"task4-ws-{sender_id}@example.test", password_hash="x", name="WS Sender", role=UserRole.INDIVIDUAL))
+        db.add(MessageThread(id=thread_id, participant_a=sender_id, participant_b=recipient_id, tenant_id=None))
+        await db.commit()
+
+    class _Socket:
+        def __init__(self, token, incoming=None):
+            self.query_params = {"token": token}
+            self.incoming = incoming
+            self.sent = []
+            self.accepted = False
+        async def accept(self):
+            self.accepted = True
+        async def receive_text(self):
+            if self.incoming is not None:
+                value, self.incoming = self.incoming, None
+                return value
+            raise WebSocketDisconnect()
+        async def send_json(self, payload):
+            self.sent.append(payload)
+        async def close(self, **kwargs):
+            pass
+
+    recipient_socket = _Socket(create_access_token(recipient_id, UserRole.INDIVIDUAL.value))
+    sender_socket = _Socket(create_access_token(sender_id, UserRole.INDIVIDUAL.value), __import__("json").dumps({"type": "message", "thread_id": str(thread_id), "content": "secret"}))
+    chat_ws.manager.active.setdefault(str(recipient_id), set()).add(recipient_socket)
+    try:
+        await chat_ws.websocket_chat(sender_socket)
+        assert recipient_socket.sent
+        event = recipient_socket.sent[-1]
+        assert event["type"] == "message"
+        assert event["data"]["notification_id"]
+        async with async_session() as db:
+            notification = (await db.execute(select(Notification).where(Notification.user_id == recipient_id, Notification.tenant_id == tenant_id).order_by(Notification.created_at.desc()))).scalars().first()
+            assert notification is not None
+            assert (await db.execute(select(NotificationOutbox).where(NotificationOutbox.notification_id == notification.id))).scalar_one_or_none() is not None
+    finally:
+        chat_ws.manager.active.pop(str(recipient_id), None)
         async with async_session() as db:
             await db.execute(delete(NotificationOutbox).where(NotificationOutbox.tenant_id == tenant_id))
             await db.execute(delete(Notification).where(Notification.tenant_id == tenant_id))
