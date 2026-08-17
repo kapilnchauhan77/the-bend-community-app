@@ -296,6 +296,26 @@ async def test_signed_webhook_mismatch_does_not_transition(monkeypatch, db_conte
 
 
 @pytest.mark.asyncio
+async def test_real_stripe_signature_valid_missing_invalid_and_wrong_secret(db_context):
+    sessions, tenant, ids = db_context
+    import time, json
+    payload = {"id": "evt_task8", "type": "checkout.session.completed", "data": {"object": {"id": "cs_sponsor_1", "status": "complete", "payment_status": "paid", "amount_total": 1200, "currency": "usd", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}}}
+    raw = json.dumps(payload)
+    timestamp = int(time.time())
+    signature = stripe.WebhookSignature._compute_signature(f"{timestamp}.{raw}", tenant.stripe_webhook_secret)
+    header = f"t={timestamp},v1={signature}"
+    wrong_signature = stripe.WebhookSignature._compute_signature(f"{timestamp}.{raw}", "whsec_wrong_tenant")
+    wrong_header = f"t={timestamp},v1={wrong_signature}"
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        valid = await client.post("/api/v1/advertising/webhook", content=raw, headers={"stripe-signature": header, "x-tenant-slug": tenant.slug})
+        missing = await client.post("/api/v1/advertising/webhook", content=raw, headers={"x-tenant-slug": tenant.slug})
+        invalid = await client.post("/api/v1/advertising/webhook", content=raw, headers={"stripe-signature": "t=1,v1=bad", "x-tenant-slug": tenant.slug})
+        wrong_secret = await client.post("/api/v1/advertising/webhook", content=raw, headers={"stripe-signature": wrong_header, "x-tenant-slug": tenant.slug})
+    assert valid.status_code == 200 and missing.status_code == 400 and invalid.status_code == 400 and wrong_secret.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_signed_expired_webhook_cancels_local_checkout(monkeypatch, db_context):
     sessions, tenant, ids = db_context
     event = {"type": "checkout.session.expired", "data": {"object": {"id": "cs_sponsor_1", "status": "expired", "payment_status": "unpaid", "amount_total": 1200, "currency": "usd", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}}}

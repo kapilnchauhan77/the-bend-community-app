@@ -248,7 +248,11 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     if event["type"] in {"checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_failed"}:
         session = event["data"]["object"]
+        if not isinstance(session, dict):
+            session = getattr(session, "_data", session)
         metadata = session.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = getattr(metadata, "_data", metadata)
         kind = metadata.get("kind")
         target_id = metadata.get("target_id")
         if kind not in {"sponsor", "event", "connector"} or not target_id or not tenant or (session.get("status") not in {"complete", "expired", "canceled"}):

@@ -1,4 +1,5 @@
 import re
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from app.models.tenant import Tenant
 
 _SESSION = re.compile(r"^cs_[A-Za-z0-9_]{1,240}$")
 _KINDS = {"sponsor", "event", "connector"}
+logger = logging.getLogger(__name__)
 
 
 class CheckoutVerificationService:
@@ -58,13 +60,16 @@ class CheckoutVerificationService:
             return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
         try:
             checkout = stripe.checkout.Session.retrieve(session_id, api_key=keys.secret)
+            if not isinstance(checkout, dict):
+                logger.warning("checkout_provider_mismatch kind=%s reason=malformed_response", kind)
+                return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
+            if not self._matches(kind, row, checkout):
+                logger.warning("checkout_provider_mismatch kind=%s reason=metadata_or_amount_mismatch", kind)
+                return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
             await self.apply_provider_transition(kind, row, checkout)
             await self.db.flush()
         except (stripe.error.StripeError, OSError, TimeoutError):
-            pass
-        except (AttributeError, TypeError, KeyError):
-            # Malformed provider payloads are non-authoritative and retryable;
-            # database/logic exceptions intentionally propagate.
+            logger.warning("checkout_provider_failure kind=%s reason=provider_unavailable", kind)
             pass
         return {"status": self._status(kind, row), "target_type": kind, "target_id": str(row.id)}
 
@@ -101,18 +106,31 @@ class CheckoutVerificationService:
         return "paid"
 
     @staticmethod
+    def _as_dict(value: Any) -> dict:
+        if isinstance(value, dict):
+            return value
+        data = getattr(value, "_data", None)
+        return data if isinstance(data, dict) else {}
+
+    @staticmethod
     def _matches(kind: str, row: Any, checkout: dict) -> bool:
-        metadata = checkout.get("metadata") or {}
+        checkout = CheckoutVerificationService._as_dict(checkout)
+        metadata = CheckoutVerificationService._as_dict(checkout.get("metadata"))
         expected = getattr(row, "expected_amount", None)
         currency = (getattr(row, "expected_currency", "usd") or "usd").lower()
         amount = checkout.get("amount_total")
+        provider_currency = checkout.get("currency")
+        metadata_amount = metadata.get("expected_amount")
+        metadata_currency = metadata.get("expected_currency")
+        if not isinstance(provider_currency, str) or not isinstance(metadata_currency, str):
+            return False
         return (
             checkout.get("id") == row.stripe_session_id
             and metadata.get("kind") == kind
             and metadata.get("target_id") == str(row.id)
             and metadata.get("tenant_id") == str(row.tenant_id)
-            and metadata.get("expected_amount") == (str(expected) if expected is not None else metadata.get("expected_amount"))
-            and metadata.get("expected_currency", "").lower() == currency
+            and metadata_amount == (str(expected) if expected is not None else metadata_amount)
+            and metadata_currency.lower() == currency
             and expected is not None and amount == expected
-            and checkout.get("currency", "").lower() == currency
+            and provider_currency.lower() == currency
         )
