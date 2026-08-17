@@ -655,20 +655,20 @@ function BenderComposer({
       const fd = new FormData();
       fd.append('file', file, file.name);
       try {
-        const res = await api.post('/upload/media', fd, {
+        const res = await runOnline(() => api.post('/upload/media', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        }));
         const data = res.data as Record<string, unknown>;
         setPending({
           url: String(data.url || ''),
           thumbnail_url: (data.thumbnail_url as string | null | undefined) ?? null,
           type: (data.type as 'image' | 'video' | undefined) ?? (file.type.startsWith('video/') ? 'video' : 'image'),
         });
-      } catch {
-        setError('Could not upload that file. Try a smaller one.');
+      } catch (error) {
+        setError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not upload that file. Try a smaller one.');
       }
     },
-    []
+    [runOnline]
   );
 
   const canSubmit = (caption.trim().length > 0 || pending !== null) && !submitting;

@@ -202,10 +202,10 @@ export default function CreateListingPage() {
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
-      const res = await uploadApi.uploadImages(Array.from(files));
+      const res = await runOnline(() => uploadApi.uploadImages(Array.from(files)));
       setImages(prev => [...prev, ...(res.data.images || [])]);
-    } catch {
-      // silent
+    } catch (error) {
+      setServerError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : null);
     } finally {
       setUploading(false);
       e.target.value = '';

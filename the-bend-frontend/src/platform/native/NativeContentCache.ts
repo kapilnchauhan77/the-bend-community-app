@@ -7,6 +7,17 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const PUBLIC_KINDS = new Set<CachedContent['kind']>(['listing', 'business', 'event', 'bender'])
 const INDEX_PATH = 'bend-public-cache/index.json'
 type Entry = CachedContent & { lastAccessedAt: string }
+const PUBLIC_FIELDS: Record<CachedContent['kind'], string[]> = {
+  listing: ['id', 'type', 'category', 'title', 'description', 'quantity', 'unit', 'urgency', 'pricing_type', 'is_free', 'price', 'price_max', 'price_unit', 'price_text', 'expiry_date', 'status', 'images', 'shop', 'posted_by', 'created_at'],
+  business: ['id', 'name', 'business_type', 'description', 'avatar_url', 'website', 'address', 'city', 'state', 'zip_code', 'listings'],
+  event: ['id', 'title', 'description', 'start_date', 'end_date', 'location', 'category', 'source', 'source_url', 'is_featured', 'created_at'],
+  bender: ['id', 'caption', 'media_url', 'media_thumbnail_url', 'media_type', 'created_at', 'author', 'like_count', 'comment_count'],
+}
+export function normalizePublicContent(kind: CachedContent['kind'], input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input
+  const source = input as Record<string, unknown>
+  return Object.fromEntries(PUBLIC_FIELDS[kind].filter((field) => field in source).map((field) => [field, source[field]]))
+}
 const canonicalKey = (kind: CachedContent['kind'], entityId: string) => `${kind}:${entityId}`
 const validKey = (key: string, kind: CachedContent['kind'], entityId: string) => key === canonicalKey(kind, entityId) && !/[\\/]/.test(entityId)
 
@@ -16,10 +27,12 @@ export class NativeContentCache implements ContentCache {
   private readonly memory: boolean
   private entries = new Map<string, Entry>()
   private loaded = false
+  private queue: Promise<unknown> = Promise.resolve()
 
   constructor(options: { storage?: 'memory' | 'filesystem' } = {}) { this.memory = options.storage === 'memory' }
 
   static resetForTests() { testMemory = new Map() }
+  private enqueue<T>(task: () => Promise<T>): Promise<T> { const next = this.queue.then(task, task); this.queue = next.catch(() => undefined); return next }
 
   private async load() {
     if (this.loaded) return
@@ -69,23 +82,26 @@ export class NativeContentCache implements ContentCache {
     }
   }
 
-  async put(content: CachedContent): Promise<void> {
+  async put(content: CachedContent): Promise<void> { return this.enqueue(() => this.putInternal(content)) }
+  private async putInternal(content: CachedContent): Promise<void> {
     await this.load()
     if (!PUBLIC_KINDS.has(content.kind)) throw new Error('PUBLIC_CONTENT_ONLY')
     if (!validKey(content.key, content.kind, content.entityId)) throw new Error('INVALID_CACHE_KEY')
     if (content.imagePath && /(^|[\\/])\.\.?([\\/])/.test(content.imagePath)) throw new Error('INVALID_CACHE_IMAGE_PATH')
     const previous = this.entries.get(content.key)
-    if (previous?.imagePath && previous.imagePath !== content.imagePath) await this.deleteImage(previous.imagePath)
     let imageBytes = 0
     if (content.imagePath) { try { imageBytes = (await Filesystem.stat({ path: content.imagePath, directory: Directory.Data })).size ?? 0 } catch { imageBytes = 0 } }
-    const sizeBytes = new TextEncoder().encode(JSON.stringify({ key: content.key, kind: content.kind, entityId: content.entityId, cachedAt: content.cachedAt, payload: content.payload })).byteLength + imageBytes
+    const payload = normalizePublicContent(content.kind, content.payload)
+    const sizeBytes = new TextEncoder().encode(JSON.stringify({ key: content.key, kind: content.kind, entityId: content.entityId, cachedAt: content.cachedAt, payload })).byteLength + imageBytes
     if (sizeBytes > MAX_BYTES) return
-    this.entries.set(content.key, { ...content, imagePath: content.imagePath ?? null, sizeBytes, lastAccessedAt: new Date().toISOString() })
+    this.entries.set(content.key, { ...content, payload, imagePath: content.imagePath ?? null, sizeBytes, lastAccessedAt: new Date().toISOString() })
+    if (previous?.imagePath && previous.imagePath !== content.imagePath) await this.deleteImage(previous.imagePath)
     await this.evict()
     await this.persist()
   }
 
-  async get(key: string): Promise<CachedContent | null> {
+  async get(key: string): Promise<CachedContent | null> { return this.enqueue(() => this.getInternal(key)) }
+  private async getInternal(key: string): Promise<CachedContent | null> {
     await this.load()
     const item = this.entries.get(key)
     if (!item) return null
@@ -95,9 +111,9 @@ export class NativeContentCache implements ContentCache {
     return { ...item }
   }
 
-  async remove(key: string) { await this.load(); const item = this.entries.get(key); this.entries.delete(key); if (item) await this.deleteImage(item.imagePath); await this.persist() }
-  async clear() { await this.load(); await Promise.all([...this.entries.values()].map((item) => this.deleteImage(item.imagePath))); this.entries.clear(); await this.persist() }
-  async stats() { await this.load(); return { items: this.entries.size, bytes: [...this.entries.values()].reduce((sum, item) => sum + item.sizeBytes, 0) } }
+  async remove(key: string) { return this.enqueue(async () => { await this.load(); const item = this.entries.get(key); this.entries.delete(key); if (item) await this.deleteImage(item.imagePath); await this.persist() }) }
+  async clear() { return this.enqueue(async () => { await this.load(); await Promise.all([...this.entries.values()].map((item) => this.deleteImage(item.imagePath))); this.entries.clear(); await this.persist() }) }
+  async stats() { return this.enqueue(async () => { await this.load(); return { items: this.entries.size, bytes: [...this.entries.values()].reduce((sum, item) => sum + item.sizeBytes, 0) } }) }
 }
 
 export const nativeContentCache = new NativeContentCache()

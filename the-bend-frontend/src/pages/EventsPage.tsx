@@ -827,9 +827,9 @@ export default function EventsPage() {
                               if (!file) return;
                               setDocUploading(true);
                               try {
-                                const { data } = await uploadApi.uploadPhoto(file);
+                                const { data } = await runOnline(() => uploadApi.uploadPhoto(file));
                                 setNonprofitDocUrl(data.photo_url);
-                              } catch { /* silent */ }
+                              } catch (error) { setPostError(error instanceof Error && error.message === 'OFFLINE_ACTION_UNAVAILABLE' ? 'OFFLINE_ACTION_UNAVAILABLE' : 'Could not upload document.'); }
                               setDocUploading(false);
                               ev.target.value = '';
                             }} />
