@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
+    UPLOAD_IDEMPOTENCY_TTL_SECONDS: int = 86400
 
     # JWT
     JWT_SECRET_KEY: str = "jwt-secret-change-me-in-production"

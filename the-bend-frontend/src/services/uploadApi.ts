@@ -1,13 +1,22 @@
 import api from './api';
 
+export type UploadProgress = (percent: number) => void;
+const key = (value?: string) => value || crypto.randomUUID();
+const uploadConfig = (idempotencyKey: string, onProgress?: UploadProgress) => ({
+  headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': idempotencyKey },
+  onUploadProgress: (event: { loaded: number; total?: number }) => {
+    if (event.total && onProgress) onProgress(Math.round((event.loaded / event.total) * 100));
+  },
+});
+
 export const uploadApi = {
-  uploadImages: (files: File[]) => {
+  uploadImages: (files: File[], idempotencyKey?: string, onProgress?: UploadProgress) => {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     return api.post<{ images: Array<{ id: string; url: string; thumbnail_url: string }> }>(
       '/upload/images',
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      uploadConfig(key(idempotencyKey), onProgress)
     );
   },
 
@@ -21,26 +30,26 @@ export const uploadApi = {
 
   getCurrentGuidelines: () => api.get('/upload/guidelines/current'),
 
-  uploadPhoto: (file: File) => {
+  uploadPhoto: (file: File, idempotencyKey?: string, onProgress?: UploadProgress) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post<{ photo_url: string }>('/upload/photo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      ...uploadConfig(key(idempotencyKey), onProgress),
     });
   },
 
-  uploadAvatar: (file: File) => {
+  uploadAvatar: (file: File, idempotencyKey?: string, onProgress?: UploadProgress) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.post<{ avatar_url: string }>('/upload/avatar', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      ...uploadConfig(key(idempotencyKey), onProgress),
     });
   },
 
   // Unified image / video / voice-note upload backing the in-app camera and
   // microphone flows. Server enforces 25 MB and 10 s caps; client also caps
   // recording at 9 s. Voice notes have no thumbnail.
-  uploadMedia: (file: Blob | File) => {
+  uploadMedia: (file: Blob | File, idempotencyKey?: string, onProgress?: UploadProgress) => {
     const fd = new FormData();
     const filename =
       (file as File).name ||
@@ -66,7 +75,7 @@ export const uploadApi = {
       type: 'image' | 'video' | 'audio';
       duration_ms?: number;
     }>('/upload/media', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      ...uploadConfig(key(idempotencyKey), onProgress),
     });
   },
 };

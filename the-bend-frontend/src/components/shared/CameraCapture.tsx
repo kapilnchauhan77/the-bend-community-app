@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, Video, X, RotateCcw, Check, Upload, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
+import { Capacitor } from '@capacitor/core';
+import { usePlatformServices } from '@/platform/createPlatformServices';
+import { UploadProgress } from '@/components/native/UploadProgress';
 
 // Maximum recorded video length. Server enforces 10s; we cap a hair below
 // so we never trip the server-side bound on slow clocks.
@@ -46,6 +49,7 @@ export function CameraCapture({
   mode = 'both',
   uploadEndpoint,
 }: Props) {
+  const services = usePlatformServices();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -67,6 +71,7 @@ export function CameraCapture({
   const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
   const [capturedType, setCapturedType] = useState<CaptureMode>('photo');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const stopStream = useCallback(() => {
     if (streamRef.current) {
@@ -166,6 +171,17 @@ export function CameraCapture({
 
   // Photo capture: paint current frame to canvas, JPEG-encode it.
   const takePhoto = useCallback(() => {
+    if (Capacitor.isNativePlatform()) {
+      void services.media.capturePhoto().then((selection) => {
+        if (!selection) return;
+        setCapturedBlob(selection.blob);
+        setCapturedPreviewUrl(selection.localUri || URL.createObjectURL(selection.blob));
+        setCapturedType('photo');
+        setStage('preview');
+        stopStream();
+      }).catch(() => setStreamError('Camera access was denied. You can choose a photo below.'));
+      return;
+    }
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -191,7 +207,7 @@ export function CameraCapture({
       'image/jpeg',
       PHOTO_QUALITY
     );
-  }, [stopStream]);
+  }, [services.media, stopStream]);
 
   const stopRecordingInternal = useCallback(() => {
     if (recordTimerRef.current) {
@@ -297,6 +313,7 @@ export function CameraCapture({
   const performUpload = useCallback(async () => {
     if (!capturedBlob) return;
     setStage('uploading');
+    setUploadProgress(0);
     setUploadError(null);
     try {
       const fd = new FormData();
@@ -310,7 +327,8 @@ export function CameraCapture({
       fd.append('file', capturedBlob, filename);
       const endpoint = uploadEndpoint || '/upload/media';
       const res = await api.post(endpoint, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': crypto.randomUUID() },
+        onUploadProgress: (event) => { if (event.total) setUploadProgress(Math.round((event.loaded / event.total) * 100)); },
       });
       const data = res.data as Record<string, unknown>;
       let result: CameraResult;
@@ -584,6 +602,7 @@ export function CameraCapture({
             <div className="flex flex-col items-center gap-3 text-white">
               <Loader2 className="w-10 h-10 animate-spin" />
               <p className="text-sm font-medium">Uploading…</p>
+              <UploadProgress value={uploadProgress} />
             </div>
           </div>
         )}

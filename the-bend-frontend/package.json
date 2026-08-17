@@ -23,6 +23,7 @@
     "@capacitor/camera": "^8.2.2",
     "@capacitor/core": "^8.5.0",
     "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/geolocation": "^8.2.2",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/network": "^8.0.1",
     "@capacitor/preferences": "^8.0.1",

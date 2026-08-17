@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Share2, Link2, Mail, MessageCircle, Check, Globe } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { usePlatformServices } from '@/platform/createPlatformServices';
 
 interface ShareButtonProps {
   url: string;
@@ -9,6 +11,7 @@ interface ShareButtonProps {
 }
 
 export function ShareButton({ url, title, description, className = '' }: ShareButtonProps) {
+  const services = usePlatformServices();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -28,14 +31,10 @@ export function ShareButton({ url, title, description, className = '' }: ShareBu
   const encodedDesc = encodeURIComponent(description || title);
 
   const handleNativeShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text: description || title, url: fullUrl });
-        setOpen(false);
-      } catch {
-        // User cancelled or not supported
-      }
-    }
+    const result = Capacitor.isNativePlatform()
+      ? await services.share.share({ title, text: description || title, url: fullUrl })
+      : services.share.share({ title, text: description || title, url: fullUrl });
+    if (await result === 'shared') setOpen(false);
   };
 
   const shareText = description ? `${title}\n${description}\n${fullUrl}` : `${title}\n${fullUrl}`;
@@ -86,7 +85,7 @@ export function ShareButton({ url, title, description, className = '' }: ShareBu
 
   // On mobile, try native share first
   const handleClick = () => {
-    if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    if ((Capacitor.isNativePlatform() || navigator.share) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
       handleNativeShare();
     } else {
       setOpen(!open);

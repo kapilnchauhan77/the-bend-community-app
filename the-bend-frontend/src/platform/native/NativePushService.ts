@@ -2,7 +2,6 @@ import { PushNotifications, type PermissionStatus } from '@capacitor/push-notifi
 import { Preferences } from '@capacitor/preferences'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 import type { AuthSnapshot, DeepLinkTarget, PushCategory, PushForegroundEvent, PushService, RemoveListener } from '../contracts'
-import { notificationApi } from '@/services/notificationApi'
 
 const INSTALLATION_KEY = 'bend.push.installation-id'
 const REVOCATION_KEY = 'bend.push.revocation-secret'
@@ -18,7 +17,7 @@ export interface NativePushDependencies {
   buildNumber: string
   locale: string
   push?: PushApi
-  api?: typeof notificationApi
+  api?: unknown
   secureStorage?: SecureStore
   createInstallationId?: () => string
   createRevocationSecret?: () => string
@@ -58,7 +57,7 @@ export class NativePushService implements PushService {
   private activeConversationId: string | null = null
 
   constructor(deps: NativePushDependencies) {
-    this.deps = { ...deps, push: deps.push ?? PushNotifications, api: deps.api ?? notificationApi, secureStorage: deps.secureStorage ?? secureStore, createInstallationId: deps.createInstallationId ?? randomValue, createRevocationSecret: deps.createRevocationSecret ?? randomValue }
+    this.deps = { ...deps, push: deps.push ?? PushNotifications, secureStorage: deps.secureStorage ?? secureStore, createInstallationId: deps.createInstallationId ?? randomValue, createRevocationSecret: deps.createRevocationSecret ?? randomValue }
   }
 
   async explainAndRequest(): Promise<'granted' | 'denied' | 'prompt'> {

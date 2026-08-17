@@ -1,10 +1,12 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { usePlatformServices } from '@/platform/createPlatformServices';
+import { PermissionPrimer } from '@/components/native/PermissionPrimer';
 
 // Fix Leaflet's default marker icons under Vite/bundlers (asset URLs).
 L.Icon.Default.mergeOptions({
@@ -37,6 +39,8 @@ function ClickToPlace({ onChange }: { onChange: (lat: number, lng: number) => vo
 }
 
 export default function LocationPinEditor({ lat, lng, onChange }: LocationPinEditorProps) {
+  const services = usePlatformServices();
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
   const hasPin = lat != null && lng != null;
   const markerRef = useRef<L.Marker | null>(null);
 
@@ -58,6 +62,7 @@ export default function LocationPinEditor({ lat, lng, onChange }: LocationPinEdi
 
   return (
     <div className="space-y-1.5">
+      {!locationConfirmed && <PermissionPrimer title="Use your current location" description="Your location is requested only after you choose to use it." onConfirm={async () => { setLocationConfirmed(true); const position = await services.location.getForegroundPosition(); onChange(position.latitude, position.longitude); }} />}
       <div
         className="overflow-hidden rounded-lg border"
         style={{ borderColor: BORDER, height: 260 }}

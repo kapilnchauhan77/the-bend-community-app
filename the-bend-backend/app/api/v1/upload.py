@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Header
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 
@@ -14,22 +15,51 @@ from app.services.file_service import (
     FileService,
 )
 from sqlalchemy import select, update
+from app.services.upload_idempotency_service import UploadIdempotencyService, UploadClaim
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
 file_service = FileService()
+idempotency = UploadIdempotencyService()
+
+async def _claim(endpoint: str, key: str | None, current_user: User | None):
+    if not isinstance(key, str):
+        key = None
+    if not key:
+        return None
+    if current_user is None:
+        tenant_id, user_id = "public", "anonymous"
+    else:
+        tenant_id, user_id = getattr(current_user, "tenant_id", None) or "default", current_user.id
+    try:
+        claim = await idempotency.claim(tenant_id, user_id, endpoint, key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if claim.response is not None:
+        return JSONResponse(claim.response)
+    if claim.in_progress:
+        raise HTTPException(status_code=409, detail="UPLOAD_IN_PROGRESS")
+    return claim
+
+async def _complete(claim: UploadClaim | None, response: dict):
+    if claim:
+        await idempotency.complete(claim.claim_key, response)
+    return response
 
 
 @router.post("/images")
 async def upload_images(
     files: list[UploadFile] = File(...),
     current_user: User = Depends(get_current_user),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ):
     # Any signed-in user can upload listing images (individuals post via
     # the same form as shop_admins; the listing service still gates who
     # may create listings by category).
+    claim = await _claim("/upload/images", idempotency_key, current_user)
+    if isinstance(claim, JSONResponse): return claim
     results = await file_service.upload_images(files)
-    return {"images": results}
+    return await _complete(claim, {"images": results})
 
 
 @router.post("/guidelines")
@@ -73,19 +103,23 @@ async def get_current_guidelines(db: AsyncSession = Depends(get_db)):
 @router.post("/photo")
 async def upload_public_photo(
     file: UploadFile = File(...),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ):
     """Upload a photo for talent/volunteer profiles (no auth required)."""
+    claim = await _claim("/upload/photo", idempotency_key, None)
+    if isinstance(claim, JSONResponse): return claim
     service = FileService()
     result = await service.upload_images([file])
     if not result:
         raise HTTPException(status_code=400, detail="Upload failed")
-    return {"photo_url": result[0]["url"]}
+    return await _complete(claim, {"photo_url": result[0]["url"]})
 
 
 @router.post("/media")
 async def upload_media(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ):
     """Unified upload endpoint for short videos, photos, OR voice notes.
 
@@ -99,6 +133,8 @@ async def upload_media(
           "type": "image" | "video" | "audio",
           "duration_ms": <int, audio + video only> }
     """
+    claim = await _claim("/upload/media", idempotency_key, current_user)
+    if isinstance(claim, JSONResponse): return claim
     # Strip MIME parameters before matching. Browser MediaRecorder reports
     # codec-qualified types like "audio/webm;codecs=opus" and
     # "video/webm;codecs=vp8,opus"; our allow-lists key on the base type, so
@@ -118,31 +154,31 @@ async def upload_media(
         if not results:
             raise HTTPException(status_code=400, detail="Upload failed")
         first = results[0]
-        return {
+        return await _complete(claim, {
             "url": first["url"],
             "thumbnail_url": first["thumbnail_url"],
             "type": "image",
-        }
+        })
 
     if content_type in ALLOWED_VIDEO_MIME_TYPES:
         # Video branch. upload_video handles size + duration + poster.
         result = await file_service.upload_video(file)
-        return {
+        return await _complete(claim, {
             "url": result["url"],
             "thumbnail_url": result["thumbnail_url"],
             "type": "video",
             "duration_ms": result["duration_ms"],
-        }
+        })
 
     # Audio branch (voice notes). No thumbnail — there's no frame to render.
     assert content_type in ALLOWED_AUDIO_MIME_TYPES
     result = await file_service.upload_audio(file)
-    return {
+    return await _complete(claim, {
         "url": result["url"],
         "thumbnail_url": None,
         "type": "audio",
         "duration_ms": result["duration_ms"],
-    }
+    })
 
 
 @router.post("/avatar")
@@ -150,8 +186,11 @@ async def upload_avatar(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ):
     """Upload a profile avatar for the current user."""
+    claim = await _claim("/upload/avatar", idempotency_key, current_user)
+    if isinstance(claim, JSONResponse): return claim
     service = FileService()
     private = current_user.shop_id is None
     result = [await service.upload_private_user_image(file, current_user.id)] if private else await service.upload_images([file])
@@ -176,4 +215,4 @@ async def upload_avatar(
             shop.avatar_url = avatar_url
             await db.flush()
 
-    return {"avatar_url": avatar_url}
+    return await _complete(claim, {"avatar_url": avatar_url})
