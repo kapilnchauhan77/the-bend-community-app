@@ -23,7 +23,8 @@ function renderNativeAt(path: string) {
 describe('NativeRoutes', () => {
   it.each(['/admin', '/super-admin'])('does not render %s in native mode', async (path) => {
     renderNativeAt(path);
-    expect(await screen.findByText(/not available/i)).toBeInTheDocument();
+    expect(await screen.findByText(/this page isn't available in the mobile app/i)).toBeInTheDocument();
+    expect(screen.queryByText(/admin dashboard|super admin/i)).not.toBeInTheDocument();
   });
 
   it('shows the five approved native destinations', () => {
