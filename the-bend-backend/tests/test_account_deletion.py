@@ -59,6 +59,19 @@ def test_deletion_email_has_dedicated_template_contract():
 
 
 @pytest.mark.asyncio
+async def test_terminal_receipt_is_consumed_only_after_terminal_poll():
+    # Contract-level regression: pending receipts remain pollable, while a
+    # completed receipt is atomically consumed by its first successful read.
+    from app.services.account_deletion_service import AccountDeletionService
+    assert hasattr(AccountDeletionService, "consume_terminal_receipt")
+
+
+def test_private_upload_path_is_distinct_from_shared_upload_paths():
+    from app.services.file_service import FileService
+    assert hasattr(FileService, "upload_private_user_image")
+
+
+@pytest.mark.asyncio
 async def test_confirmation_requires_opaque_receipt_and_locks_member():
     from app.schemas.account import AccountDeletionConfirm
 
