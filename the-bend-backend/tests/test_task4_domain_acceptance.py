@@ -204,6 +204,11 @@ async def test_westmoreland_fanout_filters_and_is_concurrently_idempotent():
             if owns_tenant:
                 await db.execute(delete(Tenant).where(Tenant.id == tenant.id, Tenant.slug == "westmoreland"))
             await db.commit()
+            assert (await db.execute(select(Listing.id).where(Listing.id.in_([listing_id, shop_listing_id])))).scalars().all() == []
+            assert (await db.execute(select(Shop.id).where(Shop.id == shop_id))).scalar_one_or_none() is None
+            assert (await db.execute(select(User.id).where(User.id.in_([author_id, shop_admin_id, eligible_id, inactive_id, other_id])))).scalars().all() == []
+            assert (await db.execute(select(Notification.id).where(Notification.data["target_id"].astext.in_([str(listing_id), str(shop_listing_id)])))).scalars().all() == []
+            assert (await db.execute(select(NotificationOutbox.id).where(NotificationOutbox.tenant_id == tenant.id, NotificationOutbox.notification_id.in_(select(Notification.id).where(Notification.data["target_id"].astext.in_([str(listing_id), str(shop_listing_id)])))))).scalars().all() == []
         await engine.dispose()
 
 
