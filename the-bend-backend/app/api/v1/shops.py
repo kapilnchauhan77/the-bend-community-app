@@ -173,7 +173,10 @@ async def update_shop(
     service: ShopService = Depends(get_shop_service),
     current_user: User = Depends(get_current_user),
 ):
-    shop = await service.update_shop(shop_id, data.model_dump(exclude_unset=True), current_user)
+    from app.services.content_moderation_service import ContentModerationService
+    payload = data.model_dump(exclude_unset=True)
+    ContentModerationService().validate_public_text({k: payload.get(k) for k in ("name", "address", "business_type")})
+    shop = await service.update_shop(shop_id, payload, current_user)
     return {"id": str(shop.id), "status": "updated"}
 
 

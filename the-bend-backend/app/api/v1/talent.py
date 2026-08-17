@@ -63,10 +63,14 @@ async def register_talent(
 
     if current_user is None:
         data = TalentCreate(**payload)
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"name": data.name, "skills": data.skills, "available_time": data.available_time, "category": data.category})
         t = await service.register(data)
         return _serialize_talent(t, is_authed=False)
 
     update = TalentUpdate(**payload)
+    from app.services.content_moderation_service import ContentModerationService
+    ContentModerationService().validate_public_text({"name": update.name, "skills": update.skills, "available_time": update.available_time, "category": update.category})
     missing = [
         n for n, v in (
             ("name", update.name),
@@ -174,6 +178,8 @@ async def update_talent(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
 
     updates = data.model_dump(exclude_unset=True)
+    from app.services.content_moderation_service import ContentModerationService
+    ContentModerationService().validate_public_text({"name": updates.get("name"), "skills": updates.get("skills"), "available_time": updates.get("available_time"), "category": updates.get("category")})
     for key, value in updates.items():
         setattr(row, key, value)
     await db.flush()

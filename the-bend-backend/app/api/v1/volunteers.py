@@ -61,11 +61,15 @@ async def enroll_volunteer(
     if current_user is None:
         # Strict validation for anonymous posts.
         data = VolunteerCreate(**payload)
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"name": data.name, "skills": data.skills, "available_time": data.available_time})
         v = await service.enroll(data)
         return _serialize_volunteer(v, is_authed=False)
 
     # Authed path: contact fields optional. Reject empty name/skills/time only.
     update = VolunteerUpdate(**payload)
+    from app.services.content_moderation_service import ContentModerationService
+    ContentModerationService().validate_public_text({"name": update.name, "skills": update.skills, "available_time": update.available_time})
     if not update.name or not update.skills or not update.available_time:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -151,6 +155,8 @@ async def update_volunteer(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
 
     updates = data.model_dump(exclude_unset=True)
+    from app.services.content_moderation_service import ContentModerationService
+    ContentModerationService().validate_public_text({"name": updates.get("name"), "skills": updates.get("skills"), "available_time": updates.get("available_time")})
     for key, value in updates.items():
         setattr(row, key, value)
     await db.flush()

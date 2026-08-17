@@ -109,6 +109,8 @@ async def submit_event(
     tenant: Tenant | None = Depends(get_current_tenant),
     current_user: User | None = Depends(get_current_user_optional),
 ):
+    from app.services.content_moderation_service import ContentModerationService
+    ContentModerationService().validate_public_text({"title": data.title, "description": data.description, "location": data.location, "organizer": data.submitted_by_name})
     """Submit an event and create a Stripe checkout session for payment."""
     # Validate nonprofit doc if claiming nonprofit
     if data.is_nonprofit and not data.nonprofit_doc_url:

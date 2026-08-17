@@ -23,11 +23,13 @@ class ContentModerationService:
         raw_values = [v for v in fields.values() if v]
         values = [self.normalize(v) for v in raw_values]
         terms = [self.normalize(t) for t in self.terms if t]
+        all_urls = [u for raw in raw_values for u in _URL_RE.findall(raw)]
+        valid_urls = [u for u in all_urls if urlparse(u).scheme in ("http", "https") and urlparse(u).netloc]
+        if len(valid_urls) >= 3:
+            raise ValidationError("Public content contains repeated-link spam")
         for raw, value in zip(raw_values, values):
             for term in terms:
                 if re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", value):
                     raise ValidationError("Public content contains a prohibited term")
             urls = [u for u in _URL_RE.findall(raw)]
             valid = [u for u in urls if urlparse(u).scheme in ("http", "https") and urlparse(u).netloc]
-            if len(valid) >= 3:
-                raise ValidationError("Public content contains repeated-link spam")
