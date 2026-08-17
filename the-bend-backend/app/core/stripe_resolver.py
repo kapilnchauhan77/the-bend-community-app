@@ -23,6 +23,15 @@ def get_stripe_keys(tenant: Tenant | None) -> StripeKeys:
     return StripeKeys(secret=secret or "", publishable=publishable or "", webhook=webhook or "")
 
 
+def stripe_credentials_ready(keys: StripeKeys) -> bool:
+    """Require complete, internally consistent Stripe live/test credentials."""
+    if not (keys.secret and keys.publishable and keys.webhook):
+        return False
+    secret_mode = "live" if keys.secret.startswith("sk_live_") else "test" if keys.secret.startswith("sk_test_") else None
+    publishable_mode = "live" if keys.publishable.startswith("pk_live_") else "test" if keys.publishable.startswith("pk_test_") else None
+    return secret_mode is not None and secret_mode == publishable_mode
+
+
 def mask(value: str | None, prefix_len: int = 12) -> str:
     """Return a masked representation safe to expose to admin clients."""
     if not value:

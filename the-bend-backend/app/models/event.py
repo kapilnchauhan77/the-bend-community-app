@@ -34,6 +34,7 @@ class Event(Base):
     checkout_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     expected_amount: Mapped[int | None] = mapped_column(Integer)
     expected_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="usd")
+    coupon_code_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("discount_codes.id", ondelete="SET NULL"), nullable=True)
     paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

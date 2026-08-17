@@ -168,6 +168,7 @@ async def submit_event(
         tenant_id=tenant.id if tenant else None,
         expected_amount=price_cents,
         expected_currency="usd",
+        coupon_code_id=applied_coupon.id if applied_coupon else None,
     )
     db.add(event)
     await db.flush()
@@ -210,6 +211,8 @@ async def submit_event(
             "kind": "event",
             "target_id": str(event.id),
             "tenant_id": str(event.tenant_id) if event.tenant_id else "",
+            "expected_amount": str(price_cents),
+            "expected_currency": "usd",
             "event_id": str(event.id),
             "type": "event_posting",
             "coupon_code_id": str(applied_coupon.id) if applied_coupon else "",
@@ -285,6 +288,8 @@ async def purchase_connector(
             "kind": "connector",
             "target_id": str(purchase.id),
             "tenant_id": str(purchase.tenant_id),
+            "expected_amount": str(CONNECTOR_PRICE),
+            "expected_currency": "usd",
             "type": "connector_purchase",
         },
         api_key=get_stripe_keys(tenant).secret,

@@ -109,7 +109,7 @@ async def create_checkout(
         pricing_uuid = UUID(data.pricing_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid pricing ID")
-    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_uuid))
+    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_uuid, AdPricing.tenant_id == tenant.id if tenant else False))
     pricing = result.scalar_one_or_none()
     if not pricing:
         raise HTTPException(status_code=404, detail="Pricing plan not found")
@@ -161,9 +161,6 @@ async def create_checkout(
     if effective_cents == 0:
         # Free comp still requires human approval — mark paid + notify admins.
         await _mark_paid_and_notify(db, sponsor, pricing)
-        if applied_code is not None:
-            coupon_service = DiscountCodeService(db)
-            await coupon_service.mark_used(applied_code.id)
         await db.flush()
         return {"checkout_url": None, "session_id": None, "free": True}
 
@@ -189,6 +186,8 @@ async def create_checkout(
             "kind": "sponsor",
             "target_id": str(sponsor.id),
             "tenant_id": str(sponsor.tenant_id) if sponsor.tenant_id else "",
+            "expected_amount": str(effective_cents),
+            "expected_currency": "usd",
             "sponsor_id": str(sponsor.id),
             "pricing_id": str(pricing.id),
             "coupon_code_id": str(applied_code.id) if applied_code else None,
@@ -222,11 +221,25 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
+    # Resolve tenant from untrusted metadata only to select the signing secret;
+    # metadata is still validated against the tenant-owned row below.
+    import json
     try:
-        if settings.STRIPE_WEBHOOK_SECRET:
-            event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
+        envelope = json.loads(payload)
+        metadata_hint = envelope.get("data", {}).get("object", {}).get("metadata", {})
+        tenant = None
+        if metadata_hint.get("tenant_id"):
+            tenant_result = await db.execute(select(Tenant).where(Tenant.id == metadata_hint["tenant_id"], Tenant.is_active == True))
+            tenant = tenant_result.scalar_one_or_none()
+    except Exception:
+        envelope = None
+        tenant = None
+    webhook_secret = get_stripe_keys(tenant).webhook
+
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
         elif settings.STRIPE_ALLOW_UNSIGNED_WEBHOOKS and settings.APP_ENV != "production":
-            import json
             event = stripe.Event.construct_from(json.loads(payload), api_key=settings.STRIPE_SECRET_KEY)
         else:
             raise HTTPException(status_code=400, detail="Invalid webhook")
@@ -244,15 +257,26 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         # Handle connector purchase — notify admin
         if payment_type == "connector_purchase":
             try:
+                from app.models.connector_purchase import ConnectorPurchase
                 from app.models.user import User
                 from app.models.notification import Notification
                 from app.models.enums import UserRole, NotificationType
+                target_id = metadata.get("target_id")
+                purchase_result = await db.execute(select(ConnectorPurchase).where(ConnectorPurchase.id == target_id, ConnectorPurchase.tenant_id == tenant.id if tenant else False))
+                purchase = purchase_result.scalar_one_or_none()
+                if purchase is None:
+                    return {"status": "ok"}
+                if purchase.status in {"paid", "complete"}:
+                    return {"status": "ok"}
+                purchase.status = "paid"
+                purchase.stripe_session_id = session.get("id")
+                purchase.stripe_payment_intent = session.get("payment_intent")
                 admin_result = await db.execute(
-                    select(User).where(User.role == UserRole.COMMUNITY_ADMIN, User.is_active == True)
+                    select(User).where(User.role == UserRole.COMMUNITY_ADMIN, User.is_active == True, User.tenant_id == purchase.tenant_id)
                 )
                 admins = admin_result.scalars().all()
-                biz_name = metadata.get("business_name", "Unknown")
-                website = metadata.get("website_url", "")
+                biz_name = purchase.business_name
+                website = purchase.website_url
                 for admin in admins:
                     notif = Notification(
                         id=uuid4(),
@@ -260,7 +284,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                         type=NotificationType.SYSTEM,
                         title="New Connector Purchase",
                         body=f"{biz_name} purchased a 90-day Automatic Website Events Linker for {website}. Please set up the connector.",
-                        data={"website_url": website, "contact_email": metadata.get("contact_email", "")},
+                        data={"website_url": website},
                     )
                     db.add(notif)
                 await db.flush()
@@ -270,14 +294,19 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         # Handle event posting payment
         if payment_type == "event_posting" and event_id:
             from app.models.event import Event
-            result = await db.execute(select(Event).where(Event.id == event_id))
+            result = await db.execute(select(Event).where(Event.id == event_id, Event.tenant_id == tenant.id if tenant else False))
             evt = result.scalar_one_or_none()
             if evt:
+                if evt.paid:
+                    return {"status": "ok"}
                 evt.paid = True
+                if evt.coupon_code_id:
+                    from app.services.discount_code_service import DiscountCodeService
+                    await DiscountCodeService(db).mark_used(evt.coupon_code_id)
                 await db.flush()
 
         if sponsor_id:
-            result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+            result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id, Sponsor.tenant_id == tenant.id if tenant else False))
             sponsor = result.scalar_one_or_none()
             if sponsor:
                 sponsor.stripe_payment_intent = session.get("payment_intent")

@@ -12,7 +12,7 @@ from app.models.event import Event
 from app.models.sponsor import Sponsor
 from app.models.tenant import Tenant
 
-_SESSION = re.compile(r"^cs_[A-Za-z0-9_]+$")
+_SESSION = re.compile(r"^cs_[A-Za-z0-9_]{1,240}$")
 _KINDS = {"sponsor", "event", "connector"}
 
 
@@ -31,7 +31,12 @@ class CheckoutVerificationService:
     @staticmethod
     def _status(kind: str, row: Any) -> str:
         status = getattr(row, "checkout_status", None) or getattr(row, "status", "pending")
-        if status in {"cancelled", "paid", "complete"}:
+        if kind == "connector":
+            if status == "cancelled":
+                return status
+            if status in {"paid", "complete"}:
+                return "complete" if row.setup_complete else "paid"
+        elif status in {"cancelled", "paid", "complete"}:
             return status
         if kind == "sponsor" and row.paid:
             return "complete" if row.approved and row.is_active else "paid"
@@ -57,11 +62,27 @@ class CheckoutVerificationService:
                 return {"status": "pending", "target_type": kind, "target_id": str(row.id)}
             provider_status = checkout.get("status")
             if provider_status == "expired" or provider_status == "canceled":
-                row.checkout_status = "cancelled"
+                if kind == "connector":
+                    row.status = "cancelled"
+                else:
+                    row.checkout_status = "cancelled"
             elif checkout.get("payment_status") == "paid":
-                row.checkout_status = "paid"
-                if hasattr(row, "paid"):
+                if kind == "connector":
+                    row.status = "paid"
+                else:
+                    row.checkout_status = "paid"
+                if kind == "sponsor":
+                    from app.api.v1.advertising import _mark_paid_and_notify
+                    from app.models.ad_pricing import AdPricing
+                    pricing = None
+                    if row.pricing_id:
+                        pricing = (await self.db.execute(select(AdPricing).where(AdPricing.id == row.pricing_id))).scalar_one_or_none()
+                    await _mark_paid_and_notify(self.db, row, pricing)
+                elif kind == "event":
                     row.paid = True
+                    if getattr(row, "coupon_code_id", None):
+                        from app.services.discount_code_service import DiscountCodeService
+                        await DiscountCodeService(self.db).mark_used(row.coupon_code_id)
                 if checkout.get("payment_intent"):
                     row.stripe_payment_intent = checkout.get("payment_intent")
             await self.db.flush()
@@ -80,6 +101,8 @@ class CheckoutVerificationService:
             and metadata.get("kind") == kind
             and metadata.get("target_id") == str(row.id)
             and metadata.get("tenant_id") == str(row.tenant_id)
-            and (expected is None or amount == expected)
-            and (not checkout.get("currency") or checkout.get("currency", "").lower() == currency)
+            and metadata.get("expected_amount") == (str(expected) if expected is not None else metadata.get("expected_amount"))
+            and metadata.get("expected_currency", "").lower() == currency
+            and expected is not None and amount == expected
+            and checkout.get("currency", "").lower() == currency
         )

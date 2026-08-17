@@ -20,6 +20,7 @@ def upgrade():
     op.add_column("events", sa.Column("checkout_status", sa.String(20), nullable=False, server_default="pending"))
     op.add_column("events", sa.Column("expected_amount", sa.Integer(), nullable=True))
     op.add_column("events", sa.Column("expected_currency", sa.String(3), nullable=False, server_default="usd"))
+    op.add_column("events", sa.Column("coupon_code_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("discount_codes.id", ondelete="SET NULL"), nullable=True))
     op.create_table(
         "connector_purchases",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -51,6 +52,8 @@ def downgrade():
     op.drop_index("idx_connector_purchases_tenant_session", table_name="connector_purchases")
     op.drop_table("connector_purchases")
     for table in ("events", "sponsors"):
+        if table == "events":
+            op.drop_column(table, "coupon_code_id")
         op.drop_column(table, "expected_currency")
         op.drop_column(table, "expected_amount")
         op.drop_column(table, "checkout_status")
