@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
 
 from app.models.enums import NotificationType
 from app.models.tenant import Tenant
@@ -141,20 +141,41 @@ class KeyedFakeProvider(FakeProvider):
 
 @pytest.fixture
 async def pg_session():
+    tenant_ids = set()
     await engine.dispose()
     async with engine.connect() as connection:
-        tx = await connection.begin()
         session = AsyncSession(bind=connection, expire_on_commit=False)
+        session.info["push_tenant_ids"] = set()
         try:
             yield session
         finally:
             await session.close()
-            await tx.rollback()
-            await engine.dispose()
+            tenant_ids = session.info.get("push_tenant_ids", set())
+    await engine.dispose()
+    if tenant_ids:
+        async with engine.begin() as cleanup:
+            await cleanup.execute(delete(Tenant).where(Tenant.id.in_(tenant_ids)))
+        async with engine.connect() as verify_connection:
+            verify = AsyncSession(bind=verify_connection, expire_on_commit=False)
+            try:
+                checks = (
+                    Tenant,
+                    User,
+                    Notification,
+                    NotificationOutbox,
+                    DeviceInstallation,
+                    NotificationPreference,
+                )
+                for model in checks:
+                    column = model.id if model is Tenant else model.tenant_id
+                    assert await verify.scalar(select(func.count()).select_from(model).where(column.in_(tenant_ids))) == 0
+            finally:
+                await verify.close()
 
 
 async def seed_push(session, *, platform="ios", devices=1):
     tenant = Tenant(id=uuid4(), slug=f"push-{uuid4().hex[:10]}", subdomain=f"push-{uuid4().hex[:10]}", display_name="Push")
+    session.info.setdefault("push_tenant_ids", set()).add(tenant.id)
     user = User(id=uuid4(), email=f"push-{uuid4().hex}@example.com", password_hash="hash", name="Push", role=UserRole.INDIVIDUAL, tenant_id=tenant.id)
     notification = Notification(id=uuid4(), user_id=user.id, tenant_id=tenant.id, type=NotificationType.NEW_MESSAGE, title="secret", body="secret message", data={})
     outbox = NotificationOutbox(notification_id=notification.id, tenant_id=tenant.id)
@@ -165,21 +186,6 @@ async def seed_push(session, *, platform="ios", devices=1):
 
 
 @pytest.mark.asyncio
-async def test_postgres_preference_scope_invalid_token_and_no_device(pg_session):
-    from app.services.push_dispatcher import PushDispatcher
-    tenant, user, _, outbox, installations = await seed_push(pg_session)
-    pg_session.add(NotificationPreference(user_id=user.id, tenant_id=tenant.id, message_received=False))
-    await pg_session.flush()
-    fake = FakeProvider([ProviderResult.invalid_token("Unregistered: token-secret")])
-    await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(outbox.id)
-    assert outbox.status == "delivered" and outbox.last_error_code == "preference_disabled" and not fake.calls
-    await pg_session.delete(await pg_session.get(NotificationPreference, (await pg_session.execute(select(NotificationPreference.id).where(NotificationPreference.user_id == user.id))).scalar_one()))
-    await pg_session.delete(installations[0]); await pg_session.flush()
-    outbox.status, outbox.locked_at = "pending", None
-    await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(outbox.id)
-    assert outbox.status == "delivered"
-
-
 @pytest.mark.asyncio
 async def test_postgres_partial_retry_and_permanent_aggregation(pg_session, monkeypatch):
     from app.services.push_dispatcher import PushDispatcher
@@ -227,21 +233,33 @@ async def test_preference_is_exact_user_tenant_scoped_and_other_categories_conti
     from app.services.push_dispatcher import PushDispatcher
 
     tenant, user, _, outbox, _ = await seed_push(pg_session)
-    pg_session.add(NotificationPreference(user_id=user.id, tenant_id=tenant.id, message_received=False, listing_interest_received=True))
+    same_tenant_user = User(id=uuid4(), email=f"push-{uuid4().hex}@example.com", password_hash="hash", name="Other", role=UserRole.INDIVIDUAL, tenant_id=tenant.id)
+    other_tenant = Tenant(id=uuid4(), slug=f"push-{uuid4().hex[:10]}", subdomain=f"push-{uuid4().hex[:10]}", display_name="Push")
+    pg_session.info["push_tenant_ids"].add(other_tenant.id)
+    other_tenant_user = User(id=uuid4(), email=f"push-{uuid4().hex}@example.com", password_hash="hash", name="Other", role=UserRole.INDIVIDUAL, tenant_id=other_tenant.id)
+    pg_session.add_all([
+        same_tenant_user,
+        other_tenant,
+        other_tenant_user,
+        NotificationPreference(user_id=same_tenant_user.id, tenant_id=tenant.id, message_received=False),
+        NotificationPreference(user_id=other_tenant_user.id, tenant_id=other_tenant.id, message_received=False),
+    ])
     await pg_session.flush()
     fake = FakeProvider()
     await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(outbox.id)
-    assert fake.calls == []
-    assert outbox.last_error_code == "preference_disabled"
+    assert len(fake.calls) == 1 and outbox.status == "delivered"
 
-    other_notification = Notification(id=uuid4(), user_id=user.id, tenant_id=tenant.id, type=NotificationType.LISTING_INTEREST, title="secret", body="private", data={})
-    other_outbox = NotificationOutbox(notification_id=other_notification.id, tenant_id=tenant.id)
-    pg_session.add(other_notification)
-    pg_session.add(other_outbox)
-    pg_session.add(DeviceInstallation(user_id=user.id, tenant_id=tenant.id, platform="ios", provider_token=f"token-{uuid4().hex}", revocation_secret_hash="b" * 64, app_version="1", build_number="1"))
+    pg_session.add(NotificationPreference(user_id=user.id, tenant_id=tenant.id, message_received=False, listing_interest_received=True))
+    message = Notification(id=uuid4(), user_id=user.id, tenant_id=tenant.id, type=NotificationType.NEW_MESSAGE, title="secret", body="private", data={})
+    message_outbox = NotificationOutbox(notification_id=message.id, tenant_id=tenant.id)
+    listing = Notification(id=uuid4(), user_id=user.id, tenant_id=tenant.id, type=NotificationType.LISTING_INTEREST, title="secret", body="private", data={})
+    listing_outbox = NotificationOutbox(notification_id=listing.id, tenant_id=tenant.id)
+    pg_session.add_all([message, message_outbox, listing, listing_outbox])
     await pg_session.flush()
-    await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(other_outbox.id)
-    assert len(fake.calls) == 2
+    await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(message_outbox.id)
+    assert message_outbox.last_error_code == "preference_disabled" and len(fake.calls) == 1
+    await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(listing_outbox.id)
+    assert listing_outbox.status == "delivered" and len(fake.calls) == 2
 
 
 @pytest.mark.asyncio
@@ -336,16 +354,22 @@ async def test_dispatch_pending_provider_exception_is_generic_pending_and_lock_c
 
 
 @pytest.mark.asyncio
-async def test_no_device_and_unsupported_notification_are_terminal_without_send(pg_session):
+async def test_no_device_is_terminal_without_send(pg_session):
     from app.services.push_dispatcher import PushDispatcher
     _, _, _, no_device, installations = await seed_push(pg_session)
     await pg_session.delete(installations[0]); await pg_session.flush()
     fake = FakeProvider()
     await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(no_device.id)
     assert no_device.status == "delivered" and no_device.delivered_at is not None and fake.calls == []
-    _, user, notification, unsupported, _ = await seed_push(pg_session)
+
+
+@pytest.mark.asyncio
+async def test_unsupported_notification_is_terminal_without_send(pg_session):
+    from app.services.push_dispatcher import PushDispatcher
+    _, _, notification, unsupported, _ = await seed_push(pg_session)
     notification.type = NotificationType.LISTING_EXPIRING
     await pg_session.flush()
+    fake = FakeProvider()
     await PushDispatcher(pg_session, {"ios": fake}).dispatch_one(unsupported.id)
     assert unsupported.status == "failed" and unsupported.last_error_code == "unsupported_notification" and fake.calls == []
 
@@ -353,6 +377,7 @@ async def test_no_device_and_unsupported_notification_are_terminal_without_send(
 @pytest.mark.asyncio
 async def test_two_independent_sessions_claim_one_ready_row_with_skip_locked():
     from app.services.push_dispatcher import PushDispatcher
+    await engine.dispose()
     tenant_id = uuid4()
     async with engine.connect() as setup_connection:
         setup_tx = await setup_connection.begin()
