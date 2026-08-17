@@ -385,7 +385,8 @@ async def test_erasure_retains_shared_content_and_hydrates_deleted_identity():
             assert (await db.execute(select(ListingImage).where(ListingImage.id == image_id))).scalar_one().url == "/uploads/images/shared.jpg"
             post = (await db.execute(select(BenderPost).where(BenderPost.id == post_id))).scalar_one(); assert post.author_user_id == user_a
             hydrated = (await ReportService(db).list_admin(tenant_a))["items"]; assert any(item["target_id"] == str(listing_id) and item["target_summary"]["title"] == "Shared listing" for item in hydrated)
-            assert "Former Name" not in str(hydrated) and marker not in str(hydrated)
+            report_view = next(item for item in hydrated if item["id"] == str(report_id)); assert report_view["reporter"] == {"id": str(user_a), "display_name": "Deleted member"}; assert report_view["audit_actors"] == [{"id": str(user_a), "display_name": "Deleted member"}]
+            assert "Former Name" not in str(hydrated) and marker not in str(hydrated) and "former-" not in str(hydrated)
             from app.services.message_service import MessageService
             threads = await MessageService(db).get_threads(user_b)
             other_party = next(item["other_party"] for item in threads["items"] if item["id"] == str(thread_id))

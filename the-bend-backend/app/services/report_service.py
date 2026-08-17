@@ -58,6 +58,15 @@ class ReportService:
         q = select(Report).where(Report.tenant_id == tenant_id).order_by(Report.created_at.desc()).limit(50)
         if resolved is not None: q = q.where(Report.status == ("resolved" if resolved else "open"))
         rows = (await self.db.execute(q)).scalars().all(); items = []
+        report_ids = [row.id for row in rows]
+        audits = (await self.db.execute(select(ReportAudit).where(ReportAudit.report_id.in_(report_ids)))).scalars().all() if report_ids else []
+        actor_ids = {row.reporter_id for row in rows} | {audit.actor_id for audit in audits}
+        actors = {}
+        if actor_ids:
+            actors = {user.id: user for user in (await self.db.execute(select(User).where(User.id.in_(actor_ids)))).scalars().all()}
+        audits_by_report = {}
+        for audit in audits:
+            audits_by_report.setdefault(audit.report_id, []).append(audit)
         for row in rows:
             target = None
             try: target = await self._target(row.target_type, row.target_id, tenant_id, enforce_participant=False)
@@ -65,5 +74,6 @@ class ReportService:
             summary = {"id": str(target.id), "target_type": row.target_type} if target else {"unavailable": True, "target_type": row.target_type}
             if target and row.target_type != "message":
                 summary["title"] = getattr(target, "title", getattr(target, "name", None))
-            items.append({"id": str(row.id), "target_type": row.target_type, "target_id": str(row.target_id), "target_summary": summary, "reason": row.reason, "details": row.details, "status": row.status, "resolved": row.status == "resolved", "resolved_at": row.resolved_at, "resolved_by_id": str(row.resolved_by_id) if row.resolved_by_id else None, "created_at": str(row.created_at)})
+            reporter = actors.get(row.reporter_id)
+            items.append({"id": str(row.id), "target_type": row.target_type, "target_id": str(row.target_id), "target_summary": summary, "reason": row.reason, "details": row.details, "status": row.status, "resolved": row.status == "resolved", "resolved_at": row.resolved_at, "resolved_by_id": str(row.resolved_by_id) if row.resolved_by_id else None, "created_at": str(row.created_at), "reporter": {"id": str(row.reporter_id), "display_name": reporter.name if reporter else "Deleted member"}, "audit_actors": [{"id": str(audit.actor_id), "display_name": actors.get(audit.actor_id).name if actors.get(audit.actor_id) else "Deleted member"} for audit in audits_by_report.get(row.id, [])]})
         return {"items": items}
