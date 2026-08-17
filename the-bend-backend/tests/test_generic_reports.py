@@ -45,6 +45,7 @@ async def test_real_report_service_all_targets_replay_and_safe_matrix():
                 row, duplicate = await service.create(target_type, target_id, "spam", "  "+marker+"  ", caller_id, tenant_id)
                 assert not duplicate and row.target_type == target_type
             await db.commit()
+
         async with async_session() as db:
             row, duplicate = await ReportService(db).create("listing", ids["listing"], "spam", None, caller_id, tenant_id)
             assert duplicate
@@ -66,3 +67,28 @@ async def test_real_report_service_all_targets_replay_and_safe_matrix():
             for table in (ReportAudit, Report, Message, MessageThread, BenderPost, Event, Listing, Shop, User, Tenant):
                 if hasattr(table, "tenant_id"): await db.execute(table.__table__.delete().where(table.tenant_id.in_([tenant_id, other_tenant_id])))
             await db.commit()
+
+@pytest.mark.asyncio
+async def test_real_compatibility_admin_hydration_and_resolution_privacy():
+    await engine.dispose(); marker=f"task6-admin-{uuid4().hex}"; tenant_id, other_id=uuid4(),uuid4(); caller_id, actor_id=uuid4(),uuid4(); listing_id, other_listing_id, thread_id, message_id=uuid4(),uuid4(),uuid4(),uuid4()
+    async with async_session() as db:
+        db.add_all([Tenant(id=tenant_id,slug=marker,subdomain=marker,display_name=marker),Tenant(id=other_id,slug=marker+"-o",subdomain=marker+"-o",display_name=marker+"-o")]); await db.flush()
+        db.add_all([User(id=caller_id,tenant_id=tenant_id,email=marker+"c@test",password_hash="x",name="Caller",role=UserRole.INDIVIDUAL),User(id=actor_id,tenant_id=tenant_id,email=marker+"a@test",password_hash="x",name="Admin",role=UserRole.COMMUNITY_ADMIN),Listing(id=listing_id,tenant_id=tenant_id,type=ListingType.OFFER,category=ListingCategory.MATERIALS,title=marker,description="safe",pricing_type=PricingType.FREE,is_free=True,urgency=UrgencyLevel.NORMAL,status=ListingStatus.ACTIVE),Listing(id=other_listing_id,tenant_id=other_id,type=ListingType.OFFER,category=ListingCategory.MATERIALS,title=marker,description="other",pricing_type=PricingType.FREE,is_free=True,urgency=UrgencyLevel.NORMAL,status=ListingStatus.ACTIVE),MessageThread(id=thread_id,tenant_id=tenant_id,participant_a=min(caller_id,actor_id,key=str),participant_b=max(caller_id,actor_id,key=str))]); await db.flush(); db.add(Message(id=message_id,thread_id=thread_id,sender_id=caller_id,content="SECRET-PRIVATE-"+marker,attachment_url="secret-contact")); await db.commit()
+    try:
+        from app.api.v1.listings import report_listing
+        async with async_session() as db:
+            user=await db.get(User,caller_id)
+            assert (await report_listing(listing_id,{"reason":"spam"},db,user))["status"]=="reported"
+            assert (await report_listing(listing_id,{"reason":"spam"},db,user))["status"]=="already_reported"
+            with pytest.raises(ValidationError):
+                await report_listing(listing_id,{"reason":"invalid"},db,user)
+            await db.commit()
+        async with async_session() as db:
+            svc=ReportService(db); items=await svc.list_admin(tenant_id); assert len(items["items"])==1; row=(await db.execute(select(Report).where(Report.target_id==listing_id))).scalar_one(); await svc.resolve(row.id,actor_id,tenant_id,action="content_unpublished"); await db.commit()
+        async with async_session() as db:
+            row=(await db.execute(select(Report).where(Report.target_id==listing_id))).scalar_one(); await ReportService(db).resolve(row.id,actor_id,tenant_id,action="content_unpublished"); await db.commit(); assert len((await db.execute(select(ReportAudit).where(ReportAudit.report_id==row.id))).scalars().all())==1
+            with pytest.raises(NotFoundError):
+                await ReportService(db).resolve(row.id,actor_id,other_id)
+    finally:
+        async with async_session() as db:
+            await db.execute(ReportAudit.__table__.delete().where(ReportAudit.tenant_id.in_([tenant_id,other_id]))); await db.execute(Report.__table__.delete().where(Report.tenant_id.in_([tenant_id,other_id]))); await db.execute(Message.__table__.delete().where(Message.id==message_id)); await db.execute(MessageThread.__table__.delete().where(MessageThread.id==thread_id)); await db.execute(Listing.__table__.delete().where(Listing.id.in_([listing_id,other_listing_id]))); await db.execute(User.__table__.delete().where(User.tenant_id.in_([tenant_id,other_id]))); await db.execute(Tenant.__table__.delete().where(Tenant.id.in_([tenant_id,other_id]))); await db.commit()
