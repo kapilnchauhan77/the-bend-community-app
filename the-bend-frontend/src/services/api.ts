@@ -9,7 +9,7 @@ export interface AuthInterceptorManager {
   logout: () => Promise<void>
 }
 
-export function createApiClient(manager: AuthInterceptorManager = sessionManager, runtime: RuntimeConfig = getRuntimeConfig()) {
+export function createApiClient(manager: AuthInterceptorManager = sessionManager, runtime: RuntimeConfig = getRuntimeConfig(), redirect: () => void = redirectToLogin) {
   const api = axios.create({ baseURL: runtime.apiBaseUrl, headers: { 'Content-Type': 'application/json' } })
 
   api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -28,14 +28,14 @@ export function createApiClient(manager: AuthInterceptorManager = sessionManager
       const token = await manager.refresh()
       if (!token) {
         await manager.logout()
-        redirectToLogin()
+        redirect()
         return Promise.reject(error)
       }
       originalRequest.headers.Authorization = `Bearer ${token}`
       return api(originalRequest)
     } catch {
       await manager.logout()
-      redirectToLogin()
+      redirect()
       return Promise.reject(error)
     }
   })

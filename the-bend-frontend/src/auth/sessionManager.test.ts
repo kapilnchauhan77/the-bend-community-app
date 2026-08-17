@@ -80,4 +80,23 @@ describe('SessionManager', () => {
     expect(await sessionStore.load()).toEqual({ refreshToken: 'new-refresh' })
     expect(manager.getSnapshot().isAuthenticated).toBe(true)
   })
+
+  it('orders logout cleanup after a suspended secure-store save', async () => {
+    let resolveSave!: () => void
+    let stored: StoredSession | null = null
+    const sessionStore: SessionStore = {
+      load: vi.fn(async () => stored),
+      save: vi.fn(async (next) => { await new Promise<void>((resolve) => { resolveSave = resolve }); stored = next }),
+      clear: vi.fn(async () => { stored = null }),
+    }
+    const manager = new SessionManager({ runtime, sessionStore, refresh: vi.fn(), getCurrentSession: vi.fn(async () => ({ user, shop })) })
+    const login = manager.setAuthenticated(tokens)
+    await Promise.resolve()
+    const logout = manager.logout()
+    resolveSave()
+    await Promise.all([login, logout])
+    expect(manager.getAccessToken()).toBeNull()
+    expect(manager.getSnapshot().isAuthenticated).toBe(false)
+    expect(await sessionStore.load()).toBeNull()
+  })
 })

@@ -33,10 +33,22 @@ describe('authenticated API interceptors', () => {
 
   it('cleans up when refresh returns null', async () => {
     const manager = { getAccessToken: vi.fn(() => 'token'), refresh: vi.fn(async () => null), logout: vi.fn(async () => undefined) }
-    const api = createApiClient(manager, runtime)
+    const redirect = vi.fn()
+    const api = createApiClient(manager, runtime, redirect)
     api.defaults.adapter = async (config) => { throw new AxiosError('unauthorized', 'ERR_BAD_REQUEST', config, undefined, response(config, 401)) }
     await expect(api.get('/members')).rejects.toBeInstanceOf(AxiosError)
     expect(manager.logout).toHaveBeenCalledTimes(1)
+    expect(redirect).toHaveBeenCalledTimes(1)
+  })
+
+  it('cleans up and redirects when refresh throws', async () => {
+    const manager = { getAccessToken: vi.fn(() => 'token'), refresh: vi.fn(async () => { throw new Error('offline') }), logout: vi.fn(async () => undefined) }
+    const redirect = vi.fn()
+    const api = createApiClient(manager, runtime, redirect)
+    api.defaults.adapter = async (config) => { throw new AxiosError('unauthorized', 'ERR_BAD_REQUEST', config, undefined, response(config, 401)) }
+    await expect(api.get('/members')).rejects.toBeInstanceOf(AxiosError)
+    expect(manager.logout).toHaveBeenCalledTimes(1)
+    expect(redirect).toHaveBeenCalledTimes(1)
   })
 
   it('marks auth refresh and logout requests as non-refreshable', async () => {

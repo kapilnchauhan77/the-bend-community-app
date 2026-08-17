@@ -25,6 +25,7 @@ export class SessionManager {
   private refreshInFlight: Promise<string | null> | null = null
   private initialized = false
   private epoch = 0
+  private mutationQueue: Promise<void> = Promise.resolve()
   private listeners = new Set<(snapshot: AuthSnapshot) => void>()
   private readonly options: SessionManagerOptions
 
@@ -57,22 +58,23 @@ export class SessionManager {
   }
 
   private async applyAuthenticated(response: AuthTokens | RefreshResponse, expectedEpoch: number): Promise<void> {
-    this.accessToken = response.access_token
-    if (response.refresh_token) {
-      this.refreshToken = response.refresh_token
-      await this.options.sessionStore.save({ refreshToken: response.refresh_token })
-    }
-    if (response.user) this.currentUser = response.user
-    if (response.shop !== undefined) this.currentShop = response.shop ?? null
-    const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
-    if (browserStorage && typeof browserStorage.setItem === 'function') {
-      browserStorage.setItem('access_token', response.access_token)
-      if (this.currentUser) browserStorage.setItem('user', JSON.stringify(this.currentUser))
-      browserStorage.setItem('shop', JSON.stringify(this.currentShop))
-    }
-    if (expectedEpoch !== this.epoch) return
-    this.initialized = true
-    this.publish()
+    await this.enqueueMutation(async () => {
+      if (expectedEpoch !== this.epoch) return
+      if (response.refresh_token) await this.options.sessionStore.save({ refreshToken: response.refresh_token })
+      if (expectedEpoch !== this.epoch) return
+      this.accessToken = response.access_token
+      if (response.refresh_token) this.refreshToken = response.refresh_token
+      if (response.user) this.currentUser = response.user
+      if (response.shop !== undefined) this.currentShop = response.shop ?? null
+      const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+      if (browserStorage && typeof browserStorage.setItem === 'function') {
+        browserStorage.setItem('access_token', response.access_token)
+        if (this.currentUser) browserStorage.setItem('user', JSON.stringify(this.currentUser))
+        browserStorage.setItem('shop', JSON.stringify(this.currentShop))
+      }
+      this.initialized = true
+      this.publish()
+    })
   }
 
   async initialize(): Promise<AuthSnapshot> {
@@ -132,17 +134,25 @@ export class SessionManager {
   }
 
   private async clearLocalSession() {
-    this.accessToken = null
-    this.refreshToken = null
-    this.currentUser = null
-    this.currentShop = null
-    await this.options.sessionStore.clear().catch(() => undefined)
-    const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
-    if (browserStorage && typeof browserStorage.removeItem === 'function') {
-      browserStorage.removeItem('access_token')
-      browserStorage.removeItem('user')
-      browserStorage.removeItem('shop')
-    }
+    await this.enqueueMutation(async () => {
+      this.accessToken = null
+      this.refreshToken = null
+      this.currentUser = null
+      this.currentShop = null
+      await this.options.sessionStore.clear().catch(() => undefined)
+      const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+      if (browserStorage && typeof browserStorage.removeItem === 'function') {
+        browserStorage.removeItem('access_token')
+        browserStorage.removeItem('user')
+        browserStorage.removeItem('shop')
+      }
+    })
+  }
+
+  private enqueueMutation(task: () => Promise<void>): Promise<void> {
+    const next = this.mutationQueue.then(task, task)
+    this.mutationQueue = next.catch(() => undefined)
+    return next
   }
 }
 
