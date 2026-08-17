@@ -597,6 +597,7 @@ function BenderComposer({
   const [pending, setPending] = useState<PendingMedia | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -611,8 +612,8 @@ function BenderComposer({
   }, [caption, open]);
 
   useEffect(() => {
-    if (open) void draftStore.save('create-bender-post', { fields: { caption }, localMediaUris: pending?.url?.startsWith('file:') ? [pending.url] : [] });
-  }, [caption, open, pending]);
+    if (open && draftHydrated) void draftStore.save('create-bender-post', { fields: { caption }, localMediaUris: pending?.url?.startsWith('file:') ? [pending.url] : [] });
+  }, [caption, open, pending, draftHydrated]);
 
   // Reset on close so the next open is clean.
   useEffect(() => {
@@ -631,6 +632,7 @@ function BenderComposer({
       if (savedCaption) setCaption(savedCaption);
       const uri = draft?.localMediaUris[0];
       if (uri) setPending({ url: uri, thumbnail_url: null, type: 'image' });
+      setDraftHydrated(true);
     });
   }, [open]);
 
@@ -681,7 +683,15 @@ function BenderComposer({
       const payload: CreatePostPayload = {};
       if (caption.trim()) payload.caption = caption.trim();
       if (pending) {
-        payload.media_url = pending.url;
+        let mediaUrl = pending.url;
+        if (pending.url.startsWith('file:')) {
+          const { default: api } = await import('@/services/api');
+          const blob = await fetch(pending.url).then((response) => response.blob());
+          const form = new FormData(); form.append('file', blob, 'draft-media');
+          const uploaded = await runOnline(() => api.post('/upload/media', form, { headers: { 'Content-Type': 'multipart/form-data' } }));
+          mediaUrl = String(uploaded.data.url || uploaded.data.photo_url || '');
+        }
+        payload.media_url = mediaUrl;
         if (pending.thumbnail_url) payload.media_thumbnail_url = pending.thumbnail_url;
         payload.media_type = pending.type;
       }

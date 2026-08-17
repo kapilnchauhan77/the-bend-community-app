@@ -14,15 +14,19 @@ const PUBLIC_FIELDS: Record<CachedContent['kind'], string[]> = {
   bender: ['id', 'caption', 'media_url', 'media_thumbnail_url', 'media_type', 'created_at', 'author', 'like_count', 'comment_count'],
 }
 export function normalizePublicContent(kind: CachedContent['kind'], input: unknown): unknown {
+  if (Array.isArray(input)) return input.map((item) => normalizePublicContent(kind, item))
   if (!input || typeof input !== 'object') return input
   const source = input as Record<string, unknown>
-  const nested = (value: unknown) => {
+  const nested = (value: unknown, nestedKind: CachedContent['kind'] = kind) => {
+    if (Array.isArray(value)) return value.map((item) => nested(item, nestedKind))
     if (!value || typeof value !== 'object') return value
     const object = value as Record<string, unknown>
+    if (nestedKind === 'listing' && ('title' in object || 'description' in object)) return normalizePublicContent('listing', object)
+    if (nestedKind === 'business' && ('listings' in object || 'business_type' in object)) return normalizePublicContent('business', object)
     const fields = ['id', 'name', 'business_type', 'avatar_url', 'shop_name', 'url', 'thumbnail_url', 'type']
     return Object.fromEntries(fields.filter((field) => field in object).map((field) => [field, object[field]]))
   }
-  return Object.fromEntries(PUBLIC_FIELDS[kind].filter((field) => field in source).map((field) => [field, ['shop', 'posted_by', 'author'].includes(field) ? nested(source[field]) : field === 'images' && Array.isArray(source[field]) ? source[field].slice(0, 1).map(nested) : source[field]]))
+  return Object.fromEntries(PUBLIC_FIELDS[kind].filter((field) => field in source).map((field) => [field, field === 'listings' ? nested(source[field], 'listing') : ['shop', 'posted_by', 'author'].includes(field) ? nested(source[field]) : field === 'images' && Array.isArray(source[field]) ? source[field].slice(0, 1).map(nested) : source[field]]))
 }
 const canonicalKey = (kind: CachedContent['kind'], entityId: string) => `${kind}:${entityId}`
 const validKey = (key: string, kind: CachedContent['kind'], entityId: string) => key === canonicalKey(kind, entityId) && !/[\\/]/.test(entityId)

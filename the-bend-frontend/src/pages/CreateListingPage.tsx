@@ -100,6 +100,7 @@ export default function CreateListingPage() {
   const [uploading, setUploading] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEdit);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(isEdit);
   const { online, run: runOnline } = useOnlineMutation();
 
   const initialCategory: FormData['category'] =
@@ -172,6 +173,7 @@ export default function CreateListingPage() {
     if (editId) return;
     void draftStore.load('create-listing').then((draft) => {
       if (draft) reset(draft.fields as Partial<FormData>);
+      setDraftHydrated(true);
     });
   }, [editId, reset]);
 
@@ -182,12 +184,12 @@ export default function CreateListingPage() {
   const isVolunteer = watchedCategory === 'volunteer';
 
   useEffect(() => {
-    if (isEdit) return;
+    if (isEdit || !draftHydrated) return;
     const subscription = watch((fields) => {
       void draftStore.save('create-listing', { fields: fields as Record<string, unknown>, localMediaUris: [] });
     });
     return () => subscription.unsubscribe();
-  }, [isEdit, watch]);
+  }, [isEdit, draftHydrated, watch]);
 
   // Volunteer opportunities are always free + always a "request" (org seeking help).
   useEffect(() => {

@@ -39,4 +39,11 @@ describe('NativeContentCache', () => {
     const result = normalizePublicContent('listing', { id: '1', title: 'Public', viewer_has_saved: true, access_token: 'secret', shop: { id: 's', name: 'Shop', email: 'private', stripe_account_id: 'secret' }, images: [{ url: '/a.jpg' }, { url: '/b.jpg' }] }) as Record<string, unknown>
     expect(result).toEqual({ id: '1', title: 'Public', shop: { id: 's', name: 'Shop' }, images: [{ url: '/a.jpg' }] })
   })
+
+  it('preserves feed arrays while recursively projecting every entity', () => {
+    const result = normalizePublicContent('event', [{ id: 'e1', title: 'Event', viewer_has_saved: true }, { id: 'e2', title: 'Second', access_token: 'x' }])
+    expect(result).toEqual([{ id: 'e1', title: 'Event' }, { id: 'e2', title: 'Second' }])
+    const business = normalizePublicContent('business', { id: 'b', name: 'Shop', listings: [{ id: 'l', title: 'Listing', viewer_has_interest: true, posted_by: { id: 'u', name: 'Public', email: 'secret' } }] })
+    expect(business).toEqual({ id: 'b', name: 'Shop', listings: [{ id: 'l', title: 'Listing', posted_by: { id: 'u', name: 'Public' } }] })
+  })
 })
