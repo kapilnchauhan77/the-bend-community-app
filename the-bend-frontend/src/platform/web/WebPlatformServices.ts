@@ -30,6 +30,7 @@ class WebMediaService {
   async pickPhoto() { return null }
   async capturePhoto() { return null }
   async captureVideo() { return null }
+  stopVideoCapture() {}
 }
 
 class WebLocationService { async getForegroundPosition() { return new Promise<GeolocationCoordinates>((resolve, reject) => navigator.geolocation.getCurrentPosition((position) => resolve(position.coords), reject)).then(({ latitude, longitude, accuracy }) => ({ latitude, longitude, accuracy })) } }

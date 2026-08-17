@@ -14,6 +14,9 @@ _KEY_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[
 _TTL_SECONDS = 24 * 60 * 60
 _memory: dict[str, dict[str, Any]] = {}
 
+class UploadIdempotencyUnavailable(RuntimeError):
+    """Redis is unavailable; uploads fail closed to prevent cross-worker duplicates."""
+
 
 @dataclass(frozen=True)
 class UploadClaim:
@@ -26,6 +29,8 @@ class UploadIdempotencyService:
     def _key(self, tenant_id: Any, user_id: Any, endpoint: str, key: str) -> str:
         if not _KEY_RE.fullmatch(key):
             raise ValueError("Idempotency-Key must be UUID-shaped")
+        if str(user_id) in {"anonymous", "None"} or (str(tenant_id) == "public" and not _KEY_RE.fullmatch(str(user_id))):
+            raise ValueError("Anonymous client ID must be UUID-shaped")
         digest = hashlib.sha256(key.encode()).hexdigest()
         return f"upload-idempotency:{tenant_id}:{user_id}:{endpoint}:{digest}"
 
@@ -42,12 +47,8 @@ class UploadIdempotencyService:
             created = await redis.set(claim_key, json.dumps({"state": "in_progress"}), ex=_TTL_SECONDS, nx=True)
             if not created:
                 return UploadClaim(claim_key, in_progress=True)
-        except (RedisError, OSError, RuntimeError):
-            value = _memory.get(claim_key)
-            if value:
-                if value.get("state") == "complete": return UploadClaim(claim_key, value.get("response"))
-                return UploadClaim(claim_key, in_progress=True)
-            _memory[claim_key] = {"state": "in_progress"}
+        except (RedisError, OSError, RuntimeError) as exc:
+            raise UploadIdempotencyUnavailable("Upload replay protection unavailable") from exc
         return UploadClaim(claim_key)
 
     async def complete(self, claim_key: str, response: dict[str, Any]) -> None:
@@ -55,12 +56,12 @@ class UploadIdempotencyService:
         try:
             redis = await get_redis()
             await redis.set(claim_key, json.dumps(payload), ex=_TTL_SECONDS)
-        except (RedisError, OSError, RuntimeError):
-            _memory[claim_key] = payload
+        except (RedisError, OSError, RuntimeError) as exc:
+            raise UploadIdempotencyUnavailable("Upload replay protection unavailable") from exc
 
     async def release(self, claim_key: str) -> None:
         try:
             redis = await get_redis()
             await redis.delete(claim_key)
-        except (RedisError, OSError, RuntimeError):
-            _memory.pop(claim_key, None)
+        except (RedisError, OSError, RuntimeError) as exc:
+            raise UploadIdempotencyUnavailable("Upload replay protection unavailable") from exc

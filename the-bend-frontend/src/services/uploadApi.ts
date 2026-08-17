@@ -1,9 +1,22 @@
 import api from './api';
 
 export type UploadProgress = (percent: number) => void;
-const key = (value?: string) => value || crypto.randomUUID();
-const uploadConfig = (idempotencyKey: string, onProgress?: UploadProgress) => ({
-  headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': idempotencyKey },
+const stableKeys = new WeakMap<object, string>();
+const anonymousClientId = (() => {
+  const storageKey = 'bend.anonymous-client-id';
+  const existing = typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function' ? localStorage.getItem(storageKey) : null;
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  try { if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') localStorage.setItem(storageKey, created); } catch { /* storage may be unavailable */ }
+  return created;
+})();
+const key = (value: string | undefined, source?: object) => {
+  if (value) return value;
+  if (source) { const existing = stableKeys.get(source); if (existing) return existing; const created = crypto.randomUUID(); stableKeys.set(source, created); return created; }
+  return crypto.randomUUID();
+};
+const uploadConfig = (idempotencyKey: string, onProgress?: UploadProgress, anonymous = false) => ({
+  headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': idempotencyKey, ...(anonymous ? { 'X-Anonymous-Client-ID': anonymousClientId } : {}) },
   onUploadProgress: (event: { loaded: number; total?: number }) => {
     if (event.total && onProgress) onProgress(Math.round((event.loaded / event.total) * 100));
   },
@@ -16,7 +29,7 @@ export const uploadApi = {
     return api.post<{ images: Array<{ id: string; url: string; thumbnail_url: string }> }>(
       '/upload/images',
       formData,
-      uploadConfig(key(idempotencyKey), onProgress)
+      uploadConfig(key(idempotencyKey, files), onProgress)
     );
   },
 
@@ -34,7 +47,7 @@ export const uploadApi = {
     const formData = new FormData();
     formData.append('file', file);
     return api.post<{ photo_url: string }>('/upload/photo', formData, {
-      ...uploadConfig(key(idempotencyKey), onProgress),
+      ...uploadConfig(key(idempotencyKey, file), onProgress, true),
     });
   },
 
@@ -42,7 +55,7 @@ export const uploadApi = {
     const formData = new FormData();
     formData.append('file', file);
     return api.post<{ avatar_url: string }>('/upload/avatar', formData, {
-      ...uploadConfig(key(idempotencyKey), onProgress),
+      ...uploadConfig(key(idempotencyKey, file), onProgress),
     });
   },
 
@@ -75,7 +88,7 @@ export const uploadApi = {
       type: 'image' | 'video' | 'audio';
       duration_ms?: number;
     }>('/upload/media', fd, {
-      ...uploadConfig(key(idempotencyKey), onProgress),
+      ...uploadConfig(key(idempotencyKey, file), onProgress),
     });
   },
 };

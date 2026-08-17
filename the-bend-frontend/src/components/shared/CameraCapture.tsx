@@ -55,6 +55,8 @@ export function CameraCapture({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const nativeVideoPromiseRef = useRef<Promise<import('@/platform/contracts').MediaSelection | null> | null>(null);
+  const uploadKeyRef = useRef(crypto.randomUUID());
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
   const recordStartRef = useRef<number>(0);
@@ -221,11 +223,24 @@ export function CameraCapture({
         // ignore
       }
     }
+    if (Capacitor.isNativePlatform()) {
+      services.media.stopVideoCapture?.();
+    }
     setRecording(false);
-  }, []);
+  }, [services.media]);
 
   // Video capture: MediaRecorder with mime fallback + 9 s auto-stop.
   const startRecording = useCallback(() => {
+    if (Capacitor.isNativePlatform()) {
+      nativeVideoPromiseRef.current = services.media.captureVideo();
+      setRecording(true); setElapsed(0);
+      nativeVideoPromiseRef.current.then((selection) => {
+        nativeVideoPromiseRef.current = null; setRecording(false);
+        if (!selection) { setStreamError('Video capture was cancelled or unavailable.'); return; }
+        setCapturedBlob(selection.blob); setCapturedPreviewUrl(selection.localUri || URL.createObjectURL(selection.blob)); setCapturedType('video'); setStage('preview');
+      }).catch(() => { nativeVideoPromiseRef.current = null; setRecording(false); setStreamError('Video capture is not supported on this device.'); });
+      return;
+    }
     const stream = streamRef.current;
     if (!stream) return;
     recordedChunksRef.current = [];
@@ -283,7 +298,7 @@ export function CameraCapture({
         stopRecordingInternal();
       }
     }, 100);
-  }, [stopRecordingInternal, stopStream]);
+  }, [services.media, stopRecordingInternal, stopStream]);
 
   const handleRecordPress = useCallback(() => {
     if (recording) {
@@ -327,7 +342,7 @@ export function CameraCapture({
       fd.append('file', capturedBlob, filename);
       const endpoint = uploadEndpoint || '/upload/media';
       const res = await api.post(endpoint, fd, {
-        headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': crypto.randomUUID() },
+        headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': uploadKeyRef.current },
         onUploadProgress: (event) => { if (event.total) setUploadProgress(Math.round((event.loaded / event.total) * 100)); },
       });
       const data = res.data as Record<string, unknown>;

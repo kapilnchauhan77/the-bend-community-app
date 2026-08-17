@@ -11,15 +11,23 @@ function decodeBase64(value: string, mimeType: string): Blob {
 async function fromPhoto(photo: { format?: string; path?: string; webPath?: string }): Promise<MediaSelection> {
   const mimeType = photo.format ? `image/${photo.format.toLowerCase()}` : 'image/jpeg'
   const localUri = photo.path || photo.webPath || ''
-  const fileUri = photo.path || photo.webPath || ''
-  const { Filesystem } = await import('@capacitor/filesystem')
-  const read = await Filesystem.readFile({ path: fileUri })
-  const blob = typeof read.data === 'string' ? decodeBase64(read.data, mimeType) : new Blob([read.data], { type: mimeType })
+  let blob: Blob
+  if (photo.path) {
+    const { Filesystem } = await import('@capacitor/filesystem')
+    const read = await Filesystem.readFile({ path: photo.path })
+    blob = typeof read.data === 'string' ? decodeBase64(read.data, mimeType) : new Blob([read.data], { type: mimeType })
+  } else {
+    const response = await fetch(photo.webPath || '')
+    blob = await response.blob()
+  }
   const ext = mimeType.split('/')[1] || 'jpg'
   return { blob, localUri: Capacitor.convertFileSrc(localUri), mimeType, filename: `capture.${ext}` }
 }
 
 export class NativeMediaService implements MediaService {
+  private recorder: MediaRecorder | null = null
+  private chunks: Blob[] = []
+  private resolveVideo: ((value: MediaSelection | null) => void) | null = null
   async pickPhoto() {
     try {
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
@@ -45,18 +53,25 @@ export class NativeMediaService implements MediaService {
     // WebView MediaRecorder path provides video without persisting its bytes.
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return null
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
-    try {
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
-      const chunks: Blob[] = []
-      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
-      const done = new Promise<void>((resolve) => { recorder.onstop = () => resolve() })
+    const candidates = ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm']
+    const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported?.(type))
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+    this.recorder = recorder; this.chunks = []
+    return new Promise<MediaSelection | null>((resolve) => {
+      this.resolveVideo = resolve
+      recorder.ondataavailable = (event) => { if (event.data.size) this.chunks.push(event.data) }
+      recorder.onstop = () => {
+        const blob = new Blob(this.chunks, { type: recorder.mimeType || mimeType || 'video/mp4' })
+        stream.getTracks().forEach((track) => track.stop())
+        this.recorder = null; this.chunks = []
+        this.resolveVideo = null
+        resolve(blob.size ? { blob, localUri: URL.createObjectURL(blob), mimeType: blob.type, filename: `capture.${blob.type.includes('webm') ? 'webm' : 'mp4'}` } : null)
+      }
       recorder.start()
-      window.setTimeout(() => recorder.state !== 'inactive' && recorder.stop(), 9000)
-      await done
-      const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
-      return { blob, localUri: URL.createObjectURL(blob), mimeType: blob.type, filename: 'capture.webm' }
-    } finally {
-      stream.getTracks().forEach((track) => track.stop())
-    }
+    })
+  }
+
+  stopVideoCapture() {
+    if (this.recorder && this.recorder.state !== 'inactive') this.recorder.stop()
   }
 }

@@ -62,7 +62,7 @@ export default function LocationPinEditor({ lat, lng, onChange }: LocationPinEdi
 
   return (
     <div className="space-y-1.5">
-      {!locationConfirmed && <PermissionPrimer title="Use your current location" description="Your location is requested only after you choose to use it." onConfirm={async () => { setLocationConfirmed(true); const position = await services.location.getForegroundPosition(); onChange(position.latitude, position.longitude); }} />}
+      {!locationConfirmed && <PermissionPrimer title="Use your current location" description="Your location is requested only after you choose to use it." onConfirm={async () => { setLocationConfirmed(true); try { const position = await services.location.getForegroundPosition(); onChange(position.latitude, position.longitude); } catch { setLocationConfirmed(false); } }} />}
       <div
         className="overflow-hidden rounded-lg border"
         style={{ borderColor: BORDER, height: 260 }}
