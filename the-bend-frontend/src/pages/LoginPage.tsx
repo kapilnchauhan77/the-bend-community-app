@@ -36,7 +36,7 @@ export default function LoginPage() {
     try {
       const response = await authApi.login(data.email, data.password);
       const { access_token, refresh_token, user, shop } = response.data;
-      setAuth(user, shop ?? null, access_token, refresh_token);
+      await setAuth(user, shop ?? null, access_token, refresh_token);
       navigate(from, { replace: true });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };

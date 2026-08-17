@@ -1,41 +1,29 @@
-import { create } from 'zustand';
-import type { User, Shop } from '@/types';
+import { create } from 'zustand'
+import type { AuthTokens, User, Shop } from '@/types'
+import { sessionManager } from '@/auth/sessionManager'
 
 interface AuthState {
-  user: User | null;
-  shop: Shop | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-
-  setAuth: (user: User, shop: Shop | null, accessToken: string, refreshToken: string) => void;
-  logout: () => void;
-  setLoading: (loading: boolean) => void;
+  user: User | null; shop: Shop | null; isAuthenticated: boolean; isLoading: boolean
+  setAuth: (user: User, shop: Shop | null, accessToken: string, refreshToken: string) => Promise<void>
+  initialize: () => Promise<void>; logout: () => Promise<void>; setLoading: (loading: boolean) => void
 }
 
-const storedUser = localStorage.getItem('user');
-const storedShop = localStorage.getItem('shop');
+function readJson<T>(key: string): T | null {
+  try { return typeof localStorage?.getItem === 'function' ? JSON.parse(localStorage.getItem(key) || 'null') as T : null } catch { return null }
+}
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: storedUser ? JSON.parse(storedUser) : null,
-  shop: storedShop ? JSON.parse(storedShop) : null,
-  isAuthenticated: !!localStorage.getItem('access_token'),
-  isLoading: false,
+const initial = sessionManager.getSnapshot()
+const storedUser = readJson<User>('user')
+const storedShop = readJson<Shop>('shop')
 
-  setAuth: (user, shop, accessToken, refreshToken) => {
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('shop', JSON.stringify(shop));
-    set({ user, shop, isAuthenticated: true, isLoading: false });
-  },
-
-  logout: () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('shop');
-    set({ user: null, shop: null, isAuthenticated: false, isLoading: false });
-  },
-
-  setLoading: (loading) => set({ isLoading: loading }),
-}));
+export const useAuthStore = create<AuthState>((set) => {
+  sessionManager.subscribe((snapshot) => set(snapshot))
+  return {
+    user: initial.user ?? storedUser, shop: initial.shop ?? storedShop,
+    isAuthenticated: initial.isAuthenticated || !!storedUser, isLoading: false,
+    setAuth: async (user, shop, accessToken, refreshToken) => sessionManager.setAuthenticated({ access_token: accessToken, refresh_token: refreshToken, token_type: 'bearer', user, shop } as AuthTokens),
+    initialize: async () => { set({ isLoading: true }); set(await sessionManager.initialize()) },
+    logout: async () => { await sessionManager.logout(); set(sessionManager.getSnapshot()) },
+    setLoading: (loading) => set({ isLoading: loading }),
+  }
+})

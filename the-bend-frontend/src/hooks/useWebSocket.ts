@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { API_BASE_URL } from '@/lib/constants';
+import { sessionManager } from '@/auth/sessionManager';
 
 type WSMessage = {
   type: 'message' | 'typing' | 'read' | 'notification' | 'error';
@@ -17,7 +18,7 @@ export function useWebSocket() {
   const addMessage = useMessageStore((s) => s.addMessage);
 
   const connect = useCallback(() => {
-    const token = localStorage.getItem('access_token');
+    const token = sessionManager.getAccessToken();
     if (!token) return;
 
     const wsUrl = API_BASE_URL.replace(/^http/, 'ws').replace('/api/v1', '') + '/api/v1/ws/chat?token=' + token;

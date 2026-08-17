@@ -9,7 +9,7 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await authApi.login(email, password);
-    setAuth(data.user, data.shop ?? null, data.access_token, data.refresh_token);
+    await setAuth(data.user, data.shop ?? null, data.access_token, data.refresh_token);
   }, [setAuth]);
 
   const register = useCallback(async (formData: Record<string, unknown>) => {
@@ -17,8 +17,8 @@ export function useAuth() {
     return data;
   }, []);
 
-  const logout = useCallback(() => {
-    storeLogout();
+  const logout = useCallback(async () => {
+    await storeLogout();
     navigate('/login');
   }, [storeLogout, navigate]);
 

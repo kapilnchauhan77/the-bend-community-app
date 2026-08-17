@@ -53,6 +53,7 @@ import { talentApi } from '@/services/talentApi';
 import { CameraCapture } from '@/components/shared/CameraCapture';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 import type { Volunteer, Talent, Shop } from '@/types/index';
+import { sessionManager } from '@/auth/sessionManager';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -618,8 +619,8 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
       // Mirror a changed business name into the auth store so the header/shop
       // pages refresh immediately (same setAuth pattern the avatar flow uses).
       if (shop && s.name && s.name !== shop.name) {
-        const token = localStorage.getItem('access_token') || '';
-        const refreshToken = localStorage.getItem('refresh_token') || '';
+        const token = sessionManager.getAccessToken() || '';
+        const refreshToken = '';
         setAuth(user!, { ...shop, name: s.name }, token, refreshToken);
       }
 
@@ -805,8 +806,8 @@ export default function SettingsPage() {
   const applyAvatar = (avatarUrl: string) => {
     const updatedUser = { ...user!, avatar_url: avatarUrl };
     const updatedShop = shop ? { ...shop, avatar_url: avatarUrl } : null;
-    const token = localStorage.getItem('access_token') || '';
-    const refreshToken = localStorage.getItem('refresh_token') || '';
+    const token = sessionManager.getAccessToken() || '';
+    const refreshToken = '';
     setAuth(updatedUser, updatedShop, token, refreshToken);
   };
 
