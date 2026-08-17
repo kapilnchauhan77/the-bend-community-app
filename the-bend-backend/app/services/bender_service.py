@@ -76,6 +76,8 @@ class BenderService:
     async def create_post(
         self, data: BenderPostCreate, current_user: User
     ) -> BenderPost:
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"caption": data.caption})
         post = BenderPost(
             id=uuid4(),
             author_user_id=current_user.id,
@@ -344,6 +346,8 @@ class BenderService:
         data: BenderCommentCreate,
         current_user: User,
     ) -> BenderComment:
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"content": data.content})
         post = await self._get_post_or_404(post_id)
 
         comment = BenderComment(

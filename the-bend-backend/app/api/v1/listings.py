@@ -188,31 +188,13 @@ async def report_listing(
     current_user: User = Depends(get_current_user),
 ):
     """Report an inappropriate listing."""
-    from sqlalchemy import select
-    from app.models.report import Report
-    from app.models.listing import Listing
-    # Check listing exists
-    listing = await db.execute(select(Listing).where(Listing.id == listing_id))
-    if not listing.scalar_one_or_none():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Listing not found")
-
-    # Check if already reported by this user
-    existing = await db.execute(
-        select(Report).where(Report.listing_id == listing_id, Report.reporter_id == current_user.id)
-    )
-    if existing.scalar_one_or_none():
+    from app.services.report_service import ReportService
+    report, duplicate = await ReportService(db).create("listing", listing_id, data.get("reason", "other"), data.get("details"), current_user.id, current_user.tenant_id)
+    if duplicate:
         return {"status": "already_reported"}
-
-    report = Report(
-        id=uuid4(),
-        listing_id=listing_id,
-        reporter_id=current_user.id,
-        reason=data.get("reason", "other"),
-        details=data.get("details"),
-    )
-    db.add(report)
-    await db.flush()
+    from sqlalchemy import select
+    from app.models.listing import Listing
+    listing = (await db.execute(select(Listing).where(Listing.id == listing_id))).scalar_one_or_none()
 
     # Notify admins
     try:

@@ -15,6 +15,8 @@ class EventService:
 
     # Events
     async def create_event(self, data: EventCreate):
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"title": data.title, "description": data.description, "location": data.location})
         return await self.event_repo.create({
             "id": uuid4(),
             "title": data.title,
@@ -34,6 +36,8 @@ class EventService:
         if not event:
             raise NotFoundError("Event")
         update = data.model_dump(exclude_unset=True)
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({k: update.get(k) for k in ("title", "description", "location")})
         return await self.event_repo.update(event_id, update)
 
     async def delete_event(self, event_id: UUID):

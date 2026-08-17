@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     APNS_PRIVATE_KEY: str = ""
     APNS_BUNDLE_ID: str = "community.bend.westmoreland"
     APNS_USE_SANDBOX: bool = False
+    PUBLIC_CONTENT_PROHIBITED_TERMS: list[str] = []
 
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"

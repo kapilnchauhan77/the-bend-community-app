@@ -6,10 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.core.permissions import get_current_user
 from app.models.user import User
-from app.schemas.moderation import UserBlockCreateResponse, UserBlockListResponse
+from app.schemas.moderation import UserBlockCreateResponse, UserBlockListResponse, ReportCreate, ReportResponse
 from app.services.block_service import BlockService
+from app.services.report_service import ReportService
 
 router = APIRouter(prefix="/safety", tags=["Safety"])
+
+@router.post("/reports", response_model=ReportResponse, status_code=201)
+async def report_content(data: ReportCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    row, _ = await ReportService(db).create(data.target_type, data.target_id, data.reason, data.details, current_user.id, current_user.tenant_id)
+    return row
 
 
 @router.post("/blocks/{user_id}", response_model=UserBlockCreateResponse, status_code=201)

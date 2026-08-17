@@ -115,6 +115,8 @@ class ListingService:
         return listing, viewer_has_interest
 
     async def create_listing(self, data: ListingCreate, current_user: User):
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({"title": data.title, "description": data.description, "price_text": data.price_text})
         is_volunteer = data.category == "volunteer"
 
         # Authorization: any signed-in user may post any category. If the
@@ -200,6 +202,8 @@ class ListingService:
             raise ForbiddenError("Cannot modify another shop's listing")
 
         update_data = data.model_dump(exclude_unset=True)
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({k: update_data.get(k) for k in ("title", "description", "price_text")})
 
         # image_ids isn't a column — pop it and sync the listing_images table.
         new_image_urls = update_data.pop("image_ids", None)

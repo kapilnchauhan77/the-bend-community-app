@@ -514,7 +514,7 @@ async def admin_toggle_story_featured(
 # --- Report Flags Admin Routes ---
 
 from app.models.report import Report
-from app.models.listing import Listing
+from app.services.report_service import ReportService
 
 
 @router.get("/reports/flags")
@@ -523,31 +523,7 @@ async def admin_list_reports(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    query = select(Report).order_by(Report.created_at.desc()).limit(50)
-    if resolved is not None:
-        query = query.where(Report.resolved == resolved)
-    result = await db.execute(query)
-    reports = result.scalars().all()
-
-    items = []
-    for r in reports:
-        # Get listing title
-        listing_result = await db.execute(select(Listing).where(Listing.id == r.listing_id))
-        listing = listing_result.scalar_one_or_none()
-        # Get reporter name
-        reporter_result = await db.execute(select(User).where(User.id == r.reporter_id))
-        reporter = reporter_result.scalar_one_or_none()
-        items.append({
-            "id": str(r.id),
-            "listing_id": str(r.listing_id),
-            "listing_title": listing.title if listing else "Deleted",
-            "reporter_name": reporter.name if reporter else "Unknown",
-            "reason": r.reason,
-            "details": r.details,
-            "resolved": r.resolved,
-            "created_at": str(r.created_at),
-        })
-    return {"items": items}
+    return await ReportService(db).list_admin(_.tenant_id, resolved)
 
 
 @router.post("/reports/flags/{report_id}/resolve")
@@ -556,12 +532,7 @@ async def admin_resolve_report(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    result = await db.execute(select(Report).where(Report.id == report_id))
-    report = result.scalar_one_or_none()
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-    report.resolved = True
-    await db.flush()
+    await ReportService(db).resolve(report_id, _.id, _.tenant_id)
     return {"status": "resolved"}
 
 

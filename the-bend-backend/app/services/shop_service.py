@@ -39,6 +39,8 @@ class ShopService:
         )
 
         update_data = {k: v for k, v in data.items() if v is not None}
+        from app.services.content_moderation_service import ContentModerationService
+        ContentModerationService().validate_public_text({k: update_data.get(k) for k in ("name", "address", "business_type")})
 
         # Coordinate precedence:
         #   1. Manual pin present  -> use lat/lng verbatim, skip geocoding.
