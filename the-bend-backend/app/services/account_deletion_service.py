@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, update, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError
@@ -110,16 +110,17 @@ class AccountDeletionService:
         row = (await self.db.execute(query)).scalar_one_or_none()
         if row is None or row.receipt_expires_at is None or row.receipt_expires_at <= datetime.utcnow():
             raise NotFoundError("Deletion status")
+        return row
+
+    async def consume_terminal_receipt(self, receipt: str, tenant_id: uuid.UUID | None = None) -> AccountDeletion:
+        row = await self.status(receipt, tenant_id)
         if row.status == "completed":
-            # Consume terminal receipts exactly once.  The response is built
-            # from this row, and the dependency transaction commits the clear.
+            # Public terminal polling is the sole receipt-consuming API. Keep
+            # pending reads non-destructive for retryable progress polling.
             row.receipt_hash = None
             row.receipt_expires_at = None
             await self.db.flush()
         return row
-
-    async def consume_terminal_receipt(self, receipt: str, tenant_id: uuid.UUID | None = None) -> AccountDeletion:
-        return await self.status(receipt, tenant_id)
 
     async def erase(self, deletion_id: str) -> bool:
         try:
@@ -150,7 +151,7 @@ class AccountDeletionService:
             await self.db.commit()
             try:
                 from app.services.email_service import email_service
-                if not email_service.send_account_deletion_confirmation(address):
+                if not email_service.send_account_deletion_confirmation(address, idempotency_key=f"account-deletion:{row.id}"):
                     raise RuntimeError("delivery failed")
             except Exception:
                 # Delivery outcome is deliberately non-retryable: the attempt
@@ -159,19 +160,44 @@ class AccountDeletionService:
                 await self.db.flush()
         # Delete private/account-owned rows. Shared messages, reports, audits,
         # public listings, shops and legally retained transactions remain.
-        for model, column in ((SavedListing, SavedListing.user_id), (Interest, Interest.user_id), (Notification, Notification.user_id), (PushSubscription, PushSubscription.user_id), (NotificationPreference, NotificationPreference.user_id), (DeviceInstallation, DeviceInstallation.user_id), (RefreshSession, RefreshSession.user_id), (Volunteer, Volunteer.user_id), (Talent, Talent.user_id)):
-            await self.db.execute(delete(model).where(column == uid))
-        await self.db.execute(delete(UserBlock).where((UserBlock.blocker_id == uid) | (UserBlock.blocked_id == uid)))
-        await self.db.execute(delete(Endorsement).where(Endorsement.endorser_user_id == uid))
-        from app.models.bender import BenderLike, BenderComment
-        await self.db.execute(delete(BenderLike).where(BenderLike.user_id == uid))
-        await self.db.execute(delete(BenderComment).where(BenderComment.user_id == uid))
+        from app.models.listing import Listing
         from app.models.shop import Shop
-        await self.db.execute(update(Shop).where(Shop.admin_user_id == uid).values(admin_user_id=None))
+        from app.models.employee import Employee
+        from app.models.discount_code import DiscountCode
+        # User-global children are narrowed through their tenant-owned parent
+        # where they lack a tenant column (saved listings/interests, pushes,
+        # refresh sessions, Bender reactions). This prevents a malformed or
+        # legacy cross-tenant row from being erased by user UUID alone.
+        listing_in_tenant = select(Listing.id).where(Listing.tenant_id == row.tenant_id)
+        user_in_tenant = select(User.id).where(User.id == uid, User.tenant_id == row.tenant_id)
+        for model, predicate in (
+            (SavedListing, (SavedListing.user_id == uid) & SavedListing.listing_id.in_(listing_in_tenant)),
+            (Interest, (Interest.user_id == uid) & Interest.listing_id.in_(listing_in_tenant)),
+            (Notification, (Notification.user_id == uid) & (Notification.tenant_id == row.tenant_id)),
+            (PushSubscription, PushSubscription.user_id.in_(user_in_tenant)),
+            (NotificationPreference, (NotificationPreference.user_id == uid) & (NotificationPreference.tenant_id == row.tenant_id)),
+            (DeviceInstallation, (DeviceInstallation.user_id == uid) & (DeviceInstallation.tenant_id == row.tenant_id)),
+            (RefreshSession, RefreshSession.user_id.in_(user_in_tenant)),
+            (Volunteer, (Volunteer.user_id == uid) & (Volunteer.tenant_id == row.tenant_id)),
+            (Talent, (Talent.user_id == uid) & (Talent.tenant_id == row.tenant_id)),
+        ):
+            await self.db.execute(delete(model).where(predicate))
+        await self.db.execute(delete(UserBlock).where(UserBlock.tenant_id == row.tenant_id, (UserBlock.blocker_id == uid) | (UserBlock.blocked_id == uid)))
+        await self.db.execute(delete(Endorsement).where(
+            Endorsement.endorser_user_id == uid,
+            exists(select(Shop.id).where(Shop.id == Endorsement.endorsed_shop_id, Shop.tenant_id == row.tenant_id)),
+        ))
+        from app.models.bender import BenderPost, BenderLike, BenderComment
+        post_in_tenant = select(BenderPost.id).where(BenderPost.tenant_id == row.tenant_id)
+        await self.db.execute(delete(BenderLike).where(BenderLike.user_id == uid, BenderLike.post_id.in_(post_in_tenant)))
+        await self.db.execute(delete(BenderComment).where(BenderComment.user_id == uid, BenderComment.post_id.in_(post_in_tenant)))
+        await self.db.execute(update(Shop).where(Shop.admin_user_id == uid, Shop.tenant_id == row.tenant_id).values(admin_user_id=None))
+        await self.db.execute(update(Employee).where(Employee.user_id == uid, Employee.shop_id.in_(select(Shop.id).where(Shop.tenant_id == row.tenant_id))).values(user_id=None))
+        await self.db.execute(delete(DiscountCode).where(DiscountCode.owner_user_id == uid, DiscountCode.tenant_id == row.tenant_id))
         from app.models.event import Event
-        await self.db.execute(update(Event).where(Event.submitted_by_user_id == uid).values(submitted_by_user_id=None))
+        await self.db.execute(update(Event).where(Event.submitted_by_user_id == uid, Event.tenant_id == row.tenant_id).values(submitted_by_user_id=None))
         from app.models.tenant_referral import TenantReferral
-        await self.db.execute(update(TenantReferral).where(TenantReferral.referrer_user_id == uid).values(referrer_user_id=None))
+        await self.db.execute(update(TenantReferral).where(TenantReferral.referrer_user_id == uid, TenantReferral.referrer_tenant_id == row.tenant_id).values(referrer_user_id=None))
         # Only ledgered paths under uploads/users/<id> can be removed.  Legacy
         # URLs have no ownership proof and are deliberately retained.
         owned = (await self.db.execute(select(AccountOwnedUpload).where(AccountOwnedUpload.user_id == uid, AccountOwnedUpload.tenant_id == row.tenant_id))).scalars().all()
@@ -184,8 +210,7 @@ class AccountDeletionService:
                     pass
         await self.db.execute(delete(AccountOwnedUpload).where(AccountOwnedUpload.user_id == uid, AccountOwnedUpload.tenant_id == row.tenant_id))
         # Detach authored community records rather than deleting shared data.
-        from app.models.listing import Listing
-        await self.db.execute(update(Listing).where(Listing.posted_by_user_id == uid).values(posted_by_user_id=None))
+        await self.db.execute(update(Listing).where(Listing.posted_by_user_id == uid, Listing.tenant_id == row.tenant_id).values(posted_by_user_id=None))
         user.name = "Deleted member"
         user.email = f"deleted-{uid}@deleted.invalid"
         user.phone = None

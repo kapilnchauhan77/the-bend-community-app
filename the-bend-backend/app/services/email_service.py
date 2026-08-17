@@ -32,11 +32,11 @@ class EmailService:
         logger.info(f"[DEV EMAIL] To: {to_email} | Subject: {subject} | Body: {body[:100]}...")
         return False
 
-    def _send_resend(self, to_email: str, subject: str, body: str) -> bool:
+    def _send_resend(self, to_email: str, subject: str, body: str, *, idempotency_key: str | None = None) -> bool:
         try:
             resp = httpx.post(
                 "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {self.resend_api_key}"},
+                headers={"Authorization": f"Bearer {self.resend_api_key}", **({"Idempotency-Key": idempotency_key} if idempotency_key else {})},
                 json={
                     "from": self._from,
                     "to": [to_email],
@@ -83,7 +83,9 @@ class EmailService:
         self._send(to_email, "Registration Received — The Bend",
             f"<h2>Welcome to The Bend!</h2><p>Your registration for <strong>{shop_name}</strong> has been received. The community admin will review your application shortly.</p>")
 
-    def send_account_deletion_confirmation(self, to_email: str) -> bool:
+    def send_account_deletion_confirmation(self, to_email: str, *, idempotency_key: str | None = None) -> bool:
+        if self.resend_api_key:
+            return bool(self._send_resend(to_email, "Account deletion complete — The Bend", "<h2>Account deletion complete</h2><p>Your Bend account and personal data have been removed.</p>", idempotency_key=idempotency_key))
         return bool(self._send(to_email, "Account deletion complete — The Bend",
             "<h2>Account deletion complete</h2><p>Your Bend account and personal data have been removed.</p>"))
 

@@ -198,11 +198,11 @@ async def test_email_provider_failure_attempt_marker_still_completes(monkeypatch
     try:
         async with isolated_session() as db:
             db.add(Tenant(id=tenant_id,slug="mail-"+marker,subdomain="mail-"+marker,display_name="Mail")); await db.flush(); db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Mail",role=UserRole.INDIVIDUAL)); await db.flush(); db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,send_confirmation=True,confirmation_email=marker+"@example.com")); await db.commit()
-        monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address: calls.append(address) or False)
+        monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address, **kwargs: calls.append((address, kwargs["idempotency_key"])) or False)
         async with isolated_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
         async with isolated_session() as db: row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.email_sent_at is not None and row.confirmation_email is None
         async with isolated_session() as db: assert await AccountDeletionService(db).erase(str(deletion_id))
-        assert calls==[marker+"@example.com"]
+        assert calls==[(marker+"@example.com", f"account-deletion:{deletion_id}")]
     finally:
         async with isolated_session() as db: await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()
         await isolated_engine.dispose()
@@ -223,6 +223,22 @@ async def test_real_upload_routes_keep_photo_public_and_avatar_private(monkeypat
     db = DB(); result = await routes.upload_avatar(_png_upload(), db, user)
     assert result["avatar_url"].startswith("/uploads/users/")
     assert len(db.rows) == 1 and db.rows[0].path.startswith("/uploads/users/")
+
+
+@pytest.mark.asyncio
+async def test_shared_image_media_and_anonymous_photo_are_not_private_ledgered(monkeypatch, tmp_path):
+    from app.api.v1 import upload as routes
+    monkeypatch.setattr("app.services.file_service.UPLOAD_DIR", tmp_path)
+    user = type("User", (), {"id": uuid.uuid4()})()
+    images = await routes.upload_images([_png_upload("listing.png")], user)
+    media = await routes.upload_media(_png_upload("message.png"), user)
+    photo = await routes.upload_public_photo(_png_upload("profile.png"))
+    assert images["images"][0]["url"].startswith("/uploads/images/")
+    assert media["url"].startswith("/uploads/images/")
+    assert photo["photo_url"].startswith("/uploads/images/")
+    assert list(tmp_path.joinpath("images").glob("*"))
+    assert not tmp_path.joinpath("users", str(user.id)).exists()
+    assert not any(path.parts[-3:-2] == ("users",) for path in tmp_path.rglob("*"))
 
 
 @pytest.mark.asyncio
@@ -372,14 +388,14 @@ async def test_real_postgres_workers_are_idempotent_and_email_attempt_is_once(mo
             db.add(Tenant(id=tenant_id,slug="worker-"+marker,subdomain="worker-"+marker,display_name="Worker")); await db.flush()
             db.add(User(id=user_id,tenant_id=tenant_id,email=marker+"@example.com",password_hash="x",name="Worker",role=UserRole.INDIVIDUAL)); await db.flush()
             db.add(AccountDeletion(id=deletion_id,user_id=user_id,tenant_id=tenant_id,send_confirmation=True,confirmation_email=marker+"@example.com")); await db.commit()
-        monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address: calls.append(address) or True)
+        monkeypatch.setattr("app.services.email_service.email_service.send_account_deletion_confirmation", lambda address, **kwargs: calls.append((address, kwargs["idempotency_key"])) or True)
         async def run():
             async with async_session() as db: return await AccountDeletionService(db).erase(str(deletion_id))
         results=await __import__("asyncio").gather(run(),run()); assert sorted(results)==[False,True]
         async with async_session() as db:
-            row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.attempts==1 and row.confirmation_email is None and row.email_sent_at is not None; assert calls==[marker+"@example.com"]
+            row=(await db.execute(select(AccountDeletion).where(AccountDeletion.id==deletion_id))).scalar_one(); assert row.status=="completed" and row.attempts==1 and row.confirmation_email is None and row.email_sent_at is not None; assert calls==[(marker+"@example.com", f"account-deletion:{deletion_id}")]
             assert await AccountDeletionService(db).erase(str(deletion_id)) is True
-        assert calls==[marker+"@example.com"]
+            assert calls==[(marker+"@example.com", f"account-deletion:{deletion_id}")]
     finally:
         async with async_session() as db:
             await db.execute(delete(AccountDeletion).where(AccountDeletion.id==deletion_id)); await db.execute(delete(User).where(User.id==user_id)); await db.execute(delete(Tenant).where(Tenant.id==tenant_id)); await db.commit()

@@ -26,5 +26,5 @@ async def status(receipt: str = Query(..., min_length=1, max_length=256), db: As
     if tenant is None:
         from app.core.exceptions import NotFoundError
         raise NotFoundError("Deletion status")
-    row = await AccountDeletionService(db).status(receipt, tenant.id if tenant else None)
+    row = await AccountDeletionService(db).consume_terminal_receipt(receipt, tenant.id if tenant else None)
     return {"status": row.status, "requested_at": row.created_at, "completed_at": row.completed_at}
