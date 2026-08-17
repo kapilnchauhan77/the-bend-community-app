@@ -190,7 +190,7 @@ async def create_checkout(
             "expected_currency": "usd",
             "sponsor_id": str(sponsor.id),
             "pricing_id": str(pricing.id),
-            "coupon_code_id": str(applied_code.id) if applied_code else None,
+            "coupon_code_id": str(applied_code.id) if applied_code else "",
         },
         api_key=get_stripe_keys(tenant).secret,
     )

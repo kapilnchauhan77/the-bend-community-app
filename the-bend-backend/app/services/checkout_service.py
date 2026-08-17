@@ -31,6 +31,10 @@ class CheckoutVerificationService:
     @staticmethod
     def _status(kind: str, row: Any) -> str:
         status = getattr(row, "checkout_status", None) or getattr(row, "status", "pending")
+        if kind == "sponsor" and row.paid:
+            return "complete" if row.approved and row.is_active else "paid"
+        if kind == "event" and row.paid:
+            return "complete" if str(row.status).lower().endswith("active") else "paid"
         if kind == "connector":
             if status == "cancelled":
                 return status
@@ -38,10 +42,6 @@ class CheckoutVerificationService:
                 return "complete" if row.setup_complete else "paid"
         elif status in {"cancelled", "paid", "complete"}:
             return status
-        if kind == "sponsor" and row.paid:
-            return "complete" if row.approved and row.is_active else "paid"
-        if kind == "event" and row.paid:
-            return "complete" if str(row.status).lower().endswith("active") else "paid"
         if kind == "connector" and row.status == "paid":
             return "complete" if row.setup_complete else "paid"
         return "pending"

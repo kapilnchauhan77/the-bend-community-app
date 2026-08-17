@@ -1,0 +1,142 @@
+import uuid
+
+import httpx
+import pytest
+import stripe
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.api.deps import get_db
+from app.config import get_settings
+from app.core.permissions import get_current_tenant
+from app.main import create_app
+from app.models.connector_purchase import ConnectorPurchase
+from app.models.event import Event
+from app.models.enums import EventCategory, EventStatus
+from app.models.sponsor import Sponsor
+from app.models.tenant import Tenant
+from app.services.checkout_service import CheckoutVerificationService
+
+
+@pytest.fixture
+async def db_context(monkeypatch):
+    engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr("app.middleware.tenant.async_session", sessions)
+    tenant_id = uuid.uuid4()
+    tenant = Tenant(id=tenant_id, slug=f"task8-{tenant_id.hex[:10]}", subdomain=f"task8-{tenant_id.hex[:10]}", display_name="Task 8", stripe_secret_key="sk_test_task8", stripe_publishable_key="pk_test_task8", stripe_webhook_secret="whsec_task8")
+    sponsor_id, event_id, connector_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    async with sessions() as db:
+        db.add(tenant)
+        await db.flush()
+        db.add_all([
+            Sponsor(id=sponsor_id, tenant_id=tenant_id, name="Matrix sponsor", placement="homepage", stripe_session_id="cs_sponsor_1", expected_amount=1200, expected_currency="usd"),
+            Event(id=event_id, tenant_id=tenant_id, title="Matrix event", start_date=__import__("datetime").datetime.utcnow(), category=EventCategory.COMMUNITY, status=EventStatus.ACTIVE, source="submission", stripe_session_id="cs_event_1", expected_amount=1999, expected_currency="usd"),
+            ConnectorPurchase(id=connector_id, tenant_id=tenant_id, website_url="https://example.test", contact_name="Matrix", contact_email="matrix@example.test", business_name="Matrix", expected_amount=39900, expected_currency="usd", stripe_session_id="cs_connector_1"),
+        ])
+        await db.commit()
+    yield sessions, tenant, (sponsor_id, event_id, connector_id)
+    async with sessions() as db:
+        await db.execute(delete(ConnectorPurchase).where(ConnectorPurchase.tenant_id == tenant_id))
+        await db.execute(delete(Event).where(Event.tenant_id == tenant_id))
+        await db.execute(delete(Sponsor).where(Sponsor.tenant_id == tenant_id))
+        await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
+        await db.commit()
+    await engine.dispose()
+
+
+def make_app(sessions, tenant):
+    app = create_app()
+
+    async def db_override():
+        async with sessions() as db:
+            try:
+                yield db
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
+
+    app.dependency_overrides[get_db] = db_override
+    app.dependency_overrides[get_current_tenant] = lambda: tenant
+    return app
+
+
+@pytest.mark.asyncio
+async def test_rejected_and_final_local_statuses_never_call_stripe(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *args, **kwargs: calls.append((args, kwargs)))
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        assert (await client.get("/api/v1/checkout/status/nope/cs_sponsor_1")).status_code == 404
+        assert (await client.get("/api/v1/checkout/status/sponsor/not-a-session")).status_code == 404
+        response = await client.get("/api/v1/checkout/status/sponsor/cs_unknown")
+        assert response.status_code == 404
+    assert calls == []
+    async with sessions() as db:
+        sponsor = await db.get(Sponsor, ids[0])
+        sponsor.checkout_status = "cancelled"
+        await db.commit()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+    assert response.json() == {"status": "cancelled", "target_type": "sponsor", "target_id": str(ids[0])}
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_provider_metadata_amount_currency_mismatch_stays_pending_and_uses_tenant_key(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+
+    def retrieve(session_id, **kwargs):
+        calls.append((session_id, kwargs))
+        return {"id": session_id, "status": "open", "payment_status": "unpaid", "amount_total": 1, "currency": "eur", "metadata": {"kind": "sponsor", "target_id": str(ids[0]), "tenant_id": str(tenant.id), "expected_amount": "1200", "expected_currency": "usd"}}
+
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", retrieve)
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+    assert response.json()["status"] == "pending"
+    assert calls == [("cs_sponsor_1", {"api_key": "sk_test_task8"})]
+    assert getattr(stripe, "api_key", None) in (None, "")
+
+
+@pytest.mark.asyncio
+async def test_verified_paid_connector_is_idempotent_and_setup_gates_completion(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda session_id, **kwargs: calls.append(kwargs) or {"id": session_id, "status": "complete", "payment_status": "paid", "amount_total": 39900, "currency": "usd", "payment_intent": "pi_matrix", "metadata": {"kind": "connector", "target_id": str(ids[2]), "tenant_id": str(tenant.id), "expected_amount": "39900", "expected_currency": "usd"}})
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        first = await client.get("/api/v1/checkout/status/connector/cs_connector_1")
+        second = await client.get("/api/v1/checkout/status/connector/cs_connector_1")
+    assert first.json()["status"] == "paid"
+    assert second.json()["status"] == "paid"
+    async with sessions() as db:
+        purchase = await db.get(ConnectorPurchase, ids[2])
+        assert purchase.status == "paid"
+        purchase.setup_complete = True
+        await db.commit()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        complete = await client.get("/api/v1/checkout/status/connector/cs_connector_1")
+    assert complete.json()["status"] == "complete"
+    assert calls == [{"api_key": "sk_test_task8"}]
+
+
+@pytest.mark.asyncio
+async def test_paid_sponsor_requires_approval_for_complete_without_provider(monkeypatch, db_context):
+    sessions, tenant, ids = db_context
+    calls = []
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda *args, **kwargs: calls.append(1))
+    async with sessions() as db:
+        sponsor = await db.get(Sponsor, ids[0])
+        sponsor.paid = True
+        sponsor.checkout_status = "paid"
+        await db.commit()
+    app = make_app(sessions, tenant)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/checkout/status/sponsor/cs_sponsor_1")
+    assert response.json()["status"] == "paid"
+    assert calls == []
