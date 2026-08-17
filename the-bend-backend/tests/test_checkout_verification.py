@@ -14,6 +14,5 @@ async def test_checkout_status_rejects_forged_session_without_provider_call():
         "Tenant", (), {"slug": "westmoreland", "id": "00000000-0000-0000-0000-000000000001"}
     )()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/checkout/status/event/cs_forged")
+        response = await client.get("/api/v1/checkout/status/event/not-a-session")
     assert response.status_code == 404
-

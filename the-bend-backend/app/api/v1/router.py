@@ -24,6 +24,7 @@ from app.api.v1.bender import router as bender_router
 from app.api.v1.devices import router as devices_router
 from app.api.v1.safety import router as safety_router
 from app.api.v1.account import router as account_router
+from app.api.v1.capabilities import router as capabilities_router
 
 api_router = APIRouter()
 
@@ -50,6 +51,7 @@ api_router.include_router(bender_router)
 api_router.include_router(devices_router)
 api_router.include_router(safety_router)
 api_router.include_router(account_router)
+api_router.include_router(capabilities_router)
 
 
 @api_router.get("/health")

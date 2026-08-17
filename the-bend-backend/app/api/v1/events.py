@@ -166,6 +166,8 @@ async def submit_event(
         status=EventStatus.ACTIVE,
         paid=False,
         tenant_id=tenant.id if tenant else None,
+        expected_amount=price_cents,
+        expected_currency="usd",
     )
     db.add(event)
     await db.flush()
@@ -187,8 +189,6 @@ async def submit_event(
         }
 
     # Create Stripe checkout session
-    stripe.api_key = get_stripe_keys(tenant).secret
-
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[{
@@ -207,10 +207,14 @@ async def submit_event(
         cancel_url=f"{_frontend_url(tenant)}/events?posted=cancelled",
         customer_email=data.submitted_by_email,
         metadata={
+            "kind": "event",
+            "target_id": str(event.id),
+            "tenant_id": str(event.tenant_id) if event.tenant_id else "",
             "event_id": str(event.id),
             "type": "event_posting",
             "coupon_code_id": str(applied_coupon.id) if applied_coupon else "",
         },
+        api_key=get_stripe_keys(tenant).secret,
     )
 
     event.stripe_session_id = session.id
@@ -218,8 +222,6 @@ async def submit_event(
     # up. Same trade-off as the sponsor checkout path: we don't currently
     # process webhooks for these flows, so we accept a small drift if the
     # user abandons before paying.
-    if applied_coupon is not None:
-        await dc_service.mark_used(applied_coupon.id)
     await db.flush()
 
     return {
@@ -247,8 +249,21 @@ async def purchase_connector(
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Purchase a 90-day Automatic Website Events Linker."""
-    stripe.api_key = get_stripe_keys(tenant).secret
-
+    purchase = __import__("app.models.connector_purchase", fromlist=["ConnectorPurchase"]).ConnectorPurchase(
+        tenant_id=tenant.id if tenant else None,
+        website_url=data.website_url,
+        contact_name=data.contact_name,
+        contact_email=data.contact_email,
+        business_name=data.business_name,
+        notes=data.notes,
+        expected_amount=CONNECTOR_PRICE,
+        expected_currency="usd",
+    )
+    if tenant is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    db.add(purchase)
+    await db.flush()
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[{
@@ -267,15 +282,15 @@ async def purchase_connector(
         cancel_url=f"{_frontend_url(tenant)}/advertise?cancelled=true",
         customer_email=data.contact_email,
         metadata={
+            "kind": "connector",
+            "target_id": str(purchase.id),
+            "tenant_id": str(purchase.tenant_id),
             "type": "connector_purchase",
-            "website_url": data.website_url,
-            "contact_name": data.contact_name,
-            "contact_email": data.contact_email,
-            "business_name": data.business_name,
-            "notes": data.notes or "",
         },
+        api_key=get_stripe_keys(tenant).secret,
     )
-
+    purchase.stripe_session_id = session.id
+    await db.flush()
     return {"checkout_url": session.url, "session_id": session.id}
 
 

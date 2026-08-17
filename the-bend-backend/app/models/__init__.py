@@ -18,6 +18,7 @@ from app.models.volunteer import Volunteer
 from app.models.talent import Talent, TalentInquiry
 from app.models.event import Event, EventConnector
 from app.models.sponsor import Sponsor
+from app.models.connector_purchase import ConnectorPurchase
 from app.models.ad_pricing import AdPricing
 from app.models.saved_listing import SavedListing
 from app.models.success_story import SuccessStory
@@ -44,6 +45,7 @@ __all__ = [
     "Volunteer", "Talent", "TalentInquiry",
     "Event", "EventConnector",
     "Sponsor",
+    "ConnectorPurchase",
     "SavedListing",
     "SuccessStory",
     "Report",

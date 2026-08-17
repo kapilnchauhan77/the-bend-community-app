@@ -25,6 +25,9 @@ class Sponsor(Base):
     # Payment tracking
     stripe_session_id: Mapped[str | None] = mapped_column(String(255))
     stripe_payment_intent: Mapped[str | None] = mapped_column(String(255))
+    checkout_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    expected_amount: Mapped[int | None] = mapped_column(Integer)
+    expected_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="usd")
     paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     contact_email: Mapped[str | None] = mapped_column(String(255))

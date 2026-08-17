@@ -46,6 +46,10 @@ async def _mark_paid_and_notify(db: AsyncSession, sponsor: Sponsor, pricing: "Ad
         sponsor.starts_at = datetime.utcnow()
         sponsor.expires_at = datetime.utcnow() + timedelta(days=pricing.duration_days)
 
+    if getattr(sponsor, "coupon_code_id", None):
+        from app.services.discount_code_service import DiscountCodeService
+        await DiscountCodeService(db).mark_used(sponsor.coupon_code_id)
+
     from app.models.user import User
     from app.models.enums import UserRole, NotificationType
     from app.services.notification_service import NotificationService
@@ -144,6 +148,8 @@ async def create_checkout(
         pricing_id=pricing.id,
         tenant_id=tenant.id if tenant else None,
         coupon_code_id=applied_code.id if applied_code else None,
+        expected_amount=effective_cents,
+        expected_currency="usd",
     )
     db.add(sponsor)
     await db.flush()
@@ -162,8 +168,6 @@ async def create_checkout(
         return {"checkout_url": None, "session_id": None, "free": True}
 
     # Create Stripe checkout session
-    stripe.api_key = get_stripe_keys(tenant).secret
-
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[{
@@ -182,10 +186,14 @@ async def create_checkout(
         cancel_url=f"{_frontend_url(tenant)}/advertise?cancelled=true",
         customer_email=data.contact_email,
         metadata={
+            "kind": "sponsor",
+            "target_id": str(sponsor.id),
+            "tenant_id": str(sponsor.tenant_id) if sponsor.tenant_id else "",
             "sponsor_id": str(sponsor.id),
             "pricing_id": str(pricing.id),
             "coupon_code_id": str(applied_code.id) if applied_code else None,
         },
+        api_key=get_stripe_keys(tenant).secret,
     )
 
     # Save stripe session ID
@@ -198,10 +206,6 @@ async def create_checkout(
     # paid path. Risk: if the user abandons checkout, the coupon's
     # usage_count drifts up by one. We accept that for simplicity; a
     # future webhook pass can move this into checkout.session.completed.
-    if applied_code is not None:
-        coupon_service = DiscountCodeService(db)
-        await coupon_service.mark_used(applied_code.id)
-
     await db.flush()
 
     return {"checkout_url": session.url, "session_id": session.id}
@@ -218,14 +222,14 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
     try:
         if settings.STRIPE_WEBHOOK_SECRET:
             event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
-        else:
+        elif settings.STRIPE_ALLOW_UNSIGNED_WEBHOOKS and settings.APP_ENV != "production":
             import json
-            event = stripe.Event.construct_from(json.loads(payload), stripe.api_key)
+            event = stripe.Event.construct_from(json.loads(payload), api_key=settings.STRIPE_SECRET_KEY)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid webhook")
     except (ValueError, stripe.error.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid webhook")
 
@@ -300,31 +304,13 @@ async def check_status(
     it paid and notify admins. This guarantees a paid sponsor reaches the admin's
     "Pending Approval" queue even when the Stripe webhook never arrives.
     """
-    result = await db.execute(
-        select(Sponsor).where(Sponsor.stripe_session_id == session_id)
-    )
-    sponsor = result.scalar_one_or_none()
-    if not sponsor:
+    from app.services.checkout_service import CheckoutVerificationService
+    verified = await CheckoutVerificationService(db, tenant).status("sponsor", session_id)
+    if verified is None:
         raise HTTPException(status_code=404, detail="Order not found")
-
-    if not sponsor.paid:
-        try:
-            stripe.api_key = get_stripe_keys(tenant).secret
-            checkout = stripe.checkout.Session.retrieve(session_id)
-            if checkout.get("payment_status") == "paid":
-                pricing = None
-                if sponsor.pricing_id:
-                    pr = await db.execute(select(AdPricing).where(AdPricing.id == sponsor.pricing_id))
-                    pricing = pr.scalar_one_or_none()
-                sponsor.stripe_payment_intent = checkout.get("payment_intent")
-                await _mark_paid_and_notify(db, sponsor, pricing)
-        except Exception:
-            # Never fail the status check on a Stripe hiccup; the webhook is the
-            # primary path and the next poll will retry.
-            pass
-
+    sponsor = await db.get(Sponsor, UUID(verified["target_id"]))
     return {
-        "status": "paid" if sponsor.paid else "pending",
+        "status": verified["status"],
         "paid": sponsor.paid,
         "approved": sponsor.approved,
         "is_active": sponsor.is_active,

@@ -76,7 +76,9 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_ALLOW_UNSIGNED_WEBHOOKS: bool = False
     FRONTEND_URL: str = "https://westmoreland.bend.community"
+    NATIVE_COMMERCE_ENABLED: bool = True
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

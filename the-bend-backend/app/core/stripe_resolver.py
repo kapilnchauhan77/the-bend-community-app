@@ -14,9 +14,12 @@ class StripeKeys(NamedTuple):
 def get_stripe_keys(tenant: Tenant | None) -> StripeKeys:
     """Per-tenant keys take precedence over env-level fallback."""
     settings = get_settings()
-    secret = (tenant.stripe_secret_key if tenant and tenant.stripe_secret_key else None) or settings.STRIPE_SECRET_KEY
-    publishable = (tenant.stripe_publishable_key if tenant and tenant.stripe_publishable_key else None) or settings.STRIPE_PUBLISHABLE_KEY
-    webhook = (tenant.stripe_webhook_secret if tenant and tenant.stripe_webhook_secret else None) or settings.STRIPE_WEBHOOK_SECRET
+    secret_value = getattr(tenant, "stripe_secret_key", None) if tenant else None
+    publishable_value = getattr(tenant, "stripe_publishable_key", None) if tenant else None
+    webhook_value = getattr(tenant, "stripe_webhook_secret", None) if tenant else None
+    secret = secret_value or settings.STRIPE_SECRET_KEY
+    publishable = publishable_value or settings.STRIPE_PUBLISHABLE_KEY
+    webhook = webhook_value or settings.STRIPE_WEBHOOK_SECRET
     return StripeKeys(secret=secret or "", publishable=publishable or "", webhook=webhook or "")
 
 
