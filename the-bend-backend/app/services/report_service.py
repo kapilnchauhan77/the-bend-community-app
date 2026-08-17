@@ -62,10 +62,8 @@ class ReportService:
             target = None
             try: target = await self._target(row.target_type, row.target_id, tenant_id, enforce_participant=False)
             except NotFoundError: pass
-            summary = {"id": str(target.id), "target_type": row.target_type}
+            summary = {"id": str(target.id), "target_type": row.target_type} if target else {"unavailable": True, "target_type": row.target_type}
             if target and row.target_type != "message":
                 summary["title"] = getattr(target, "title", getattr(target, "name", None))
-            elif not target:
-                summary = {"unavailable": True, "target_type": row.target_type}
             items.append({"id": str(row.id), "target_type": row.target_type, "target_id": str(row.target_id), "target_summary": summary, "reason": row.reason, "details": row.details, "status": row.status, "resolved": row.status == "resolved", "resolved_at": row.resolved_at, "resolved_by_id": str(row.resolved_by_id) if row.resolved_by_id else None, "created_at": str(row.created_at)})
         return {"items": items}
