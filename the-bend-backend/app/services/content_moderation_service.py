@@ -27,6 +27,10 @@ class ContentModerationService:
         valid_urls = [u for u in all_urls if urlparse(u).scheme in ("http", "https") and urlparse(u).netloc]
         if len(valid_urls) >= 3:
             raise ValidationError("Public content contains repeated-link spam")
+        aggregate = " ".join(values)
+        for term in terms:
+            if re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", aggregate):
+                raise ValidationError("Public content contains a prohibited term")
         for raw, value in zip(raw_values, values):
             for term in terms:
                 if re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", value):
