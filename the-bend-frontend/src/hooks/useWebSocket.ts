@@ -1,13 +1,17 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useMessageStore } from '@/stores/messageStore';
-import { API_BASE_URL } from '@/lib/constants';
 import { sessionManager } from '@/auth/sessionManager';
+import { getRuntimeConfig } from '@/platform/runtimeConfig';
 
 type WSMessage = {
   type: 'message' | 'typing' | 'read' | 'notification' | 'error';
   data: Record<string, unknown>;
 };
+
+export function buildWebSocketUrl(token: string, runtime = getRuntimeConfig()): string {
+  return `${runtime.wsBaseUrl}/api/v1/ws/chat?token=${encodeURIComponent(token)}`;
+}
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -21,7 +25,7 @@ export function useWebSocket() {
     const token = sessionManager.getAccessToken();
     if (!token) return;
 
-    const wsUrl = API_BASE_URL.replace(/^http/, 'ws').replace('/api/v1', '') + '/api/v1/ws/chat?token=' + token;
+    const wsUrl = buildWebSocketUrl(token);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {

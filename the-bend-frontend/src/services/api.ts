@@ -10,6 +10,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = sessionManager.getAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   config.headers['X-Tenant-Slug'] = runtime.tenantSlug
+  if (typeof config.url === 'string' && /\/auth\/(refresh|logout)$/.test(config.url)) config._skipAuthRefresh = true
   return config
 })
 
@@ -19,7 +20,11 @@ api.interceptors.response.use((response) => response, async (error: AxiosError) 
   originalRequest._authRetry = true
   try {
     const token = await sessionManager.refresh()
-    if (!token) return Promise.reject(error)
+    if (!token) {
+      await sessionManager.logout()
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') window.location.href = '/login'
+      return Promise.reject(error)
+    }
     originalRequest.headers.Authorization = `Bearer ${token}`
     return api(originalRequest)
   } catch {

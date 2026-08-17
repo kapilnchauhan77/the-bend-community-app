@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/authApi';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
+import { consumePendingDestination, isAllowedPendingDestination } from '@/auth/pendingDestination';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -20,7 +21,9 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setAuth } = useAuthStore();
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
+  const stateFrom = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+  const statePath = stateFrom?.pathname ? `${stateFrom.pathname}${stateFrom.search ?? ''}${stateFrom.hash ?? ''}` : null;
+  const from = (statePath && isAllowedPendingDestination(statePath) ? statePath : consumePendingDestination()) || '/';
 
   const {
     register,
@@ -37,6 +40,7 @@ export default function LoginPage() {
       const response = await authApi.login(data.email, data.password);
       const { access_token, refresh_token, user, shop } = response.data;
       await setAuth(user, shop ?? null, access_token, refresh_token);
+      consumePendingDestination();
       navigate(from, { replace: true });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };

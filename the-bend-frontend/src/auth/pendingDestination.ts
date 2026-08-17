@@ -1,4 +1,4 @@
-const KEY = 'native_pending_destination'
+const KEY = 'native_pending_post_path'
 
 const ALLOWED = [
   /^\/$/, /^\/(explore|browse|events|bender|volunteers|talent|messages|notifications|you|settings|create)(\/[^/?#]+)?$/,
@@ -7,18 +7,30 @@ const ALLOWED = [
 
 export function isAllowedPendingDestination(path: string): boolean {
   if (!path || !path.startsWith('/') || path.startsWith('//') || path.includes('://')) return false
-  const parsed = new URL(path, 'https://bend.local')
+  let parsed: URL
+  try { parsed = new URL(path, 'https://bend.local') } catch { return false }
   if (parsed.origin !== 'https://bend.local' || parsed.pathname.startsWith('/admin') || parsed.pathname.startsWith('/super-admin')) return false
   return ALLOWED.some((pattern) => pattern.test(parsed.pathname))
 }
 
 export function setPendingDestination(path: string): void {
-  if (isAllowedPendingDestination(path)) localStorage.setItem(KEY, path)
+  const storage = typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+  if (storage && typeof storage.setItem === 'function' && isAllowedPendingDestination(path)) storage.setItem(KEY, path)
 }
 
 export function getPendingDestination(): string | null {
-  const value = localStorage.getItem(KEY)
+  const storage = typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+  const value = storage && typeof storage.getItem === 'function' ? storage.getItem(KEY) : null
   return value && isAllowedPendingDestination(value) ? value : null
 }
 
-export function clearPendingDestination(): void { localStorage.removeItem(KEY) }
+export function clearPendingDestination(): void {
+  const storage = typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+  if (storage && typeof storage.removeItem === 'function') storage.removeItem(KEY)
+}
+
+export function consumePendingDestination(): string | null {
+  const value = getPendingDestination()
+  clearPendingDestination()
+  return value
+}

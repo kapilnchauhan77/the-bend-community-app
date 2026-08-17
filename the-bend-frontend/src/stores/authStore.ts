@@ -9,7 +9,10 @@ interface AuthState {
 }
 
 function readJson<T>(key: string): T | null {
-  try { return typeof localStorage?.getItem === 'function' ? JSON.parse(localStorage.getItem(key) || 'null') as T : null } catch { return null }
+  try {
+    const storage = typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+    return storage ? JSON.parse(storage.getItem(key) || 'null') as T : null
+  } catch { return null }
 }
 
 const initial = sessionManager.getSnapshot()
@@ -19,8 +22,8 @@ const storedShop = readJson<Shop>('shop')
 export const useAuthStore = create<AuthState>((set) => {
   sessionManager.subscribe((snapshot) => set(snapshot))
   return {
-    user: initial.user ?? storedUser, shop: initial.shop ?? storedShop,
-    isAuthenticated: initial.isAuthenticated || !!storedUser, isLoading: false,
+    user: initial.user ?? (!sessionManager.isNative ? storedUser : null), shop: initial.shop ?? (!sessionManager.isNative ? storedShop : null),
+    isAuthenticated: initial.isAuthenticated, isLoading: false,
     setAuth: async (user, shop, accessToken, refreshToken) => sessionManager.setAuthenticated({ access_token: accessToken, refresh_token: refreshToken, token_type: 'bearer', user, shop } as AuthTokens),
     initialize: async () => { set({ isLoading: true }); set(await sessionManager.initialize()) },
     logout: async () => { await sessionManager.logout(); set(sessionManager.getSnapshot()) },

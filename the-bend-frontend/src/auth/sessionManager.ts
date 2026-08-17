@@ -24,6 +24,7 @@ export class SessionManager {
   private currentShop: Shop | null = null
   private refreshInFlight: Promise<string | null> | null = null
   private initialized = false
+  private epoch = 0
   private listeners = new Set<(snapshot: AuthSnapshot) => void>()
   private readonly options: SessionManagerOptions
 
@@ -46,6 +47,8 @@ export class SessionManager {
 
   getAccessToken(): string | null { return this.accessToken }
 
+  get isNative(): boolean { return this.options.runtime.isNative }
+
   getSnapshot(): AuthSnapshot { return this.snapshot() }
 
   async setAuthenticated(response: AuthTokens | RefreshResponse): Promise<void> {
@@ -56,10 +59,11 @@ export class SessionManager {
     }
     if (response.user) this.currentUser = response.user
     if (response.shop !== undefined) this.currentShop = response.shop ?? null
-    if (!this.options.runtime.isNative && typeof localStorage?.setItem === 'function') {
-      localStorage.setItem('access_token', response.access_token)
-      if (this.currentUser) localStorage.setItem('user', JSON.stringify(this.currentUser))
-      localStorage.setItem('shop', JSON.stringify(this.currentShop))
+    const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+    if (browserStorage && typeof browserStorage.setItem === 'function') {
+      browserStorage.setItem('access_token', response.access_token)
+      if (this.currentUser) browserStorage.setItem('user', JSON.stringify(this.currentUser))
+      browserStorage.setItem('shop', JSON.stringify(this.currentShop))
     }
     this.initialized = true
     this.publish()
@@ -93,6 +97,7 @@ export class SessionManager {
   }
 
   private async doRefresh(): Promise<string | null> {
+    const requestEpoch = this.epoch
     if (!this.refreshToken) {
       const stored = await this.options.sessionStore.load().catch(() => null)
       this.refreshToken = stored?.refreshToken ?? null
@@ -100,6 +105,7 @@ export class SessionManager {
     if (!this.refreshToken) return null
     try {
       const response = await this.options.refresh(this.refreshToken)
+      if (requestEpoch !== this.epoch) return null
       await this.setAuthenticated({ ...response, refresh_token: response.refresh_token ?? this.refreshToken })
       return response.access_token
     } catch (error) {
@@ -109,7 +115,10 @@ export class SessionManager {
   }
 
   async logout(): Promise<void> {
+    const requestEpoch = ++this.epoch
     const refreshToken = this.refreshToken ?? (await this.options.sessionStore.load().catch(() => null))?.refreshToken
+    if (this.refreshInFlight) await this.refreshInFlight.catch(() => undefined)
+    if (requestEpoch !== this.epoch) return
     try { if (refreshToken && this.options.logoutRequest) await this.options.logoutRequest(refreshToken) } catch { /* local cleanup is authoritative */ }
     await this.clearLocalSession()
     this.initialized = true
@@ -122,10 +131,11 @@ export class SessionManager {
     this.currentUser = null
     this.currentShop = null
     await this.options.sessionStore.clear().catch(() => undefined)
-    if (!this.options.runtime.isNative && typeof localStorage?.removeItem === 'function') {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('shop')
+    const browserStorage = !this.options.runtime.isNative && typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
+    if (browserStorage && typeof browserStorage.removeItem === 'function') {
+      browserStorage.removeItem('access_token')
+      browserStorage.removeItem('user')
+      browserStorage.removeItem('shop')
     }
   }
 }
@@ -133,12 +143,12 @@ export class SessionManager {
 function createDefaultManager(): SessionManager {
   const runtime = getRuntimeConfig()
   const services = createPlatformServices(runtime)
-  const client = axios.create({ baseURL: runtime.apiBaseUrl, headers: { 'Content-Type': 'application/json' } })
+  const client = axios.create({ baseURL: runtime.apiBaseUrl, headers: { 'Content-Type': 'application/json', 'X-Tenant-Slug': runtime.tenantSlug } })
   return new SessionManager({
     runtime,
     sessionStore: services.sessionStore,
     refresh: async (refreshToken) => (await client.post<RefreshResponse>('/auth/refresh', { refresh_token: refreshToken })).data,
-    getCurrentSession: async () => (await client.get<{ user: User; shop?: Shop | null }>('/auth/me')).data,
+    getCurrentSession: async () => (await client.get<{ user: User; shop?: Shop | null }>('/auth/me', { headers: { Authorization: `Bearer ${sessionManager?.getAccessToken?.() ?? ''}`, 'X-Tenant-Slug': runtime.tenantSlug } })).data,
     logoutRequest: (refreshToken) => client.post('/auth/logout', { refresh_token: refreshToken }),
   })
 }

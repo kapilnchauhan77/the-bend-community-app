@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useEffect, useRef, type RefObject } from 'react';
+import { setPendingDestination } from '@/auth/pendingDestination';
 
 const postActions = [
   { label: 'Offer listing', path: '/create?type=offer' },
@@ -36,7 +37,7 @@ export function PostActionSheet({ open, onClose, returnFocusRef }: PostActionShe
       navigate(path);
       return;
     }
-    localStorage.setItem('native_pending_post_path', path);
+    setPendingDestination(path);
     navigate('/login', { state: { from: { pathname: path } } });
   };
 

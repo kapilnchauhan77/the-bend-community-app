@@ -48,4 +48,20 @@ describe('SessionManager', () => {
     expect(sessionStore.save).toHaveBeenCalledWith({ refreshToken: 'refresh' })
     expect(manager.getAccessToken()).toBe('access')
   })
+
+  it('cannot resurrect a session when refresh completes after logout', async () => {
+    const sessionStore = store({ refreshToken: 'refresh' })
+    let resolveRefresh!: (value: AuthTokens) => void
+    const refreshApi = vi.fn(() => new Promise<AuthTokens>((resolve) => { resolveRefresh = resolve }))
+    const manager = new SessionManager({ runtime, sessionStore, refresh: refreshApi, getCurrentSession: vi.fn(async () => ({ user, shop })) })
+    await manager.setAuthenticated(tokens)
+    vi.mocked(sessionStore.save).mockClear()
+    const pendingRefresh = manager.refresh()
+    const pendingLogout = manager.logout()
+    await Promise.resolve()
+    resolveRefresh(tokens)
+    await Promise.all([pendingRefresh.catch(() => null), pendingLogout])
+    expect(manager.getAccessToken()).toBeNull()
+    expect(sessionStore.save).not.toHaveBeenCalled()
+  })
 })
