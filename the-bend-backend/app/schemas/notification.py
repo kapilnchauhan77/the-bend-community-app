@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class NotificationResponse(BaseModel):
@@ -41,4 +41,4 @@ class NotificationPreferencesRequest(BaseModel):
 
 
 class NotificationPreferencesResponse(NotificationPreferencesRequest):
-    pass
+    model_config = ConfigDict(from_attributes=True)

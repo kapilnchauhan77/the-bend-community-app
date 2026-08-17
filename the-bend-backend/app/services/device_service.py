@@ -6,7 +6,7 @@ import hmac
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
@@ -52,6 +52,11 @@ class DeviceService:
             return hmac.compare_digest(actual.hex(), digest_hex)
         return verify_password(secret, encoded)
 
+    async def _lock_provider_token(self, provider_token: str) -> None:
+        digest = hashlib.sha256(provider_token.encode("utf-8")).digest()
+        lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+        await self.db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
+
     async def register(self, installation_id: UUID, user: User, payload: dict):
         platform = payload.get("platform")
         if platform not in {"ios", "android"}:
@@ -70,6 +75,7 @@ class DeviceService:
 
         # A provider token identifies one physical installation. Reassigning it
         # must revoke the old owner first, without exposing either token.
+        await self._lock_provider_token(payload["provider_token"])
         token_result = await self.db.execute(
             select(DeviceInstallation).where(
                 DeviceInstallation.provider_token == payload["provider_token"],

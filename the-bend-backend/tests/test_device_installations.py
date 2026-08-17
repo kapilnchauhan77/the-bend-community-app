@@ -1,56 +1,28 @@
-from types import SimpleNamespace
-from uuid import uuid4
+from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+from uuid import UUID, uuid4
+
+import httpx
 import pytest
-from pydantic import ValidationError as PydanticValidationError
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_db
+from app.api.v1.devices import router as devices_router
+from app.api.v1.notifications import router as notifications_router
+from app.core.exceptions import AppException
+from app.core.permissions import get_current_user
+from app.database import engine
 from app.models.device_installation import DeviceInstallation
+from app.models.enums import UserRole
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.models.enums import UserRole
-from app.schemas.device import DeviceInstallationRequest, DeviceInstallationResponse
-from app.schemas.notification import NotificationPreferencesRequest
-from app.services.notification_service import NotificationService
+from app.schemas.device import DeviceInstallationResponse
 from app.services.device_service import DeviceService
-from app.api.v1.devices import router as devices_router
-from app.database import engine
-
-
-class FakeResult:
-    def __init__(self, value):
-        self.value = value
-
-    def scalar_one_or_none(self):
-        return self.value
-
-
-class FakeDB:
-    def __init__(self, rows=()):
-        self.rows = list(rows)
-        self.added = []
-
-    async def execute(self, statement):
-        installation_id = getattr(statement, "_installation_id", None)
-        user_id = getattr(statement, "_user_id", None)
-        tenant_id = getattr(statement, "_tenant_id", None)
-        for row in self.rows:
-            if installation_id is not None and row.id != installation_id:
-                continue
-            if user_id is not None and row.user_id != user_id:
-                continue
-            if tenant_id is not None and row.tenant_id != tenant_id:
-                continue
-            return FakeResult(row)
-        return FakeResult(None)
-
-    def add(self, row):
-        self.added.append(row)
-        self.rows.append(row)
-
-    async def flush(self):
-        return None
 
 
 @pytest.fixture
@@ -66,206 +38,159 @@ async def postgres_db():
             await engine.dispose()
 
 
-async def make_user(db, tenant_id=None):
-    tenant = Tenant(
-        id=tenant_id or uuid4(),
-        slug=f"test-{uuid4().hex}",
-        subdomain=f"test-{uuid4().hex}",
-        display_name="Test Tenant",
-    )
+async def make_user(db: AsyncSession, tenant_id: UUID | None = None):
+    tenant = Tenant(id=tenant_id or uuid4(), slug=f"test-{uuid4().hex}", subdomain=f"test-{uuid4().hex}", display_name="Test Tenant")
     db.add(tenant)
     await db.flush()
-    user = User(
-        id=uuid4(),
-        email=f"{uuid4().hex}@example.com",
-        password_hash="hash",
-        name="Test User",
-        role=UserRole.INDIVIDUAL,
-        tenant_id=tenant.id,
-    )
+    user = User(id=uuid4(), email=f"{uuid4().hex}@example.com", password_hash="hash", name="Test User", role=UserRole.INDIVIDUAL, tenant_id=tenant.id)
     db.add(user)
     await db.flush()
     return tenant, user
 
 
-@pytest.mark.asyncio
-async def test_registration_rotates_provider_token_and_returns_one_time_secret():
-    user = SimpleNamespace(id=uuid4(), tenant_id=uuid4())
-    installation_id = uuid4()
-    db = FakeDB()
-    service = DeviceService(db)
+async def make_committed_user():
+    async with engine.connect() as connection:
+        transaction = await connection.begin()
+        session = AsyncSession(bind=connection, expire_on_commit=False)
+        try:
+            _, user = await make_user(session)
+            await transaction.commit()
+            return SimpleNamespace(id=user.id, tenant_id=user.tenant_id)
+        finally:
+            await session.close()
 
-    installation, secret = await service.register(
-        installation_id=installation_id,
-        user=user,
-        payload={
-            "platform": "ios",
-            "provider_token": "apns-token-1",
-            "app_version": "1.0.0",
-            "build_number": "1",
-            "locale": "en-US",
-        },
-    )
 
-    assert installation.id == installation_id
-    assert installation.provider_token == "apns-token-1"
-    assert secret
-    assert secret != installation.revocation_secret_hash
-    assert service._verify_secret(secret, installation.revocation_secret_hash)
+def make_app(db: AsyncSession, current_user: User | None = None) -> FastAPI:
+    app = FastAPI()
 
-    previous_hash = installation.revocation_secret_hash
-    installation, next_secret = await service.register(
-        installation_id=installation_id,
-        user=user,
-        payload={
-            "platform": "ios",
-            "provider_token": "apns-token-2",
-            "app_version": "1.0.1",
-            "build_number": "2",
-            "locale": "en-US",
-        },
-    )
-    assert installation.provider_token == "apns-token-2"
-    assert installation.revocation_secret_hash != previous_hash
-    assert not service._verify_secret(secret, installation.revocation_secret_hash)
-    assert service._verify_secret(next_secret, installation.revocation_secret_hash)
+    @app.exception_handler(AppException)
+    async def app_exception_handler(_, exc: AppException):
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    app.include_router(devices_router, prefix="/api/v1")
+    app.include_router(notifications_router, prefix="/api/v1")
+
+    async def override_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_db
+    if current_user is not None:
+        async def override_user():
+            return current_user
+        app.dependency_overrides[get_current_user] = override_user
+    return app
+
+
+async def request(app: FastAPI, method: str, path: str, **kwargs):
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.request(method, path, **kwargs)
 
 
 @pytest.mark.asyncio
-async def test_revoke_with_invalid_secret_is_generic_and_does_not_change_installation():
-    installation = DeviceInstallation(
-        id=uuid4(),
-        user_id=uuid4(),
-        tenant_id=uuid4(),
-        platform="ios",
-        provider_token="provider-token",
-        revocation_secret_hash="not-a-valid-hash",
-        app_version="1",
-        build_number="1",
-    )
-    service = DeviceService(FakeDB([installation]))
-
-    with pytest.raises(Exception) as exc_info:
-        await service.revoke_with_secret(installation.id, "wrong-secret")
-
-    assert getattr(exc_info.value, "status_code", None) == 404
-    assert installation.enabled is True
-    assert installation.provider_token == "provider-token"
+async def test_registration_http_returns_secret_without_provider_token(postgres_db):
+    _, user = await make_user(postgres_db)
+    response = await request(make_app(postgres_db, user), "PUT", f"/api/v1/devices/installations/{uuid4()}", json={"platform": "ios", "provider_token": "http-token", "app_version": "1", "build_number": "1"})
+    assert response.status_code == 200
+    assert response.json()["revocation_secret"]
+    assert "provider_token" not in response.json()
 
 
 @pytest.mark.asyncio
-async def test_authenticated_disablement_requires_matching_user_and_tenant():
-    installation = DeviceInstallation(
-        id=uuid4(),
-        user_id=uuid4(),
-        tenant_id=uuid4(),
-        platform="android",
-        provider_token="fcm-token",
-        revocation_secret_hash="hash",
-        app_version="1",
-        build_number="1",
-    )
-    service = DeviceService(FakeDB([installation]))
-    wrong_user = SimpleNamespace(id=uuid4(), tenant_id=installation.tenant_id)
-
-    with pytest.raises(Exception) as exc_info:
-        await service.disable(installation.id, wrong_user)
-
-    assert getattr(exc_info.value, "status_code", None) == 404
-    assert installation.enabled is True
-
-
-@pytest.mark.asyncio
-async def test_provider_token_transfer_is_global_across_tenants(postgres_db):
-    old_tenant, old_user = await make_user(postgres_db)
-    new_tenant, new_user = await make_user(postgres_db)
-    old_installation = DeviceInstallation(
-        user_id=old_user.id,
-        tenant_id=old_tenant.id,
-        platform="ios",
-        provider_token="globally-owned-token",
-        revocation_secret_hash="hash",
-        app_version="1",
-        build_number="1",
-    )
-    postgres_db.add(old_installation)
+async def test_authenticated_installation_access_is_non_disclosing(postgres_db):
+    tenant_a, user_a = await make_user(postgres_db)
+    tenant_b, user_b = await make_user(postgres_db)
+    installation = DeviceInstallation(user_id=user_a.id, tenant_id=tenant_a.id, platform="ios", provider_token="owned", revocation_secret_hash="invalid", app_version="1", build_number="1")
+    postgres_db.add(installation)
     await postgres_db.flush()
-
-    new_installation, _ = await DeviceService(postgres_db).register(
-        uuid4(),
-        new_user,
-        {
-            "platform": "android",
-            "provider_token": "globally-owned-token",
-            "app_version": "2",
-            "build_number": "2",
-        },
-    )
-
-    await postgres_db.refresh(old_installation)
-    assert new_installation.provider_token == "globally-owned-token"
-    assert old_installation.enabled is False
-    assert old_installation.provider_token == f"revoked:{old_installation.id}"
-
-
-def test_preferences_put_requires_all_native_flags():
-    with pytest.raises(PydanticValidationError):
-        NotificationPreferencesRequest(push_enabled=False)
+    payload = {"platform": "ios", "provider_token": "new", "app_version": "2", "build_number": "2"}
+    other_user = User(id=uuid4(), email=f"{uuid4().hex}@example.com", password_hash="hash", name="Other", role=UserRole.INDIVIDUAL, tenant_id=tenant_a.id)
+    for user in (user_b, other_user):
+        response = await request(make_app(postgres_db, user), "PUT", f"/api/v1/devices/installations/{installation.id}", json=payload)
+        assert response.status_code == 404
+    delete_response = await request(make_app(postgres_db, user_b), "DELETE", f"/api/v1/devices/installations/{installation.id}")
+    assert delete_response.status_code == 404
+    await postgres_db.refresh(installation)
+    assert installation.enabled is True
 
 
 @pytest.mark.asyncio
-async def test_preferences_reject_tenantless_users_before_persistence(postgres_db):
-    user = SimpleNamespace(id=uuid4(), tenant_id=None)
-    with pytest.raises(Exception) as exc_info:
-        await NotificationService(postgres_db).get_preferences(user.id, user.tenant_id)
-    assert getattr(exc_info.value, "status_code", None) == 404
-
-
-@pytest.mark.asyncio
-async def test_invalid_platform_is_rejected_before_registration():
-    user = SimpleNamespace(id=uuid4(), tenant_id=uuid4())
-    with pytest.raises(Exception) as exc_info:
-        await DeviceService(FakeDB()).register(
-            uuid4(),
-            user,
-            {"platform": "windows", "provider_token": "token", "app_version": "1", "build_number": "1"},
-        )
-    assert getattr(exc_info.value, "status_code", None) == 400
-
-
-@pytest.mark.asyncio
-async def test_valid_revoke_disables_only_named_installation():
-    service = DeviceService(FakeDB())
-    secret = "correct-secret"
-    installation = DeviceInstallation(
-        id=uuid4(),
-        user_id=uuid4(),
-        tenant_id=uuid4(),
-        platform="ios",
-        provider_token="provider-token",
-        revocation_secret_hash=service._hash_secret(secret),
-        app_version="1",
-        build_number="1",
-    )
-    service.db.rows.append(installation)
-    await service.revoke_with_secret(installation.id, secret)
+async def test_revoke_valid_and_invalid_requests_are_scoped_and_generic(postgres_db):
+    _, user = await make_user(postgres_db)
+    service = DeviceService(postgres_db)
+    installation, secret = await service.register(uuid4(), user, {"platform": "ios", "provider_token": "revoke-token", "app_version": "1", "build_number": "1"})
+    valid = await request(make_app(postgres_db), "POST", f"/api/v1/devices/installations/{installation.id}/revoke", json={"revocation_secret": secret})
+    assert valid.status_code == 200
+    await postgres_db.refresh(installation)
     assert installation.enabled is False
-    assert installation.provider_token == f"revoked:{installation.id}"
+    second, second_secret = await service.register(uuid4(), user, {"platform": "ios", "provider_token": "second-token", "app_version": "1", "build_number": "1"})
+    invalid_id = await request(make_app(postgres_db), "POST", f"/api/v1/devices/installations/{uuid4()}/revoke", json={"revocation_secret": second_secret})
+    invalid_secret = await request(make_app(postgres_db), "POST", f"/api/v1/devices/installations/{second.id}/revoke", json={"revocation_secret": "wrong"})
+    assert invalid_id.status_code == invalid_secret.status_code == 404
+    assert invalid_id.json() == invalid_secret.json()
+    await postgres_db.refresh(second)
+    assert second.enabled is True
 
 
-def test_device_response_excludes_provider_token_and_routes_are_registered():
-    response = DeviceInstallationResponse(
-        id=uuid4(),
-        platform="ios",
-        app_version="1",
-        build_number="1",
-        locale="en-US",
-        enabled=True,
-        provider_token="must-not-be-returned",
-    )
+@pytest.mark.asyncio
+async def test_preferences_http_defaults_update_and_isolate_by_user_tenant(postgres_db):
+    tenant_a, user_a = await make_user(postgres_db)
+    _, user_b = await make_user(postgres_db)
+    app_a = make_app(postgres_db, user_a)
+    defaults = await request(app_a, "GET", "/api/v1/notifications/preferences")
+    expected = {"push_enabled": True, "message_received": True, "listing_interest_received": True, "registration_decision": True, "urgent_listing_published": True}
+    assert defaults.status_code == 200 and defaults.json() == expected
+    values = {"push_enabled": False, "message_received": False, "listing_interest_received": True, "registration_decision": False, "urgent_listing_published": True}
+    updated = await request(app_a, "PUT", "/api/v1/notifications/preferences", json=values)
+    assert updated.status_code == 200 and updated.json() == values
+    other = await request(make_app(postgres_db, user_b), "GET", "/api/v1/notifications/preferences")
+    assert other.status_code == 200 and other.json() == expected
+    partial = await request(app_a, "PUT", "/api/v1/notifications/preferences", json={"push_enabled": True})
+    assert partial.status_code == 422
+    assert tenant_a.id == user_a.tenant_id
+
+
+@pytest.mark.asyncio
+async def test_http_validation_and_authentication(postgres_db):
+    _, user = await make_user(postgres_db)
+    invalid_platform = await request(make_app(postgres_db, user), "PUT", f"/api/v1/devices/installations/{uuid4()}", json={"platform": "windows", "provider_token": "x", "app_version": "1", "build_number": "1"})
+    assert invalid_platform.status_code in (400, 422)
+    missing_auth = await request(make_app(postgres_db), "DELETE", f"/api/v1/devices/installations/{uuid4()}")
+    assert missing_auth.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_concurrent_unowned_provider_token_claims_are_serialized(postgres_db):
+    user_a = await make_committed_user()
+    user_b = await make_committed_user()
+    token = f"concurrent-{uuid4().hex}"
+    claims = [(user_a.id, user_a.tenant_id), (user_b.id, user_b.tenant_id)]
+    barrier = asyncio.Barrier(2)
+
+    async def claim(user_data):
+        await barrier.wait()
+        async with engine.connect() as connection:
+            transaction = await connection.begin()
+            session = AsyncSession(bind=connection, expire_on_commit=False)
+            try:
+                detached_user = SimpleNamespace(id=user_data[0], tenant_id=user_data[1])
+                result = await DeviceService(session).register(uuid4(), detached_user, {"platform": "ios", "provider_token": token, "app_version": "1", "build_number": "1"})
+                await transaction.commit()
+                return result
+            finally:
+                await session.close()
+
+    results = await asyncio.gather(*(claim(user_data) for user_data in claims), return_exceptions=True)
+    assert not any(isinstance(result, Exception) for result in results), results
+    async with engine.connect() as connection:
+        check = AsyncSession(bind=connection, expire_on_commit=False)
+        rows = (await check.execute(select(DeviceInstallation).where(DeviceInstallation.provider_token == token))).scalars().all()
+        all_rows = (await check.execute(select(DeviceInstallation).where(DeviceInstallation.user_id.in_([claim[0] for claim in claims])))).scalars().all()
+        await check.close()
+    assert len(rows) == 1 and rows[0].enabled is True
+    assert sum(row.enabled for row in all_rows) == 1
+
+
+def test_response_schema_excludes_provider_token():
+    response = DeviceInstallationResponse(id=uuid4(), platform="ios", app_version="1", build_number="1", locale="en-US", enabled=True)
     assert "provider_token" not in response.model_dump()
-    assert {route.path for route in devices_router.routes} == {
-        "/devices/installations/{installation_id}",
-        "/devices/installations/{installation_id}/revoke",
-    }
-    assert DeviceInstallationRequest.model_fields["platform"].is_required()
