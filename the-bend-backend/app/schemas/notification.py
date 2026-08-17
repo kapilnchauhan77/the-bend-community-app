@@ -33,11 +33,11 @@ class PushSubscriptionRequest(BaseModel):
 
 
 class NotificationPreferencesRequest(BaseModel):
-    push_enabled: bool = True
-    message_received: bool = True
-    listing_interest_received: bool = True
-    registration_decision: bool = True
-    urgent_listing_published: bool = True
+    push_enabled: bool
+    message_received: bool
+    listing_interest_received: bool
+    registration_decision: bool
+    urgent_listing_published: bool
 
 
 class NotificationPreferencesResponse(NotificationPreferencesRequest):

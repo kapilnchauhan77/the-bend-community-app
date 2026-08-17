@@ -73,13 +73,15 @@ class DeviceService:
         token_result = await self.db.execute(
             select(DeviceInstallation).where(
                 DeviceInstallation.provider_token == payload["provider_token"],
-                DeviceInstallation.tenant_id == user.tenant_id,
-            )
+            ).with_for_update()
         )
         token_owner = token_result.scalar_one_or_none()
         if token_owner is not None and token_owner.id != installation_id:
             token_owner.enabled = False
             token_owner.provider_token = f"revoked:{token_owner.id}"
+            # The provider token has a global unique constraint. Release it
+            # before adding or updating the new owner in this transaction.
+            await self.db.flush()
 
         plain_secret = secrets.token_urlsafe(32)
         now = datetime.utcnow()

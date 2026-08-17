@@ -68,6 +68,8 @@ class NotificationService:
         await self.db.flush()
 
     async def get_preferences(self, user_id: UUID, tenant_id: UUID | None):
+        if tenant_id is None:
+            raise NotFoundError("Tenant")
         result = await self.db.execute(
             select(NotificationPreference).where(
                 NotificationPreference.user_id == user_id,
