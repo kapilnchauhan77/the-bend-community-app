@@ -1,4 +1,6 @@
 import asyncio
+import os
+import re
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -17,6 +19,9 @@ config = context.config
 
 # Set the database URL from settings
 settings = get_settings()
+ALEMBIC_SCHEMA = os.getenv("ALEMBIC_SCHEMA")
+if ALEMBIC_SCHEMA is not None and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", ALEMBIC_SCHEMA):
+    raise RuntimeError("ALEMBIC_SCHEMA must match [A-Za-z_][A-Za-z0-9_]*")
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging
@@ -35,6 +40,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table_schema=ALEMBIC_SCHEMA,
     )
 
     with context.begin_transaction():
@@ -42,7 +48,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    if ALEMBIC_SCHEMA:
+        connection.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{ALEMBIC_SCHEMA}"')
+        connection.exec_driver_sql(f'SET search_path TO "{ALEMBIC_SCHEMA}"')
+        connection.commit()
+    context.configure(connection=connection, target_metadata=target_metadata, version_table_schema=ALEMBIC_SCHEMA)
 
     with context.begin_transaction():
         context.run_migrations()

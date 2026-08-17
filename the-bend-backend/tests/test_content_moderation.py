@@ -6,7 +6,12 @@ from pathlib import Path
 from uuid import uuid4
 from datetime import datetime
 from sqlalchemy import select, func, text
-from app.database import async_session, engine
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.pool import NullPool
+from app.config import get_settings
+_task6_settings = get_settings()
+engine = create_async_engine(_task6_settings.DATABASE_URL, poolclass=NullPool)
+async_session = async_sessionmaker(engine, expire_on_commit=False)
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.shop import Shop
@@ -145,7 +150,7 @@ def test_public_profile_path_is_registration_name_and_avatar_only():
 
 @pytest.mark.asyncio
 async def test_real_listing_create_update_moderation_rolls_back_side_effects(monkeypatch):
-    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); await engine.dispose(); marker=f"task6-list-{uuid4().hex}"; tid, uid=uuid4(),uuid4()
+    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); marker=f"task6-list-{uuid4().hex}"; tid, uid=uuid4(),uuid4()
     async with async_session() as db:
         db.add(Tenant(id=tid,slug=marker,subdomain=marker,display_name=marker)); await db.flush(); db.add(User(id=uid,tenant_id=tid,email=marker+"@test",password_hash="x",name="Member",role=UserRole.INDIVIDUAL)); await db.commit()
     try:
@@ -160,11 +165,9 @@ async def test_real_listing_create_update_moderation_rolls_back_side_effects(mon
             await db.rollback(); assert (await db.execute(select(func.count()).select_from(Listing).where(Listing.tenant_id==tid))).scalar_one()==1; assert (await db.execute(select(ListingImage).where(ListingImage.listing_id==lid))).scalars().all()==before[3]
     finally:
         async with async_session() as db: await db.execute(ListingImage.__table__.delete().where(ListingImage.listing_id.in_(select(Listing.id).where(Listing.tenant_id==tid)))); await db.execute(Listing.__table__.delete().where(Listing.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
-        await engine.dispose()
-
 @pytest.mark.asyncio
 async def test_real_registration_shop_update_and_event_moderation(monkeypatch):
-    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); await engine.dispose(); marker=f"task6-reg-{uuid4().hex}"; tid=uuid4()
+    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); marker=f"task6-reg-{uuid4().hex}"; tid=uuid4()
     monkeypatch.setattr("app.services.auth_service.hash_password", lambda value: "test-hash")
     async with async_session() as db: db.add(Tenant(id=tid,slug=marker,subdomain=marker,display_name=marker)); await db.commit()
     try:
@@ -183,13 +186,9 @@ async def test_real_registration_shop_update_and_event_moderation(monkeypatch):
             await db.rollback(); assert (await db.get(Event,event_id)).description=="A safe event"
     finally:
         async with async_session() as db: await db.execute(Event.__table__.delete().where(Event.tenant_id==tid)); await db.execute(Shop.__table__.delete().where(Shop.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
-        await engine.dispose()
-
-
 @pytest.mark.asyncio
 async def test_real_asgi_public_and_admin_moderation_paths(monkeypatch):
-    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); await engine.dispose()
-    monkeypatch.setattr("app.services.auth_service.hash_password", lambda value: "test-hash")
+    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); monkeypatch.setattr("app.services.auth_service.hash_password", lambda value: "test-hash")
     marker=f"task6-asgi-{uuid4().hex}"; tid=uuid4(); admin_id=uuid4()
     async with async_session() as db:
         tenant=Tenant(id=tid,slug=marker,subdomain=marker,display_name=marker)
@@ -244,13 +243,9 @@ async def test_real_asgi_public_and_admin_moderation_paths(monkeypatch):
     finally:
         async with async_session() as db:
             await db.execute(Event.__table__.delete().where(Event.tenant_id==tid)); await db.execute(Shop.__table__.delete().where(Shop.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
-        await engine.dispose()
-
-
 @pytest.mark.asyncio
 async def test_real_asgi_bender_volunteer_talent_and_private_message_paths(monkeypatch):
-    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); await engine.dispose()
-    marker=f"task6-private-{uuid4().hex}"; tid=uuid4(); sender_id=uuid4(); recipient_id=uuid4()
+    monkeypatch.setenv("PUBLIC_CONTENT_PROHIBITED_TERMS", '["blocked phrase"]'); get_settings.cache_clear(); marker=f"task6-private-{uuid4().hex}"; tid=uuid4(); sender_id=uuid4(); recipient_id=uuid4()
     async with async_session() as db:
         tenant=Tenant(id=tid,slug=marker,subdomain=marker,display_name=marker)
         sender=User(id=sender_id,tenant_id=tid,email=f"{marker}-sender@example.com",password_hash="x",name="Sender",role=UserRole.COMMUNITY_ADMIN)
@@ -300,9 +295,6 @@ async def test_real_asgi_bender_volunteer_talent_and_private_message_paths(monke
     finally:
         async with async_session() as db:
             await db.execute(Message.__table__.delete().where(Message.sender_id.in_([sender_id,recipient_id]))); await db.execute(MessageThread.__table__.delete().where(MessageThread.participant_a.in_([sender_id,recipient_id]) | MessageThread.participant_b.in_([sender_id,recipient_id]))); await db.execute(BenderComment.__table__.delete().where(BenderComment.user_id.in_([sender_id,recipient_id]))); await db.execute(BenderLike.__table__.delete().where(BenderLike.user_id.in_([sender_id,recipient_id]))); await db.execute(BenderPost.__table__.delete().where(BenderPost.tenant_id==tid)); await db.execute(TalentInquiry.__table__.delete().where(TalentInquiry.talent_id.in_(select(Talent.id).where(Talent.tenant_id==tid)))); await db.execute(Talent.__table__.delete().where(Talent.tenant_id==tid)); await db.execute(Volunteer.__table__.delete().where(Volunteer.tenant_id==tid)); await db.execute(NotificationOutbox.__table__.delete().where(NotificationOutbox.tenant_id==tid)); await db.execute(Notification.__table__.delete().where(Notification.tenant_id==tid)); await db.execute(User.__table__.delete().where(User.tenant_id==tid)); await db.execute(Tenant.__table__.delete().where(Tenant.id==tid)); await db.commit()
-        await engine.dispose()
-
-
 @pytest.mark.asyncio
 async def test_task6_marker_probe_is_empty():
     probes = {
@@ -323,4 +315,3 @@ async def test_task6_marker_probe_is_empty():
         for table, predicate in probes.items():
             count = (await db.execute(text(f"SELECT count(*) FROM {table} WHERE {predicate}"))).scalar_one()
             assert count == 0, f"Task6 marker leak in {table}: {count}"
-    await engine.dispose()
