@@ -191,7 +191,11 @@ async def get_shop_listings(
     if not current_user:
         effective_status = "active"
 
-    result = await service.listing_repo.get_by_shop(shop_id, status=effective_status, cursor=cursor, limit=limit)
+    result = await service.listing_repo.get_by_shop(
+        shop_id, status=effective_status, cursor=cursor, limit=limit,
+        viewer_id=current_user.id if current_user else None,
+        tenant_id=getattr(current_user, "tenant_id", None) if current_user else None,
+    )
     from app.api.v1.listings import _serialize_listing
     return {
         "items": [_serialize_listing(l).model_dump() for l in result.items],

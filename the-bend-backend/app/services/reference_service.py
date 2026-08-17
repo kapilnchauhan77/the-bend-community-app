@@ -6,7 +6,7 @@ not visible in the given tenant, so callers can reject-on-send or render an
 "unavailable" card.
 """
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import selectinload
 
 from app.models.listing import Listing
@@ -62,8 +62,10 @@ def _bender_card(obj, author) -> dict:
 
 
 async def _bender_card_async(db, obj) -> dict:
-    author = await db.execute(select(User).where(User.id == obj.author_user_id))
-    author = author.scalar_one_or_none()
+    author = getattr(obj, "author", None)
+    if author is None:
+        author_result = await db.execute(select(User).where(User.id == obj.author_user_id))
+        author = author_result.scalar_one_or_none()
     return _bender_card(obj, author)
 
 
@@ -92,7 +94,7 @@ async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: U
         return _shop_card(obj)
 
     if ref_type == "bender":
-        res = await db.execute(select(BenderPost).where(BenderPost.id == ref_id))
+        res = await db.execute(select(BenderPost).options(selectinload(BenderPost.author)).where(BenderPost.id == ref_id))
         obj = res.scalar_one_or_none()
         if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
             return None
@@ -125,21 +127,43 @@ async def search_references(db, tenant_id, q, type_filter=None, viewer_id=None) 
     like = f"%{q}%"
     out = []
     types_ = [type_filter] if type_filter in REFERENCE_TYPES else list(REFERENCE_TYPES)
+    from app.models.user_block import UserBlock
+
+    def visible(author_id):
+        if not viewer_id or not tenant_id:
+            return None
+        return ~exists(select(UserBlock.id).where(
+            UserBlock.tenant_id == tenant_id,
+            UserBlock.blocker_id == viewer_id,
+            UserBlock.blocked_id == author_id,
+        ))
+
     if "listing" in types_:
-        rows = (await db.execute(select(Listing).options(selectinload(Listing.images), selectinload(Listing.shop))
-                .where(Listing.tenant_id == tenant_id, Listing.title.ilike(like)))).scalars().all()
-        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.posted_by_user_id or (o.shop.admin_user_id if o.shop else None))][:8]
+        query = select(Listing).options(selectinload(Listing.images), selectinload(Listing.shop)).join(Shop, isouter=True).where(Listing.tenant_id == tenant_id, Listing.title.ilike(like))
+        criterion = visible(func.coalesce(Listing.posted_by_user_id, Shop.admin_user_id))
+        if criterion is not None:
+            query = query.where(criterion)
+        rows = (await db.execute(query.order_by(Listing.created_at.desc(), Listing.id.desc()).limit(8))).scalars().all()
         out += [_listing_card(o) for o in rows]
     if "shop" in types_:
-        rows = (await db.execute(select(Shop).where(Shop.tenant_id == tenant_id, Shop.name.ilike(like)))).scalars().all()
-        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.admin_user_id)][:8]
+        query = select(Shop).where(Shop.tenant_id == tenant_id, Shop.name.ilike(like))
+        criterion = visible(Shop.admin_user_id)
+        if criterion is not None:
+            query = query.where(criterion)
+        rows = (await db.execute(query.order_by(Shop.created_at.desc(), Shop.id.desc()).limit(8))).scalars().all()
         out += [_shop_card(o) for o in rows]
     if "user" in types_:
-        rows = (await db.execute(select(User).where(User.tenant_id == tenant_id, User.name.ilike(like)))).scalars().all()
-        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.id)][:8]
+        query = select(User).where(User.tenant_id == tenant_id, User.name.ilike(like))
+        criterion = visible(User.id)
+        if criterion is not None:
+            query = query.where(criterion)
+        rows = (await db.execute(query.order_by(User.created_at.desc(), User.id.desc()).limit(8))).scalars().all()
         out += [_user_card(o) for o in rows]
     if "bender" in types_:
-        rows = (await db.execute(select(BenderPost).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like)))).scalars().all()
-        rows = [o for o in rows if not viewer_id or not await _author_blocked(db, tenant_id, viewer_id, o.author_user_id)][:8]
+        query = select(BenderPost).options(selectinload(BenderPost.author)).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like))
+        criterion = visible(BenderPost.author_user_id)
+        if criterion is not None:
+            query = query.where(criterion)
+        rows = (await db.execute(query.order_by(BenderPost.created_at.desc(), BenderPost.id.desc()).limit(8))).scalars().all()
         out += [await _bender_card_async(db, o) for o in rows]
     return out

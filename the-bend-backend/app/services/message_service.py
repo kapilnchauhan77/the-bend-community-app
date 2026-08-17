@@ -17,14 +17,7 @@ async def build_message_reference(db, tenant_id, m, viewer_id=None):
     if not m.reference_type or not m.reference_id:
         return None
     from app.services.reference_service import resolve_reference
-    try:
-        card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id, viewer_id=viewer_id)
-    except TypeError as exc:
-        # Keep compatibility with lightweight repository adapters that expose
-        # the pre-viewer resolver signature.
-        if "viewer_id" not in str(exc):
-            raise
-        card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id)
+    card = await resolve_reference(db, tenant_id, m.reference_type, m.reference_id, viewer_id=viewer_id)
     if card is None:
         return {"type": m.reference_type, "id": str(m.reference_id), "unavailable": True}
     return card
@@ -239,12 +232,7 @@ class MessageService:
                     ref_id = UUID(str(reference_id))
                 except (ValueError, AttributeError, TypeError):
                     raise AppValidationError("Referenced item is unavailable")
-            try:
-                card = await resolve_reference(self.db, tenant_id, reference_type, ref_id, viewer_id=sender_id)
-            except TypeError as exc:
-                if "viewer_id" not in str(exc):
-                    raise
-                card = await resolve_reference(self.db, tenant_id, reference_type, ref_id)
+            card = await resolve_reference(self.db, tenant_id, reference_type, ref_id, viewer_id=sender_id)
             if card is None:
                 raise AppValidationError("Referenced item is unavailable")
             ref_type = reference_type

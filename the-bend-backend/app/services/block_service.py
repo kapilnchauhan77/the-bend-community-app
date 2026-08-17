@@ -1,6 +1,7 @@
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, delete, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -26,17 +27,19 @@ class BlockService:
             raise NotFoundError("User")
         await self._target(blocker_id, tenant_id)
         await self._target(blocked_id, tenant_id)
+        # PostgreSQL's unique constraint serializes concurrent creates.  The
+        # conflict-free insert avoids poisoning either caller transaction with
+        # IntegrityError; the following select returns the winner's row.
+        stmt = pg_insert(UserBlock).values(
+            id=uuid4(), tenant_id=tenant_id, blocker_id=blocker_id, blocked_id=blocked_id,
+        ).on_conflict_do_nothing(constraint="uq_user_blocks_direction")
+        await self.db.execute(stmt)
         result = await self.db.execute(select(UserBlock).where(
             UserBlock.tenant_id == tenant_id,
             UserBlock.blocker_id == blocker_id,
             UserBlock.blocked_id == blocked_id,
         ))
-        row = result.scalar_one_or_none()
-        if row is None:
-            row = UserBlock(id=uuid4(), tenant_id=tenant_id, blocker_id=blocker_id, blocked_id=blocked_id)
-            self.db.add(row)
-            await self.db.flush()
-        return row
+        return result.scalar_one()
 
     async def remove(self, blocker_id: UUID, blocked_id: UUID, tenant_id: UUID) -> None:
         await self.db.execute(delete(UserBlock).where(

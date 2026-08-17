@@ -124,7 +124,7 @@ async def test_send_route_response_includes_hydrated_reference(monkeypatch):
     current_user = types.SimpleNamespace(id=uuid4(), tenant_id=uuid4())
     data = SendMessageRequest(reference_type="shop", reference_id=str(shop_id))
 
-    async def fake_resolve_reference(db, tenant_id, reference_type, reference_id):
+    async def fake_resolve_reference(db, tenant_id, reference_type, reference_id, viewer_id=None):
         return {"type": "shop", "id": str(reference_id), "title": "Test Shop"}
 
     monkeypatch.setattr(
@@ -198,7 +198,7 @@ async def test_send_resolves_reference_against_caller_tenant_not_thread(monkeypa
                 reference_type=kw.get("reference_type"), reference_id=kw.get("reference_id"),
             )
 
-    async def _fake_resolve(db, tenant_id, rtype, rid):
+    async def _fake_resolve(db, tenant_id, rtype, rid, viewer_id=None):
         captured["tenant_id"] = tenant_id
         # Only the caller's tenant can see the listing; thread tenant (None) cannot.
         return {"type": "listing", "id": str(rid)} if tenant_id == caller_tenant else None

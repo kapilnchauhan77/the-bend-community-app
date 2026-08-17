@@ -123,7 +123,8 @@ class ListingRepository(BaseRepository[Listing]):
         return PaginatedResult(items=items, next_cursor=next_cursor, has_more=has_more)
 
     async def get_by_shop(
-        self, shop_id: UUID, status: str | None = None, cursor: str | None = None, limit: int = 20
+        self, shop_id: UUID, status: str | None = None, cursor: str | None = None, limit: int = 20,
+        viewer_id: UUID | None = None, tenant_id=None,
     ) -> PaginatedResult:
         query = (
             select(Listing)
@@ -136,6 +137,19 @@ class ListingRepository(BaseRepository[Listing]):
         )
         if status:
             query = query.where(Listing.status == status)
+        if tenant_id:
+            query = query.where(Listing.tenant_id == tenant_id)
+        if viewer_id and tenant_id:
+            from sqlalchemy import exists, func
+            from app.models.user_block import UserBlock
+            author_id = func.coalesce(Listing.posted_by_user_id, Shop.admin_user_id)
+            query = query.join(Shop, Shop.id == Listing.shop_id).where(~exists(
+                select(UserBlock.id).where(
+                    UserBlock.tenant_id == tenant_id,
+                    UserBlock.blocker_id == viewer_id,
+                    UserBlock.blocked_id == author_id,
+                )
+            ))
         query = query.order_by(Listing.created_at.desc()).limit(limit + 1)
         result = await self.session.execute(query)
         items = list(result.scalars().unique().all())
