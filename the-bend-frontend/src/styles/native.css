@@ -28,12 +28,21 @@
 .native-app .native-urgent-card {
   display: flex;
   align-items: flex-start;
+  gap: var(--native-space-3);
   width: 100%;
   min-width: 0;
   min-height: 96px;
   height: auto;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+.native-app .native-discovery-card > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.native-app .native-urgent-card {
+  flex-direction: column;
+  gap: var(--native-space-2);
 }
 .native-app .native-discovery-card > span,
 .native-app .native-urgent-card > span,
@@ -100,6 +109,17 @@
   height: auto;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+.native-app button,
+.native-app a.native-control {
+  min-width: 44px;
+  min-height: 44px;
+}
+.native-app .native-sheet-backdrop > [role="dialog"] > button.native-control {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
 }
 .native-app .native-sheet-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; background: rgb(0 0 0 / 40%); }
 .native-app .native-sheet-backdrop > [role="dialog"] { width: 100%; max-height: 90dvh; overflow: auto; padding: var(--native-space-4) var(--native-space-4) calc(max(16px, var(--native-safe-bottom)) + var(--native-keyboard-bottom)); color: var(--native-text); background: var(--native-elevated); border-radius: var(--native-radius-card) var(--native-radius-card) 0 0; box-shadow: var(--native-shadow); }

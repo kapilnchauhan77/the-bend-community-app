@@ -8,9 +8,14 @@ import { NativeSearchBar } from './NativeSearchBar'
 import { NativeUrgentCard } from './NativeUrgentCard'
 import { NativeFilterSheet } from './NativeFilterSheet'
 import { NativePageHeader } from './NativePageHeader'
+import { NativeQuickAction } from './NativeQuickAction'
+import { NativeSectionHeader } from './NativeSectionHeader'
+import { PermissionPrimer } from '../PermissionPrimer'
 
 const item = { id: 'listing-1', kind: 'listing' as const, label: 'Generator', title: 'Power generator needed', supportingText: 'Community request', thumbnailUrl: null, targetPath: '/listing/listing-1', coordinates: null, urgent: true }
 const nativeCss = readFileSync('src/styles/native.css', 'utf8')
+const cssRules = [...nativeCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map((selector) => selector.trim()), body }))
+const cssRule = (selector: string) => cssRules.filter((rule) => rule.selectors.includes(selector)).map((rule) => rule.body).join('\n')
 
 describe('native UI primitives', () => {
   afterEach(cleanup)
@@ -66,28 +71,46 @@ describe('native UI primitives', () => {
     expect(screen.getByRole('img')).toHaveAttribute('loading', 'lazy')
   })
   it('defines responsive contracts for long native content and 44-point controls', () => {
-    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip[\s\S]*display:\s*inline-flex/)
-    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip[\s\S]*max-width:\s*100%/)
-    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip[\s\S]*overflow-wrap:\s*anywhere/)
-    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip > button[\s\S]*width:\s*44px[\s\S]*height:\s*44px/)
-    expect(nativeCss).toMatch(/\.native-app \.native-discovery-card[\s\S]*min-width:\s*0/)
-    expect(nativeCss).toMatch(/\.native-app \.native-urgent-card[\s\S]*min-width:\s*0/)
-    expect(nativeCss).toMatch(/\.native-app \.native-discovery-card img[\s\S]*object-fit:\s*cover/)
-    expect(nativeCss).toMatch(/\.native-app \.native-thumbnail[\s\S]*width:\s*96px[\s\S]*height:\s*96px/)
-    expect(nativeCss).toMatch(/\.native-app \.native-search-bar[\s\S]*min-width:\s*0/)
-    expect(nativeCss).toMatch(/\.native-app \.native-search-bar input[\s\S]*min-width:\s*0/)
-    expect(nativeCss).toMatch(/\.native-app \.native-search-bar button[\s\S]*width:\s*44px[\s\S]*height:\s*44px/)
-    expect(nativeCss).toMatch(/\.native-app \.native-(page-header|section-header|quick-action|map-marker-list)[\s\S]*overflow-wrap:\s*anywhere/)
+    expect(cssRule('.native-app .native-filter-chip')).toMatch(/display:\s*inline-flex/)
+    expect(cssRule('.native-app .native-filter-chip')).toMatch(/max-width:\s*100%/)
+    expect(cssRule('.native-app .native-filter-chip')).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(cssRule('.native-app .native-filter-chip > button')).toMatch(/width:\s*44px/)
+    expect(cssRule('.native-app .native-filter-chip > button')).toMatch(/height:\s*44px/)
+    expect(cssRule('.native-app .native-discovery-card')).toMatch(/min-width:\s*0/)
+    expect(cssRule('.native-app .native-urgent-card')).toMatch(/min-width:\s*0/)
+    expect(cssRule('.native-app .native-discovery-card img')).toMatch(/object-fit:\s*cover/)
+    expect(cssRule('.native-app .native-thumbnail')).toMatch(/width:\s*96px/)
+    expect(cssRule('.native-app .native-thumbnail')).toMatch(/height:\s*96px/)
+    expect(cssRule('.native-app .native-search-bar')).toMatch(/min-width:\s*0/)
+    expect(cssRule('.native-app .native-search-bar input')).toMatch(/min-width:\s*0/)
+    expect(cssRule('.native-app .native-search-bar button')).toMatch(/width:\s*44px/)
+    expect(cssRule('.native-app .native-search-bar button')).toMatch(/height:\s*44px/)
+    expect(cssRule('.native-app .native-map-marker-list button')).toMatch(/min-width:\s*44px/)
+    expect(cssRule('.native-app .native-map-marker-list button')).toMatch(/overflow-wrap:\s*anywhere/)
+  })
+  it('gives cards deliberate flexible layouts and all native buttons a 44-point floor', () => {
+    expect(cssRule('.native-app .native-discovery-card')).toMatch(/gap:\s*var\(--native-space-3\)/)
+    expect(cssRule('.native-app .native-discovery-card > span')).toMatch(/flex:\s*1 1 auto/)
+    expect(cssRule('.native-app .native-discovery-card > span')).toMatch(/min-width:\s*0/)
+    expect(cssRule('.native-app .native-urgent-card')).toMatch(/flex-direction:\s*column/)
+    expect(cssRule('.native-app .native-urgent-card')).toMatch(/gap:\s*var\(--native-space-2\)/)
+    expect(cssRule('.native-app button')).toMatch(/min-width:\s*44px/)
+    expect(cssRule('.native-app button')).toMatch(/min-height:\s*44px/)
+    expect(cssRule('.native-app a.native-control')).toMatch(/min-width:\s*44px/)
+    expect(cssRule('.native-app a.native-control')).toMatch(/min-height:\s*44px/)
+    expect(cssRule('.native-app .native-sheet-backdrop > [role="dialog"] > button.native-control')).toMatch(/width:\s*44px/)
   })
   it('keeps extreme untrusted labels and reserved image placeholders in the DOM', () => {
     const longText = 'A'.repeat(320)
     const onOpen = vi.fn()
-    render(<><NativeFilterChip label={longText} removable onRemove={vi.fn()} /><NativeDiscoveryCard item={{ ...item, title: longText, supportingText: longText, thumbnailUrl: null }} onOpen={onOpen} /><NativeUrgentCard item={{ ...item, title: longText, supportingText: longText }} onOpen={onOpen} /><NativeSearchBar value={longText} label="Search" placeholder="Search" onChange={vi.fn()} onSubmit={vi.fn()} onClear={vi.fn()} /><NativePageHeader title={longText} /></>)
+    render(<><NativeFilterChip label={longText} removable onRemove={vi.fn()} /><NativeDiscoveryCard item={{ ...item, title: longText, supportingText: longText, thumbnailUrl: null }} onOpen={onOpen} /><NativeUrgentCard item={{ ...item, title: longText, supportingText: longText }} onOpen={onOpen} /><NativeSearchBar value={longText} label="Search" placeholder="Search" onChange={vi.fn()} onSubmit={vi.fn()} onClear={vi.fn()} /><NativePageHeader title={longText} /><NativeQuickAction label={longText} onClick={vi.fn()} /><NativeSectionHeader heading={longText} actionLabel={longText} onAction={vi.fn()} /><PermissionPrimer title={longText} description={longText} onConfirm={vi.fn()}>{longText}</PermissionPrimer><div className="native-map-marker-list"><button type="button" className="native-control">{longText}</button></div></>)
     expect(screen.getByText(longText, { selector: '.native-filter-chip' })).toBeInTheDocument()
-    expect(screen.getAllByText(longText).length).toBeGreaterThanOrEqual(4)
+    expect(screen.getAllByText(longText).length).toBeGreaterThanOrEqual(8)
     expect(document.querySelector('.native-thumbnail')).toBeInTheDocument()
     expect(screen.getByRole('searchbox')).toHaveValue(longText)
     expect(screen.getByRole('button', { name: /clear search/i })).toHaveClass('native-control')
+    expect(document.querySelector('.native-quick-action')).toHaveTextContent(longText)
+    expect(document.querySelector('.native-map-marker-list button')).toHaveTextContent(longText)
   })
   it('uses the same reserved 96-point contract for discovery image and placeholder variants', () => {
     const { rerender } = render(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: '/image.jpg' }} onOpen={vi.fn()} />)
