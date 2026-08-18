@@ -25,6 +25,8 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const hydrationGeneration = useRef(0)
   const networkEventVersion = useRef(0)
   const hydrationScheduler = useRef<{ retry(): void } | null>(null)
+  const hydrationPool = useRef({ active: 0, queue: [] as Array<{ generation: number; start: () => void }> })
+  const drainHydrationPool = useCallback(() => { while (hydrationPool.current.active < 4 && hydrationPool.current.queue.length) hydrationPool.current.queue.shift()!.start() }, [])
   const sharedHydrationRequests = useRef(new Map<string, { promise: Promise<{ latitude: number; longitude: number } | null>; controller: AbortController; epoch: number }>())
   const networkEpoch = useRef(0)
   const hydrateShop = useCallback((id: string) => {
@@ -62,7 +64,7 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const typedModel = useTyped(requestQuery, !all)
   const typedRetry = useCallback(async () => { hydrationScheduler.current?.retry(); await typedModel?.state.retry() }, [typedModel?.state.retry])
   const visibleBusinesses = all ? groups.find((group) => group.kind === 'business')?.state.data ?? [] : typedModel?.state.data ?? []
-  useEffect(() => { let active = true; setOnline(null); networkEventVersion.current = 0; const listener = services.network.addListener((status) => { if (!active) return; networkEventVersion.current += 1; setOnline(status === 'online'); if (status === 'offline') { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear(); hydrationGeneration.current += 1; } }).catch(() => null); const initialVersion = networkEventVersion.current; void services.network.getStatus().then((status) => { if (active && networkEventVersion.current === initialVersion) setOnline(status === 'online') }).catch(() => { if (active && networkEventVersion.current === initialVersion) setOnline(false) }); return () => { active = false; void listener.then((value) => value?.remove()).catch(() => undefined) } }, [services.network])
+  useEffect(() => { let active = true; setOnline(null); networkEventVersion.current = 0; const listener = services.network.addListener((status) => { if (!active) return; networkEventVersion.current += 1; setOnline(status === 'online'); if (status === 'offline') { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear(); hydrationPool.current.queue = []; hydrationGeneration.current += 1; } }).catch(() => null); const initialVersion = networkEventVersion.current; void services.network.getStatus().then((status) => { if (active && networkEventVersion.current === initialVersion) setOnline(status === 'online') }).catch(() => { if (active && networkEventVersion.current === initialVersion) setOnline(false) }); return () => { active = false; void listener.then((value) => value?.remove()).catch(() => undefined) } }, [services.network])
   useEffect(() => () => { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear() }, [])
   useEffect(() => {
     if (online !== true) { hydrationScheduler.current = null; return }
@@ -74,33 +76,37 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
     const inFlight = new Set<string>()
     const retryQueued = new Set<string>()
     const completed = new Set(candidates.filter((item) => item.coordinates || hydrated[item.id]).map((item) => item.id))
-    let active = 0
     let disposed = false
     const enqueue = (id: string) => { if (!queued.has(id) && !inFlight.has(id) && !completed.has(id)) { queued.add(id); queue.push(id) } }
     const pump = () => {
-      while (active < 4 && queue.length && !disposed && hydrationGeneration.current === generation) {
+      while (queue.length && !disposed && hydrationGeneration.current === generation) {
         const id = queue.shift()!
         queued.delete(id)
         const item = byId.get(id)
         if (!item) continue
-        active += 1
-        inFlight.add(id)
-        void hydrateShop(id).then((coordinates) => {
-          const current = !disposed && hydrationGeneration.current === generation && online === true
-          if (current && coordinates) { completed.add(id); setHydrated((previous) => ({ ...previous, [id]: coordinates })) }
-        }).catch(() => undefined).finally(() => {
-          active -= 1
-          inFlight.delete(id)
-          if (retryQueued.delete(id) && !completed.has(id)) enqueue(id)
-          pump()
-        })
+        hydrationPool.current.queue.push({ generation, start: () => {
+          if (disposed || hydrationGeneration.current !== generation) { pump(); return }
+          hydrationPool.current.active += 1
+          inFlight.add(id)
+          void hydrateShop(id).then((coordinates) => {
+            const current = !disposed && hydrationGeneration.current === generation && online === true
+            if (current && coordinates) { completed.add(id); setHydrated((previous) => ({ ...previous, [id]: coordinates })) }
+          }).catch(() => undefined).finally(() => {
+            hydrationPool.current.active -= 1
+            inFlight.delete(id)
+            if (retryQueued.delete(id) && !completed.has(id)) enqueue(id)
+            pump()
+            drainHydrationPool()
+          })
+        } })
       }
+      drainHydrationPool()
     }
     const retry = () => { candidates.forEach((item) => { if (inFlight.has(item.id)) retryQueued.add(item.id); else if (!completed.has(item.id)) enqueue(item.id) }); pump() }
     hydrationScheduler.current = { retry }
     candidates.filter((item) => !item.coordinates && !hydrated[item.id]).forEach((item) => enqueue(item.id))
     pump()
-    return () => { disposed = true; hydrationGeneration.current += 1; queue.length = 0; if (hydrationScheduler.current?.retry === retry) hydrationScheduler.current = null }
+    return () => { disposed = true; hydrationGeneration.current += 1; queue.length = 0; hydrationPool.current.queue = hydrationPool.current.queue.filter((job) => job.generation !== generation); if (hydrationScheduler.current?.retry === retry) hydrationScheduler.current = null; drainHydrationPool() }
   }, [all, online, visibleBusinesses.map((item) => item.id).join('|')])
   const mapBusinesses = visibleBusinesses.filter((item): item is NativeDiscoveryCardModel & { kind: 'business' } => item.kind === 'business').map((item) => ({ ...item, coordinates: item.coordinates ?? hydrated[item.id] ?? null })).filter((item): item is NativeMapBusiness => item.coordinates !== null).map((item) => ({ ...item, distanceMiles: userCoordinates ? haversine(userCoordinates.latitude, userCoordinates.longitude, item.coordinates.latitude, item.coordinates.longitude) : null }))
   const sortedTyped = typedModel && query.near && query.type === 'businesses' && userCoordinates ? { ...typedModel, state: { ...typedModel.state, data: [...typedModel.state.data].map((item) => { const coordinates = item.coordinates ?? hydrated[item.id]; return { item, distance: coordinates ? haversine(userCoordinates.latitude, userCoordinates.longitude, coordinates.latitude, coordinates.longitude) : null } }).sort((left, right) => (left.distance === null ? 1 : right.distance === null ? -1 : left.distance - right.distance)).map(({ item }) => item) } } : typedModel
