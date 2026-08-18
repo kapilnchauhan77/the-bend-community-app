@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { NativeDiscoveryCard } from './NativeDiscoveryCard'
 import { NativeFilterChip } from './NativeFilterChip'
 import { NativeResultGroup } from './NativeResultGroup'
@@ -9,6 +10,7 @@ import { NativeFilterSheet } from './NativeFilterSheet'
 import { NativePageHeader } from './NativePageHeader'
 
 const item = { id: 'listing-1', kind: 'listing' as const, label: 'Generator', title: 'Power generator needed', supportingText: 'Community request', thumbnailUrl: null, targetPath: '/listing/listing-1', coordinates: null, urgent: true }
+const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 
 describe('native UI primitives', () => {
   afterEach(cleanup)
@@ -62,6 +64,39 @@ describe('native UI primitives', () => {
   it('marks discovery images as lazy', () => {
     render(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: '/image.jpg' }} onOpen={vi.fn()} />)
     expect(screen.getByRole('img')).toHaveAttribute('loading', 'lazy')
+  })
+  it('defines responsive contracts for long native content and 44-point controls', () => {
+    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip[\s\S]*display:\s*inline-flex/)
+    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip[\s\S]*max-width:\s*100%/)
+    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip[\s\S]*overflow-wrap:\s*anywhere/)
+    expect(nativeCss).toMatch(/\.native-app \.native-filter-chip > button[\s\S]*width:\s*44px[\s\S]*height:\s*44px/)
+    expect(nativeCss).toMatch(/\.native-app \.native-discovery-card[\s\S]*min-width:\s*0/)
+    expect(nativeCss).toMatch(/\.native-app \.native-urgent-card[\s\S]*min-width:\s*0/)
+    expect(nativeCss).toMatch(/\.native-app \.native-discovery-card img[\s\S]*object-fit:\s*cover/)
+    expect(nativeCss).toMatch(/\.native-app \.native-thumbnail[\s\S]*width:\s*96px[\s\S]*height:\s*96px/)
+    expect(nativeCss).toMatch(/\.native-app \.native-search-bar[\s\S]*min-width:\s*0/)
+    expect(nativeCss).toMatch(/\.native-app \.native-search-bar input[\s\S]*min-width:\s*0/)
+    expect(nativeCss).toMatch(/\.native-app \.native-search-bar button[\s\S]*width:\s*44px[\s\S]*height:\s*44px/)
+    expect(nativeCss).toMatch(/\.native-app \.native-(page-header|section-header|quick-action|map-marker-list)[\s\S]*overflow-wrap:\s*anywhere/)
+  })
+  it('keeps extreme untrusted labels and reserved image placeholders in the DOM', () => {
+    const longText = 'A'.repeat(320)
+    const onOpen = vi.fn()
+    render(<><NativeFilterChip label={longText} removable onRemove={vi.fn()} /><NativeDiscoveryCard item={{ ...item, title: longText, supportingText: longText, thumbnailUrl: null }} onOpen={onOpen} /><NativeUrgentCard item={{ ...item, title: longText, supportingText: longText }} onOpen={onOpen} /><NativeSearchBar value={longText} label="Search" placeholder="Search" onChange={vi.fn()} onSubmit={vi.fn()} onClear={vi.fn()} /><NativePageHeader title={longText} /></>)
+    expect(screen.getByText(longText, { selector: '.native-filter-chip' })).toBeInTheDocument()
+    expect(screen.getAllByText(longText).length).toBeGreaterThanOrEqual(4)
+    expect(document.querySelector('.native-thumbnail')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox')).toHaveValue(longText)
+    expect(screen.getByRole('button', { name: /clear search/i })).toHaveClass('native-control')
+  })
+  it('uses the same reserved 96-point contract for discovery image and placeholder variants', () => {
+    const { rerender } = render(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: '/image.jpg' }} onOpen={vi.fn()} />)
+    const image = screen.getByRole('img')
+    expect(image).toHaveAttribute('width', '96')
+    expect(image).toHaveAttribute('height', '96')
+    expect(image).toHaveAttribute('loading', 'lazy')
+    rerender(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: null }} onOpen={vi.fn()} />)
+    expect(document.querySelector('.native-thumbnail')).toHaveAttribute('aria-hidden', 'true')
   })
   it('focuses, traps, and closes the filter sheet while returning focus', () => {
     const trigger = document.createElement('button'); trigger.textContent = 'Open'; document.body.append(trigger); const onClose = vi.fn()
