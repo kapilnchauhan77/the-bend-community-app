@@ -9,7 +9,14 @@ function publicCoordinates(shop: Shop) {
 
 export function humanizeLabel(value: string) {
   const normalized = value.trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
-  return normalized.split(' ').map((word) => word ? `${word[0]!.toUpperCase()}${word.slice(1)}` : word).join(' ')
+  if (!normalized) return normalized
+  if (!/[_-]/.test(value)) return normalized.length === normalized.toLowerCase().length && !normalized.includes(' ') ? `${normalized[0]!.toUpperCase()}${normalized.slice(1)}` : normalized
+  return normalized.split(' ').map((word) => {
+    if (!word) return word
+    if (/[a-z][A-Z]/.test(word)) return word
+    const machineWord = word === word.toUpperCase() ? word.toLowerCase() : word
+    return machineWord[0]!.toUpperCase() + machineWord.slice(1)
+  }).join(' ')
 }
 
 export function adaptListing(listing: Listing, _locale = 'en-US'): NativeDiscoveryCardModel {

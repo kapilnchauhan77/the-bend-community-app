@@ -95,4 +95,24 @@ describe('NativeAppShell', () => {
     expect(document.documentElement.style.backgroundColor).toBe('rgb(1, 2, 3)')
     expect(document.body.style.backgroundColor).toBe('rgb(4, 5, 6)')
   })
+
+  it('uses light native chrome for a stored light theme', () => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => 'light' } })
+    const view = renderShell()
+    expect(vi.mocked(StatusBar.setStyle)).toHaveBeenCalledWith({ style: Style.Light })
+    expect(document.documentElement.style.backgroundColor).toBe('rgb(247, 243, 234)')
+    view.unmount()
+  })
+
+  it('updates native chrome when the system theme changes', () => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => null } })
+    let change: (() => void) | undefined
+    const media = { matches: true, addEventListener: vi.fn((_type: string, listener: () => void) => { change = listener }), removeEventListener: vi.fn() }
+    vi.spyOn(window, 'matchMedia').mockReturnValue(media as unknown as MediaQueryList)
+    const view = renderShell()
+    media.matches = false; change?.()
+    expect(vi.mocked(StatusBar.setStyle)).toHaveBeenCalledWith({ style: Style.Light })
+    expect(document.body.style.backgroundColor).toBe('rgb(247, 243, 234)')
+    view.unmount()
+  })
 })

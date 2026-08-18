@@ -40,6 +40,20 @@ describe('native device services', () => {
     expect(Geolocation.getCurrentPosition).not.toHaveBeenCalled()
   })
 
+  it('accepts Android approximate permission without requesting fine location', async () => {
+    vi.mocked(Geolocation.checkPermissions).mockResolvedValueOnce({ location: 'prompt', coarseLocation: 'granted' } as never)
+    vi.mocked(Geolocation.getCurrentPosition).mockResolvedValueOnce({ coords: { latitude: 40, longitude: -80, accuracy: 500 } } as never)
+    await expect(new NativeLocationService().getForegroundPosition()).resolves.toMatchObject({ latitude: 40, longitude: -80 })
+    expect(Geolocation.requestPermissions).not.toHaveBeenCalled()
+  })
+
+  it('accepts a coarse-granted permission response after a prompt', async () => {
+    vi.mocked(Geolocation.checkPermissions).mockResolvedValueOnce({ location: 'prompt', coarseLocation: 'prompt' } as never)
+    vi.mocked(Geolocation.requestPermissions).mockResolvedValueOnce({ location: 'prompt', coarseLocation: 'granted' } as never)
+    vi.mocked(Geolocation.getCurrentPosition).mockResolvedValueOnce({ coords: { latitude: 40, longitude: -80, accuracy: 500 } } as never)
+    await expect(new NativeLocationService().getForegroundPosition()).resolves.toMatchObject({ latitude: 40, longitude: -80 })
+  })
+
   it('declares truthful foreground location permissions for both native platforms', async () => {
     const manifest = await import('node:fs/promises').then(({ readFile }) => readFile('android/app/src/main/AndroidManifest.xml', 'utf8'))
     const plist = await import('node:fs/promises').then(({ readFile }) => readFile('ios/App/App/Info.plist', 'utf8'))

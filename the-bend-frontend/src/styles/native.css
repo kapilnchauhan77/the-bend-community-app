@@ -73,8 +73,13 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
   gap: 4px;
 }
+.native-app .native-discovery-card > span > small { color: var(--native-bronze); font-size: 10px; font-weight: 800; letter-spacing: .08em; line-height: 1.2; text-transform: uppercase; }
+.native-app .native-discovery-card > span > strong { color: var(--native-text); font-size: 14px; line-height: 1.25; }
+.native-app .native-discovery-card > span > span { color: var(--native-muted); font-size: 11px; line-height: 1.3; }
 .native-app .native-urgent-card {
   flex-direction: column;
   gap: var(--native-space-2);
@@ -99,6 +104,9 @@
 .native-app .native-home-scroll .native-card-list .native-discovery-card img,
 .native-app .native-home-scroll .native-card-list .native-discovery-card .native-thumbnail { width: 100%; height: 72px; min-width: 0; border-radius: 0; }
 .native-app .native-home-scroll .native-card-list .native-discovery-card > span { padding: 10px; }
+.native-app .native-home-scroll .native-card-list .native-discovery-card > span > small { font-size: 9px; }
+.native-app .native-home-scroll .native-card-list .native-discovery-card > span > strong { font-size: 12px; }
+.native-app .native-home-scroll .native-card-list .native-discovery-card > span > span { font-size: 9px; }
 .native-app .native-urgent-card { display: block; padding: 12px; text-align: left; }
 .native-app .native-urgent-text { display: block; margin-bottom: 8px; color: var(--native-urgent-text); font-size: 11px; font-weight: 800; }
 .native-app .native-urgent-row { display: flex; align-items: center; gap: 11px; min-width: 0; }
@@ -160,7 +168,7 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.native-app .native-page-header { align-items: stretch; flex-wrap: nowrap; gap: var(--native-space-2); background: var(--native-elevated) !important; }
+.native-app .native-page-header { align-items: stretch; flex-wrap: nowrap; gap: var(--native-space-2); background: var(--native-page) !important; }
 .native-app .native-page-header > * { min-width: 0; max-width: 100%; }
 .native-app .native-page-header h1,
 .native-app .native-section-header h2 {

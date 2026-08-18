@@ -21,6 +21,15 @@ describe('native discovery adapters', () => {
   it.each([
     ['staff', 'Staff'], ['generator-repair', 'Generator Repair'], ['  Already Human  ', 'Already Human'], ['community_events', 'Community Events'],
   ])('humanizes %s labels as %s', (value, expected) => { expect(humanizeLabel(value)).toBe(expected) })
+  it.each([
+    ['iPhone repair', 'iPhone repair'],
+    ['eBay services', 'eBay services'],
+    ['Westmoreland works', 'Westmoreland works'],
+    ['PUBLIC_SERVICES_UTILITIES', 'Public Services Utilities'],
+    ['iPhone_repair', 'iPhone Repair'],
+    ['eBay_services', 'eBay Services'],
+    ['Already Human Title', 'Already Human Title'],
+  ])('preserves human casing for %s', (value, expected) => { expect(humanizeLabel(value)).toBe(expected) })
   it('maps a listing to its public card and direct path', () => {
     expect(adaptListing(listing, 'en-US')).toMatchObject({ id: 'listing-1', kind: 'listing', title: 'Portable generator', label: 'Generator Repair', thumbnailUrl: '/thumb.jpg', targetPath: '/listing/listing-1', urgent: true, coordinates: null })
   })
