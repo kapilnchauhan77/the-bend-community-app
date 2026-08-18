@@ -5,6 +5,11 @@ const config: CapacitorConfig = {
   appName: 'The Bend: Westmoreland',
   webDir: 'dist',
   bundledWebRuntime: false,
+  plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 }
 
 export default config

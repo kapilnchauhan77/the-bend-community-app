@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.core.exceptions import AppException
 
 settings = get_settings()
+NATIVE_WEBVIEW_ORIGINS = ["https://localhost", "capacitor://localhost"]
 
 
 @asynccontextmanager
@@ -33,7 +34,7 @@ def create_app() -> FastAPI:
     base = settings.BASE_DOMAIN.replace(".", r"\.")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=[*settings.CORS_ORIGINS, *NATIVE_WEBVIEW_ORIGINS],
         allow_origin_regex=r"https?://[\w-]+\.(" + base + r"|localhost)(:\d+)?",
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
