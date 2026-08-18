@@ -26,9 +26,13 @@ describe('useNativeExplore grouped All behavior', () => {
     const listingRequest = deferred<unknown>(); const businessRequest = deferred<unknown>(); const eventRequest = deferred<unknown>(); const volunteerRequest = deferred<unknown>()
     vi.mocked(listingApi.browse).mockReturnValueOnce(listingRequest.promise as never); vi.mocked(shopApi.directory).mockReturnValueOnce(businessRequest.promise as never); vi.mocked(eventApi.list).mockReturnValueOnce(eventRequest.promise as never); vi.mocked(listingApi.getOpportunities).mockReturnValueOnce(volunteerRequest.promise as never)
     const { result } = renderHook(() => useNativeExplore(allQuery()), { reactStrictMode: false })
-    await waitFor(() => { expect(listingApi.browse).toHaveBeenCalled(); expect(shopApi.directory).toHaveBeenCalled(); expect(eventApi.list).toHaveBeenCalled(); expect(listingApi.getOpportunities).toHaveBeenCalled() })
+    await waitFor(() => { expect(listingApi.browse).toHaveBeenCalledTimes(1); expect(shopApi.directory).toHaveBeenCalledTimes(1); expect(eventApi.list).toHaveBeenCalledTimes(1); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(1) })
     expect(listingApi.browse).toHaveBeenCalledWith({ limit: 5 }); expect(shopApi.directory).toHaveBeenCalledWith({ limit: 5 }); expect(eventApi.list).toHaveBeenCalledWith({ limit: 5 }); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ limit: 5 })
     await act(async () => { listingRequest.resolve({ data: { items: [] } }); businessRequest.resolve({ data: { items: [] } }); eventRequest.resolve({ data: { items: [] } }); volunteerRequest.resolve({ data: { items: [] } }) }); await waitFor(() => expect(result.current.groups.every((group) => group.state.status === 'empty')).toBe(true))
+  })
+
+  it('does not execute the typed request engine in All mode', async () => {
+    renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(listingApi.getOpportunities).toHaveBeenCalledTimes(1)); await Promise.resolve(); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(1)
   })
 
   it('H2 caps every All group at five mapped domain records', async () => {
