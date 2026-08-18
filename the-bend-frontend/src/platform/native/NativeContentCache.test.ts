@@ -352,4 +352,20 @@ describe('NativeContentCache', () => {
     await expect(reloaded.get('event:stable')).resolves.toMatchObject({ payload: { title: 'Stable' } })
     await expect(reloaded.get('event:new')).resolves.toMatchObject({ payload: { title: 'New' } })
   })
+
+  it('cleans an orphan temp index when neither primary nor backup is readable', async () => {
+    const files = new Map<string, string>([['bend-public-cache/index.json.tmp', '{partial']])
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+
+    const cache = new NativeContentCache({ storage: 'filesystem' })
+    await expect(cache.get('event:missing')).resolves.toBeNull()
+    expect(files.has('bend-public-cache/index.json.tmp')).toBe(false)
+  })
 })

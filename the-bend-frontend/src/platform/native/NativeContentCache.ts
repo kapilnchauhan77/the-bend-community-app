@@ -117,7 +117,10 @@ export class NativeContentCache implements ContentCache {
           await Filesystem.rename({ from: `${INDEX_PATH}.bak`, to: INDEX_PATH, directory: Directory.Data })
           recoveredFromBackup = false
         } catch { /* keep the valid backup if promotion is unavailable */ }
-      } catch { return /* missing or malformed cache is treated as empty */ }
+      } catch {
+        await this.cleanupArtifact(`${INDEX_PATH}.tmp`)
+        return /* missing or malformed cache is treated as empty */
+      }
     }
 
     const safeEntries: Entry[] = []
