@@ -40,6 +40,9 @@ Thumbs.db
 # OMC state
 .omc/
 
+# Local Superpowers visual brainstorming sessions
+.superpowers/brainstorm/
+
 # Uploads (local dev only)
 uploads/
 the-bend-backend/.playwright-cli
