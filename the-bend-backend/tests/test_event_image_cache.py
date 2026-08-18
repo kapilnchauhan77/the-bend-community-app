@@ -32,10 +32,19 @@ def test_only_approved_flickr_download_urls_are_cacheable():
     assert is_cacheable_event_image(
         "https://www.flickr.com/photo_download.gne?id=123&secret=public-token&size=w"
     )
+    assert is_cacheable_event_image(
+        "https://live.staticflickr.com/65535/52149177726_46d2fd7dd3.jpg"
+    )
     assert not is_cacheable_event_image("http://www.flickr.com/photo_download.gne?id=123")
     assert not is_cacheable_event_image("https://www.flickr.com/other-path?id=123")
     assert not is_cacheable_event_image("https://127.0.0.1/photo_download.gne?id=123")
     assert not is_cacheable_event_image("https://images.example.org/event.jpg")
+    assert not is_cacheable_event_image(
+        "https://live.staticflickr.com.evil.example/65535/event.jpg"
+    )
+    assert not is_cacheable_event_image(
+        "https://live.staticflickr.com/65535/event.svg"
+    )
 
 
 def test_oversized_chunk_is_rejected_before_it_is_buffered():
