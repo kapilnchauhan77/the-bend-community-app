@@ -10,6 +10,8 @@ vi.mock('@/stores/authStore', () => ({
     selector ? selector({ isAuthenticated: false, isLoading: false, user: null }) : { isAuthenticated: false, isLoading: false, user: null },
 }));
 vi.mock('@/pages/HomePage', () => ({ default: () => <div>Native home</div> }));
+vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>Native home</div> }));
+vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>Native explore</div> }));
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
 
 afterEach(() => cleanup());
@@ -24,6 +26,13 @@ function renderNativeAt(path: string) {
 }
 
 describe('NativeRoutes', () => {
+  it('uses native-only Home and Explore surfaces', () => {
+    renderNativeAt('/');
+    expect(screen.getByText('Native home')).toBeInTheDocument();
+    cleanup();
+    renderNativeAt('/explore');
+    expect(screen.getByText('Native explore')).toBeInTheDocument();
+  });
   it.each(['/admin', '/super-admin'])('does not render %s in native mode', async (path) => {
     renderNativeAt(path);
     expect(await screen.findByText(/this page isn't available in the mobile app/i)).toBeInTheDocument();

@@ -13,6 +13,10 @@ afterEach(() => cleanup());
 function renderAt(path: string) { return render(<MemoryRouter initialEntries={[path]}><WebRoutes /></MemoryRouter>); }
 
 describe('WebRoutes', () => {
+  it('keeps web Explore outside the public route table', () => {
+    renderAt('/explore');
+    expect(screen.getByText('Public not found')).toBeInTheDocument();
+  });
   it('does not render the public not-found surface alongside admin routes', () => {
     renderAt('/admin');
     expect(screen.getByText('Admin dashboard')).toBeInTheDocument();
