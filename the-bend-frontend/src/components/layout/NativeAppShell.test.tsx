@@ -5,6 +5,10 @@ import { NativeAppShell, useNativeAppShell } from './NativeAppShell'
 import { PlatformServicesProvider } from '@/platform/createPlatformServices'
 import type { RuntimeConfig } from '@/platform/contracts'
 
+vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => 'ios' } }))
+vi.mock('@capacitor/status-bar', () => ({ StatusBar: { setStyle: vi.fn().mockResolvedValue(undefined) }, Style: { Dark: 'DARK', Light: 'LIGHT' } }))
+import { StatusBar, Style } from '@capacitor/status-bar'
+
 vi.mock('@/deep-links/useDeepLinks', () => ({ useDeepLinks: () => undefined }))
 
 const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: '', wsBaseUrl: '', tenantSlug: '', appVersion: '', buildNumber: '', environment: 'test' }
@@ -77,5 +81,18 @@ describe('NativeAppShell', () => {
     const view = renderShell()
     view.unmount(); expect(document.documentElement).toHaveClass('dark'); expect(remove).toHaveBeenCalledOnce()
     void root
+  })
+
+  it('syncs native status-bar style and page backgrounds with theme, then restores inline styles', () => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => 'dark' } })
+    document.documentElement.style.backgroundColor = 'rgb(1, 2, 3)'
+    document.body.style.backgroundColor = 'rgb(4, 5, 6)'
+    const view = renderShell()
+    expect(vi.mocked(StatusBar.setStyle)).toHaveBeenCalledWith({ style: Style.Dark })
+    expect(document.documentElement.style.backgroundColor).toBe('rgb(18, 25, 21)')
+    expect(document.body.style.backgroundColor).toBe('rgb(18, 25, 21)')
+    view.unmount()
+    expect(document.documentElement.style.backgroundColor).toBe('rgb(1, 2, 3)')
+    expect(document.body.style.backgroundColor).toBe('rgb(4, 5, 6)')
   })
 })

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { getPlatform: () => 'ios', convertFileSrc: (uri: string) => `capacitor://${uri}` },
@@ -6,7 +6,7 @@ vi.mock('@capacitor/core', () => ({
 
 vi.mock('@capacitor/camera', () => ({ Camera: { getPhoto: vi.fn() }, CameraResultType: { Uri: 'uri' }, CameraSource: { Camera: 'camera', Photos: 'photos' } }))
 vi.mock('@capacitor/filesystem', () => ({ Filesystem: { readFile: vi.fn(async () => ({ data: btoa('image-bytes') })) } }))
-vi.mock('@capacitor/geolocation', () => ({ Geolocation: { getCurrentPosition: vi.fn() } }))
+vi.mock('@capacitor/geolocation', () => ({ Geolocation: { checkPermissions: vi.fn(), requestPermissions: vi.fn(), getCurrentPosition: vi.fn() } }))
 vi.mock('@capacitor/share', () => ({ Share: { share: vi.fn() } }))
 vi.mock('@capacitor/browser', () => ({ Browser: { open: vi.fn(), close: vi.fn() } }))
 
@@ -19,14 +19,35 @@ import { NativeLocationService } from './NativeLocationService'
 import { NativeShareService } from './NativeShareService'
 
 describe('native device services', () => {
+  beforeEach(() => vi.clearAllMocks())
   it('returns cancellation without throwing when the picker is dismissed', async () => {
     vi.mocked(Camera.getPhoto).mockRejectedValueOnce({ message: 'User cancelled photos app' })
     await expect(new NativeMediaService().pickPhoto()).resolves.toBeNull()
   })
 
   it('maps a foreground position to the platform contract', async () => {
+    vi.mocked(Geolocation.checkPermissions).mockResolvedValueOnce({ location: 'granted', coarseLocation: 'granted' } as never)
     vi.mocked(Geolocation.getCurrentPosition).mockResolvedValueOnce({ coords: { latitude: 40, longitude: -80, accuracy: 8 } } as never)
     await expect(new NativeLocationService().getForegroundPosition()).resolves.toEqual({ latitude: 40, longitude: -80, accuracy: 8 })
+  })
+
+  it('checks then requests location only from an explicit foreground call and normalizes denial', async () => {
+    vi.mocked(Geolocation.checkPermissions).mockResolvedValueOnce({ location: 'prompt' } as never)
+    vi.mocked(Geolocation.requestPermissions).mockResolvedValueOnce({ location: 'denied' } as never)
+    await expect(new NativeLocationService().getForegroundPosition()).rejects.toMatchObject({ code: 'LOCATION_PERMISSION_DENIED' })
+    expect(Geolocation.checkPermissions).toHaveBeenCalledOnce()
+    expect(Geolocation.requestPermissions).toHaveBeenCalledOnce()
+    expect(Geolocation.getCurrentPosition).not.toHaveBeenCalled()
+  })
+
+  it('declares truthful foreground location permissions for both native platforms', async () => {
+    const manifest = await import('node:fs/promises').then(({ readFile }) => readFile('android/app/src/main/AndroidManifest.xml', 'utf8'))
+    const plist = await import('node:fs/promises').then(({ readFile }) => readFile('ios/App/App/Info.plist', 'utf8'))
+    expect(manifest).toContain('android.permission.ACCESS_COARSE_LOCATION')
+    expect(manifest).toContain('android.permission.ACCESS_FINE_LOCATION')
+    expect(manifest).not.toContain('android.hardware.location.gps')
+    expect(plist).toContain('NSLocationWhenInUseUsageDescription')
+    expect(plist).toContain('The Bend uses your location only when you choose Near me')
   })
 
   it('converts a native file path to a blob without logging or caching bytes', async () => {

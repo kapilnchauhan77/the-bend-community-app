@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CommunityEvent, Listing, Shop } from '@/types'
-import { adaptBusiness, adaptEvent, adaptListing, adaptOpportunity } from './adapters'
+import { adaptBusiness, adaptEvent, adaptListing, adaptOpportunity, humanizeLabel } from './adapters'
 
 const listing: Listing = {
   id: 'listing-1', shop: { id: 'shop-1', name: 'Westmoreland Works', business_type: 'Generator Repair', avatar_url: '/owner.png' },
@@ -18,6 +18,9 @@ const event: CommunityEvent = {
 }
 
 describe('native discovery adapters', () => {
+  it.each([
+    ['staff', 'Staff'], ['generator-repair', 'Generator Repair'], ['  Already Human  ', 'Already Human'], ['community_events', 'Community Events'],
+  ])('humanizes %s labels as %s', (value, expected) => { expect(humanizeLabel(value)).toBe(expected) })
   it('maps a listing to its public card and direct path', () => {
     expect(adaptListing(listing, 'en-US')).toMatchObject({ id: 'listing-1', kind: 'listing', title: 'Portable generator', label: 'Generator Repair', thumbnailUrl: '/thumb.jpg', targetPath: '/listing/listing-1', urgent: true, coordinates: null })
   })

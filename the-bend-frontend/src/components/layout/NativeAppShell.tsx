@@ -5,6 +5,8 @@ import { useDeepLinks } from '@/deep-links/useDeepLinks';
 import { createContext, useContext, useEffect, useRef } from 'react';
 import '@/styles/native.css';
 import type { NativeAppShellContextValue, NativeRootTab } from '@/platform/contracts';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 const ShellContext = createContext<NativeAppShellContextValue | null>(null)
 export function useNativeAppShell() { const value = useContext(ShellContext); if (!value) throw new Error('useNativeAppShell must be used inside NativeAppShell'); return value }
 
@@ -32,7 +34,17 @@ export function NativeAppShell() {
   }, []);
   useEffect(() => {
     const hadDarkClass = document.documentElement.classList.contains('dark');
-    const apply = (dark: boolean) => document.documentElement.classList.toggle('dark', dark);
+    const nativeChrome = Capacitor.getPlatform() === 'ios' || Capacitor.getPlatform() === 'android';
+    const previousHtmlBackground = document.documentElement.style.backgroundColor;
+    const previousBodyBackground = document.body.style.backgroundColor;
+    const apply = (dark: boolean) => {
+      document.documentElement.classList.toggle('dark', dark);
+      if (!nativeChrome) return;
+      const surface = dark ? '#121915' : '#f7f3ea';
+      document.documentElement.style.backgroundColor = surface;
+      document.body.style.backgroundColor = surface;
+      void StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => undefined);
+    };
     const stored = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('theme') : null;
     let media: MediaQueryList | undefined;
     let update: (() => void) | undefined;
@@ -45,6 +57,8 @@ export function NativeAppShell() {
     return () => {
       if (media && update) media.removeEventListener?.('change', update);
       apply(hadDarkClass);
+      document.documentElement.style.backgroundColor = previousHtmlBackground;
+      document.body.style.backgroundColor = previousBodyBackground;
     };
   }, []);
   return <ShellContext.Provider value={shell}><div ref={rootRef} className="native-app"><main id="native-main" className="native-main"><Outlet /></main><NativeBottomNav /></div></ShellContext.Provider>;

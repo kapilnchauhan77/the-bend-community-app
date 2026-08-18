@@ -62,5 +62,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The Bend uses your location only when you choose Near me to sort public Westmoreland results. Your location is not stored.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>The Bend uses your location only when you choose Near me to sort public Westmoreland results. Your location is not stored.</string>
 </dict>
 </plist>
