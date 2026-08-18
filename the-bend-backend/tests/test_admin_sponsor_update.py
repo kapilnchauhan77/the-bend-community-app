@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from app.api.v1.admin import admin_update_sponsor
+from app.core.exceptions import NotFoundError
 from app.schemas.sponsor import SponsorUpdate
 
 
@@ -71,3 +72,22 @@ async def test_admin_update_sponsor_preserves_global_lookup_for_no_tenant_admin(
     )
 
     assert _bound_values(db.statement) == {sponsor_id}
+
+
+@pytest.mark.asyncio
+async def test_admin_update_sponsor_returns_not_found_for_another_tenant():
+    sponsor_id = uuid.uuid4()
+    tenant_id = uuid.uuid4()
+    db = _RecordingDB(sponsor=None)
+    admin = types.SimpleNamespace(tenant_id=tenant_id)
+
+    with pytest.raises(NotFoundError):
+        await admin_update_sponsor(
+            sponsor_id,
+            SponsorUpdate(name="New name"),
+            db,
+            admin,
+        )
+
+    assert _bound_values(db.statement) == {sponsor_id, tenant_id}
+    assert db.flushed is False

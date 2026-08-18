@@ -95,7 +95,7 @@ def _process_image(content: bytes) -> tuple[bytes, bytes, str]:
     img = ImageOps.exif_transpose(img)  # respect orientation, then drop EXIF
 
     # Decide output format. Keep PNG only if the image actually uses alpha.
-    has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+    has_alpha = img.mode in ("RGBA", "LA") or "transparency" in img.info
     if has_alpha:
         out_format = "PNG"
         ext = ".png"

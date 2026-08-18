@@ -26,6 +26,27 @@ def _image_bytes(format_name: str, mode: str = "RGB") -> bytes:
     return buffer.getvalue()
 
 
+def _transparent_png_bytes(mode: str) -> bytes:
+    if mode == "RGB":
+        color = (20, 80, 140)
+        transparency = color
+    else:
+        color = 20
+        transparency = color
+
+    image = Image.new(mode, (12, 8), color)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", transparency=transparency)
+    return buffer.getvalue()
+
+
+def _highly_compressed_oversized_image() -> bytes:
+    image = Image.new("1", (5000, 5000), 0)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
+
 def _test_app(role: UserRole | None) -> FastAPI:
     app = FastAPI()
 
@@ -118,6 +139,19 @@ def test_sponsor_logo_upload_preserves_png_transparency(isolated_uploads):
         assert stored.getpixel((0, 0))[3] == 64
 
 
+@pytest.mark.parametrize("mode", ["RGB", "L"])
+def test_sponsor_logo_upload_preserves_png_trns_transparency(mode: str, isolated_uploads):
+    with TestClient(_test_app(role=UserRole.COMMUNITY_ADMIN)) as client:
+        response = _post_logo(client, _transparent_png_bytes(mode), "image/png")
+
+    assert response.status_code == 200
+    logo_url = response.json()["logo_url"]
+    assert logo_url.endswith(".png")
+    stored_path = isolated_uploads / logo_url.removeprefix("/uploads/")
+    with Image.open(stored_path).convert("RGBA") as stored:
+        assert stored.getpixel((0, 0))[3] == 0
+
+
 @pytest.mark.parametrize(
     ("payload", "content_type"),
     [
@@ -167,3 +201,14 @@ def test_sponsor_logo_upload_rejects_files_over_five_megabytes():
         response = _post_logo(client, oversized, "image/png")
 
     assert response.status_code == 413
+
+
+def test_sponsor_logo_upload_rejects_highly_compressed_oversized_dimensions(isolated_uploads):
+    payload = _highly_compressed_oversized_image()
+    assert len(payload) < MAX_SPONSOR_LOGO_BYTES
+
+    with TestClient(_test_app(role=UserRole.COMMUNITY_ADMIN)) as client:
+        response = _post_logo(client, payload, "image/png")
+
+    assert response.status_code == 422
+    assert list((isolated_uploads / "images").iterdir()) == []

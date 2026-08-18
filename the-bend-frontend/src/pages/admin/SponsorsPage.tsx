@@ -81,6 +81,13 @@ function isExpired(expires_at?: string): boolean {
   return new Date(expires_at) < new Date();
 }
 
+function sponsorLogoUploadError(error: unknown): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === 'string' && detail.trim()
+    ? detail
+    : 'Failed to upload sponsor logo. Please try again.';
+}
+
 type TabKey = 'all' | 'pending' | 'active' | 'inactive' | 'expired';
 
 interface EditFormData {
@@ -106,6 +113,7 @@ interface SponsorLogoControlProps {
   sponsorName: string;
   logoUrl: string | null;
   onFileChange: (file: File) => void;
+  onLogoUrlChange: (url: string) => void;
   onRemove: () => void;
   disabled?: boolean;
 }
@@ -115,6 +123,7 @@ function SponsorLogoControl({
   sponsorName,
   logoUrl,
   onFileChange,
+  onLogoUrlChange,
   onRemove,
   disabled = false,
 }: SponsorLogoControlProps) {
@@ -128,8 +137,14 @@ function SponsorLogoControl({
     };
   }, []);
 
-  const selectFile = (file: File) => {
+  const clearSelectedPreview = () => {
     if (selectedPreviewRef.current) URL.revokeObjectURL(selectedPreviewRef.current);
+    selectedPreviewRef.current = null;
+    setSelectedPreviewUrl(null);
+  };
+
+  const selectFile = (file: File) => {
+    clearSelectedPreview();
     const objectUrl = URL.createObjectURL(file);
     selectedPreviewRef.current = objectUrl;
     setSelectedPreviewUrl(objectUrl);
@@ -137,9 +152,7 @@ function SponsorLogoControl({
   };
 
   const removeLogo = () => {
-    if (selectedPreviewRef.current) URL.revokeObjectURL(selectedPreviewRef.current);
-    selectedPreviewRef.current = null;
-    setSelectedPreviewUrl(null);
+    clearSelectedPreview();
     onRemove();
   };
 
@@ -200,7 +213,20 @@ function SponsorLogoControl({
           </Button>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground">PNG, JPG, or WebP.</p>
+      <p className="text-[11px] text-muted-foreground">PNG, JPG, or WebP, up to 5 MB.</p>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${inputId}-url`}>Logo URL</Label>
+        <Input
+          id={`${inputId}-url`}
+          value={logoUrl ?? ''}
+          disabled={disabled}
+          onChange={(event) => {
+            clearSelectedPreview();
+            onLogoUrlChange(event.target.value);
+          }}
+          placeholder="/uploads/images/... or https://..."
+        />
+      </div>
     </div>
   );
 }
@@ -243,8 +269,8 @@ export default function SponsorsPage() {
         try {
           const { data } = await uploadApi.uploadSponsorLogo(createLogoFile);
           logoUrl = data.logo_url;
-        } catch {
-          setCreateError('Failed to upload sponsor logo. Please try again.');
+        } catch (error) {
+          setCreateError(sponsorLogoUploadError(error));
           return;
         } finally {
           setCreateLogoUploading(false);
@@ -333,8 +359,8 @@ export default function SponsorsPage() {
         try {
           const { data } = await uploadApi.uploadSponsorLogo(editLogoFile);
           logoUrl = data.logo_url;
-        } catch {
-          setFormError('Failed to upload sponsor logo. Please try again.');
+        } catch (error) {
+          setFormError(sponsorLogoUploadError(error));
           return;
         } finally {
           setEditLogoUploading(false);
@@ -688,13 +714,18 @@ export default function SponsorsPage() {
       <Dialog
         open={!!editTarget}
         onOpenChange={(open) => {
+          if (!open && saving) return;
           if (!open) {
             setEditTarget(null);
             setEditLogoFile(null);
           }
         }}
       >
-        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto">
+        <DialogContent
+          className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto"
+          onEscapeKeyDown={(event) => { if (saving) event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (saving) event.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle>Edit Sponsor</DialogTitle>
             <DialogDescription>
@@ -730,6 +761,11 @@ export default function SponsorsPage() {
               onFileChange={(file) => {
                 setFormError('');
                 setEditLogoFile(file);
+                setEditForm((form) => ({ ...form, logo_url: '' }));
+              }}
+              onLogoUrlChange={(url) => {
+                setEditLogoFile(null);
+                setEditForm((form) => ({ ...form, logo_url: url }));
               }}
               onRemove={() => {
                 setEditLogoFile(null);
@@ -737,18 +773,6 @@ export default function SponsorsPage() {
               }}
               disabled={saving}
             />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="sp-logo-url">Logo URL</Label>
-              <Input
-                id="sp-logo-url"
-                value={editForm.logo_url ?? ''}
-                onChange={(event) => {
-                  setEditForm((form) => ({ ...form, logo_url: event.target.value }));
-                }}
-                placeholder="/uploads/images/... or https://..."
-              />
-            </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="sp-url">Website URL</Label>
@@ -788,11 +812,11 @@ export default function SponsorsPage() {
               <Label htmlFor="sp-active" className="cursor-pointer">Active</Label>
             </div>
 
-            {formError && <p className="text-xs text-red-500">{formError}</p>}
+            {formError && <p role="alert" className="text-xs text-red-500">{formError}</p>}
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setEditTarget(null)}>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>
               Cancel
             </Button>
             <Button
@@ -821,13 +845,18 @@ export default function SponsorsPage() {
       <Dialog
         open={createOpen}
         onOpenChange={(open) => {
+          if (!open && creating) return;
           if (!open) {
             setCreateOpen(false);
             setCreateLogoFile(null);
           }
         }}
       >
-        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto">
+        <DialogContent
+          className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto"
+          onEscapeKeyDown={(event) => { if (creating) event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (creating) event.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle>New Sponsor</DialogTitle>
             <DialogDescription>
@@ -863,6 +892,11 @@ export default function SponsorsPage() {
               onFileChange={(file) => {
                 setCreateError('');
                 setCreateLogoFile(file);
+                setCreateForm((form) => ({ ...form, logo_url: '' }));
+              }}
+              onLogoUrlChange={(url) => {
+                setCreateLogoFile(null);
+                setCreateForm((form) => ({ ...form, logo_url: url }));
               }}
               onRemove={() => {
                 setCreateLogoFile(null);
@@ -870,18 +904,6 @@ export default function SponsorsPage() {
               }}
               disabled={creating}
             />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cr-logo">Logo URL</Label>
-              <Input
-                id="cr-logo"
-                value={createForm.logo_url}
-                onChange={(event) => {
-                  setCreateForm((form) => ({ ...form, logo_url: event.target.value }));
-                }}
-                placeholder="/uploads/images/... or https://..."
-              />
-            </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="cr-url">Website URL</Label>
@@ -921,11 +943,11 @@ export default function SponsorsPage() {
               <Label htmlFor="cr-active" className="cursor-pointer">Active</Label>
             </div>
 
-            {createError && <p className="text-xs text-red-500">{createError}</p>}
+            {createError && <p role="alert" className="text-xs text-red-500">{createError}</p>}
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
               Cancel
             </Button>
             <Button

@@ -45,6 +45,8 @@ interface SponsorApiCapture {
 interface SponsorApiOptions {
   failUpload?: boolean;
   uploadDelayMs?: number;
+  uploadErrorDetail?: string;
+  uploadErrorStatus?: number;
 }
 
 async function authenticateAdmin(page: Page) {
@@ -96,9 +98,9 @@ async function stubSponsorApi(
       }
       if (options.failUpload) {
         await route.fulfill({
-          status: 500,
+          status: options.uploadErrorStatus ?? 500,
           contentType: 'application/json',
-          body: JSON.stringify({ detail: 'Upload failed' }),
+          body: JSON.stringify({ detail: options.uploadErrorDetail ?? 'Upload failed' }),
         });
       } else {
         await route.fulfill({
@@ -168,6 +170,7 @@ test('edit sponsor previews a replacement and uploads it only when Save Changes 
 
   await dialog.getByRole('button', { name: 'Save Changes' }).click();
   await expect(dialog.getByText('Uploading logo…', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeDisabled();
   await expect.poll(() => capture.uploadRequests).toBe(1);
   await expect.poll(() => capture.updatePayload?.logo_url).toBe(UPLOADED_LOGO_URL);
 
@@ -222,15 +225,74 @@ test('new sponsor keeps the Logo URL fallback and saves the uploaded logo URL', 
   await expect(dialog).toBeHidden();
 });
 
+test('edit sponsor uses a manually entered Logo URL instead of a previously selected file', async ({ page }) => {
+  await authenticateAdmin(page);
+  const capture = await stubSponsorApi(page);
+  const dialog = await openEditDialog(page);
+
+  await dialog.getByLabel('Sponsor Logo').setInputFiles(LOGO_FILE);
+  await expect(dialog.getByRole('img', { name: 'Inn at Montross logo preview' })).toHaveAttribute('src', /^blob:/);
+
+  await dialog.getByLabel('Logo URL').fill(CURRENT_LOGO_URL);
+  await expect(dialog.getByRole('img', { name: 'Inn at Montross logo preview' })).toHaveAttribute(
+    'src',
+    CURRENT_LOGO_URL,
+  );
+  await dialog.getByRole('button', { name: 'Save Changes' }).click();
+
+  await expect.poll(() => capture.updatePayload?.logo_url).toBe(CURRENT_LOGO_URL);
+  expect(capture.uploadRequests).toBe(0);
+});
+
+test('new sponsor uses a manually entered Logo URL instead of a previously selected file', async ({ page }) => {
+  await authenticateAdmin(page);
+  const capture = await stubSponsorApi(page);
+  await page.goto('/admin/sponsors');
+  await page.getByRole('button', { name: 'New Sponsor' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'New Sponsor' });
+  await dialog.getByLabel('Name *').fill('URL Community Partner');
+  await dialog.getByLabel('Sponsor Logo').setInputFiles(LOGO_FILE);
+  await dialog.getByLabel('Logo URL').fill(CURRENT_LOGO_URL);
+
+  await expect(dialog.getByRole('img', { name: 'URL Community Partner logo preview' })).toHaveAttribute(
+    'src',
+    CURRENT_LOGO_URL,
+  );
+  await dialog.getByRole('button', { name: 'Create Sponsor' }).click();
+
+  await expect.poll(() => capture.createPayload?.logo_url).toBe(CURRENT_LOGO_URL);
+  expect(capture.uploadRequests).toBe(0);
+});
+
+test('new sponsor saves a Logo URL without selecting a file', async ({ page }) => {
+  await authenticateAdmin(page);
+  const capture = await stubSponsorApi(page);
+  await page.goto('/admin/sponsors');
+  await page.getByRole('button', { name: 'New Sponsor' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'New Sponsor' });
+  await dialog.getByLabel('Name *').fill('URL-only Community Partner');
+  await dialog.getByLabel('Logo URL').fill(CURRENT_LOGO_URL);
+  await dialog.getByRole('button', { name: 'Create Sponsor' }).click();
+
+  await expect.poll(() => capture.createPayload?.logo_url).toBe(CURRENT_LOGO_URL);
+  expect(capture.uploadRequests).toBe(0);
+});
+
 test('a sponsor logo upload failure keeps the edit dialog open and skips the update', async ({ page }) => {
   await authenticateAdmin(page);
-  const capture = await stubSponsorApi(page, { failUpload: true });
+  const capture = await stubSponsorApi(page, {
+    failUpload: true,
+    uploadErrorStatus: 413,
+    uploadErrorDetail: 'Sponsor logo must be 5 MB or less',
+  });
   const dialog = await openEditDialog(page);
   await dialog.getByLabel('Sponsor Logo').setInputFiles(LOGO_FILE);
 
   await dialog.getByRole('button', { name: 'Save Changes' }).click();
 
-  await expect(dialog.getByText('Failed to upload sponsor logo. Please try again.')).toBeVisible();
+  await expect(dialog.getByRole('alert')).toHaveText('Sponsor logo must be 5 MB or less');
   await expect(dialog).toBeVisible();
   expect(capture.uploadRequests).toBe(1);
   expect(capture.updatePayload).toBeUndefined();

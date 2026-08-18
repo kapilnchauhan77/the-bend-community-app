@@ -1,4 +1,5 @@
 import io
+import warnings
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from PIL import Image, UnidentifiedImageError
@@ -23,6 +24,8 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 file_service = FileService()
 
 MAX_SPONSOR_LOGO_BYTES = 5 * 1024 * 1024
+MAX_SPONSOR_LOGO_EDGE = 10_000
+MAX_SPONSOR_LOGO_PIXELS = 20_000_000
 SPONSOR_LOGO_FORMAT_BY_MIME = {
     "image/jpeg": "JPEG",
     "image/png": "PNG",
@@ -63,10 +66,27 @@ async def upload_sponsor_logo(
         )
 
     try:
-        with Image.open(io.BytesIO(content)) as image:
-            actual_format = image.format
-            image.load()
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(content)) as image:
+                actual_format = image.format
+                width, height = image.size
+                if (
+                    width > MAX_SPONSOR_LOGO_EDGE
+                    or height > MAX_SPONSOR_LOGO_EDGE
+                    or width * height > MAX_SPONSOR_LOGO_PIXELS
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="Sponsor logo dimensions are too large",
+                    )
+                image.load()
+    except (
+        UnidentifiedImageError,
+        OSError,
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+    ) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Sponsor logo is not a valid image",
