@@ -178,4 +178,24 @@ describe('NativeExplorePage production-path permission integration', () => {
     expect(screen.getByText(/Distance unavailable/)).toHaveTextContent('Distance unavailable for businesses; showing the current server order.')
     expect(screen.getByText(/Distance unavailable/)).not.toHaveTextContent(/county-complete|county-wide/i)
   })
+
+  it('orders mixed Near cards by distance and explains the stable missing-coordinate tail', async () => {
+    platform.location.getForegroundPosition.mockReset()
+    platform.location.getForegroundPosition.mockResolvedValue({ latitude: 40, longitude: -79 })
+    const far = { ...farm, id: 'far', name: 'Far Farm', latitude: 41, longitude: -79 }
+    const missing = { ...farm, id: 'missing', name: 'Missing Farm', latitude: null, longitude: null }
+    const near = { ...farm, id: 'near', name: 'Near Farm', latitude: 40.05, longitude: -79 }
+    vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [far, missing, near] } } as never)
+    vi.mocked(shopApi.getShop).mockResolvedValue({ data: missing } as never)
+    renderExplore()
+    await screen.findByText('Far Farm')
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' }))
+    await waitFor(() => expect(screen.getByTestId('integration-location')).toHaveTextContent('near=true'))
+    const farCard = screen.getByText('Far Farm')
+    const nearCard = screen.getByText('Near Farm')
+    const missingCard = screen.getByText('Missing Farm')
+    expect(Boolean(nearCard.compareDocumentPosition(farCard) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(farCard.compareDocumentPosition(missingCard) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(screen.getByText(/Distance unavailable/)).toHaveTextContent('Distance unavailable for some businesses; they remain in stable server order after distance-sorted businesses.')
+  })
 })
