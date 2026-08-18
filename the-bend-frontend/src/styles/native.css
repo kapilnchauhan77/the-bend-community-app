@@ -8,7 +8,7 @@
 .native-app h2,
 .native-app h3 { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .native-app .native-home-scroll,
-.native-app .native-explore-scroll { min-height: 100dvh; padding: 0 var(--native-space-4) calc(88px + var(--native-safe-bottom)); background: var(--native-page); }
+.native-app .native-explore-scroll { min-height: 100dvh; padding: 0 18px; background: var(--native-page); }
 .native-app .native-result-group { margin-top: var(--native-space-6); }
 .native-app .native-result-group .native-section-header { margin-bottom: var(--native-space-3); }
 .native-app .native-card { display: block; min-width: 0; padding: var(--native-space-3); border: 1px solid var(--native-border); border-radius: var(--native-radius-card); color: var(--native-text); background: var(--native-elevated); overflow-wrap: anywhere; }
@@ -30,11 +30,10 @@
 .native-app .native-header-title { flex: 1 1 auto; min-width: 0; }
 .native-app .native-header-title h1 { margin: 0; font-size: 18px; line-height: 1.15; }
 .native-app .native-header-icon { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; color: var(--native-primary); background: transparent; }
-.native-app .native-page-header.native-safe-area { padding-top: calc(10px + var(--native-safe-top)); }
 .native-app .native-eyebrow { color: var(--native-bronze); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .native-app .native-header-title h1 { font-size: 27px; line-height: 1.08; letter-spacing: -.04em; }
 .native-app .native-home-lede { margin: 0 0 var(--native-space-3); color: var(--native-muted); font-size: 13px; line-height: 1.4; }
-.native-app .native-explore-title { margin: 0; padding-top: var(--native-safe-top); font-size: 27px; line-height: 1.08; }
+.native-app .native-explore-title { margin: 0; padding-top: calc(10px + var(--native-safe-top)); font-size: 27px; line-height: 1.08; }
 .native-app .native-filter-chip {
   display: inline-flex;
   align-items: center;
@@ -149,7 +148,6 @@
   height: 44px;
   padding: 0;
 }
-.native-app .native-page-header,
 .native-app .native-section-header,
 .native-app .native-header-actions {
   display: flex;
@@ -159,7 +157,7 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.native-app .native-page-header { gap: var(--native-space-3); }
+.native-app .native-page-header { align-items: stretch; flex-wrap: nowrap; gap: var(--native-space-2); }
 .native-app .native-page-header > * { min-width: 0; max-width: 100%; }
 .native-app .native-page-header h1,
 .native-app .native-section-header h2 {
@@ -191,7 +189,7 @@
   height: 44px;
   padding: 0;
 }
-.native-app .native-bottom-nav { border-color: var(--native-border); background: color-mix(in srgb, var(--native-elevated) 96%, transparent); }
+.native-app .native-bottom-nav { border-color: var(--native-border); background: var(--native-elevated); }
 .native-app .native-bottom-nav.native-safe-bottom { padding-bottom: var(--native-safe-bottom); }
 .native-app .native-bottom-nav-inner { min-height: var(--native-nav-height); }
 .native-app .native-bottom-nav-item { min-height: 44px; color: var(--native-muted); }
