@@ -153,7 +153,7 @@ export class NativeContentCache implements ContentCache {
   private async persist() {
     if (this.memory) { testMemory = this.entries; return }
     try {
-      await Filesystem.mkdir({ path: 'bend-public-cache', directory: Directory.Data, recursive: true })
+      try { await Filesystem.mkdir({ path: 'bend-public-cache', directory: Directory.Data, recursive: true }) } catch { /* directory may already exist */ }
       const data = JSON.stringify([...this.entries.values()])
       const temporaryPath = `${INDEX_PATH}.tmp`
       const backupPath = `${INDEX_PATH}.bak`

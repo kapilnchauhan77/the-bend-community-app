@@ -368,4 +368,36 @@ describe('NativeContentCache', () => {
     await expect(cache.get('event:missing')).resolves.toBeNull()
     expect(files.has('bend-public-cache/index.json.tmp')).toBe(false)
   })
+
+  it('continues persisting when mkdir reports an already-existing cache directory', async () => {
+    const files = new Map<string, string>()
+    let mkdirCalls = 0
+    filesystem.mkdir.mockImplementation(async () => {
+      mkdirCalls += 1
+      if (mkdirCalls > 1) throw new Error('OS-PLUG-FILE-0010')
+    })
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.writeFile.mockImplementation(async ({ path, data }: { path: string, data: string }) => { files.set(path, data) })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+    filesystem.rename.mockImplementation(async ({ from, to }: { from: string, to: string }) => {
+      const data = files.get(from)
+      if (data === undefined || files.has(to)) throw new Error('RENAME_FAILED')
+      files.set(to, data)
+      files.delete(from)
+    })
+
+    const cache = new NativeContentCache({ storage: 'filesystem' })
+    await cache.put({ key: 'event:first', kind: 'event', entityId: 'first', cachedAt: new Date().toISOString(), payload: { title: 'First' }, imagePath: null, sizeBytes: 1 })
+    await cache.put({ key: 'event:second', kind: 'event', entityId: 'second', cachedAt: new Date().toISOString(), payload: { title: 'Second' }, imagePath: null, sizeBytes: 1 })
+
+    const reloaded = new NativeContentCache({ storage: 'filesystem' })
+    await expect(reloaded.get('event:first')).resolves.toMatchObject({ payload: { title: 'First' } })
+    await expect(reloaded.get('event:second')).resolves.toMatchObject({ payload: { title: 'Second' } })
+  })
 })
