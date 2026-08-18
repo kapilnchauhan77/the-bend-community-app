@@ -13,7 +13,7 @@ const chips: Array<[string, NativeExploreType]> = [['All', 'all'], ['Listings', 
 const listingCategories = ['staff', 'materials', 'equipment']; const eventCategories = ['community', 'music', 'art', 'food', 'market', 'historic', 'outdoor', 'education']; const sorts = ['urgency_desc', 'created_desc', 'expiry_asc']
 
 export function NativeExplorePage() {
-  const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
+  const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const canonicalKey = serializeNativeExploreQuery(query).toString(); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
   useEffect(() => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current)
@@ -21,7 +21,7 @@ export function NativeExplorePage() {
     }
     const sync = window.setTimeout(() => setText(query.q), 0)
     return () => window.clearTimeout(sync)
-  }, [query.q])
+  }, [canonicalKey, query.q])
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
   const change = (next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...query, ...next }), { replace })
   const submit = () => { if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: text.trim() }) }
