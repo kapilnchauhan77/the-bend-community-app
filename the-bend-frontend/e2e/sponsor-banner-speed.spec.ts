@@ -1,0 +1,72 @@
+import { expect, test, type Page } from '@playwright/test';
+
+async function stubHomeApi(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const requestUrl = route.request().url();
+
+    if (requestUrl.includes('/tenant/current')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          slug: 'westmoreland',
+          display_name: 'The Bend — Westmoreland',
+          tagline: 'Find opportunity within your neighborhood',
+          primary_color: 'hsl(160,25%,24%)',
+          footer_text: 'Preserving community, one connection at a time',
+        }),
+      });
+      return;
+    }
+
+    if (requestUrl.includes('/sponsors')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 'sponsor-1',
+              name: 'Partner One',
+              description: 'First community partner',
+              website_url: 'https://partner-one.example',
+              placement: 'homepage',
+            },
+            {
+              id: 'sponsor-2',
+              name: 'Partner Two',
+              description: 'Second community partner',
+              website_url: 'https://partner-two.example',
+              placement: 'homepage',
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
+    if (requestUrl.includes('/stats')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          active_shops: 0,
+          active_listings: 0,
+          items_shared: 0,
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [] }),
+    });
+  });
+}
+
+test('horizontal sponsor banner completes a two-partner loop in ten seconds', async ({ page }) => {
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const marquee = page.locator('.sponsor-marquee');
+  await expect(marquee).toBeVisible();
+  await expect(marquee).toHaveCSS('animation-duration', '10s');
+});
