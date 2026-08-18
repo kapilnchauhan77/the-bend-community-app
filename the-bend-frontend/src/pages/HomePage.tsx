@@ -63,6 +63,7 @@ export default function HomePage() {
   const [loadingUrgent, setLoadingUrgent] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [upcomingEvents, setUpcomingEvents] = useState<CommunityEvent[]>([]);
+  const [mobileEventIndex, setMobileEventIndex] = useState(0);
   const [fulfilledListings, setFulfilledListings] = useState<Listing[]>([]);
   const [stories, setStories] = useState<SuccessStory[]>([]);
   const [stats, setStats] = useState([
@@ -70,6 +71,20 @@ export default function HomePage() {
     { value: '—', label: 'Active Listings' },
     { value: '—', label: 'Items Shared' },
   ]);
+
+  useEffect(() => {
+    if (upcomingEvents.length <= 1 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const intervalId = window.setInterval(() => {
+      setMobileEventIndex((index) => (index + 1) % upcomingEvents.length);
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [upcomingEvents.length]);
+
+  const activeMobileEvent = upcomingEvents.length > 0
+    ? upcomingEvents[mobileEventIndex % upcomingEvents.length]
+    : null;
 
   useEffect(() => {
     listingApi
@@ -178,6 +193,15 @@ export default function HomePage() {
                 <span className="home-mobile-service-label">
                   {label === 'Volunteer Opportunities' ? 'Opportunities' : label}
                 </span>
+                {label === 'Events' && (
+                  <span
+                    key={activeMobileEvent?.id ?? 'fallback'}
+                    data-testid="mobile-events-preview"
+                    className="home-mobile-event-preview"
+                  >
+                    {activeMobileEvent?.title ?? 'See what’s happening'}
+                  </span>
+                )}
               </Link>
             ))}
           </div>

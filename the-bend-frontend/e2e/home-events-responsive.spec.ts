@@ -8,7 +8,13 @@ const upcomingEvent = {
   location: 'Library',
 };
 
-async function stubHomeApi(page: Page) {
+const rotationEvents = [
+  upcomingEvent,
+  { ...upcomingEvent, id: 'event-2', title: 'Farmers Market' },
+  { ...upcomingEvent, id: 'event-3', title: 'Town Hall' },
+];
+
+async function stubHomeApi(page: Page, upcomingEvents = [upcomingEvent]) {
   await page.route('**/api/v1/**', async (route) => {
     const requestUrl = route.request().url();
 
@@ -29,7 +35,7 @@ async function stubHomeApi(page: Page) {
     if (requestUrl.includes('/events/upcoming')) {
       await route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ items: [upcomingEvent] }),
+        body: JSON.stringify({ items: upcomingEvents }),
       });
       return;
     }
@@ -97,4 +103,49 @@ test('desktop home shows the compact upcoming-events sidebar exactly once', asyn
   await expect(page.getByText('Thu, Jan 15 · Library', { exact: true })).toBeHidden();
   await expect(page.getByTestId('desktop-service-grid').getByRole('link')).toHaveCount(6);
   await expect(page.getByTestId('mobile-service-grid')).toBeHidden();
+});
+
+test('mobile Events tile rotates through upcoming event titles every five seconds', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stubHomeApi(page, rotationEvents);
+  await page.clock.install();
+  await page.goto('/');
+
+  const preview = page.getByTestId('mobile-events-preview');
+  await expect(preview).toHaveText('Community Meetup');
+  await page.clock.fastForward(5000);
+  await expect(preview).toHaveText('Farmers Market');
+});
+
+test('mobile Events tile does not rotate when reduced motion is enabled', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await stubHomeApi(page, rotationEvents);
+  await page.clock.install();
+  await page.goto('/');
+
+  const preview = page.getByTestId('mobile-events-preview');
+  await expect(preview).toHaveText('Community Meetup');
+  await page.clock.fastForward(15000);
+  await expect(preview).toHaveText('Community Meetup');
+});
+
+test('mobile Events tile remains static for one event', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stubHomeApi(page, [upcomingEvent]);
+  await page.clock.install();
+  await page.goto('/');
+
+  const preview = page.getByTestId('mobile-events-preview');
+  await expect(preview).toHaveText('Community Meetup');
+  await page.clock.fastForward(15000);
+  await expect(preview).toHaveText('Community Meetup');
+});
+
+test('mobile Events tile shows a fallback when no events are available', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stubHomeApi(page, []);
+  await page.goto('/');
+  const preview = page.getByTestId('mobile-events-preview');
+  await expect(preview).toHaveText('See what’s happening');
 });
