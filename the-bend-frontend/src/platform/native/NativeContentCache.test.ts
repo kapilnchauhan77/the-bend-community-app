@@ -161,6 +161,21 @@ describe('NativeContentCache', () => {
     })
   })
 
+  it('persists and retrieves a paginated business payload without any coordinate-shaped fields', async () => {
+    const cache = new NativeContentCache({ storage: 'memory' })
+    await cache.put({
+      key: 'business:page-1', kind: 'business', entityId: 'page-1', cachedAt: new Date().toISOString(), imagePath: null, sizeBytes: 1,
+      payload: {
+        items: [{ id: 'shop-1', name: 'Workshop', address: '1 Main', latitude: 38.123456, longitude: -76.654321, location: { latitude: 38.123456, longitude: -76.654321 }, listings: [{ id: 'listing-1', title: 'Desk', coordinates: { latitude: 38.123456, longitude: -76.654321 } }] }],
+        has_more: true, next_cursor: 'cursor-2', hydratedCoordinates: { 'shop-1': { latitude: 38.123456, longitude: -76.654321 } },
+      },
+    })
+    const persisted = await cache.get('business:page-1')
+    expect(persisted?.payload).toEqual({ items: [{ id: 'shop-1', name: 'Workshop', address: '1 Main', listings: [{ id: 'listing-1', title: 'Desk' }] }], has_more: true, next_cursor: 'cursor-2' })
+    expect(JSON.stringify(persisted?.payload)).not.toContain('38.123456')
+    expect(JSON.stringify(persisted?.payload)).not.toContain('-76.654321')
+  })
+
   it('deletes an image and persists when get expires an already-loaded entry', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-18T00:00:00Z'))

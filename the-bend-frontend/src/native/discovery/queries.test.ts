@@ -15,6 +15,19 @@ describe('native explore query', () => {
     expect(serializeNativeExploreQuery(query).toString()).toBe('q=repair&type=businesses&category=food&mode=map&near=true')
   })
 
+  it('keeps device and coordinate-shaped fields out of the canonical query', () => {
+    const query = {
+      ...parseNativeExploreQuery(new URLSearchParams('type=businesses&near=true')),
+      userCoordinates: { latitude: 38.123456, longitude: -76.654321 },
+      hydratedCoordinates: { 'shop-1': { latitude: 38.123456, longitude: -76.654321 } },
+      deviceLocation: 'LOCATION_SENTINEL',
+    } as never
+    const serialized = serializeNativeExploreQuery(query).toString()
+    expect(serialized).toBe('type=businesses&near=true')
+    expect(serialized).not.toContain('38.123456')
+    expect(parseNativeExploreQuery(new URLSearchParams(serialized))).toEqual({ q: '', type: 'businesses', category: null, urgency: null, sort: null, mode: 'list', near: true })
+  })
+
   it('falls back safely and omits defaults', () => {
     expect(serializeNativeExploreQuery(parseNativeExploreQuery(new URLSearchParams('type=nope&mode=nope&near=nope'))).toString()).toBe('')
   })
