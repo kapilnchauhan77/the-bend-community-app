@@ -14,6 +14,9 @@ import {
   TrendingUp,
   AlertTriangle,
   Music,
+  CalendarDays,
+  Building2,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +40,13 @@ const services = [
   { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
   { icon: HandHeart, label: 'Volunteer Opportunities', desc: 'Causes & projects that need help', href: '/opportunities' },
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
+];
+
+const mobileServices = [
+  ...services,
+  { icon: CalendarDays, label: 'Events', desc: '', href: '/events' },
+  { icon: Building2, label: 'Business Directory', desc: '', href: '/directory' },
+  { icon: Sparkles, label: 'Bender', desc: '', href: '/bender' },
 ];
 
 // Stats fetched from API — see useEffect below
@@ -159,7 +169,20 @@ export default function HomePage() {
 
       {/* Services — Museum exhibit cards */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 -mt-8 relative z-20">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="home-mobile-menu md:hidden">
+          <div aria-hidden="true" className="home-mobile-menu__gold-square" />
+          <div data-testid="mobile-service-grid" className="home-mobile-service-grid">
+            {mobileServices.map(({ icon: Icon, label, href }) => (
+              <Link key={label} to={href} aria-label={label} className="home-mobile-service-tile">
+                <Icon aria-hidden="true" className="home-mobile-service-icon" />
+                <span className="home-mobile-service-label">
+                  {label === 'Volunteer Opportunities' ? 'Opportunities' : label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div data-testid="desktop-service-grid" className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-3">
           {services.map(({ icon: Icon, label, desc, href }) => (
             <Link
               key={label}

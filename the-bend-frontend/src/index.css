@@ -838,6 +838,62 @@ html.dark [role="checkbox"][data-state="checked"] {
   will-change: transform;
 }
 
+.home-mobile-menu {
+  position: relative;
+  isolation: isolate;
+}
+
+.home-mobile-menu__gold-square {
+  position: absolute;
+  inset: 0.4rem -0.25rem -0.4rem 0.25rem;
+  z-index: -1;
+  border: 1px solid hsl(35 45% 42% / 0.45);
+  background: hsl(38 35% 88% / 0.18);
+  transform: rotate(0.75deg);
+}
+
+.home-mobile-service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  aspect-ratio: 1;
+  gap: clamp(0.35rem, 1.7vw, 0.55rem);
+  padding: clamp(0.45rem, 2vw, 0.7rem);
+  border: 1px solid hsl(35 18% 84%);
+  background: hsl(40 20% 96%);
+}
+
+.home-mobile-service-tile {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid hsl(35 18% 84%);
+  background: hsl(40 20% 98%);
+  color: hsl(30 15% 20%);
+  text-align: center;
+}
+
+.home-mobile-service-tile:focus-visible {
+  outline: 2px solid hsl(35 45% 42%);
+  outline-offset: 2px;
+}
+
+html.dark .home-mobile-service-grid {
+  border-color: hsl(35 18% 30%);
+  background: hsl(30 12% 14%);
+}
+
+html.dark .home-mobile-service-tile {
+  border-color: hsl(35 18% 30%);
+  background: hsl(30 12% 18%);
+  color: hsl(40 20% 92%);
+}
+
 /* ── Date/time inputs ──
    The native WebKit calendar/clock picker icon sits flush against the right
    edge, where our rounded-xl inputs clip and crowd it. Inset it from the
