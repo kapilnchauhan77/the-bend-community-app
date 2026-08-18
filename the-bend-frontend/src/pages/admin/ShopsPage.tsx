@@ -290,11 +290,11 @@ export default function ShopsPage() {
                   </p>
                   <p className="font-medium">{viewShop.admin_name}</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
                     Email
                   </p>
-                  <p className="font-medium">{viewShop.admin_email}</p>
+                  <p className="font-medium [overflow-wrap:anywhere]">{viewShop.admin_email}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
