@@ -1,12 +1,29 @@
+import struct
+from pathlib import Path
+
 from app.api.share import _DEFAULT_IMAGE_PATH, _render
 
 
-def test_default_share_preview_uses_full_wordmark_asset():
-    assert _DEFAULT_IMAGE_PATH == "/images/the-bend-community-preview-v2.png"
+def test_default_share_preview_uses_corrected_versioned_brand_asset():
+    assert _DEFAULT_IMAGE_PATH == "/images/the-bend-community-preview-v3.png"
+
+    asset = (
+        Path(__file__).parents[2]
+        / "the-bend-frontend"
+        / "public"
+        / _DEFAULT_IMAGE_PATH.removeprefix("/")
+    )
+    with asset.open("rb") as preview:
+        assert preview.read(8) == b"\x89PNG\r\n\x1a\n"
+        assert preview.read(4) == struct.pack(">I", 13)
+        assert preview.read(4) == b"IHDR"
+        width, height = struct.unpack(">II", preview.read(8))
+
+    assert (width, height) == (1200, 630)
 
 
 def test_share_preview_includes_secure_and_accessible_image_metadata():
-    image = "https://bend.community/images/the-bend-community-preview-v2.png"
+    image = "https://bend.community/images/the-bend-community-preview-v3.png"
     markup = _render(
         title="The Bend Community",
         description="Preview",

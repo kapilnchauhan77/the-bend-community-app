@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">The Bend Community</title>
+  <desc id="description">The Bend Community wordmark on a warm ivory background.</desc>
+
+  <rect width="1200" height="630" fill="#fbfaf8"/>
+  <rect width="1200" height="18" fill="#2d6a3f"/>
+  <rect y="18" width="1200" height="4" fill="#9b733b"/>
+  <rect y="608" width="1200" height="4" fill="#9b733b"/>
+  <rect y="612" width="1200" height="18" fill="#2d6a3f"/>
+
+  <!-- This lockup mirrors the compact mark used in the application header. -->
+  <g transform="translate(230 225)">
+    <rect x="2.5" y="2.5" width="175" height="175" fill="none" stroke="#9b733b" stroke-width="5"/>
+    <text x="90" y="126" text-anchor="middle" font-family="'Cormorant Garamond', Georgia, serif" font-size="92" font-weight="600" fill="#9b733b">B</text>
+
+    <g transform="translate(240 19)">
+      <text x="0" y="84" font-family="'Cormorant Garamond', Georgia, serif" font-size="104" font-weight="600" letter-spacing="1" fill="#352f2b">THE BEND</text>
+      <text x="5" y="142" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="400" letter-spacing="13" fill="#7d6c5a">COMMUNITY</text>
+    </g>
+  </g>
+</svg>
