@@ -25,17 +25,23 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const hydrationGeneration = useRef(0)
   const networkEventVersion = useRef(0)
   const hydrationScheduler = useRef<{ retry(): void } | null>(null)
-  const sharedHydrationRequests = useRef(new Map<string, Promise<{ latitude: number; longitude: number } | null>>())
+  const sharedHydrationRequests = useRef(new Map<string, { promise: Promise<{ latitude: number; longitude: number } | null>; controller: AbortController; epoch: number }>())
+  const networkEpoch = useRef(0)
   const hydrateShop = useCallback((id: string) => {
     const existing = sharedHydrationRequests.current.get(id)
-    if (existing) return existing
-    const request = shopApi.getShop(id).then((response) => {
+    if (existing && existing.epoch === networkEpoch.current) return existing.promise
+    existing?.controller.abort()
+    sharedHydrationRequests.current.delete(id)
+    const controller = new AbortController()
+    const epoch = networkEpoch.current
+    const request = shopApi.getShop(id, { signal: controller.signal }).then((response) => {
       const { latitude, longitude } = response.data
       if (typeof latitude !== 'number' || typeof longitude !== 'number' || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null
       return { latitude, longitude }
     }).catch(() => null)
-    sharedHydrationRequests.current.set(id, request)
-    void request.finally(() => { if (sharedHydrationRequests.current.get(id) === request) sharedHydrationRequests.current.delete(id) })
+    const entry = { promise: request, controller, epoch }
+    sharedHydrationRequests.current.set(id, entry)
+    void request.finally(() => { if (sharedHydrationRequests.current.get(id) === entry) sharedHydrationRequests.current.delete(id) })
     return request
   }, [])
   const locationInFlight = useRef<Promise<NativeLocationState> | null>(null)
@@ -56,7 +62,8 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const typedModel = useTyped(requestQuery, !all)
   const typedRetry = useCallback(async () => { hydrationScheduler.current?.retry(); await typedModel?.state.retry() }, [typedModel?.state.retry])
   const visibleBusinesses = all ? groups.find((group) => group.kind === 'business')?.state.data ?? [] : typedModel?.state.data ?? []
-  useEffect(() => { let active = true; setOnline(null); networkEventVersion.current = 0; const listener = services.network.addListener((status) => { if (!active) return; networkEventVersion.current += 1; setOnline(status === 'online'); if (status === 'offline') { hydrationGeneration.current += 1; } }).catch(() => null); const initialVersion = networkEventVersion.current; void services.network.getStatus().then((status) => { if (active && networkEventVersion.current === initialVersion) setOnline(status === 'online') }).catch(() => { if (active && networkEventVersion.current === initialVersion) setOnline(false) }); return () => { active = false; void listener.then((value) => value?.remove()).catch(() => undefined) } }, [services.network])
+  useEffect(() => { let active = true; setOnline(null); networkEventVersion.current = 0; const listener = services.network.addListener((status) => { if (!active) return; networkEventVersion.current += 1; setOnline(status === 'online'); if (status === 'offline') { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear(); hydrationGeneration.current += 1; } }).catch(() => null); const initialVersion = networkEventVersion.current; void services.network.getStatus().then((status) => { if (active && networkEventVersion.current === initialVersion) setOnline(status === 'online') }).catch(() => { if (active && networkEventVersion.current === initialVersion) setOnline(false) }); return () => { active = false; void listener.then((value) => value?.remove()).catch(() => undefined) } }, [services.network])
+  useEffect(() => () => { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear() }, [])
   useEffect(() => {
     if (online !== true) { hydrationScheduler.current = null; return }
     const generation = ++hydrationGeneration.current
