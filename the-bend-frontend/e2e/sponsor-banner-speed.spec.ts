@@ -64,15 +64,25 @@ async function stubHomeApi(page: Page) {
   });
 }
 
-test('horizontal sponsor banner completes a two-partner loop in ten seconds', async ({ page }) => {
+test('horizontal sponsor banner completes a two-partner loop in six seconds', async ({ page }) => {
   await stubHomeApi(page);
   await page.goto('/');
 
   const marquee = page.locator('.sponsor-marquee');
   await expect(marquee).toBeVisible();
-  await expect(marquee).toHaveCSS('animation-duration', '10s');
+  await expect(marquee).toHaveCSS('animation-duration', '6s');
 
   const partnerLogo = marquee.getByRole('img', { name: 'Partner One' }).first();
   await expect(partnerLogo).toBeVisible();
   await expect.poll(() => partnerLogo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+});
+
+test('horizontal sponsor banner is static when reduced motion is enabled', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const marquee = page.locator('.sponsor-marquee');
+  await expect(marquee).toBeVisible();
+  await expect(marquee).toHaveCSS('animation-name', 'none');
 });

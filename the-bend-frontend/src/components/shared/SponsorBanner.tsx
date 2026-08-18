@@ -111,9 +111,9 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         <div
           className="sponsor-marquee flex gap-3 md:gap-4 hover:[animation-play-state:paused]"
           style={{
-            // ~5s per sponsor keeps each card readable while giving the strip
-            // a slightly quicker pace.
-            animation: `marquee ${sponsors.length * 5}s linear infinite`,
+            // ~3s per sponsor keeps the partner strip moving at a brisk,
+            // consistent pace.
+            animation: `marquee ${sponsors.length * 3}s linear infinite`,
           }}
         >
           {doubled.map((s, i) => (

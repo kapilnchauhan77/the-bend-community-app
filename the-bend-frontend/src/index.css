@@ -937,6 +937,11 @@ html.dark [role="checkbox"][data-state="checked"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sponsor-marquee {
+    animation: none !important;
+    will-change: auto;
+  }
+
   .home-mobile-event-preview { animation: none; }
 }
 
