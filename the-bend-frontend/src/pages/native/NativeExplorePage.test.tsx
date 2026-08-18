@@ -13,7 +13,7 @@ const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, la
 const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn>; mapBusinesses?: unknown[]; userCoordinates?: unknown; online?: boolean; location?: { status: string }; requestLocation?: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn(), mapBusinesses: [], userCoordinates: null, online: true, location: { status: 'idle' }, requestLocation: vi.fn() }
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixture) }))
 
-function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | 'error' = 'success') { return { status, data, source: 'network' as const, cachedAt: null, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
+function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | 'error' = 'success', cachedAt: string | null = null) { return { status, data, source: cachedAt ? 'cache' as const : 'network' as const, cachedAt, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
 function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null; fixture.mapBusinesses = [] }
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
@@ -23,6 +23,20 @@ beforeEach(() => { vi.useFakeTimers(); configureAll(); fixture.location = { stat
 afterEach(() => { vi.useRealTimers(); cleanup() })
 
 describe('NativeExplorePage', () => {
+  it('shows freshness context for cached All groups and omits it for current network data', () => {
+    fixture.groups = [
+      { kind: 'listing', heading: 'Listings', state: state([listing], 'success', '2026-01-01T00:00:00.000Z') },
+      { kind: 'business', heading: 'Businesses', state: state([business], 'success', '2026-01-01T00:00:00.000Z') },
+      { kind: 'event', heading: 'Events', state: state([event], 'success', '2026-01-01T00:00:00.000Z') },
+      { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer], 'success', '2026-01-01T00:00:00.000Z') },
+    ]
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /></MemoryRouter>)
+    expect(screen.getAllByText(/Showing saved content from/)).toHaveLength(4)
+    cleanup()
+    configureAll()
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /></MemoryRouter>)
+    expect(screen.queryByText(/Showing saved content from/)).not.toBeInTheDocument()
+  })
   it('renders the approved type chips without Talent', () => {
     render(<MemoryRouter><NativeExplorePage /></MemoryRouter>)
     for (const label of ['All', 'Listings', 'Businesses', 'Events', 'Volunteer']) expect(screen.getByRole('tab', { name: label })).toBeInTheDocument()

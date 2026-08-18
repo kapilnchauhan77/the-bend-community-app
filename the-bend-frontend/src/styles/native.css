@@ -15,6 +15,7 @@
 .native-app .native-partner-button { display: inline-flex; align-items: center; justify-content: center; margin: var(--native-space-6) 0; padding: 10px var(--native-space-4); border: 1px solid var(--native-bronze); border-radius: var(--native-radius-control); color: var(--native-primary); background: transparent; text-decoration: none; }
 .native-app .native-explore-controls { display: flex; flex-wrap: wrap; gap: var(--native-space-2); margin: var(--native-space-3) 0; }
 .native-app .native-explore-controls > button { min-height: 44px; padding: 8px var(--native-space-3); border: 1px solid var(--native-border); border-radius: var(--native-radius-pill); color: var(--native-primary); background: var(--native-elevated); }
+.native-app .native-explore-controls > button:disabled { opacity: .58; cursor: not-allowed; }
 .native-app *, .native-app *::before, .native-app *::after { box-sizing: border-box; }
 .native-app .native-control { min-height: 44px; }
 .native-app .native-safe-area { padding-top: var(--native-safe-top); }
