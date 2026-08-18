@@ -276,4 +276,78 @@ describe('NativeContentCache', () => {
     await expect(reloaded.get('event:stable')).resolves.toMatchObject({ payload: { title: 'Stable' } })
     await expect(reloaded.get('event:new')).resolves.toBeNull()
   })
+
+  it.each([
+    ['missing primary', undefined],
+    ['malformed primary', '{not-json'],
+  ])('recovers a valid backup when the primary is %s', async (_label, primary) => {
+    const now = new Date().toISOString()
+    const backup = JSON.stringify([{ key: 'event:backup', kind: 'event', entityId: 'backup', cachedAt: now, lastAccessedAt: now, payload: { title: 'Recovered' }, imagePath: null, sizeBytes: 1 }])
+    const files = new Map<string, string>([['bend-public-cache/index.json.bak', backup], ['bend-public-cache/index.json.tmp', '{stale']])
+    if (primary !== undefined) files.set('bend-public-cache/index.json', primary)
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+    filesystem.rename.mockImplementation(async ({ from, to }: { from: string, to: string }) => {
+      const data = files.get(from)
+      if (data === undefined || files.has(to)) throw new Error('RENAME_FAILED')
+      files.set(to, data)
+      files.delete(from)
+    })
+
+    const cache = new NativeContentCache({ storage: 'filesystem' })
+    await expect(cache.get('event:backup')).resolves.toMatchObject({ payload: { title: 'Recovered' } })
+    expect(files.has('bend-public-cache/index.json')).toBe(true)
+    expect(files.has('bend-public-cache/index.json.bak')).toBe(false)
+    expect(files.has('bend-public-cache/index.json.tmp')).toBe(false)
+  })
+
+  it('keeps a valid primary authoritative while cleaning stale backup and temp files', async () => {
+    const now = new Date().toISOString()
+    const primary = JSON.stringify([{ key: 'event:primary', kind: 'event', entityId: 'primary', cachedAt: now, lastAccessedAt: now, payload: { title: 'Primary' }, imagePath: null, sizeBytes: 1 }])
+    const files = new Map<string, string>([['bend-public-cache/index.json', primary], ['bend-public-cache/index.json.bak', '[]'], ['bend-public-cache/index.json.tmp', '[]']])
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+
+    const cache = new NativeContentCache({ storage: 'filesystem' })
+    await expect(cache.get('event:primary')).resolves.toMatchObject({ payload: { title: 'Primary' } })
+    expect(files.has('bend-public-cache/index.json.bak')).toBe(false)
+    expect(files.has('bend-public-cache/index.json.tmp')).toBe(false)
+  })
+
+  it('does not roll back the new primary when backup cleanup fails after promotion', async () => {
+    const files = new Map<string, string>()
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.writeFile.mockImplementation(async ({ path, data }: { path: string, data: string }) => { files.set(path, data) })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (path.endsWith('.bak')) throw new Error('CLEANUP_FAILED')
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+    filesystem.rename.mockImplementation(async ({ from, to }: { from: string, to: string }) => {
+      const data = files.get(from)
+      if (data === undefined || files.has(to)) throw new Error('RENAME_FAILED')
+      files.set(to, data)
+      files.delete(from)
+    })
+
+    const cache = new NativeContentCache({ storage: 'filesystem' })
+    await cache.put({ key: 'event:new', kind: 'event', entityId: 'new', cachedAt: new Date().toISOString(), payload: { title: 'New' }, imagePath: null, sizeBytes: 1 })
+    const reloaded = new NativeContentCache({ storage: 'filesystem' })
+    await expect(reloaded.get('event:new')).resolves.toMatchObject({ payload: { title: 'New' } })
+  })
 })

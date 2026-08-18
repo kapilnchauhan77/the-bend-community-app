@@ -89,32 +89,56 @@ export class NativeContentCache implements ContentCache {
   static resetForTests() { testMemory = new Map() }
   private enqueue<T>(task: () => Promise<T>): Promise<T> { const next = this.queue.then(task, task); this.queue = next.catch(() => undefined); return next }
 
+  private async readIndex(path: string): Promise<unknown> {
+    const result = await Filesystem.readFile({ path, directory: Directory.Data, encoding: Encoding.UTF8 })
+    const parsed = JSON.parse(String(result.data)) as unknown
+    if (!Array.isArray(parsed)) throw new Error('INVALID_CACHE_INDEX')
+    return parsed
+  }
+
+  private async cleanupArtifact(path: string) {
+    try { await Filesystem.deleteFile({ path, directory: Directory.Data }) } catch { /* best effort */ }
+  }
+
   private async load() {
     if (this.loaded) return
     this.loaded = true
     if (this.memory) { this.entries = testMemory; return }
+    let parsed: unknown
+    let recoveredFromBackup = false
     try {
-      const result = await Filesystem.readFile({ path: INDEX_PATH, directory: Directory.Data, encoding: Encoding.UTF8 })
-      const parsed = JSON.parse(String(result.data)) as unknown
-      if (!Array.isArray(parsed)) return
-      const safeEntries: Entry[] = []
-      const possibleOrphanImages = new Set<string>()
-      for (const value of parsed) {
-        if (this.valid(value) && (!value.imagePath || safeImagePath(value.imagePath))) {
-          safeEntries.push({ ...value, payload: normalizePublicContent(value.kind, value.payload) })
-        } else if (value && typeof value === 'object') {
-          const imagePath = (value as Partial<Entry>).imagePath
-          if (typeof imagePath === 'string' && safeImagePath(imagePath)) possibleOrphanImages.add(imagePath)
-        }
+      parsed = await this.readIndex(INDEX_PATH)
+    } catch {
+      try {
+        parsed = await this.readIndex(`${INDEX_PATH}.bak`)
+        recoveredFromBackup = true
+        try { await Filesystem.deleteFile({ path: INDEX_PATH, directory: Directory.Data }) } catch { /* primary is missing */ }
+        try {
+          await Filesystem.rename({ from: `${INDEX_PATH}.bak`, to: INDEX_PATH, directory: Directory.Data })
+          recoveredFromBackup = false
+        } catch { /* keep the valid backup if promotion is unavailable */ }
+      } catch { return /* missing or malformed cache is treated as empty */ }
+    }
+
+    const safeEntries: Entry[] = []
+    const possibleOrphanImages = new Set<string>()
+    for (const value of parsed as unknown[]) {
+      if (this.valid(value) && (!value.imagePath || safeImagePath(value.imagePath))) {
+        safeEntries.push({ ...value, payload: normalizePublicContent(value.kind, value.payload) })
+      } else if (value && typeof value === 'object') {
+        const imagePath = (value as Partial<Entry>).imagePath
+        if (typeof imagePath === 'string' && safeImagePath(imagePath)) possibleOrphanImages.add(imagePath)
       }
-      safeEntries.forEach((entry) => this.entries.set(entry.key, entry))
-      await this.evict()
-      const retained = [...this.entries.values()]
-      const referencedImages = new Set(retained.map((entry) => entry.imagePath).filter((path): path is string => !!path))
-      safeEntries.forEach((entry) => { if (entry.imagePath && this.entries.get(entry.key) !== entry) possibleOrphanImages.add(entry.imagePath) })
-      await Promise.all([...possibleOrphanImages].filter((path) => !referencedImages.has(path)).map((path) => this.deleteImage(path)))
-      if (JSON.stringify(parsed) !== JSON.stringify(retained)) await this.persist()
-    } catch { /* missing or malformed cache is treated as empty */ }
+    }
+    safeEntries.forEach((entry) => this.entries.set(entry.key, entry))
+    await this.evict()
+    const retained = [...this.entries.values()]
+    const referencedImages = new Set(retained.map((entry) => entry.imagePath).filter((path): path is string => !!path))
+    safeEntries.forEach((entry) => { if (entry.imagePath && this.entries.get(entry.key) !== entry) possibleOrphanImages.add(entry.imagePath) })
+    await Promise.all([...possibleOrphanImages].filter((path) => !referencedImages.has(path)).map((path) => this.deleteImage(path)))
+    await this.cleanupArtifact(`${INDEX_PATH}.tmp`)
+    if (!recoveredFromBackup) await this.cleanupArtifact(`${INDEX_PATH}.bak`)
+    if (JSON.stringify(parsed) !== JSON.stringify(retained)) await this.persist()
   }
 
   private valid(value: unknown): value is Entry {
@@ -141,13 +165,14 @@ export class NativeContentCache implements ContentCache {
 
       try {
         await Filesystem.rename({ from: temporaryPath, to: INDEX_PATH, directory: Directory.Data })
-        if (movedExisting) await Filesystem.deleteFile({ path: backupPath, directory: Directory.Data })
       } catch {
         if (movedExisting) {
           try { await Filesystem.deleteFile({ path: INDEX_PATH, directory: Directory.Data }) } catch { /* no partial destination */ }
           try { await Filesystem.rename({ from: backupPath, to: INDEX_PATH, directory: Directory.Data }) } catch { /* retain whichever valid file the provider preserved */ }
         }
+        return
       }
+      if (movedExisting) await this.cleanupArtifact(backupPath)
     } catch { /* cache is best effort */ }
   }
 
