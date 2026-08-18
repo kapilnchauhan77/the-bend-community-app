@@ -13,12 +13,19 @@ function renderShell() { return render(<PlatformServicesProvider config={config}
 describe('NativeAppShell', () => {
   afterEach(() => vi.restoreAllMocks())
   it('owns one native-app root and removes the visual viewport listener', () => {
-    const add = vi.fn(); const remove = vi.fn()
-    Object.defineProperty(window, 'visualViewport', { configurable: true, value: { height: 700, offsetTop: 0, addEventListener: add, removeEventListener: remove } })
+    let resizeHandler: (() => void) | undefined
+    const add = vi.fn((_type: string, handler: () => void) => { resizeHandler = handler }); const remove = vi.fn()
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    const viewport = { height: 700, offsetTop: 0, addEventListener: add, removeEventListener: remove }
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
     const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' }
     const view = render(<PlatformServicesProvider config={config}><MemoryRouter><NativeAppShell /></MemoryRouter></PlatformServicesProvider>)
     expect(document.querySelectorAll('.native-app')).toHaveLength(1)
-    view.unmount(); expect(remove).toHaveBeenCalledOnce()
+    const root = document.querySelector<HTMLElement>('.native-app')!
+    expect(root.style.getPropertyValue('--native-keyboard-bottom')).toBe('100px')
+    viewport.height = 620; viewport.offsetTop = 20; resizeHandler?.()
+    expect(root.style.getPropertyValue('--native-keyboard-bottom')).toBe('160px')
+    view.unmount(); expect(remove).toHaveBeenCalledWith('resize', resizeHandler); expect(root.style.getPropertyValue('--native-keyboard-bottom')).toBe('')
   })
 
   it('scrolls registered roots with motion preference and unregisters them', () => {
@@ -42,9 +49,11 @@ describe('NativeAppShell', () => {
 
   it.each([['dark', true], ['light', false]] as const)('localStorage %s theme wins', (theme, dark) => {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => theme } })
+    const matchMedia = vi.fn(); Object.defineProperty(window, 'matchMedia', { configurable: true, value: matchMedia })
     document.documentElement.classList.remove('dark')
     const view = renderShell()
     expect(document.documentElement.classList.contains('dark')).toBe(dark)
+    expect(matchMedia).not.toHaveBeenCalled()
     view.unmount()
   })
 
