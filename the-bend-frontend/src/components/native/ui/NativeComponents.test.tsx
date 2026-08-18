@@ -14,6 +14,7 @@ import { PermissionPrimer } from '../PermissionPrimer'
 
 const item = { id: 'listing-1', kind: 'listing' as const, label: 'Generator', title: 'Power generator needed', supportingText: 'Community request', thumbnailUrl: null, targetPath: '/listing/listing-1', coordinates: null, urgent: true }
 const nativeCss = readFileSync('src/styles/native.css', 'utf8')
+const indexHtml = readFileSync('index.html', 'utf8')
 const cssRules = [...nativeCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map((selector) => selector.trim()), body }))
 const cssRule = (selector: string) => cssRules.filter((rule) => rule.selectors.includes(selector)).map((rule) => rule.body).join('\n')
 
@@ -46,7 +47,7 @@ describe('native UI primitives', () => {
     const onRemove = vi.fn()
     render(<><NativeFilterChip label="Urgent" removable onRemove={onRemove} /><NativePageHeader title="Home" /></>)
     expect(screen.getAllByRole('button', { name: /remove urgent filter/i }).at(-1)).toHaveClass('native-control')
-    expect(screen.getByLabelText('The Bend Community')).toHaveTextContent('THE BEND')
+    expect(screen.getByLabelText('The Bend Community')).toHaveTextContent('The Bend')
   })
   it('renders loading and empty result states', () => {
     const { rerender } = render(<NativeResultGroup heading="Listings" status="loading" onRetry={vi.fn()}>items</NativeResultGroup>)
@@ -69,6 +70,21 @@ describe('native UI primitives', () => {
   it('marks discovery images as lazy', () => {
     render(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: '/image.jpg' }} onOpen={vi.fn()} />)
     expect(screen.getByRole('img')).toHaveAttribute('loading', 'lazy')
+  })
+  it('replaces failed discovery media with a type-specific Lucide fallback', () => {
+    render(<NativeDiscoveryCard item={{ ...item, kind: 'event', thumbnailUrl: '/broken.jpg' }} onOpen={vi.fn()} />)
+    const image = screen.getByRole('img')
+    fireEvent.error(image)
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(document.querySelector('[data-fallback-icon="event"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-fallback-icon="event"] svg')).toBeInTheDocument()
+  })
+  it('keeps header identity and account controls icon-only', () => {
+    render(<NativePageHeader title="Home" isAuthenticated onAccount={vi.fn()} onNotifications={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Account' })).toHaveClass('native-header-icon')
+    expect(screen.getByRole('button', { name: 'Notifications' })).toHaveClass('native-header-icon')
+    expect(screen.getByRole('button', { name: 'Account' })).toHaveTextContent('')
+    expect(screen.getByRole('button', { name: 'Notifications' })).toHaveTextContent('')
   })
   it('defines responsive contracts for long native content and 44-point controls', () => {
     expect(cssRule('.native-app .native-filter-chip')).toMatch(/display:\s*inline-flex/)
@@ -120,6 +136,21 @@ describe('native UI primitives', () => {
     expect(image).toHaveAttribute('loading', 'lazy')
     rerender(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: null }} onOpen={vi.fn()} />)
     expect(document.querySelector('.native-thumbnail')).toHaveAttribute('aria-hidden', 'true')
+  })
+  it('defines the warm native visual system without leaking into web styles', () => {
+    expect(indexHtml).toContain('viewport-fit=cover')
+    expect(cssRule('.native-app')).toMatch(/font-family:\s*Inter/)
+    expect(cssRule('.native-app .native-safe-area')).toMatch(/padding-top:\s*var\(--native-safe-top/)
+    expect(cssRule('.native-app .native-page-header')).toMatch(/padding:/)
+    expect(cssRule('.native-app .native-search-bar')).toMatch(/height:\s*48px/)
+    expect(cssRule('.native-app .native-quick-actions')).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/)
+    expect(cssRule('.native-app .native-urgent-card')).toMatch(/background:\s*var\(--native-urgent-surface\)/)
+    expect(cssRule('.native-app .native-safe-bottom')).toMatch(/padding-bottom:\s*var\(--native-safe-bottom/)
+    expect(cssRule('.native-app .native-card-list')).toMatch(/gap:/)
+    expect(cssRule('.native-app .native-explore-scroll')).toMatch(/padding:/)
+    expect(cssRule('.native-app .native-explore-controls')).toMatch(/display:\s*flex/)
+    expect(cssRule('.native-app .native-partner-button')).toMatch(/display:\s*inline-flex/)
+    expect(cssRule('.dark .native-app')).toMatch(/--native-page:/)
   })
   it('focuses, traps, and closes the filter sheet while returning focus', () => {
     const trigger = document.createElement('button'); trigger.textContent = 'Open'; document.body.append(trigger); const onClose = vi.fn()

@@ -19,17 +19,25 @@ describe('NativeHomePage', () => {
   afterEach(() => { cleanup(); navigate.mockClear(); pendingIntent.mockClear(); registerRootScroll.mockClear(); Object.values(homeState).forEach((section) => { section.status = 'success'; section.data = []; section.source = 'network'; section.cachedAt = null; section.retry = vi.fn() }) })
   it('renders the compact ordered dashboard and transfers search to Explore', () => {
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
-    expect(screen.getByRole('heading', { name: /around westmoreland/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /what’s happening nearby/i })).toBeInTheDocument()
+    expect(screen.getByText(/needs, opportunities, events, and neighbors—all in one place/i)).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search westmoreland/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Offer' })).toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox', { name: /search westmoreland/i }), { target: { value: 'generator' } })
     fireEvent.submit(screen.getByRole('search'))
     expect(navigate).toHaveBeenCalledWith('/explore?q=generator')
   })
+  it('renders four icon quick actions in the approved order', () => {
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+    const actions = screen.getByRole('navigation', { name: 'Quick actions' })
+    expect(actions.querySelectorAll('button')).toHaveLength(4)
+    expect(actions.querySelectorAll('svg')).toHaveLength(4)
+    expect(actions).toHaveTextContent('OfferFindVolunteerEvents')
+  })
 
   it('keeps the compact header and actions before urgent content', () => {
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
-    const nodes = [screen.getByLabelText('The Bend Community'), screen.getByRole('heading', { name: /around westmoreland/i }), screen.getByRole('searchbox'), screen.getByRole('button', { name: 'Offer' }), screen.getByRole('button', { name: 'Find' }), screen.getByRole('button', { name: 'Volunteer' }), screen.getByRole('button', { name: 'Events' }), screen.getByRole('heading', { name: /urgent needs/i })]
+    const nodes = [screen.getByLabelText('The Bend Community'), screen.getByRole('heading', { name: /what’s happening nearby/i }), screen.getByRole('searchbox'), screen.getByRole('button', { name: 'Offer' }), screen.getByRole('button', { name: 'Find' }), screen.getByRole('button', { name: 'Volunteer' }), screen.getByRole('button', { name: 'Events' }), screen.getByRole('heading', { name: /urgent needs/i })]
     nodes.slice(1).forEach((node, index) => expect(nodes[index]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy())
   })
 

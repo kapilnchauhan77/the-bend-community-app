@@ -1,7 +1,11 @@
+import { useState } from 'react'
+import { BriefcaseBusiness, CalendarDays, FileText, HeartHandshake, Store } from 'lucide-react'
 import type { NativeDiscoveryCardModel } from './NativeUrgentCard'
 
 interface NativeDiscoveryCardProps { item: NativeDiscoveryCardModel; onOpen(path: string): void }
 
 export function NativeDiscoveryCard({ item, onOpen }: NativeDiscoveryCardProps) {
-  return <button type="button" aria-label={item.label} className="native-discovery-card native-control" onClick={() => onOpen(item.targetPath)}>{item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={item.title} width="96" height="96" loading="lazy" /> : <div className="native-thumbnail" aria-hidden="true" />}<span><small>{item.label}</small><strong>{item.title}</strong><span>{item.supportingText}</span></span></button>
+  const [imageFailed, setImageFailed] = useState(false)
+  const FallbackIcon = item.kind === 'event' ? CalendarDays : item.kind === 'volunteer' ? HeartHandshake : item.kind === 'business' ? Store : item.kind === 'listing' ? BriefcaseBusiness : FileText
+  return <button type="button" aria-label={item.label} className="native-discovery-card native-control" onClick={() => onOpen(item.targetPath)}>{item.thumbnailUrl && !imageFailed ? <img src={item.thumbnailUrl} alt={item.title} width="96" height="96" loading="lazy" onError={() => setImageFailed(true)} /> : <div className="native-thumbnail native-thumbnail-fallback" data-fallback-icon={item.kind} aria-hidden="true"><FallbackIcon size={28} /></div>}<span><small>{item.label}</small><strong>{item.title}</strong><span>{item.supportingText}</span></span></button>
 }

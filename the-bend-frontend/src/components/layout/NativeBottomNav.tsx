@@ -26,8 +26,8 @@ export function NativeBottomNav() {
 
   return (
     <>
-      <nav aria-label="Native app navigation" className="native-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t bg-white pb-[env(safe-area-inset-bottom)] shadow-lg">
-        <div className="mx-auto flex h-16 max-w-lg items-center justify-around">
+      <nav aria-label="Native app navigation" className="native-bottom-nav native-safe-bottom fixed inset-x-0 bottom-0 z-50 border-t bg-white pb-[env(safe-area-inset-bottom)] shadow-lg">
+        <div className="native-bottom-nav-inner mx-auto flex h-16 max-w-lg items-center justify-around">
           {actions.slice(0, 2).map(({ label, path, icon: Icon }) => (
             <button key={label} type="button" aria-label={label} aria-current={location.pathname === path ? 'page' : undefined} onClick={() => select(label, path)} className="flex min-w-14 flex-col items-center gap-1 p-2 text-xs">
               <Icon size={20} aria-hidden="true" />
