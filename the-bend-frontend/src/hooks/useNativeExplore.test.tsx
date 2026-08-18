@@ -57,4 +57,76 @@ describe('useNativeExplore grouped All behavior', () => {
     const { result } = renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(result.current.groups[0].state.status).toBe('error')); expect(result.current.groups[1].state.status).toBe('success'); expect(result.current.groups[2].state.status).toBe('empty'); expect(result.current.groups[3].state.status).toBe('success')
     vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('l1')] } } as never); const before = { business: shopApi.directory.mock.calls.length, event: eventApi.list.mock.calls.length, volunteer: listingApi.getOpportunities.mock.calls.length }; await act(async () => { await result.current.groups[0].state.retry() }); await waitFor(() => expect(result.current.groups[0].state.status).toBe('success')); expect(listingApi.browse).toHaveBeenCalledTimes(2); expect(shopApi.directory).toHaveBeenCalledTimes(before.business); expect(eventApi.list).toHaveBeenCalledTimes(before.event); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(before.volunteer)
   })
+
+  it('H6 retries a failed typed first page through production state.retry', async () => {
+    vi.mocked(listingApi.browse).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ data: { items: [listing('retry')] } } as never)
+    const { result } = renderHook(() => useNativeExplore({ q: 'tractor', type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(result.current.typed?.state.status).toBe('error')); await act(async () => { await result.current.typed!.state.retry() }); await waitFor(() => expect(result.current.typed?.state.status).toBe('success')); expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['retry']); expect(listingApi.browse).toHaveBeenCalledTimes(2); expect(listingApi.browse.mock.calls[1][0]).toMatchObject({ search: 'tractor' }); expect(result.current.typed?.state.error).toBeNull()
+  })
+
+  it('H7 preserves cards through load-more failure and recovers with de-duplication', async () => {
+    vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('1')], has_more: true, next_cursor: 'c1' } } as never).mockRejectedValueOnce(new Error('page failed')).mockResolvedValueOnce({ data: { items: [listing('1'), listing('2')], has_more: false } } as never)
+    const { result } = renderHook(() => useNativeExplore({ q: '', type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(result.current.typed?.hasMore).toBe(true)); await act(async () => { await result.current.typed!.loadMore() }); expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1']); expect(result.current.typed?.loadMoreError?.message).toBe('page failed'); expect(result.current.typed?.hasMore).toBe(true); await act(async () => { await result.current.typed!.loadMore() }); await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1', '2'])); expect(result.current.typed?.loadMoreError).toBeNull(); expect(listingApi.browse.mock.calls[1][0]).toMatchObject({ cursor: 'c1' })
+  })
+
+  it('H8 resets typed items and cursor across query, type, and filter transitions', async () => {
+    const initial = deferred<unknown>()
+    const changed = deferred<unknown>()
+    const filtered = deferred<unknown>()
+    vi.mocked(listingApi.browse)
+      .mockReturnValueOnce(initial.promise as never)
+      .mockReturnValueOnce(changed.promise as never)
+    vi.mocked(eventApi.list).mockReturnValueOnce(filtered.promise as never)
+    const initialQuery = { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false }
+    const { result, rerender } = renderHook(({ query }) => useNativeExplore(query), { initialProps: { query: initialQuery }, reactStrictMode: false })
+    await waitFor(() => expect(listingApi.browse).toHaveBeenCalledTimes(1))
+    await act(async () => { initial.resolve({ data: { items: [listing('listing')], has_more: true, next_cursor: 'old' } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['listing']))
+    expect(result.current.typed?.hasMore).toBe(true)
+
+    rerender({ query: { ...initialQuery, q: 'new' } })
+    await waitFor(() => expect(result.current.typed?.state.status).toBe('loading'))
+    expect(result.current.typed?.state.data).toEqual([])
+    expect(result.current.typed?.hasMore).toBe(false)
+    expect(listingApi.browse).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'new' }), expect.anything())
+    await act(async () => { changed.resolve({ data: { items: [listing('changed')], has_more: false } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['changed']))
+
+    rerender({ query: { ...initialQuery, type: 'events', category: 'community' } })
+    await waitFor(() => expect(result.current.typed?.state.status).toBe('loading'))
+    expect(result.current.typed?.state.data).toEqual([])
+    expect(result.current.typed?.hasMore).toBe(false)
+    expect(eventApi.list).toHaveBeenCalledWith(expect.objectContaining({ category: 'community' }), expect.anything())
+    await act(async () => { filtered.resolve({ data: { items: [event('event')], has_more: false } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['event']))
+  })
+
+  it('H9 ignores a late old-generation response after a new query wins', async () => {
+    const oldRequest = deferred<unknown>(); const newRequest = deferred<unknown>(); vi.mocked(listingApi.browse).mockReturnValueOnce(oldRequest.promise as never).mockReturnValueOnce(newRequest.promise as never); const { result, rerender } = renderHook(({ q }) => useNativeExplore({ q, type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false }), { initialProps: { q: 'old' } }); rerender({ q: 'new' }); await act(async () => { newRequest.resolve({ data: { items: [listing('new')] } }) }); await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new'])); await act(async () => { oldRequest.resolve({ data: { items: [listing('old')] } }) }); await Promise.resolve(); expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new']); expect(result.current.typed?.state.error).toBeNull()
+  })
+
+  it('H10 ignores an Axios canceled old request without visible error', async () => {
+    const oldRequest = deferred<unknown>(); vi.mocked(listingApi.browse).mockReturnValueOnce(oldRequest.promise as never).mockResolvedValueOnce({ data: { items: [listing('new')] } } as never); const { result, rerender } = renderHook(({ q }) => useNativeExplore({ q, type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false }), { initialProps: { q: 'old' } }); rerender({ q: 'new' }); await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new'])); await act(async () => { oldRequest.reject({ code: 'ERR_CANCELED', name: 'CanceledError' }) }); expect(result.current.typed?.state.error).toBeNull(); expect(result.current.typed?.loadMoreError).toBeNull()
+  })
+
+  it('H11 refreshAll settles after one real group refresh rejects and others succeed', async () => {
+    const { result } = renderHook(() => useNativeExplore(allQuery()))
+    await waitFor(() => expect(result.current.groups.every((group) => group.state.status !== 'loading')).toBe(true))
+    vi.mocked(listingApi.browse).mockRejectedValueOnce(new Error('refresh failed'))
+    vi.mocked(shopApi.directory).mockResolvedValueOnce({ data: { items: [business('fresh')] } } as never)
+    vi.mocked(eventApi.list).mockResolvedValueOnce({ data: { items: [event('fresh')] } } as never)
+    vi.mocked(listingApi.getOpportunities).mockResolvedValueOnce({ data: { items: [listing('fresh')] } } as never)
+    await expect(act(async () => { await result.current.refreshAll() })).resolves.toBeUndefined()
+    expect(listingApi.browse).toHaveBeenCalledTimes(2)
+    expect(shopApi.directory).toHaveBeenCalledTimes(2)
+    expect(eventApi.list).toHaveBeenCalledTimes(2)
+    expect(listingApi.getOpportunities).toHaveBeenCalledTimes(2)
+  })
+
+  it('H12 exposes load more only for a valid cursor and exact business refinement', async () => {
+    vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('one')], has_more: true, next_cursor: 'cursor' } } as never).mockResolvedValueOnce({ data: { items: [] } } as never); const { result } = renderHook(() => useNativeExplore({ q: '', type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(result.current.typed?.hasMore).toBe(true)); await act(async () => { await result.current.typed!.loadMore() }); expect(listingApi.browse.mock.calls[1][0]).toMatchObject({ cursor: 'cursor' }); vi.mocked(shopApi.directory).mockResolvedValueOnce({ data: { items: [], has_more: true } } as never); const businessResult = renderHook(() => useNativeExplore({ q: '', type: 'businesses', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(businessResult.result.current.typed?.refineMessage).toBe('Refine your search to narrow businesses')); expect(businessResult.result.current.typed?.hasMore).toBe(false)
+  })
+
+  it('H13 keeps typed request count stable across state updates and equivalent query objects', async () => {
+    vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [listing('stable')] } } as never); const { result, rerender } = renderHook(({ query }) => useNativeExplore(query), { initialProps: { query: { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false } } }); await waitFor(() => expect(result.current.typed?.state.status).toBe('success')); rerender({ query: { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false } }); await Promise.resolve(); expect(listingApi.browse).toHaveBeenCalledTimes(1)
+  })
 })
