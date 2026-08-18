@@ -60,8 +60,10 @@ describe('useNativeExplore hydration capacity integration', () => {
     requests.get('old-0')?.resolve({ data: shop('old-0', { latitude: 40, longitude: -79 }) })
     await waitFor(() => expect(shopApi.getShop.mock.calls.filter(([id]) => String(id).startsWith('new-')).length).toBe(1))
     expect(maximum).toBeLessThanOrEqual(4)
+    for (const [id, request] of requests) if (String(id).startsWith('old-')) request.resolve({ data: shop(String(id), { latitude: 40, longitude: -79 }) })
+    await waitFor(() => expect(shopApi.getShop.mock.calls.filter(([id]) => String(id).startsWith('new-'))).toHaveLength(4))
     for (const [id, request] of requests) if (String(id).startsWith('new-')) request.resolve({ data: shop(String(id), { latitude: 41, longitude: -80 }) })
-    await waitFor(() => expect(result.current.mapBusinesses.every((item) => item.id.startsWith('new-'))).toBe(true))
+    await waitFor(() => expect(result.current.mapBusinesses.map((item) => item.id).sort()).toEqual(['new-0', 'new-1', 'new-2', 'new-3']))
   })
 
   it('ignores invalid and failed details while valid siblings continue hydrating', async () => {
@@ -84,5 +86,18 @@ describe('useNativeExplore hydration capacity integration', () => {
     await waitFor(() => expect(events.result.current.typed?.state.status).toBe('success'))
     expect(shopApi.getShop).not.toHaveBeenCalled()
     expect(handler).toBeTypeOf('function')
+  })
+
+  it('does not duplicate pool-queued IDs when typed retry is requested repeatedly', async () => {
+    const items = Array.from({ length: 20 }, (_, index) => shop(`queued-${index}`)); const first = items.slice(0, 4).map(() => deferred<{ data: ReturnType<typeof shop> }>()); const calls = new Map<string, number>()
+    vi.mocked(shopApi.directory).mockResolvedValue({ data: { items } } as never)
+    vi.mocked(shopApi.getShop).mockImplementation((id) => { calls.set(String(id), (calls.get(String(id)) ?? 0) + 1); const index = Number(String(id).split('-')[1]); return (index < 4 ? first[index].promise : Promise.resolve({ data: shop(String(id), { latitude: 40, longitude: -79 }) })) as never })
+    platform.network.getStatus.mockResolvedValue('online')
+    const { result } = renderHook(() => useNativeExplore(typedQuery), { reactStrictMode: false })
+    await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(4))
+    await act(async () => { void result.current.typed?.state.retry(); void result.current.typed?.state.retry(); void result.current.typed?.state.retry(); await Promise.resolve() })
+    first.forEach((request, index) => request.resolve({ data: shop(`queued-${index}`, { latitude: 40, longitude: -79 }) }))
+    await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(20))
+    expect([...calls.values()].every((count) => count === 1)).toBe(true)
   })
 })

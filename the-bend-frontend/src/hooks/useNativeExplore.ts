@@ -73,19 +73,20 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
     const byId = new Map(candidates.map((item) => [item.id, item]))
     const queue: string[] = []
     const queued = new Set<string>()
+    const scheduled = new Set<string>()
     const inFlight = new Set<string>()
     const retryQueued = new Set<string>()
     const completed = new Set(candidates.filter((item) => item.coordinates || hydrated[item.id]).map((item) => item.id))
     let disposed = false
-    const enqueue = (id: string) => { if (!queued.has(id) && !inFlight.has(id) && !completed.has(id)) { queued.add(id); queue.push(id) } }
+    const enqueue = (id: string) => { if (!scheduled.has(id) && !completed.has(id)) { scheduled.add(id); queued.add(id); queue.push(id) } }
     const pump = () => {
       while (queue.length && !disposed && hydrationGeneration.current === generation) {
         const id = queue.shift()!
         queued.delete(id)
         const item = byId.get(id)
-        if (!item) continue
+        if (!item) { scheduled.delete(id); continue }
         hydrationPool.current.queue.push({ generation, start: () => {
-          if (disposed || hydrationGeneration.current !== generation) { pump(); return }
+          if (disposed || hydrationGeneration.current !== generation || completed.has(id)) { scheduled.delete(id); pump(); return }
           hydrationPool.current.active += 1
           inFlight.add(id)
           void hydrateShop(id).then((coordinates) => {
@@ -94,6 +95,7 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
           }).catch(() => undefined).finally(() => {
             hydrationPool.current.active -= 1
             inFlight.delete(id)
+            scheduled.delete(id)
             if (retryQueued.delete(id) && !completed.has(id)) enqueue(id)
             pump()
             drainHydrationPool()
@@ -102,7 +104,7 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
       }
       drainHydrationPool()
     }
-    const retry = () => { candidates.forEach((item) => { if (inFlight.has(item.id)) retryQueued.add(item.id); else if (!completed.has(item.id)) enqueue(item.id) }); pump() }
+    const retry = () => { candidates.forEach((item) => { if (inFlight.has(item.id) || scheduled.has(item.id)) retryQueued.add(item.id); else if (!completed.has(item.id)) enqueue(item.id) }); pump() }
     hydrationScheduler.current = { retry }
     candidates.filter((item) => !item.coordinates && !hydrated[item.id]).forEach((item) => enqueue(item.id))
     pump()
