@@ -18,7 +18,7 @@ export function NativeExplorePage() {
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current) }, [])
   const change = (next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...query, ...next }), { replace })
   const submit = () => { if (timer.current) window.clearTimeout(timer.current); timer.current = null; change({ q: text.trim() }) }
-  const businessTypes = useMemo(() => Array.from(new Set(model.groups.flatMap((group) => group.kind === 'business' ? group.state.data.map((item) => item.label).filter(Boolean) : []))), [model.groups])
+  const businessTypes = useMemo(() => Array.from(new Set((query.type === 'businesses' ? model.typed?.state.data ?? [] : model.groups.find((group) => group.kind === 'business')?.state.data ?? []).map((item) => item.label).filter(Boolean))), [model.groups, model.typed, query.type])
   const filterChoices = query.type === 'events' ? eventCategories : query.type === 'listings' ? listingCategories : query.type === 'businesses' ? businessTypes : query.type === 'all' ? [...listingCategories, ...eventCategories, ...businessTypes] : []
   const card = (item: NativeDiscoveryCardModel) => <NativeDiscoveryCard key={`${item.kind}:${item.id}`} item={item} onOpen={(path) => navigate(path)} />
   return <div className="native-explore-scroll" role="region" aria-label="Explore content">
