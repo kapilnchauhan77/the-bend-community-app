@@ -229,4 +229,4 @@
 .native-app .native-map-container { min-height: 320px; border-radius: var(--native-radius-card); }
 .native-app .native-map-preview { position: absolute; z-index: 500; left: 16px; right: 16px; bottom: 16px; padding: 12px; color: var(--native-text); background: var(--native-elevated); border-radius: var(--native-radius-control); box-shadow: var(--native-shadow); }
 .native-app .native-map-marker-list { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; }
-.native-app .native-map-marker-list button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--native-border); border-radius: var(--native-radius-pill); background: var(--native-card); color: var(--native-text); }
+.native-app .native-map-marker-list button { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; border: 1px solid var(--native-border); border-radius: var(--native-radius-pill); background: var(--native-card); color: var(--native-text); }

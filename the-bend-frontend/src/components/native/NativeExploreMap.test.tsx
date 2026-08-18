@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NativeExploreMap } from './NativeExploreMap'
@@ -14,6 +15,7 @@ vi.mock('react-leaflet', () => ({
 }))
 
 const business = { id: 'b1', kind: 'business' as const, label: 'Farm', title: 'Westmoreland Farm', supportingText: 'Main Street', thumbnailUrl: null, targetPath: '/business/b1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: 2.4 }
+const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 afterEach(() => cleanup())
 
 describe('NativeExploreMap', () => {
@@ -39,6 +41,26 @@ describe('NativeExploreMap', () => {
     rerender(<NativeExploreMap businesses={[business]} userCoordinates={{ latitude: 12, longitude: -34 }} selectedId={null} onSelect={vi.fn()} onOpen={vi.fn()} />)
     expect(screen.getByTestId('map-container')).toHaveAttribute('data-center', '12,-34')
     expect(mapHarness.setView).toHaveBeenCalledWith([12, -34], 11)
+  })
+
+  it('keeps map business selectors from shrinking into vertical text columns', () => {
+    const style = document.createElement('style')
+    style.textContent = nativeCss
+    document.head.append(style)
+    const businesses = ['Inn at Montross', 'Leedstown’s Plants & Produce', 'ProLine Group', 'Stewart Electrical Services', 'Westmoreland County Economic Development']
+      .map((title, index) => ({ ...business, id: `b${index + 1}`, title }))
+
+    try {
+      const { container } = render(<div className="native-app"><NativeExploreMap businesses={businesses} userCoordinates={null} selectedId={null} onSelect={vi.fn()} onOpen={vi.fn()} /></div>)
+      const selectorRow = container.querySelector('.native-map-marker-list')
+      const selectorButtons = [...(selectorRow?.querySelectorAll('button') ?? [])]
+
+      expect(getComputedStyle(selectorRow!).overflowX).toBe('auto')
+      expect(selectorButtons).toHaveLength(5)
+      expect(selectorButtons.map((button) => getComputedStyle(button).flexShrink)).toEqual(['0', '0', '0', '0', '0'])
+    } finally {
+      style.remove()
+    }
   })
 
   it('treats selectedId as controlled and exposes Open details inside the marker popup', () => {
