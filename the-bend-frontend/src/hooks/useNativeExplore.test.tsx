@@ -35,6 +35,20 @@ describe('useNativeExplore grouped All behavior', () => {
     expect(result.current.location.status).toBe('denied')
     expect(result.current.userCoordinates).toBeNull()
   })
+  it.each([
+    ['PERMISSION_DENIED', 'denied'], ['DENIED', 'denied'], ['RESTRICTED', 'denied'],
+    ['TIMEOUT', 'unavailable'], ['POSITION_UNAVAILABLE', 'unavailable'], ['SERVICE_ERROR', 'unavailable'], ['INVALID_COORDINATES', 'unavailable'],
+    ['ERR_CANCELED', 'idle'], ['CANCELLED', 'idle'],
+  ] as const)('normalizes %s to %s without a second automatic request', async (code, expected) => {
+    platform.location.getForegroundPosition.mockRejectedValueOnce({ code, message: code })
+    const { result, rerender } = renderHook(({ q }) => useNativeExplore({ ...allQuery({ type: 'businesses' }), q }), { initialProps: { q: '' }, reactStrictMode: false })
+    await act(async () => { await result.current.requestLocation() })
+    expect(result.current.location.status).toBe(expected)
+    expect(result.current.userCoordinates).toBeNull()
+    rerender({ q: 'changed' })
+    await Promise.resolve()
+    expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(1)
+  })
   it('does not hydrate before unresolved network status and hydrates after online', async () => {
     let resolveStatus!: (status: 'online' | 'offline') => void
     platform.network.getStatus.mockReturnValueOnce(new Promise((resolve) => { resolveStatus = resolve }))
