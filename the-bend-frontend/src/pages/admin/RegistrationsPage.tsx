@@ -312,11 +312,11 @@ export default function RegistrationsPage() {
                   </p>
                   <p className="font-medium">{viewReg.admin_name}</p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
                     Email
                   </p>
-                  <p className="font-medium">{viewReg.admin_email}</p>
+                  <p className="font-medium [overflow-wrap:anywhere]">{viewReg.admin_email}</p>
                 </div>
                 {viewReg.phone && (
                   <div>
