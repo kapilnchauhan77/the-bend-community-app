@@ -1,11 +1,13 @@
-from uuid import UUID
 from datetime import datetime
-from sqlalchemy import select
+from uuid import UUID
+
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.repositories.base import BaseRepository
-from app.models.event import Event, EventConnector
+
+from app.core.pagination import PaginatedResult
 from app.models.enums import EventStatus
-from app.core.pagination import PaginatedResult, encode_cursor, decode_cursor
+from app.models.event import Event, EventConnector
+from app.repositories.base import BaseRepository
 
 
 class EventRepository(BaseRepository[Event]):
@@ -59,6 +61,22 @@ class EventRepository(BaseRepository[Event]):
             select(Event).where(Event.source_url == source_url, Event.connector_id == connector_id)
         )
         return result.scalar_one_or_none()
+
+    async def update_image_if_blank(self, event_id: UUID, image_url: str) -> bool:
+        """Atomically backfill an image without racing an admin's manual edit."""
+        result = await self.session.execute(
+            update(Event)
+            .where(
+                Event.id == event_id,
+                or_(
+                    Event.image_url.is_(None),
+                    func.btrim(Event.image_url, " \t\n\r\f\v") == "",
+                ),
+            )
+            .values(image_url=image_url)
+            .returning(Event.id)
+        )
+        return result.scalar_one_or_none() is not None
 
 
 class ConnectorRepository(BaseRepository[EventConnector]):
