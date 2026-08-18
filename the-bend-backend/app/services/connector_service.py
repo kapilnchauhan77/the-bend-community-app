@@ -1,5 +1,6 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from ipaddress import ip_address
 from math import ceil
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from uuid import UUID, uuid4
@@ -8,9 +9,8 @@ import httpx
 from dateutil import parser as dateutil_parser
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.event_repo import EventRepository, ConnectorRepository
 from app.models.enums import ConnectorType
-
+from app.repositories.event_repo import ConnectorRepository, EventRepository
 
 # Some public calendar hosts (e.g. CivicPlus county sites behind Cloudflare
 # "Bot Fight Mode") reject requests that don't look like a real calendar
@@ -40,10 +40,308 @@ _DCR_TIME_RANGE_RE = re.compile(
     re.IGNORECASE,
 )
 _DCR_SINGLE_TIME_RE = re.compile(rf"(?P<start>{_DCR_TIME_TOKEN})", re.IGNORECASE)
+_IMAGE_FILE_EXTENSIONS = {
+    ".avif",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".svg",
+    ".webp",
+}
 
 
 def _normalize_text(value: str) -> str:
     return " ".join(value.split())
+
+
+def _normalize_image_url(candidate, base_url: str) -> str | None:
+    """Resolve a browser-safe external image URL without fetching it."""
+    if candidate is None:
+        return None
+
+    value = str(candidate).strip()
+    if (
+        not value
+        or "\\" in value
+        or any(character.isspace() for character in value)
+    ):
+        return None
+
+    try:
+        resolved = urljoin(base_url, value)
+        if len(resolved) > 500:
+            return None
+        parsed = urlparse(resolved)
+        hostname = parsed.hostname
+        _ = parsed.port  # Validate numeric range; urllib defers this check.
+    except ValueError:
+        return None
+
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        return None
+
+    hostname = hostname.rstrip(".").lower()
+    if not hostname.isascii():
+        try:
+            hostname = hostname.encode("idna").decode("ascii").rstrip(".").lower()
+        except UnicodeError:
+            return None
+    if (
+        "%" in hostname
+        or hostname == "localhost"
+        or hostname.endswith(".localhost")
+    ):
+        return None
+    try:
+        if not ip_address(hostname).is_global:
+            return None
+    except ValueError:
+        numeric_parts = hostname.split(".")
+        if numeric_parts and all(
+            re.fullmatch(r"(?:0[xX][0-9a-fA-F]+|[0-9]+)", part)
+            for part in numeric_parts
+        ):
+            # Browsers accept abbreviated/octal/hex IPv4 spellings that
+            # ipaddress intentionally rejects, and normalize them to a local
+            # address such as 127.0.0.1. Do not persist those ambiguous hosts.
+            return None
+        # Normal DNS hostnames are resolved by the visitor's browser. The Bend
+        # backend never downloads these URLs, so this path adds no server-side
+        # request surface.
+
+    return resolved
+
+
+def _has_image_file_extension(candidate) -> bool:
+    try:
+        path = urlparse(str(candidate or "")).path.lower()
+    except ValueError:
+        return False
+    return any(path.endswith(extension) for extension in _IMAGE_FILE_EXTENSIONS)
+
+
+def _image_url_from_element(element, base_url: str) -> str | None:
+    if element is None:
+        return None
+
+    for attribute in ("data-srcset", "srcset"):
+        srcset = element.get(attribute)
+        if not srcset:
+            continue
+        srcset_text = str(srcset).strip()
+        if re.search(r"(?:^|,\s*)data:", srcset_text, re.IGNORECASE):
+            # A data URL contains a comma of its own, so a simple srcset split
+            # can mistake the encoded payload for a relative remote URL. We do
+            # not persist data URLs; ignore this attribute and try src instead.
+            continue
+        candidates = []
+        for index, candidate in enumerate(srcset_text.split(",")):
+            candidate_parts = candidate.strip().split()
+            if not candidate_parts:
+                continue
+            image_url = _normalize_image_url(candidate_parts[0], base_url)
+            if not image_url:
+                continue
+
+            descriptor_priority = 0
+            descriptor_value = 0.0
+            if len(candidate_parts) > 1:
+                descriptor = candidate_parts[1].lower()
+                descriptor_match = re.fullmatch(
+                    r"(\d+(?:\.\d+)?)([wx])", descriptor
+                )
+                if descriptor_match:
+                    descriptor_priority = (
+                        2 if descriptor_match.group(2) == "w" else 1
+                    )
+                    descriptor_value = float(descriptor_match.group(1))
+            candidates.append(
+                (descriptor_priority, descriptor_value, -index, image_url)
+            )
+        if candidates:
+            return max(candidates)[3]
+
+    for attribute in ("data-src", "data-lazy-src", "src"):
+        image_url = _normalize_image_url(element.get(attribute), base_url)
+        if image_url:
+            return image_url
+    return None
+
+
+def _page_image_url(
+    soup, base_url: str, excluded_containers: list | None = None
+) -> str | None:
+    """Find a page's declared social/banner/logo image in priority order."""
+    metadata_keys = (
+        ("property", "og:image"),
+        ("property", "og:image:url"),
+        ("property", "og:image:secure_url"),
+        ("name", "twitter:image"),
+        ("name", "twitter:image:src"),
+    )
+    for attribute, expected in metadata_keys:
+        for element in soup.find_all("meta"):
+            if str(element.get(attribute, "")).strip().lower() != expected:
+                continue
+            image_url = _normalize_image_url(element.get("content"), base_url)
+            if image_url:
+                return image_url
+
+    for element in soup.find_all("link", href=True):
+        rel = {str(value).lower() for value in (element.get("rel") or [])}
+        if "image_src" in rel:
+            image_url = _normalize_image_url(element.get("href"), base_url)
+            if image_url:
+                return image_url
+
+    excluded_container_ids = {
+        id(container) for container in (excluded_containers or [])
+    }
+    for element in soup.find_all("img"):
+        ancestor_ids = {id(element), *(id(parent) for parent in element.parents)}
+        if excluded_container_ids.intersection(ancestor_ids):
+            continue
+        descriptor = " ".join(
+            [
+                str(element.get("id", "")),
+                " ".join(element.get("class", [])),
+                str(element.get("alt", "")),
+            ]
+        ).lower()
+        if "logo" in descriptor or "banner" in descriptor:
+            image_url = _image_url_from_element(element, base_url)
+            if image_url:
+                return image_url
+
+    for element in soup.find_all("link", href=True):
+        rel = {str(value).lower() for value in (element.get("rel") or [])}
+        if rel.intersection({"apple-touch-icon", "icon"}):
+            image_url = _normalize_image_url(element.get("href"), base_url)
+            if image_url:
+                return image_url
+    return None
+
+
+def _first_html_image_url(html: str, base_url: str) -> str | None:
+    if not html:
+        return None
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    for element in soup.find_all("img"):
+        image_url = _image_url_from_element(element, base_url)
+        if image_url:
+            return image_url
+    return None
+
+
+def _feed_image_url(feed, base_url: str) -> str | None:
+    feed_data = getattr(feed, "feed", {}) or {}
+    feed_base = _normalize_image_url(feed_data.get("link"), base_url) or base_url
+    image = feed_data.get("image") or {}
+    if hasattr(image, "get"):
+        for key in ("href", "url"):
+            image_url = _normalize_image_url(image.get(key), feed_base)
+            if image_url:
+                return image_url
+    for key in ("logo", "icon"):
+        image_url = _normalize_image_url(feed_data.get(key), feed_base)
+        if image_url:
+            return image_url
+    return None
+
+
+def _rss_entry_image_url(entry, feed_logo: str | None, feed_url: str) -> str | None:
+    entry_base = _normalize_image_url(entry.get("link"), feed_url) or feed_url
+
+    for media in entry.get("media_content", []) or []:
+        media_type = str(media.get("type", "")).lower()
+        medium = str(media.get("medium", "")).lower()
+        if (media_type and not media_type.startswith("image/")) or (
+            medium and medium != "image"
+        ):
+            continue
+        image_url = _normalize_image_url(media.get("url"), entry_base)
+        if image_url:
+            return image_url
+
+    for media in entry.get("media_thumbnail", []) or []:
+        image_url = _normalize_image_url(media.get("url"), entry_base)
+        if image_url:
+            return image_url
+
+    for enclosure in entry.get("enclosures", []) or []:
+        media_type = str(enclosure.get("type", "")).lower()
+        href = enclosure.get("href") or enclosure.get("url")
+        if not media_type.startswith("image/") and not _has_image_file_extension(
+            href
+        ):
+            continue
+        image_url = _normalize_image_url(href, entry_base)
+        if image_url:
+            return image_url
+
+    for link in entry.get("links", []) or []:
+        if str(link.get("rel", "")).lower() != "enclosure":
+            continue
+        media_type = str(link.get("type", "")).lower()
+        if not media_type.startswith("image/"):
+            continue
+        image_url = _normalize_image_url(link.get("href"), entry_base)
+        if image_url:
+            return image_url
+
+    raw_description = entry.get("summary", "") or entry.get("description", "")
+    return _first_html_image_url(raw_description, entry_base) or feed_logo
+
+
+def _ical_value_text(value) -> str:
+    try:
+        raw_value = value.to_ical()
+    except AttributeError:
+        raw_value = value
+    if isinstance(raw_value, bytes):
+        return raw_value.decode("utf-8", "ignore")
+    return str(raw_value)
+
+
+def _ical_image_url(component, feed_url: str) -> str | None:
+    for property_name in ("X-IMAGE", "ATTACH"):
+        values = component.get(property_name)
+        if values is None:
+            continue
+        if not isinstance(values, list):
+            values = [values]
+
+        for value in values:
+            media_type = ""
+            if property_name == "ATTACH":
+                params = getattr(value, "params", {}) or {}
+                value_type = str(params.get("VALUE", "")).upper()
+                media_type = str(params.get("FMTTYPE", "")).lower()
+                if value_type == "BINARY" or (
+                    media_type and not media_type.startswith("image/")
+                ):
+                    continue
+
+            raw_url = _ical_value_text(value)
+            if (
+                property_name == "ATTACH"
+                and not media_type
+                and not _has_image_file_extension(raw_url)
+            ):
+                continue
+
+            image_url = _normalize_image_url(raw_url, feed_url)
+            if image_url:
+                return image_url
+    return None
 
 
 def _looks_like_results_summary(title: str) -> bool:
@@ -184,6 +482,7 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
     count_match = _DCR_RESULTS_COUNT_RE.search(page_text)
     reported_count = int(count_match.group("count")) if count_match else None
     events = []
+    event_blocks = []
     seen_urls = set()
 
     for details_link in soup.find_all("a", href=True):
@@ -197,6 +496,7 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
         block = _find_dcr_event_block(details_link)
         if block is None:
             continue
+        event_blocks.append(block)
 
         parsed_range = _parse_dcr_date_range(block.get_text(" ", strip=True))
         lines = _dcr_content_lines(block)
@@ -248,7 +548,7 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
             description = f"This event has been canceled. {description or ''}".strip()
 
         start_date, end_date = parsed_range
-        events.append({
+        event_data = {
             "title": title[:255],
             "description": description[:2000] if description else None,
             "start_date": start_date,
@@ -256,8 +556,17 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
             "location": location[:255] if location else None,
             "source_url": source_url,
             "status": "cancelled" if cancelled else "active",
-        })
+        }
+        image_url = _image_url_from_element(block.find("img"), page_url)
+        if image_url:
+            event_data["image_url"] = image_url
+        events.append(event_data)
         seen_urls.add(source_url)
+
+    page_image_url = _page_image_url(soup, page_url, event_blocks)
+    if page_image_url:
+        for event in events:
+            event.setdefault("image_url", page_image_url)
 
     return events, reported_count
 
@@ -287,6 +596,7 @@ class ConnectorService:
         try:
             events = await self._parse_source(connector)
             saved = 0
+            images_updated = 0
             for event_data in events:
                 # Dedup by source_url + connector_id
                 if event_data.get("source_url"):
@@ -294,6 +604,16 @@ class ConnectorService:
                         event_data["source_url"], connector_id
                     )
                     if existing:
+                        existing_image = getattr(existing, "image_url", None)
+                        imported_image = event_data.get("image_url")
+                        if (
+                            imported_image
+                            and not str(existing_image or "").strip()
+                            and await self.event_repo.update_image_if_blank(
+                                existing.id, imported_image
+                            )
+                        ):
+                            images_updated += 1
                         continue
 
                 event_data["id"] = uuid4()
@@ -313,7 +633,11 @@ class ConnectorService:
                 "last_sync_count": saved,
                 "last_sync_error": None,
             })
-            return {"synced": saved, "total_parsed": len(events)}
+            return {
+                "synced": saved,
+                "images_updated": images_updated,
+                "total_parsed": len(events),
+            }
 
         except Exception as e:
             await self.connector_repo.update(connector_id, {
@@ -390,7 +714,6 @@ class ConnectorService:
 
         cal = Calendar.from_ical(body)
         events = []
-        now = datetime.utcnow()
 
         for component in cal.walk():
             if component.name != "VEVENT":
@@ -403,6 +726,7 @@ class ConnectorService:
             location = str(component.get("location", ""))
             uid = str(component.get("uid", "")).strip()
             url_prop = str(component.get("url", "")).strip()
+            image_url = _ical_image_url(component, url)
 
             if not summary or not dtstart:
                 continue
@@ -442,7 +766,7 @@ class ConnectorService:
             # exports), don't echo it back as body text.
             desc_out = None if (description and description == event_link) else (description or None)
 
-            events.append({
+            event_data = {
                 "title": summary.strip(),
                 "description": desc_out,
                 "start_date": start,
@@ -450,7 +774,10 @@ class ConnectorService:
                 "location": location.strip() if location else None,
                 "source_url": source_url,
                 "status": "active",
-            })
+            }
+            if image_url:
+                event_data["image_url"] = image_url
+            events.append(event_data)
 
         return events
 
@@ -463,6 +790,7 @@ class ConnectorService:
             resp.raise_for_status()
 
         feed = feedparser.parse(resp.text)
+        feed_logo = _feed_image_url(feed, url)
         events = []
 
         for entry in feed.entries:
@@ -472,6 +800,7 @@ class ConnectorService:
 
             link = entry.get("link", "")
             description = entry.get("summary", "") or entry.get("description", "")
+            image_url = _rss_entry_image_url(entry, feed_logo, url)
             # Strip HTML tags from description
             if description:
                 from bs4 import BeautifulSoup
@@ -483,7 +812,6 @@ class ConnectorService:
                 parsed = entry.get(date_field)
                 if parsed:
                     try:
-                        import time
                         start_date = datetime(*parsed[:6])
                     except (TypeError, ValueError):
                         pass
@@ -492,7 +820,7 @@ class ConnectorService:
             if not start_date:
                 start_date = datetime.utcnow()
 
-            events.append({
+            event_data = {
                 "title": title[:255],
                 "description": description[:2000] if description else None,
                 "start_date": start_date,
@@ -500,7 +828,10 @@ class ConnectorService:
                 "location": None,
                 "source_url": link or None,
                 "status": "active",
-            })
+            }
+            if image_url:
+                event_data["image_url"] = image_url
+            events.append(event_data)
 
         return events
 
@@ -554,6 +885,7 @@ class ConnectorService:
 
         soup = BeautifulSoup(resp.text, "lxml")
         events = []
+        event_containers = []
 
         # Find all title elements as event anchors
         title_elements = soup.select(title_sel)
@@ -565,6 +897,7 @@ class ConnectorService:
 
             # Look for sibling/parent context
             parent = title_el.parent or title_el
+            event_containers.append(parent)
 
             # Date
             date_el = parent.select_one(date_sel)
@@ -599,7 +932,10 @@ class ConnectorService:
             if not source_url or urlparse(source_url).scheme not in {"http", "https"}:
                 continue
 
-            events.append({
+            image_el = parent.select_one("img")
+            image_url = _image_url_from_element(image_el, url)
+
+            event_data = {
                 "title": title[:255],
                 "description": description[:2000] if description else None,
                 "start_date": start_date,
@@ -607,6 +943,14 @@ class ConnectorService:
                 "location": None,
                 "source_url": source_url,
                 "status": "active",
-            })
+            }
+            if image_url:
+                event_data["image_url"] = image_url
+            events.append(event_data)
+
+        page_image_url = _page_image_url(soup, url, event_containers)
+        if page_image_url:
+            for event in events:
+                event.setdefault("image_url", page_image_url)
 
         return events
