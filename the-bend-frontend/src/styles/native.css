@@ -4,6 +4,7 @@
 }
 .dark .native-app { --native-page: #121915; --native-card: #18221d; --native-elevated: #202c26; --native-text: #f4f0e7; --native-muted: #b6bdb8; --native-primary: #70b99b; --native-primary-contrast: #101814; --native-bronze: #d0a45f; --native-urgent-surface: #3a201e; --native-urgent-border: #d97b70; --native-urgent-text: #ffb6ad; --native-border: #33433a; --native-focus: #8cc9ef; --native-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
 .native-app .native-main { min-height: 100dvh; padding-bottom: calc(88px + var(--native-safe-bottom)); }
+.native-app .native-auth-page { min-height: calc(100dvh - 88px - var(--native-safe-bottom)); }
 .native-app h1,
 .native-app h2,
 .native-app h3 { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

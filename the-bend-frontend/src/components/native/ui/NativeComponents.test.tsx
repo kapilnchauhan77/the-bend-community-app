@@ -162,6 +162,8 @@ describe('native UI primitives', () => {
     expect(cssRule('.native-app .native-page-header')).toMatch(/flex-wrap:\s*nowrap/)
     expect(cssRule('.native-app')).toMatch(/--native-nav-height:\s*72px/)
     expect(cssRule('.native-app .native-main')).toMatch(/padding-bottom:\s*calc\(88px\s*\+\s*var\(--native-safe-bottom\)/)
+    expect(cssRule('.native-app .native-auth-page')).toMatch(/min-height:\s*calc\(100dvh\s*-\s*88px\s*-\s*var\(--native-safe-bottom\)\)/)
+    expect(cssRule('.native-app .native-auth-page')).not.toMatch(/overflow:\s*hidden/)
     expect(cssRule('.native-app .native-bottom-nav.native-safe-bottom')).toMatch(/padding-bottom:\s*var\(--native-safe-bottom/)
     expect(cssRule('.native-app .native-bottom-nav')).toMatch(/background:\s*var\(--native-elevated\)/)
     expect(cssRule('.native-app h1')).toMatch(/font-family:\s*Inter/)

@@ -7,7 +7,7 @@ const { login, setAuth } = vi.hoisted(() => ({ login: vi.fn(), setAuth: vi.fn(as
 vi.mock('@/services/authApi', () => ({ authApi: { login } }))
 vi.mock('@/stores/authStore', () => ({ useAuthStore: () => ({ setAuth }) }))
 
-describe('LoginPage pending destination handling', () => {
+describe('LoginPage', () => {
   afterEach(() => document.body.innerHTML = '')
   beforeEach(() => {
     vi.clearAllMocks()
@@ -30,6 +30,11 @@ describe('LoginPage pending destination handling', () => {
   it('falls back from malicious state to the validated stored destination', () => {
     render(<MemoryRouter initialEntries={[{ pathname: '/login', state: { from: { pathname: '/admin/users' } } }]}><LoginPage /></MemoryRouter>)
     expect(globalThis.localStorage.removeItem).not.toHaveBeenCalled()
+  })
+
+  it('marks the login surface so the native shell can remove phantom viewport overflow', () => {
+    const { container } = render(<MemoryRouter initialEntries={['/login']}><LoginPage /></MemoryRouter>)
+    expect(container.firstElementChild).toHaveClass('native-auth-page')
   })
 
   it('clears a typed Create continuation exactly once after successful login', async () => {
