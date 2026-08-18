@@ -105,7 +105,13 @@ async def create_checkout(
         pricing_uuid = UUID(data.pricing_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid pricing ID")
-    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_uuid))
+    pricing_query = select(AdPricing).where(
+        AdPricing.id == pricing_uuid,
+        AdPricing.is_active == True,
+    )
+    if tenant:
+        pricing_query = pricing_query.where(AdPricing.tenant_id == tenant.id)
+    result = await db.execute(pricing_query)
     pricing = result.scalar_one_or_none()
     if not pricing:
         raise HTTPException(status_code=404, detail="Pricing plan not found")
