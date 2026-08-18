@@ -1,6 +1,6 @@
 .native-app {
   --native-page: #f7f3ea; --native-card: #fffdf8; --native-elevated: #ffffff; --native-text: #1f2a24; --native-muted: #68716c; --native-primary: #2b5b49; --native-primary-contrast: #ffffff; --native-bronze: #a77935; --native-urgent-surface: #fff0ee; --native-urgent-border: #d96a5e; --native-urgent-text: #8f3027; --native-border: #ded7ca; --native-focus: #2d6f9f; --native-shadow: 0 8px 24px rgb(31 42 36 / 10%); --native-space-1: 4px; --native-space-2: 8px; --native-space-3: 12px; --native-space-4: 16px; --native-space-6: 24px; --native-space-8: 32px; --native-radius-card: 18px; --native-radius-control: 16px; --native-radius-pill: 999px; --native-nav-height: 72px; --native-safe-top: env(safe-area-inset-top, 0px); --native-safe-bottom: env(safe-area-inset-bottom, 0px); --native-keyboard-bottom: 0px; --native-duration-short: 140ms; --native-duration-medium: 220ms;
-  min-height: 100dvh; color: var(--native-text); background: var(--native-page); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100dvh; --native-fixed-text-scale: 1; color: var(--native-text); background: var(--native-page); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .dark .native-app { --native-page: #121915; --native-card: #18221d; --native-elevated: #202c26; --native-text: #f4f0e7; --native-muted: #b6bdb8; --native-primary: #70b99b; --native-primary-contrast: #101814; --native-bronze: #d0a45f; --native-urgent-surface: #3a201e; --native-urgent-border: #d97b70; --native-urgent-text: #ffb6ad; --native-border: #33433a; --native-focus: #8cc9ef; --native-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
 .native-app .native-main { min-height: 100dvh; padding-bottom: calc(88px + var(--native-safe-bottom)); }
@@ -23,10 +23,10 @@
 .native-app .native-page-header.native-safe-area { padding-top: calc(10px + var(--native-safe-top)); }
 .native-app .native-header-top { display: flex; align-items: center; justify-content: space-between; min-width: 0; width: 100%; }
 .native-app .native-brand { display: flex; align-items: center; gap: var(--native-space-2); min-width: 0; }
-.native-app .native-brand > strong { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; color: var(--native-primary-contrast); background: var(--native-primary); font-family: Georgia, serif; font-size: 21px; -webkit-text-size-adjust: none; }
+.native-app .native-brand > strong { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; color: var(--native-primary-contrast); background: var(--native-primary); font-family: Georgia, serif; font-size: calc(21px * var(--native-fixed-text-scale)); line-height: 1; overflow: hidden; -webkit-text-size-adjust: none; }
 .native-app .native-brand > span { display: grid; min-width: 0; line-height: 1.1; }
-.native-app .native-brand b { font-size: 15px; }
-.native-app .native-brand small { margin-top: 2px; color: var(--native-muted); font-size: 11px; }
+.native-app .native-brand b { font-size: calc(15px * var(--native-fixed-text-scale)); }
+.native-app .native-brand small { margin-top: 2px; color: var(--native-muted); font-size: calc(11px * var(--native-fixed-text-scale)); }
 .native-app .native-header-title { flex: 1 1 auto; min-width: 0; }
 .native-app .native-header-title h1 { margin: 0; font-size: 18px; line-height: 1.15; }
 .native-app .native-header-icon { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; color: var(--native-primary); background: transparent; }
@@ -143,7 +143,7 @@
   box-shadow: 0 5px 18px rgb(51 69 62 / 6%);
 }
 .native-app .native-quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--native-space-2); margin: var(--native-space-3) 0 var(--native-space-6); }
-.native-app .native-quick-action { display: grid; place-items: center; gap: 5px; padding: 8px 4px; border: 1px solid var(--native-border); border-radius: 14px; color: var(--native-primary); background: var(--native-elevated); font-size: 11px; font-weight: 700; -webkit-text-size-adjust: none; overflow-wrap: normal; word-break: keep-all; }
+.native-app .native-quick-action { display: grid; place-items: center; gap: 5px; padding: 8px 4px; border: 1px solid var(--native-border); border-radius: 14px; color: var(--native-primary); background: var(--native-elevated); font-size: calc(11px * var(--native-fixed-text-scale)); font-weight: 700; -webkit-text-size-adjust: none; overflow-wrap: normal; word-break: keep-all; }
 .native-app .native-search-bar input {
   flex: 1 1 12rem;
   min-width: 0;
@@ -203,8 +203,8 @@
 .native-app .native-bottom-nav { border-color: var(--native-border); background: var(--native-elevated); }
 .native-app .native-bottom-nav.native-safe-bottom { padding-bottom: var(--native-safe-bottom); }
 .native-app .native-bottom-nav-inner { min-height: var(--native-nav-height); }
-.native-app .native-bottom-nav-item { display: flex; flex: 1 1 0; min-width: 0; min-height: 44px; overflow: hidden; color: var(--native-muted); line-height: 1.2; -webkit-text-size-adjust: none; }
-.native-app .native-bottom-nav-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; -webkit-text-size-adjust: none; }
+.native-app .native-bottom-nav-item { display: flex; flex: 1 1 0; min-width: 0; min-height: 44px; overflow: hidden; color: var(--native-muted); font-size: calc(16px * var(--native-fixed-text-scale)); line-height: 1.2; -webkit-text-size-adjust: none; }
+.native-app .native-bottom-nav-item span { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; -webkit-text-size-adjust: none; }
 .native-app .native-bottom-nav-item[aria-current="page"] { color: var(--native-primary); font-weight: 700; }
 .native-app .native-bottom-nav-item[aria-label="Create"] > span:first-child { width: 42px; height: 42px; margin-top: -18px; border-radius: 15px; box-shadow: 0 8px 18px rgb(40 79 66 / 25%); }
 .native-app .native-quick-action > svg { width: 28px; height: 28px; padding: 6px; border-radius: 9px; color: var(--native-primary); background: color-mix(in srgb, var(--native-primary) 10%, var(--native-card)); }

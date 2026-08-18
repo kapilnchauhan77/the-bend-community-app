@@ -115,4 +115,21 @@ describe('NativeAppShell', () => {
     expect(document.body.style.backgroundColor).toBe('rgb(247, 243, 234)')
     view.unmount()
   })
+
+  it('tracks inverse Android root text scale on the native root and cleans up', () => {
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({ fontSize: '32px' } as CSSStyleDeclaration)
+    let resize: (() => void) | undefined
+    const add = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener) => { if (type === 'resize') resize = listener as () => void })
+    const remove = vi.spyOn(window, 'removeEventListener').mockImplementation(() => undefined)
+    const view = renderShell()
+    const root = document.querySelector<HTMLElement>('.native-app')!
+    expect(root.style.getPropertyValue('--native-fixed-text-scale')).toBe('0.5')
+    vi.mocked(window.getComputedStyle).mockReturnValue({ fontSize: '16px' } as CSSStyleDeclaration)
+    resize?.()
+    expect(root.style.getPropertyValue('--native-fixed-text-scale')).toBe('1')
+    view.unmount()
+    expect(remove).toHaveBeenCalledWith('resize', expect.any(Function))
+    expect(root.style.getPropertyValue('--native-fixed-text-scale')).toBe('')
+    expect(add).toHaveBeenCalled()
+  })
 })

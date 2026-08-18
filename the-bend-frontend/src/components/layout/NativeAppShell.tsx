@@ -33,6 +33,21 @@ export function NativeAppShell() {
     };
   }, []);
   useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const updateFixedTextScale = () => {
+      const rootSize = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize);
+      const scale = Number.isFinite(rootSize) && rootSize > 0 ? Math.min(1, 16 / rootSize) : 1;
+      root.style.setProperty('--native-fixed-text-scale', String(scale));
+    };
+    window.addEventListener('resize', updateFixedTextScale);
+    updateFixedTextScale();
+    return () => {
+      window.removeEventListener('resize', updateFixedTextScale);
+      root.style.removeProperty('--native-fixed-text-scale');
+    };
+  }, []);
+  useEffect(() => {
     const hadDarkClass = document.documentElement.classList.contains('dark');
     const nativeChrome = Capacitor.getPlatform() === 'ios' || Capacitor.getPlatform() === 'android';
     const previousHtmlBackground = document.documentElement.style.backgroundColor;
