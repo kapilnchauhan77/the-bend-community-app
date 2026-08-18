@@ -1,33 +1,12 @@
 import type { NativeExploreQuery, NativeExploreType } from './types'
-
 const types: NativeExploreType[] = ['all', 'listings', 'businesses', 'events', 'volunteer']
-const categories = ['staff', 'materials', 'equipment', 'volunteer', 'community', 'music', 'art', 'food', 'market', 'historic', 'outdoor', 'education']
-const sorts = ['newest', 'relevance', 'soonest']
-export function parseNativeExploreQuery(params: URLSearchParams): NativeExploreQuery {
-  const type = types.includes(params.get('type') as NativeExploreType) ? params.get('type') as NativeExploreType : 'all'
-  const urgency = params.get('urgency') === 'urgent' || params.get('urgency') === 'normal' ? params.get('urgency') as NativeExploreQuery['urgency'] : null
-  const category = params.get('category')
-  const sort = params.get('sort')
-  return { q: params.get('q')?.trim() ?? '', type, category: category && categories.includes(category) ? category : null, urgency, sort: sort && sorts.includes(sort) ? sort : null, mode: params.get('mode') === 'map' ? 'map' : 'list', near: params.get('near') === 'true' }
-}
-
-export function serializeNativeExploreQuery(query: NativeExploreQuery): URLSearchParams {
-  const params = new URLSearchParams()
-  if (query.q.trim()) params.set('q', query.q.trim())
-  if (query.type !== 'all') params.set('type', query.type)
-  if (query.category) params.set('category', query.category)
-  if (query.urgency) params.set('urgency', query.urgency)
-  if (query.sort) params.set('sort', query.sort)
-  if (query.mode !== 'list') params.set('mode', query.mode)
-  if (query.near) params.set('near', 'true')
-  return params
-}
-
+const listingCategories = ['staff', 'materials', 'equipment']; const eventCategories = ['community', 'music', 'art', 'food', 'market', 'historic', 'outdoor', 'education']; const sorts = ['urgency_desc', 'created_desc', 'expiry_asc']
+const valid = (value: string | null, values: string[]) => value && values.includes(value) ? value : null
+export function parseNativeExploreQuery(params: URLSearchParams): NativeExploreQuery { const rawType = params.get('type') as NativeExploreType; const type = types.includes(rawType) ? rawType : 'all'; const rawCategory = params.get('category'); const category = type === 'listings' ? valid(rawCategory, listingCategories) : type === 'events' ? valid(rawCategory, eventCategories) : type === 'volunteer' ? null : rawCategory?.trim() || null; const urgency = (params.get('urgency') === 'urgent' || params.get('urgency') === 'normal') && type !== 'businesses' ? params.get('urgency') as NativeExploreQuery['urgency'] : null; const sort = type === 'listings' || type === 'volunteer' ? valid(params.get('sort'), sorts) : null; return { q: params.get('q')?.trim() ?? '', type, category, urgency, sort, mode: params.get('mode') === 'map' ? 'map' : 'list', near: params.get('near') === 'true' } }
+export function serializeNativeExploreQuery(query: NativeExploreQuery): URLSearchParams { const params = new URLSearchParams(); if (query.q.trim()) params.set('q', query.q.trim()); if (query.type !== 'all') params.set('type', query.type); if (query.category) params.set('category', query.category); if (query.urgency) params.set('urgency', query.urgency); if (query.sort) params.set('sort', query.sort); if (query.mode !== 'list') params.set('mode', query.mode); if (query.near) params.set('near', 'true'); return params }
 type Params = Record<string, string | number | boolean | undefined>
-function search(query: NativeExploreQuery): Params { return { search: query.q || undefined } }
-function allLimit(query: NativeExploreQuery): Params { return query.type === 'all' ? { limit: 5 } : {} }
-
-export function toListingParams(query: NativeExploreQuery): Params { return { ...search(query), category: query.category || undefined, urgency: query.urgency || undefined, sort: query.sort || undefined, ...allLimit(query) } }
-export function toBusinessParams(query: NativeExploreQuery): Params { return { ...search(query), business_type: query.category || undefined, ...allLimit(query) } }
-export function toEventParams(query: NativeExploreQuery): Params { return { ...search(query), category: query.category || undefined, ...allLimit(query) } }
-export function toOpportunityParams(query: NativeExploreQuery): Params { return { ...search(query), urgency: query.urgency || undefined, sort: query.sort || undefined, ...allLimit(query) } }
+const search = (query: NativeExploreQuery): Params => ({ search: query.q || undefined }); const allLimit = (query: NativeExploreQuery): Params => query.type === 'all' ? { limit: 5 } : {}; const listingCategory = (query: NativeExploreQuery) => listingCategories.includes(query.category ?? '') ? query.category! : undefined; const eventCategory = (query: NativeExploreQuery) => eventCategories.includes(query.category ?? '') ? query.category! : undefined; const sort = (query: NativeExploreQuery) => sorts.includes(query.sort ?? '') ? query.sort! : undefined
+export function toListingParams(query: NativeExploreQuery): Params { return { ...search(query), category: listingCategory(query), urgency: query.urgency || undefined, sort: sort(query), ...allLimit(query) } }
+export function toBusinessParams(query: NativeExploreQuery): Params { return { ...search(query), business_type: query.type === 'businesses' || query.type === 'all' ? query.category || undefined : undefined, ...allLimit(query) } }
+export function toEventParams(query: NativeExploreQuery): Params { return { ...search(query), category: eventCategory(query), ...allLimit(query) } }
+export function toOpportunityParams(query: NativeExploreQuery): Params { return { ...search(query), urgency: query.urgency || undefined, sort: sort(query), ...allLimit(query) } }
