@@ -157,4 +157,72 @@ describe('useNativeExplore grouped All behavior', () => {
   it('H13 keeps typed request count stable across state updates and equivalent query objects', async () => {
     vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [listing('stable')] } } as never); const { result, rerender } = renderHook(({ query }) => useNativeExplore(query), { initialProps: { query: { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false } } }); await waitFor(() => expect(result.current.typed?.state.status).toBe('success')); rerender({ query: { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false } }); await Promise.resolve(); expect(listingApi.browse).toHaveBeenCalledTimes(1)
   })
+
+  it('H8 clears listing load-more state and cards before a changed query replacement', async () => {
+    const initial = deferred<unknown>()
+    const more = deferred<unknown>()
+    const replacement = deferred<unknown>()
+    vi.mocked(listingApi.browse)
+      .mockReturnValueOnce(initial.promise as never)
+      .mockReturnValueOnce(more.promise as never)
+      .mockReturnValueOnce(replacement.promise as never)
+    const query = { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false }
+    const { result, rerender } = renderHook(({ value }) => useNativeExplore(value), { initialProps: { value: query }, reactStrictMode: false })
+    await waitFor(() => expect(listingApi.browse).toHaveBeenCalledTimes(1))
+    await act(async () => { initial.resolve({ data: { items: [listing('existing')], has_more: true, next_cursor: 'cursor' } }) })
+    await waitFor(() => expect(result.current.typed?.hasMore).toBe(true))
+    await act(async () => { void result.current.typed!.loadMore(); await Promise.resolve(); more.reject(new Error('load-more failed')) })
+    await waitFor(() => expect(result.current.typed?.loadMoreError?.message).toBe('load-more failed'))
+    rerender({ value: { ...query, q: 'replacement' } })
+    await waitFor(() => expect(result.current.typed?.state.status).toBe('loading'))
+    expect(result.current.typed?.state.data).toEqual([])
+    expect(result.current.typed?.hasMore).toBe(false)
+    expect(result.current.typed?.loadMoreError).toBeNull()
+    expect(result.current.typed?.refineMessage).toBeNull()
+    await act(async () => { replacement.resolve({ data: { items: [listing('replacement')], has_more: false } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['replacement']))
+  })
+
+  it('H8 clears business refinement state when a canonical filter changes', async () => {
+    const initial = deferred<unknown>()
+    const replacement = deferred<unknown>()
+    vi.mocked(shopApi.directory).mockReturnValueOnce(initial.promise as never).mockReturnValueOnce(replacement.promise as never)
+    const query = { q: '', type: 'businesses' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false }
+    const { result, rerender } = renderHook(({ value }) => useNativeExplore(value), { initialProps: { value: query }, reactStrictMode: false })
+    await waitFor(() => expect(shopApi.directory).toHaveBeenCalledTimes(1))
+    await act(async () => { initial.resolve({ data: { items: [business('business')], has_more: true } }) })
+    await waitFor(() => expect(result.current.typed?.refineMessage).toBe('Refine your search to narrow businesses'))
+    rerender({ value: { ...query, category: 'Farm' } })
+    await waitFor(() => expect(result.current.typed?.state.status).toBe('loading'))
+    expect(result.current.typed?.refineMessage).toBeNull()
+    expect(result.current.typed?.state.data).toEqual([])
+    expect(shopApi.directory).toHaveBeenLastCalledWith(expect.objectContaining({ business_type: 'Farm' }), expect.anything())
+    await act(async () => { replacement.resolve({ data: { items: [business('replacement')], has_more: false } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['replacement']))
+  })
+
+  it.each([
+    { name: 'urgency', change: { urgency: 'urgent' as const }, expected: { urgency: 'urgent' } },
+    { name: 'sort', change: { sort: 'urgency_desc' }, expected: { sort: 'urgency_desc' } },
+    { name: 'mode', change: { mode: 'map' as const }, expected: {} },
+    { name: 'near', change: { near: true }, expected: {} },
+  ])('H8 refetches and resets state for a changed $name primitive', async ({ change, expected }) => {
+    const initial = deferred<unknown>()
+    const replacement = deferred<unknown>()
+    vi.mocked(listingApi.browse).mockReturnValueOnce(initial.promise as never).mockReturnValueOnce(replacement.promise as never)
+    const query = { q: '', type: 'listings' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false }
+    const { result, rerender } = renderHook(({ value }) => useNativeExplore(value), { initialProps: { value: query }, reactStrictMode: false })
+    await waitFor(() => expect(listingApi.browse).toHaveBeenCalledTimes(1))
+    await act(async () => { initial.resolve({ data: { items: [listing('old')], has_more: true, next_cursor: 'old' } }) })
+    await waitFor(() => expect(result.current.typed?.hasMore).toBe(true))
+    rerender({ value: { ...query, ...change } })
+    await waitFor(() => expect(result.current.typed?.state.status).toBe('loading'))
+    expect(result.current.typed?.state.data).toEqual([])
+    expect(result.current.typed?.hasMore).toBe(false)
+    expect(result.current.typed?.loadMoreError).toBeNull()
+    expect(result.current.typed?.refineMessage).toBeNull()
+    expect(listingApi.browse).toHaveBeenLastCalledWith(expect.objectContaining(expected), expect.anything())
+    await act(async () => { replacement.resolve({ data: { items: [listing('new')], has_more: false } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new']))
+  })
 })
