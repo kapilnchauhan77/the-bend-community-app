@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
+import { PlatformServicesProvider } from '@/platform/createPlatformServices';
+import type { RuntimeConfig } from '@/platform/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NativeRoutes } from './NativeRoutes';
 
@@ -13,9 +15,10 @@ vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return
 afterEach(() => cleanup());
 
 function renderNativeAt(path: string) {
+  const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' };
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <NativeRoutes />
+      <PlatformServicesProvider config={config}><NativeRoutes /></PlatformServicesProvider>
     </MemoryRouter>,
   );
 }
@@ -30,7 +33,7 @@ describe('NativeRoutes', () => {
   it('shows the five approved native destinations', () => {
     renderNativeAt('/');
 
-    for (const label of ['Home', 'Explore', 'Post', 'Inbox', 'You']) {
+    for (const label of ['Home', 'Explore', 'Create', 'Inbox', 'You']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
   });
@@ -44,33 +47,33 @@ describe('NativeRoutes', () => {
     renderNativeAt('/');
     const setItem = vi.fn();
     Object.defineProperty(window, 'localStorage', { configurable: true, value: { setItem, getItem: vi.fn() } });
-    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Offer listing' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Offer something' }));
     expect(screen.getByText('Login page: /create?type=offer')).toBeInTheDocument();
     expect(setItem).toHaveBeenCalledWith('native_pending_post_path', '/create?type=offer');
   });
 
   it('dismisses the post sheet with Escape and backdrop clicks, but not panel clicks', async () => {
     renderNativeAt('/');
-    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     const dialog = screen.getByRole('dialog');
     expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
-    fireEvent.click(screen.getByText('What do you want to post?'));
+    fireEvent.click(screen.getByText('What do you want to create?'));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     const close = screen.getByRole('button', { name: 'Close' });
-    const bender = screen.getByRole('button', { name: 'Bender post' });
+    const bender = screen.getByRole('button', { name: 'Share on Bender' });
     bender.focus();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab' });
     expect(close).toHaveFocus();
     close.focus();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab', shiftKey: true });
-    expect(screen.getByRole('button', { name: 'Bender post' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Share on Bender' })).toHaveFocus();
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('What do you want to post?'));
+    fireEvent.click(screen.getByText('What do you want to create?'));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('dialog'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

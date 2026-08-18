@@ -34,7 +34,9 @@ function config(kind: RuntimeConfig['kind']): RuntimeConfig {
 describe('createPlatformServices', () => {
   beforeEach(() => secureValues.clear())
   it('selects native services for iOS', () => {
-    expect(createPlatformServices(config('ios')).sessionStore).toBeInstanceOf(NativeSessionStore)
+    const services = createPlatformServices(config('ios'))
+    expect(services.sessionStore).toBeInstanceOf(NativeSessionStore)
+    expect(services.haptics).toBeDefined()
   })
 
   it('selects native services for Android', () => {
@@ -42,7 +44,9 @@ describe('createPlatformServices', () => {
   })
 
   it('selects web services for the browser', () => {
-    expect(createPlatformServices(config('web')).sessionStore).toBeInstanceOf(WebSessionStore)
+    const services = createPlatformServices(config('web'))
+    expect(services.sessionStore).toBeInstanceOf(WebSessionStore)
+    expect(services.haptics).toBeDefined()
   })
 
   it('does not persist an access token in the native session store', async () => {

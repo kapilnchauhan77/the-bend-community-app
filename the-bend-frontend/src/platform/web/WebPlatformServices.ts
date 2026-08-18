@@ -1,5 +1,6 @@
 import type { AuthSnapshot, ContentCache, DeepLinkService, NetworkService, PlatformServices, PushService, ShareService } from '../contracts'
 import { WebSessionStore } from './WebSessionStore'
+import { WebHapticsService } from './WebHapticsService'
 
 const removed = { remove: async () => undefined }
 
@@ -41,5 +42,5 @@ class WebAnalytics { private optedOut = false; capture() {} identify() {} reset(
 class WebCrashes { captureException(error: unknown, context?: Record<string, unknown>) { console.error('Unhandled application error', error, context) } }
 
 export function createWebPlatformServices(): PlatformServices {
-  return { sessionStore: new WebSessionStore(), push: new WebPushService(), deepLinks: new WebDeepLinkService(), browser: new WebBrowserService(), media: new WebMediaService(), location: new WebLocationService(), share: new WebShareService(), network: new WebNetworkService(), cache: new WebContentCache(), analytics: new WebAnalytics(), crashes: new WebCrashes() }
+  return { sessionStore: new WebSessionStore(), push: new WebPushService(), deepLinks: new WebDeepLinkService(), browser: new WebBrowserService(), media: new WebMediaService(), location: new WebLocationService(), share: new WebShareService(), network: new WebNetworkService(), cache: new WebContentCache(), analytics: new WebAnalytics(), crashes: new WebCrashes(), haptics: new WebHapticsService() }
 }

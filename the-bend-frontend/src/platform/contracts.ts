@@ -45,4 +45,10 @@ export interface NetworkService { getStatus(): Promise<'online' | 'offline'>; ad
 export interface ContentCache { put(content: CachedContent): Promise<void>; get(key: string): Promise<CachedContent | null>; remove(key: string): Promise<void>; clear(): Promise<void>; stats(): Promise<{ items: number; bytes: number }>; }
 export interface AnalyticsService { capture(event: string, properties?: Record<string, unknown>): void; identify(userId: string): void; reset(): void; setOptOut(value: boolean): Promise<void>; isOptedOut(): Promise<boolean>; }
 export interface CrashReporter { captureException(error: unknown, context?: Record<string, unknown>): void; }
-export interface PlatformServices { sessionStore: SessionStore; push: PushService; deepLinks: DeepLinkService; browser: BrowserService; media: MediaService; location: LocationService; share: ShareService; network: NetworkService; cache: ContentCache; analytics: AnalyticsService; crashes: CrashReporter; }
+export type HapticKind = 'selection' | 'impact' | 'success'
+export interface HapticsService { selection(): Promise<void>; impact(): Promise<void>; success(): Promise<void>; }
+export type NativeRootTab = 'home' | 'explore' | 'inbox' | 'you'
+export interface NativeAppShellContextValue { registerRootScroll(tab: NativeRootTab, element: HTMLElement | null): void; scrollRootToTop(tab: NativeRootTab): void }
+export type NativeCreateAction = 'offer-listing' | 'request-listing' | 'bender-post'
+export interface NativePendingIntent { destination: string; action: NativeCreateAction | null }
+export interface PlatformServices { sessionStore: SessionStore; push: PushService; deepLinks: DeepLinkService; browser: BrowserService; media: MediaService; location: LocationService; share: ShareService; network: NetworkService; cache: ContentCache; analytics: AnalyticsService; crashes: CrashReporter; haptics: HapticsService; }

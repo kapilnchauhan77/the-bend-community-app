@@ -9,6 +9,7 @@ import { NativeShareService } from './NativeShareService'
 import { NativeBrowserService } from './NativeBrowserService'
 import { NativeNetworkService } from './NativeNetworkService'
 import { nativeContentCache } from './NativeContentCache'
+import { NativeHapticsService } from './NativeHapticsService'
 
 const unsupported = (operation: string): never => { throw new UnsupportedPlatformOperation(operation) }
 const asyncStub = (operation: string) => async (...args: unknown[]) => { void args; return unsupported(operation) }
@@ -28,5 +29,6 @@ export function createNativePlatformServices(): PlatformServices {
     cache: nativeContentCache,
     analytics: { capture: syncStub('capture'), identify: syncStub('identify'), reset: syncStub('reset'), setOptOut: asyncStub('setOptOut'), isOptedOut: asyncStub('isOptedOut') },
     crashes: { captureException: syncStub('captureException') },
+    haptics: new NativeHapticsService(),
   }
 }
