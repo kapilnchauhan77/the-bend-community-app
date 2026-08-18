@@ -906,6 +906,10 @@ html.dark [role="checkbox"][data-state="checked"] {
 
 .home-mobile-event-preview {
   display: -webkit-box;
+  flex: 0 0 auto;
+  max-height: 1.5rem;
+  font-size: 0.625rem;
+  line-height: 0.75rem;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

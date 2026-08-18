@@ -76,6 +76,17 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   await expect(mobileGrid.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/events');
   await expect(mobileGrid.getByRole('link', { name: 'Business Directory' })).toHaveAttribute('href', '/directory');
   await expect(mobileGrid.getByRole('link', { name: 'Bender' })).toHaveAttribute('href', '/bender');
+  await expect(mobileGrid.getByRole('link').evaluateAll((links) => links.map((link) => link.getAttribute('href')))).resolves.toEqual([
+    '/browse?category=staff',
+    '/browse?category=materials',
+    '/browse?category=equipment',
+    '/volunteers',
+    '/opportunities',
+    '/talent',
+    '/events',
+    '/directory',
+    '/bender',
+  ]);
 
   const frame = await mobileGrid.boundingBox();
   expect(frame).not.toBeNull();
@@ -110,6 +121,13 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   expect(tileContent.every(({ spans, iconSized, childrenContained }) => (
     spans.every(({ contained, fits }) => contained && fits) && iconSized && childrenContained
   ))).toBe(true);
+  const previewMetrics = await page.getByTestId('mobile-events-preview').evaluate((preview) => {
+    const styles = getComputedStyle(preview);
+    const lineHeight = Number.parseFloat(styles.lineHeight);
+    const fullContentHeight = preview.scrollHeight;
+    return { clientHeight: preview.clientHeight, expectedHeight: Math.min(fullContentHeight, lineHeight * 2) };
+  });
+  expect(previewMetrics.clientHeight + 0.5).toBeGreaterThanOrEqual(previewMetrics.expectedHeight);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -150,6 +168,35 @@ test('mobile Events tile does not rotate when reduced motion is enabled', async 
   const preview = page.getByTestId('mobile-events-preview');
   await expect(preview).toHaveText('Community Meetup');
   await page.clock.fastForward(15000);
+  await expect(preview).toHaveText('Community Meetup');
+});
+
+test('mobile Events rotation stops when reduced motion changes at runtime', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stubHomeApi(page, rotationEvents);
+  await page.clock.install();
+  await page.goto('/');
+
+  const preview = page.getByTestId('mobile-events-preview');
+  await expect(preview).toHaveText('Community Meetup');
+  await page.clock.fastForward(5000);
+  await expect(preview).toHaveText('Farmers Market');
+  const titleBeforeReducedMotion = await preview.textContent();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await page.clock.fastForward(10000);
+  await expect(preview).toHaveText(titleBeforeReducedMotion ?? '');
+});
+
+test('desktop hidden Events preview does not advance its rotation index', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await stubHomeApi(page, rotationEvents);
+  await page.clock.install();
+  await page.goto('/');
+
+  const preview = page.getByTestId('mobile-events-preview');
+  await expect(preview).toHaveText('Community Meetup');
+  await page.clock.fastForward(10000);
   await expect(preview).toHaveText('Community Meetup');
 });
 

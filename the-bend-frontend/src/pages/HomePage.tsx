@@ -73,13 +73,31 @@ export default function HomePage() {
   ]);
 
   useEffect(() => {
-    if (upcomingEvents.length <= 1 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const mobileMenuQuery = window.matchMedia('(max-width: 767px)');
+    let intervalId: number | undefined;
 
-    const intervalId = window.setInterval(() => {
-      setMobileEventIndex((index) => (index + 1) % upcomingEvents.length);
-    }, 5000);
+    const syncInterval = () => {
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+      intervalId = undefined;
+      if (upcomingEvents.length <= 1 || reducedMotionQuery.matches || !mobileMenuQuery.matches) return;
 
-    return () => window.clearInterval(intervalId);
+      intervalId = window.setInterval(() => {
+        setMobileEventIndex((index) => (index + 1) % upcomingEvents.length);
+      }, 5000);
+    };
+
+    syncInterval();
+    reducedMotionQuery.addEventListener('change', syncInterval);
+    mobileMenuQuery.addEventListener('change', syncInterval);
+    window.addEventListener('resize', syncInterval);
+
+    return () => {
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+      reducedMotionQuery.removeEventListener('change', syncInterval);
+      mobileMenuQuery.removeEventListener('change', syncInterval);
+      window.removeEventListener('resize', syncInterval);
+    };
   }, [upcomingEvents.length]);
 
   const activeMobileEvent = upcomingEvents.length > 0
