@@ -1,0 +1,1 @@
+export function NativeFeedback({ tone = 'info', children }: { tone?: 'info' | 'success' | 'error'; children: React.ReactNode }) { return <div role={tone === 'error' ? 'alert' : 'status'} className={`native-feedback ${tone}`}>{children}</div> }

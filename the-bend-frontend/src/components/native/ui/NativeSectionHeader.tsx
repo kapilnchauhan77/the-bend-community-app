@@ -1,0 +1,1 @@
+export function NativeSectionHeader({ heading, actionLabel, onAction }: { heading: string; actionLabel?: string; onAction?(): void }) { return <div className="native-section-header"><h2>{heading}</h2>{actionLabel && <button type="button" className="native-control" onClick={onAction}>{actionLabel}</button>}</div> }
