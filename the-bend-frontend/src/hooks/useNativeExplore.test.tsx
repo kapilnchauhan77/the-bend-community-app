@@ -49,6 +49,17 @@ describe('useNativeExplore grouped All behavior', () => {
     await Promise.resolve()
     expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(1)
   })
+  it.each([
+    [{ latitude: Number.NaN, longitude: -79 }], [{ latitude: Number.POSITIVE_INFINITY, longitude: -79 }],
+    [{ latitude: 91, longitude: -79 }], [{ latitude: -91, longitude: -79 }],
+    [{ latitude: 40, longitude: 181 }], [{ latitude: 40, longitude: -181 }],
+  ])('rejects invalid returned coordinates %#', async (position) => {
+    platform.location.getForegroundPosition.mockResolvedValueOnce({ ...position, accuracy: 5 } as never)
+    const { result } = renderHook(() => useNativeExplore({ ...allQuery(), type: 'businesses' }), { reactStrictMode: false })
+    await act(async () => { const outcome = await result.current.requestLocation(); expect(outcome.status).toBe('unavailable') })
+    expect(result.current.location.status).toBe('unavailable')
+    expect(result.current.userCoordinates).toBeNull()
+  })
   it('does not hydrate before unresolved network status and hydrates after online', async () => {
     let resolveStatus!: (status: 'online' | 'offline') => void
     platform.network.getStatus.mockReturnValueOnce(new Promise((resolve) => { resolveStatus = resolve }))
