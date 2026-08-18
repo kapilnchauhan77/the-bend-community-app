@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { NativeSearchBar } from '@/components/native/ui/NativeSearchBar'
 import { NativeResultGroup } from '@/components/native/ui/NativeResultGroup'
@@ -27,7 +27,7 @@ export function NativeExplorePage() {
   }, [canonicalKey, query.q])
   useEffect(() => { queryRef.current = query }, [canonicalKey, query])
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
-  const change = (next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...queryRef.current, ...next }), { replace })
+  const change = useCallback((next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...queryRef.current, ...next }), { replace }), [queryRef, setParams])
   const submit = () => { if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: text.trim() }) }
   const businessTypes = useMemo(() => Array.from(new Set((query.type === 'businesses' ? model.typed?.state.data ?? [] : model.groups.find((group) => group.kind === 'business')?.state.data ?? []).map((item) => item.label).filter(Boolean))), [model.groups, model.typed, query.type])
   const filterChoices = query.type === 'events' ? eventCategories : query.type === 'listings' ? listingCategories : query.type === 'businesses' ? businessTypes : query.type === 'all' ? [...listingCategories, ...eventCategories, ...businessTypes] : []
@@ -39,7 +39,7 @@ export function NativeExplorePage() {
   const requestCurrentLocation = async (forNear = false) => { const result = await model.requestLocation(); if (forNear) change({ near: result.status === 'granted' }) }
   useEffect(() => {
     if (query.type === 'businesses' && query.near && model.location.status !== 'granted') change({ near: false }, true)
-  }, [model.location.status, query.near, query.type])
+  }, [change, model.location.status, query.near, query.type])
   return <div className="native-explore-scroll" role="region" aria-label="Explore content">
     <h1>Explore</h1>
     <NativeSearchBar value={text} label="Search Westmoreland" placeholder="Search Westmoreland" onChange={(value) => { setText(value); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { timer.current = null; change({ q: value }, true) }, 300) }} onSubmit={submit} onClear={() => { setText(''); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: '' }) }} />

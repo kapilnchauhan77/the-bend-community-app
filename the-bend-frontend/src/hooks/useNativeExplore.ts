@@ -22,6 +22,8 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const [userCoordinates, setUserCoordinates] = useState<{ latitude: number; longitude: number } | null>(null)
   const [online, setOnline] = useState<boolean | null>(null)
   const [hydrated, setHydrated] = useState<Record<string, { latitude: number; longitude: number }>>({})
+  const hydratedRef = useRef(hydrated)
+  hydratedRef.current = hydrated
   const hydrationGeneration = useRef(0)
   const networkEventVersion = useRef(0)
   const hydrationScheduler = useRef<{ retry(): void } | null>(null)
@@ -50,11 +52,19 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const queryKey = JSON.stringify(query); const { q, type, category, urgency, sort, mode, near } = query; const all = type === 'all'; const isDefault = !q && !category && !urgency && !sort && mode === 'list' && !near
   const requestQuery = useMemo(() => ({ q, type, category, urgency, sort, mode, near }), [q, type, category, urgency, sort, mode, near])
   const key = (kind: string, fallback: string) => isDefault ? fallback : `${kind}:native-explore:${queryKey}`; const options = { enabled: all, cachePolicy: isDefault ? 'public' as const : 'none' as const }
-  const listing = useCachedPublicContent(key('listing', 'listing:native-explore-default'), useCallback(async () => items(await listingApi.browse(toListingParams({ ...requestQuery, type: 'all' }))), [requestQuery]), options)
-  const business = useCachedPublicContent(key('business', 'business:native-explore-default'), useCallback(async () => items(await shopApi.directory(toBusinessParams({ ...requestQuery, type: 'all' }))), [requestQuery]), options)
-  const event = useCachedPublicContent(key('event', 'event:native-explore-default'), useCallback(async () => items(await eventApi.list(toEventParams({ ...requestQuery, type: 'all' }))), [requestQuery]), options)
-  const volunteer = useCachedPublicContent(key('listing', 'listing:native-explore-volunteer-default'), useCallback(async () => items(await listingApi.getOpportunities(toOpportunityParams({ ...requestQuery, type: 'all' }))), [requestQuery]), options)
-  const refreshBusiness = useCallback(async () => { hydrationScheduler.current?.retry(); await business.refresh() }, [business.refresh])
+  const listingFetcher = useCallback(async () => items(await listingApi.browse(toListingParams({ ...requestQuery, type: 'all' }))), [requestQuery])
+  const businessFetcher = useCallback(async () => items(await shopApi.directory(toBusinessParams({ ...requestQuery, type: 'all' }))), [requestQuery])
+  const eventFetcher = useCallback(async () => items(await eventApi.list(toEventParams({ ...requestQuery, type: 'all' }))), [requestQuery])
+  const volunteerFetcher = useCallback(async () => items(await listingApi.getOpportunities(toOpportunityParams({ ...requestQuery, type: 'all' }))), [requestQuery])
+  const listing = useCachedPublicContent(key('listing', 'listing:native-explore-default'), listingFetcher, options)
+  const business = useCachedPublicContent(key('business', 'business:native-explore-default'), businessFetcher, options)
+  const event = useCachedPublicContent(key('event', 'event:native-explore-default'), eventFetcher, options)
+  const volunteer = useCachedPublicContent(key('listing', 'listing:native-explore-volunteer-default'), volunteerFetcher, options)
+  const refreshListing = listing.refresh
+  const refreshBusinessData = business.refresh
+  const refreshEvent = event.refresh
+  const refreshVolunteer = volunteer.refresh
+  const refreshBusiness = useCallback(async () => { hydrationScheduler.current?.retry(); await refreshBusinessData() }, [refreshBusinessData])
   const groups: NativeExploreGroup[] = [
     { kind: 'listing', heading: headings.listing, state: { status: listing.status, data: empty(listing.data).slice(0, 5).map(adaptListing), source: listing.source, cachedAt: listing.cachedAt, error: listing.error, retry: listing.refresh } },
     { kind: 'business', heading: headings.business, state: { status: business.status, data: empty(business.data).slice(0, 5).map(adaptBusiness), source: business.source, cachedAt: business.cachedAt, error: business.error, retry: refreshBusiness } },
@@ -62,21 +72,26 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
     { kind: 'volunteer', heading: headings.volunteer, state: { status: volunteer.status, data: empty(volunteer.data).slice(0, 5).map(adaptOpportunity), source: volunteer.source, cachedAt: volunteer.cachedAt, error: volunteer.error, retry: volunteer.refresh } },
   ]
   const typedModel = useTyped(requestQuery, !all)
-  const typedRetry = useCallback(async () => { hydrationScheduler.current?.retry(); await typedModel?.state.retry() }, [typedModel?.state.retry])
+  const typedStateRetry = typedModel?.state.retry
+  const typedRetry = useCallback(async () => { hydrationScheduler.current?.retry(); await typedStateRetry?.() }, [typedStateRetry])
   const visibleBusinesses = all ? groups.find((group) => group.kind === 'business')?.state.data ?? [] : typedModel?.state.data ?? []
+  const visibleBusinessesRef = useRef(visibleBusinesses)
+  visibleBusinessesRef.current = visibleBusinesses
+  const visibleBusinessIds = visibleBusinesses.map((item) => item.id).join('|')
   useEffect(() => { let active = true; setOnline(null); networkEventVersion.current = 0; const listener = services.network.addListener((status) => { if (!active) return; networkEventVersion.current += 1; setOnline(status === 'online'); if (status === 'offline') { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear(); hydrationPool.current.queue = []; hydrationGeneration.current += 1; } }).catch(() => null); const initialVersion = networkEventVersion.current; void services.network.getStatus().then((status) => { if (active && networkEventVersion.current === initialVersion) setOnline(status === 'online') }).catch(() => { if (active && networkEventVersion.current === initialVersion) setOnline(false) }); return () => { active = false; void listener.then((value) => value?.remove()).catch(() => undefined) } }, [services.network])
   useEffect(() => () => { networkEpoch.current += 1; sharedHydrationRequests.current.forEach((entry) => entry.controller.abort()); sharedHydrationRequests.current.clear() }, [])
   useEffect(() => {
     if (online !== true) { hydrationScheduler.current = null; return }
+    const pool = hydrationPool.current
     const generation = ++hydrationGeneration.current
-    const candidates = visibleBusinesses.filter((item): item is NativeDiscoveryCardModel & { kind: 'business' } => item.kind === 'business').slice(0, all ? 5 : 20)
+    const candidates = visibleBusinessesRef.current.filter((item): item is NativeDiscoveryCardModel & { kind: 'business' } => item.kind === 'business').slice(0, all ? 5 : 20)
     const byId = new Map(candidates.map((item) => [item.id, item]))
     const queue: string[] = []
     const queued = new Set<string>()
     const scheduled = new Set<string>()
     const inFlight = new Set<string>()
     const retryQueued = new Set<string>()
-    const completed = new Set(candidates.filter((item) => item.coordinates || hydrated[item.id]).map((item) => item.id))
+    const completed = new Set(candidates.filter((item) => item.coordinates || hydratedRef.current[item.id]).map((item) => item.id))
     let disposed = false
     const enqueue = (id: string) => { if (!scheduled.has(id) && !completed.has(id)) { scheduled.add(id); queued.add(id); queue.push(id) } }
     const pump = () => {
@@ -85,15 +100,15 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
         queued.delete(id)
         const item = byId.get(id)
         if (!item) { scheduled.delete(id); continue }
-        hydrationPool.current.queue.push({ generation, start: () => {
+        pool.queue.push({ generation, start: () => {
           if (disposed || hydrationGeneration.current !== generation || completed.has(id)) { scheduled.delete(id); pump(); return }
-          hydrationPool.current.active += 1
+          pool.active += 1
           inFlight.add(id)
           void hydrateShop(id).then((coordinates) => {
             const current = !disposed && hydrationGeneration.current === generation && online === true
             if (current && coordinates) { completed.add(id); setHydrated((previous) => ({ ...previous, [id]: coordinates })) }
           }).catch(() => undefined).finally(() => {
-            hydrationPool.current.active -= 1
+            pool.active -= 1
             inFlight.delete(id)
             scheduled.delete(id)
             if (retryQueued.delete(id) && !completed.has(id)) enqueue(id)
@@ -106,14 +121,14 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
     }
     const retry = () => { candidates.forEach((item) => { if (inFlight.has(item.id) || scheduled.has(item.id)) retryQueued.add(item.id); else if (!completed.has(item.id)) enqueue(item.id) }); pump() }
     hydrationScheduler.current = { retry }
-    candidates.filter((item) => !item.coordinates && !hydrated[item.id]).forEach((item) => enqueue(item.id))
+    candidates.filter((item) => !item.coordinates && !hydratedRef.current[item.id]).forEach((item) => enqueue(item.id))
     pump()
-    return () => { disposed = true; hydrationGeneration.current += 1; queue.length = 0; hydrationPool.current.queue = hydrationPool.current.queue.filter((job) => job.generation !== generation); if (hydrationScheduler.current?.retry === retry) hydrationScheduler.current = null; drainHydrationPool() }
-  }, [all, online, visibleBusinesses.map((item) => item.id).join('|')])
+    return () => { disposed = true; hydrationGeneration.current += 1; queue.length = 0; pool.queue = pool.queue.filter((job) => job.generation !== generation); if (hydrationScheduler.current?.retry === retry) hydrationScheduler.current = null; drainHydrationPool() }
+  }, [all, online, visibleBusinessIds, hydrateShop, drainHydrationPool])
   const mapBusinesses = visibleBusinesses.filter((item): item is NativeDiscoveryCardModel & { kind: 'business' } => item.kind === 'business').map((item) => ({ ...item, coordinates: item.coordinates ?? hydrated[item.id] ?? null })).filter((item): item is NativeMapBusiness => item.coordinates !== null).map((item) => ({ ...item, distanceMiles: userCoordinates ? haversine(userCoordinates.latitude, userCoordinates.longitude, item.coordinates.latitude, item.coordinates.longitude) : null }))
   const sortedTyped = typedModel && query.near && query.type === 'businesses' && userCoordinates ? { ...typedModel, state: { ...typedModel.state, data: sortBusinessesByDistance(typedModel.state.data, userCoordinates, hydrated) } } : typedModel
   const requestLocation = useCallback(async () => { if (locationInFlight.current) return locationInFlight.current; setUserCoordinates(null); setLocation({ status: 'requesting' }); const request = (async () => { try { const position = await services.location.getForegroundPosition(); if (!Number.isFinite(position.latitude) || !Number.isFinite(position.longitude) || position.latitude < -90 || position.latitude > 90 || position.longitude < -180 || position.longitude > 180) throw Object.assign(new Error('invalid coordinates'), { code: 'INVALID_COORDINATES' }); const coordinates = { latitude: position.latitude, longitude: position.longitude }; setUserCoordinates(coordinates); const granted = { status: 'granted' as const, ...coordinates }; setLocation(granted); return granted } catch (error) { setUserCoordinates(null); const value = error as { code?: string; message?: string }; const code = value?.code ?? ''; if (code === 'ERR_CANCELED' || code === 'CANCELLED' || /cancel/i.test(value?.message ?? '')) { setLocation({ status: 'idle' }); return { status: 'idle' as const } } const message = value?.message ?? 'Location is unavailable'; const denied = ['PERMISSION_DENIED', 'DENIED', 'RESTRICTED'].includes(code) || /denied|restricted|permission/i.test(message); const failure = denied ? { status: 'denied' as const, message } : { status: 'unavailable' as const, message }; setLocation(failure); return failure } })(); locationInFlight.current = request; void request.finally(() => { if (locationInFlight.current === request) locationInFlight.current = null }); return request }, [services.location])
-  const refreshAll = useCallback(async () => { hydrationScheduler.current?.retry(); await Promise.allSettled([listing.refresh(), business.refresh(), event.refresh(), volunteer.refresh()]) }, [business.refresh, event.refresh, listing.refresh, volunteer.refresh]); const typed = all || !sortedTyped ? null : { ...sortedTyped, state: { ...sortedTyped.state, retry: typedRetry } }; return { groups, typed, mapBusinesses, userCoordinates, online, location, requestLocation, refreshAll }
+  const refreshAll = useCallback(async () => { hydrationScheduler.current?.retry(); await Promise.allSettled([refreshListing(), refreshBusinessData(), refreshEvent(), refreshVolunteer()]) }, [refreshBusinessData, refreshEvent, refreshListing, refreshVolunteer]); const typed = all || !sortedTyped ? null : { ...sortedTyped, state: { ...sortedTyped.state, retry: typedRetry } }; return { groups, typed, mapBusinesses, userCoordinates, online, location, requestLocation, refreshAll }
 }
 
 function haversine(latitude1: number, longitude1: number, latitude2: number, longitude2: number) { const radians = (value: number) => value * Math.PI / 180; const dLat = radians(latitude2 - latitude1); const dLon = radians(longitude2 - longitude1); const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(latitude1)) * Math.cos(radians(latitude2)) * Math.sin(dLon / 2) ** 2; return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) }
