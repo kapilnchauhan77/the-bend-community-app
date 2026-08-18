@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
 
-from app.api.v1.advertising import AdOrderRequest, create_checkout
+from app.api.v1.advertising import AdOrderRequest, create_checkout, list_pricing
 
 
 class _Result:
@@ -48,3 +48,31 @@ async def test_checkout_rejects_inactive_or_other_tenant_pricing():
     assert "ad_pricing.is_active = true" in str(
         db.statement.compile(dialect=postgresql.dialect())
     )
+
+
+@pytest.mark.asyncio
+async def test_public_pricing_requires_a_resolved_tenant():
+    db = _RecordingDB()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await list_pricing(db, None)
+
+    assert exc_info.value.status_code == 404
+    assert db.statement is None
+
+
+@pytest.mark.asyncio
+async def test_checkout_requires_a_resolved_tenant():
+    db = _RecordingDB()
+    request = AdOrderRequest(
+        pricing_id=str(uuid.uuid4()),
+        name="Unscoped Sponsor",
+        contact_email="sponsor@example.com",
+        contact_name="Sponsor Contact",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_checkout(request, db, None)
+
+    assert exc_info.value.status_code == 404
+    assert db.statement is None

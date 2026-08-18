@@ -124,6 +124,20 @@ def _reconcile_westmoreland_pricing(connection) -> None:
     packages = _packages()
     canonical_ids = [package["id"] for package in packages]
 
+    collision = connection.execute(
+        sa.select(pricing.c.id, pricing.c.tenant_id).where(
+            pricing.c.id.in_(canonical_ids),
+            sa.or_(
+                pricing.c.tenant_id.is_(None),
+                pricing.c.tenant_id != tenant_id,
+            ),
+        )
+    ).first()
+    if collision is not None:
+        raise RuntimeError(
+            "Westmoreland canonical pricing ID collision with another tenant"
+        )
+
     # Preserve retired rows (and their historical sponsor references) while
     # ensuring the public catalog contains only the approved twelve packages.
     connection.execute(
@@ -140,7 +154,10 @@ def _reconcile_westmoreland_pricing(connection) -> None:
         values = {**package, "tenant_id": tenant_id}
         result = connection.execute(
             sa.update(pricing)
-            .where(pricing.c.id == package["id"])
+            .where(
+                pricing.c.id == package["id"],
+                pricing.c.tenant_id == tenant_id,
+            )
             .values(**values)
         )
         if result.rowcount == 0:
@@ -153,13 +170,21 @@ def upgrade() -> None:
     _reconcile_westmoreland_pricing(op.get_bind())
 
 
-def downgrade() -> None:
+def _deactivate_westmoreland_catalog(connection) -> None:
     # Do not delete rows that may already be referenced by sponsors. A data
     # downgrade can safely hide this catalog but cannot reconstruct which
     # pre-existing custom plans were active before the upgrade.
-    _, pricing = _tables()
-    op.get_bind().execute(
+    tenants, pricing = _tables()
+    tenant_id = _resolve_westmoreland_tenant(connection, tenants)
+    connection.execute(
         sa.update(pricing)
-        .where(pricing.c.id.in_([package["id"] for package in _packages()]))
+        .where(
+            pricing.c.id.in_([package["id"] for package in _packages()]),
+            pricing.c.tenant_id == tenant_id,
+        )
         .values(is_active=False)
     )
+
+
+def downgrade() -> None:
+    _deactivate_westmoreland_catalog(op.get_bind())

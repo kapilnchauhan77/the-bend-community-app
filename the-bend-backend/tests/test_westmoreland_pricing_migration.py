@@ -211,3 +211,84 @@ def test_reconcile_fails_when_default_tenant_is_missing():
         RuntimeError, match="Westmoreland tenant"
     ):
         migration._reconcile_westmoreland_pricing(connection)
+
+
+def test_reconcile_aborts_before_writes_on_cross_tenant_canonical_id_collision():
+    migration = _load_migration()
+    engine = sa.create_engine("sqlite://")
+    metadata, tenants, pricing = _schema()
+    metadata.create_all(engine)
+    westmoreland_id = uuid.uuid4()
+    other_tenant_id = uuid.uuid4()
+    existing_westmoreland_plan = _old_plan(
+        westmoreland_id,
+        placement="footer",
+        price_cents=7999,
+    )
+    conflicting_plan = {
+        **_old_plan(
+            other_tenant_id,
+            placement="homepage",
+            price_cents=77777,
+        ),
+        "id": migration._package_id("homepage", 30),
+    }
+
+    with engine.begin() as connection:
+        connection.execute(
+            tenants.insert(),
+            [
+                {"id": westmoreland_id, "slug": "westmoreland"},
+                {"id": other_tenant_id, "slug": "blacksburg"},
+            ],
+        )
+        connection.execute(
+            pricing.insert(),
+            [existing_westmoreland_plan, conflicting_plan],
+        )
+
+        with pytest.raises(RuntimeError, match="canonical pricing ID collision"):
+            migration._reconcile_westmoreland_pricing(connection)
+
+        assert connection.execute(
+            sa.select(pricing.c.tenant_id, pricing.c.price_cents, pricing.c.is_active)
+            .where(pricing.c.id == conflicting_plan["id"])
+        ).one() == (other_tenant_id, 77777, True)
+        assert connection.execute(
+            sa.select(pricing.c.is_active).where(
+                pricing.c.id == existing_westmoreland_plan["id"]
+            )
+        ).scalar_one() is True
+
+
+def test_downgrade_helper_does_not_change_another_tenants_canonical_id():
+    migration = _load_migration()
+    engine = sa.create_engine("sqlite://")
+    metadata, tenants, pricing = _schema()
+    metadata.create_all(engine)
+    westmoreland_id = uuid.uuid4()
+    other_tenant_id = uuid.uuid4()
+    other_plan = {
+        **_old_plan(
+            other_tenant_id,
+            placement="homepage",
+            price_cents=77777,
+        ),
+        "id": migration._package_id("homepage", 30),
+    }
+
+    with engine.begin() as connection:
+        connection.execute(
+            tenants.insert(),
+            [
+                {"id": westmoreland_id, "slug": "westmoreland"},
+                {"id": other_tenant_id, "slug": "blacksburg"},
+            ],
+        )
+        connection.execute(pricing.insert(), other_plan)
+
+        migration._deactivate_westmoreland_catalog(connection)
+
+        assert connection.execute(
+            sa.select(pricing.c.is_active).where(pricing.c.id == other_plan["id"])
+        ).scalar_one() is True

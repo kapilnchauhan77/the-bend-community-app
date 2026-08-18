@@ -31,6 +31,12 @@ class AdOrderRequest(BaseModel):
     coupon_code: str | None = None
 
 
+def _require_tenant(tenant: Tenant | None) -> Tenant:
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return tenant
+
+
 async def _mark_paid_and_notify(db: AsyncSession, sponsor: Sponsor, pricing: "AdPricing | None" = None) -> bool:
     """Mark a sponsor paid and notify community admins it awaits approval.
 
@@ -76,9 +82,15 @@ async def list_pricing(
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """List available ad placements and pricing."""
-    query = select(AdPricing).where(AdPricing.is_active == True).order_by(AdPricing.sort_order, AdPricing.price_cents)
-    if tenant:
-        query = query.where(AdPricing.tenant_id == tenant.id)
+    tenant = _require_tenant(tenant)
+    query = (
+        select(AdPricing)
+        .where(
+            AdPricing.is_active == True,
+            AdPricing.tenant_id == tenant.id,
+        )
+        .order_by(AdPricing.sort_order, AdPricing.price_cents)
+    )
     result = await db.execute(query)
     items = result.scalars().all()
     return {
@@ -100,6 +112,7 @@ async def create_checkout(
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Create a Stripe Checkout session for an ad purchase."""
+    tenant = _require_tenant(tenant)
     # Get pricing
     try:
         pricing_uuid = UUID(data.pricing_id)
@@ -109,8 +122,7 @@ async def create_checkout(
         AdPricing.id == pricing_uuid,
         AdPricing.is_active == True,
     )
-    if tenant:
-        pricing_query = pricing_query.where(AdPricing.tenant_id == tenant.id)
+    pricing_query = pricing_query.where(AdPricing.tenant_id == tenant.id)
     result = await db.execute(pricing_query)
     pricing = result.scalar_one_or_none()
     if not pricing:
