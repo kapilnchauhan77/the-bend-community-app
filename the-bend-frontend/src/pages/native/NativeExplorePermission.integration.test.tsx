@@ -164,4 +164,18 @@ describe('NativeExplorePage production-path permission integration', () => {
     expect(screen.getByTestId('integration-location')).toHaveTextContent('category=Farm')
     expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(1)
   })
+
+  it('shows the exact Near heading and honest distance-unavailable copy when no businesses have coordinates', async () => {
+    platform.location.getForegroundPosition.mockReset()
+    platform.location.getForegroundPosition.mockResolvedValue({ latitude: 40, longitude: -79 })
+    vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [{ ...farm, latitude: null, longitude: null }] } } as never)
+    vi.mocked(shopApi.getShop).mockResolvedValue({ data: { ...farm, latitude: null, longitude: null } } as never)
+    renderExplore()
+    await screen.findByRole('button', { name: 'Farm' })
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' }))
+    await waitFor(() => expect(screen.getByTestId('integration-location')).toHaveTextContent('near=true'))
+    expect(screen.getByRole('heading', { name: 'Near you within Westmoreland' })).toBeInTheDocument()
+    expect(screen.getByText(/Distance unavailable/)).toHaveTextContent('Distance unavailable for businesses; showing the current server order.')
+    expect(screen.getByText(/Distance unavailable/)).not.toHaveTextContent(/county-complete|county-wide/i)
+  })
 })
