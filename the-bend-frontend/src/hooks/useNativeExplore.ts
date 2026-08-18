@@ -4,18 +4,24 @@ import { shopApi } from '@/services/shopApi'
 import { eventApi } from '@/services/eventApi'
 import { adaptBusiness, adaptEvent, adaptListing, adaptOpportunity } from '@/native/discovery/adapters'
 import { toBusinessParams, toEventParams, toListingParams, toOpportunityParams } from '@/native/discovery/queries'
-import type { NativeDiscoveryCardModel, NativeDiscoveryKind, NativeExploreQuery, NativeSectionState } from '@/native/discovery/types'
+import type { NativeDiscoveryCardModel, NativeDiscoveryKind, NativeExploreQuery, NativeSectionState, NativeLocationState, NativeMapBusiness } from '@/native/discovery/types'
+import { usePlatformServices } from '@/platform/createPlatformServices'
 import { useCachedPublicContent } from './useCachedPublicContent'
 
 export interface NativeExploreGroup { kind: NativeDiscoveryKind; heading: string; state: NativeSectionState<NativeDiscoveryCardModel[]> }
 export interface NativeTypedResults { state: NativeSectionState<NativeDiscoveryCardModel[]>; hasMore: boolean; loadingMore: boolean; loadMoreError: Error | null; refineMessage: string | null; loadMore(): Promise<void> }
-export interface NativeExploreViewModel { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll(): Promise<void> }
+export interface NativeExploreViewModel { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; mapBusinesses: NativeMapBusiness[]; userCoordinates: { latitude: number; longitude: number } | null; online: boolean; location: NativeLocationState; requestLocation(): Promise<void>; refreshAll(): Promise<void> }
 const headings: Record<NativeDiscoveryKind, string> = { listing: 'Listings', business: 'Businesses', event: 'Events', volunteer: 'Volunteer' }
 const items = <T,>(response: { data?: { items?: T[] } | T[] }): T[] => Array.isArray(response.data) ? response.data : response.data?.items ?? []
 const empty = <T,>(value: T | null): T[] => Array.isArray(value) ? value as T[] : []
 const cancelled = (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'ERR_CANCELED')
 
 export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewModel {
+  const services = usePlatformServices()
+  const [location, setLocation] = useState<NativeLocationState>({ status: 'idle' })
+  const [userCoordinates, setUserCoordinates] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [online, setOnline] = useState(true)
+  const [hydrated, setHydrated] = useState<Record<string, { latitude: number; longitude: number }>>({})
   const queryKey = JSON.stringify(query); const { q, type, category, urgency, sort, mode, near } = query; const all = type === 'all'; const isDefault = !q && !category && !urgency && !sort && mode === 'list' && !near
   const requestQuery = useMemo(() => ({ q, type, category, urgency, sort, mode, near }), [q, type, category, urgency, sort, mode, near])
   const key = (kind: string, fallback: string) => isDefault ? fallback : `${kind}:native-explore:${queryKey}`; const options = { enabled: all, cachePolicy: isDefault ? 'public' as const : 'none' as const }
@@ -29,8 +35,16 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
     { kind: 'event', heading: headings.event, state: { status: event.status, data: empty(event.data).slice(0, 5).map((item) => adaptEvent(item)), source: event.source, cachedAt: event.cachedAt, error: event.error, retry: event.refresh } },
     { kind: 'volunteer', heading: headings.volunteer, state: { status: volunteer.status, data: empty(volunteer.data).slice(0, 5).map(adaptOpportunity), source: volunteer.source, cachedAt: volunteer.cachedAt, error: volunteer.error, retry: volunteer.refresh } },
   ]
-  const typedModel = useTyped(requestQuery, !all); const refreshAll = async () => { await Promise.allSettled([listing.refresh(), business.refresh(), event.refresh(), volunteer.refresh()]) }; return { groups, typed: all ? null : typedModel, refreshAll }
+  const typedModel = useTyped(requestQuery, !all)
+  const visibleBusinesses = all ? groups.find((group) => group.kind === 'business')?.state.data ?? [] : typedModel?.state.data ?? []
+  useEffect(() => { let active = true; void services.network.getStatus().then((status) => { if (active) setOnline(status === 'online') }); return () => { active = false } }, [services.network])
+  useEffect(() => { if (!online) return; const candidates = visibleBusinesses.filter((item): item is NativeDiscoveryCardModel & { kind: 'business' } => item.kind === 'business').slice(0, all ? 5 : 20); let cancelled = false; const queue = [...candidates]; const worker = async () => { while (queue.length && !cancelled) { const item = queue.shift()!; if (item.coordinates || hydrated[item.id] || typeof shopApi.getShop !== 'function') continue; try { const response = await shopApi.getShop(item.id); const shop = response.data; const latitude = shop.latitude; const longitude = shop.longitude; if (typeof latitude === 'number' && typeof longitude === 'number' && Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180 && !cancelled) setHydrated((previous) => ({ ...previous, [item.id]: { latitude, longitude } })) } catch { /* failed public details are ignored */ } } }; void Promise.all(Array.from({ length: Math.min(4, candidates.length) }, worker)); return () => { cancelled = true } }, [all, hydrated, online, visibleBusinesses])
+  const mapBusinesses = visibleBusinesses.filter((item): item is NativeDiscoveryCardModel & { kind: 'business' } => item.kind === 'business').map((item) => ({ ...item, coordinates: item.coordinates ?? hydrated[item.id] ?? null })).filter((item): item is NativeMapBusiness => item.coordinates !== null).map((item) => ({ ...item, distanceMiles: userCoordinates ? haversine(userCoordinates.latitude, userCoordinates.longitude, item.coordinates.latitude, item.coordinates.longitude) : null }))
+  const requestLocation = useCallback(async () => { if (location.status === 'requesting') return; setLocation({ status: 'requesting' }); try { const position = await services.location.getForegroundPosition(); if (!Number.isFinite(position.latitude) || !Number.isFinite(position.longitude)) throw new Error('Location unavailable'); const coordinates = { latitude: position.latitude, longitude: position.longitude }; setUserCoordinates(coordinates); setLocation({ status: 'granted', ...coordinates }) } catch (error) { const message = error instanceof Error ? error.message : 'Location is unavailable'; setLocation({ status: 'unavailable', message }) } }, [location.status, services.location])
+  const refreshAll = async () => { await Promise.allSettled([listing.refresh(), business.refresh(), event.refresh(), volunteer.refresh()]) }; return { groups, typed: all ? null : typedModel, mapBusinesses, userCoordinates, online, location, requestLocation, refreshAll }
 }
+
+function haversine(latitude1: number, longitude1: number, latitude2: number, longitude2: number) { const radians = (value: number) => value * Math.PI / 180; const dLat = radians(latitude2 - latitude1); const dLon = radians(longitude2 - longitude1); const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(latitude1)) * Math.cos(radians(latitude2)) * Math.sin(dLon / 2) ** 2; return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) }
 
 function useTyped(query: NativeExploreQuery, enabled: boolean): NativeTypedResults {
   const queryKey = JSON.stringify(query); const stateRef = useRef<NativeSectionState<NativeDiscoveryCardModel[]>>({ status: 'loading', data: [], source: null, cachedAt: null, error: null, retry: async () => undefined }); const [state, setState] = useState(stateRef.current); stateRef.current = state; const [hasMore, setHasMore] = useState(false); const [nextCursor, setNextCursor] = useState<string | null>(null); const [loadingMore, setLoadingMore] = useState(false); const [loadMoreError, setLoadMoreError] = useState<Error | null>(null); const [refineMessage, setRefineMessage] = useState<string | null>(null); const generation = useRef(0); const controller = useRef<AbortController | null>(null)

@@ -11,3 +11,8 @@
 .native-app button, .native-app input { font: inherit; }
 .native-app button:focus-visible, .native-app input:focus-visible { outline: 3px solid var(--native-focus); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .native-app *, .native-app *::before, .native-app *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+.native-app .native-explore-map { position: relative; min-height: 360px; }
+.native-app .native-map-container { min-height: 320px; border-radius: var(--native-radius-card); }
+.native-app .native-map-preview { position: absolute; z-index: 500; left: 16px; right: 16px; bottom: 16px; padding: 12px; color: var(--native-text); background: var(--native-elevated); border-radius: var(--native-radius-control); box-shadow: var(--native-shadow); }
+.native-app .native-map-marker-list { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; }
+.native-app .native-map-marker-list button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--native-border); border-radius: var(--native-radius-pill); background: var(--native-card); color: var(--native-text); }

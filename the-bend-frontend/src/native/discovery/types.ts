@@ -33,6 +33,27 @@ export interface NativeDiscoveryCardModel {
   urgent: boolean
 }
 
+export interface NativeMapBusiness extends NativeDiscoveryCardModel {
+  kind: 'business'
+  coordinates: { latitude: number; longitude: number }
+  distanceMiles: number | null
+}
+
+export type NativeLocationState =
+  | { status: 'idle' }
+  | { status: 'requesting' }
+  | { status: 'granted'; latitude: number; longitude: number }
+  | { status: 'denied'; message: string }
+  | { status: 'unavailable'; message: string }
+
+export interface NativeExploreMapProps {
+  businesses: NativeMapBusiness[]
+  userCoordinates: { latitude: number; longitude: number } | null
+  selectedId: string | null
+  onSelect(id: string): void
+  onOpen(path: string): void
+}
+
 export interface ItemsResponse<T> { items: T[] }
 export interface CachedPublicContentOptions<T> {
   isEmpty?(value: T): boolean
