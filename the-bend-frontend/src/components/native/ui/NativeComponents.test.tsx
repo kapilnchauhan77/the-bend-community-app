@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NativeDiscoveryCard } from './NativeDiscoveryCard'
 import { NativeFilterChip } from './NativeFilterChip'
 import { NativeResultGroup } from './NativeResultGroup'
@@ -11,6 +11,7 @@ import { NativePageHeader } from './NativePageHeader'
 const item = { id: 'listing-1', kind: 'listing' as const, label: 'Generator', title: 'Power generator needed', supportingText: 'Community request', thumbnailUrl: null, targetPath: '/listing/listing-1', coordinates: null, urgent: true }
 
 describe('native UI primitives', () => {
+  afterEach(cleanup)
   it('controls search submit and clear through presentation callbacks', () => {
     const onChange = vi.fn(); const onSubmit = vi.fn(); const onClear = vi.fn()
     render(<NativeSearchBar value="books" label="Search" placeholder="Search listings" onChange={onChange} onSubmit={onSubmit} onClear={onClear} />)
@@ -42,9 +43,19 @@ describe('native UI primitives', () => {
   })
   it('renders loading and empty result states', () => {
     const { rerender } = render(<NativeResultGroup heading="Listings" status="loading" onRetry={vi.fn()}>items</NativeResultGroup>)
-    expect(screen.getByRole('status')).toHaveTextContent(/loading/i)
+    expect(screen.getByText(/loading/i)).toBeInTheDocument()
     rerender(<NativeResultGroup heading="Listings" status="empty" onRetry={vi.fn()}>items</NativeResultGroup>)
     expect(screen.getByText(/no results/i)).toBeInTheDocument()
+  })
+
+  it('uses a skeleton for section-local loading feedback', () => {
+    render(<NativeResultGroup heading="Loading" status="loading" onRetry={vi.fn()}>{null}</NativeResultGroup>)
+    expect(document.querySelector('.native-skeleton')).toHaveClass('native-skeleton')
+  })
+
+  it('marks discovery images as lazy', () => {
+    render(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: '/image.jpg' }} onOpen={vi.fn()} />)
+    expect(screen.getByRole('img')).toHaveAttribute('loading', 'lazy')
   })
   it('focuses, traps, and closes the filter sheet while returning focus', () => {
     const trigger = document.createElement('button'); trigger.textContent = 'Open'; document.body.append(trigger); const onClose = vi.fn()
