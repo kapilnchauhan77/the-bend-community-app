@@ -17,7 +17,7 @@ function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listing
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
 
-beforeEach(() => { vi.useFakeTimers(); configureAll() })
+beforeEach(() => { vi.useFakeTimers(); configureAll(); fixture.requestLocation = vi.fn().mockResolvedValue({ status: 'granted', latitude: 40, longitude: -79 }) })
 afterEach(() => { vi.useRealTimers(); cleanup() })
 
 describe('NativeExplorePage', () => {
@@ -27,11 +27,11 @@ describe('NativeExplorePage', () => {
     expect(screen.queryByRole('button', { name: 'Talent' })).not.toBeInTheDocument()
   })
 
-  it('offers Near me only in Businesses and records the explicit action', () => {
+  it('offers Near me only in Businesses and records the explicit action', async () => {
     function Probe() { return <output data-testid="location">{useLocation().search}</output> }
     configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }]); fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
     render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Near me' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' })); await act(async () => { await Promise.resolve() })
     expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('location')).toHaveTextContent('near=true')
   })
