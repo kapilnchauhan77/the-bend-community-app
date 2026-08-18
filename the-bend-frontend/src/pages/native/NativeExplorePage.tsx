@@ -16,7 +16,7 @@ const chips: Array<[string, NativeExploreType]> = [['All', 'all'], ['Listings', 
 const listingCategories = ['staff', 'materials', 'equipment']; const eventCategories = ['community', 'music', 'art', 'food', 'market', 'historic', 'outdoor', 'education']; const sorts = ['urgency_desc', 'created_desc', 'expiry_asc']
 
 export function NativeExplorePage() {
-  const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const canonicalKey = serializeNativeExploreQuery(query).toString(); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const [selectedMapId, setSelectedMapId] = useState<string | null>(null); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
+  const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const queryRef = useRef(query); const canonicalKey = serializeNativeExploreQuery(query).toString(); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const [selectedMapId, setSelectedMapId] = useState<string | null>(null); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
   useEffect(() => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current)
@@ -25,8 +25,9 @@ export function NativeExplorePage() {
     const sync = window.setTimeout(() => setText(query.q), 0)
     return () => window.clearTimeout(sync)
   }, [canonicalKey, query.q])
+  useEffect(() => { queryRef.current = query }, [canonicalKey, query])
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
-  const change = (next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...query, ...next }), { replace })
+  const change = (next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...queryRef.current, ...next }), { replace })
   const submit = () => { if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: text.trim() }) }
   const businessTypes = useMemo(() => Array.from(new Set((query.type === 'businesses' ? model.typed?.state.data ?? [] : model.groups.find((group) => group.kind === 'business')?.state.data ?? []).map((item) => item.label).filter(Boolean))), [model.groups, model.typed, query.type])
   const filterChoices = query.type === 'events' ? eventCategories : query.type === 'listings' ? listingCategories : query.type === 'businesses' ? businessTypes : query.type === 'all' ? [...listingCategories, ...eventCategories, ...businessTypes] : []
