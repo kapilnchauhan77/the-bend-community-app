@@ -1,1 +1,5 @@
-export function NativeFilterChip({ label, selected = false, removable = false, onRemove }: { label: string; selected?: boolean; removable?: boolean; onRemove?(): void }) { return <span className={`native-filter-chip native-control ${selected ? 'selected' : ''}`}>{label}{removable && <button className="native-control" type="button" aria-label={`Remove ${label} filter`} onClick={onRemove}>×</button>}</span> }
+interface NativeFilterChipProps { label: string; selected?: boolean; removable?: boolean; onRemove?(): void }
+
+export function NativeFilterChip({ label, selected = false, removable = false, onRemove }: NativeFilterChipProps) {
+  return <span className={`native-filter-chip native-control ${selected ? 'selected' : ''}`}>{label}{removable && <button className="native-control" type="button" aria-label={`Remove ${label} filter`} onClick={onRemove}>×</button>}</span>
+}

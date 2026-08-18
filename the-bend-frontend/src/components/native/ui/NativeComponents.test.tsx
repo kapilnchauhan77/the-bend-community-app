@@ -49,7 +49,8 @@ describe('native UI primitives', () => {
   it('focuses, traps, and closes the filter sheet while returning focus', () => {
     const trigger = document.createElement('button'); trigger.textContent = 'Open'; document.body.append(trigger); const onClose = vi.fn()
     const { rerender } = render(<NativeFilterSheet open title="Filters" onClose={onClose} returnFocusRef={{ current: trigger }}><button className="native-control">Apply</button></NativeFilterSheet>)
-    expect(screen.getByRole('button', { name: /close filters/i })).toHaveFocus()
+    const close = screen.getByRole('button', { name: /close filters/i }); const apply = screen.getByRole('button', { name: 'Apply' })
+    expect(close).toHaveFocus(); apply.focus(); fireEvent.keyDown(document, { key: 'Tab' }); expect(close).toHaveFocus(); close.focus(); fireEvent.keyDown(document, { key: 'Tab', shiftKey: true }); expect(apply).toHaveFocus()
     fireEvent.keyDown(document, { key: 'Escape' }); expect(onClose).toHaveBeenCalledOnce()
     fireEvent.mouseDown(screen.getByRole('presentation')); expect(onClose).toHaveBeenCalledTimes(2)
     rerender(<NativeFilterSheet open={false} title="Filters" onClose={onClose} returnFocusRef={{ current: trigger }}><button>Apply</button></NativeFilterSheet>); expect(trigger).toHaveFocus(); trigger.remove()
