@@ -3,11 +3,14 @@ import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NativeExploreMap } from './NativeExploreMap'
 
+const mapHarness = vi.hoisted(() => ({ setView: vi.fn(), getZoom: vi.fn(() => 11) }))
+
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ center, children }: { center: [number, number]; children: ReactNode }) => <div data-testid="map-container" data-center={center.join(',')}>{children}</div>,
   Marker: ({ eventHandlers, children }: { eventHandlers?: { click?: () => void }; children: ReactNode }) => <div><button type="button" onClick={eventHandlers?.click}>Marker</button>{children}</div>,
   Popup: ({ children }: { children: ReactNode }) => <div role="region" aria-label="Marker popup">{children}</div>,
   TileLayer: ({ attribution }: { attribution: string }) => <div>{attribution}</div>,
+  useMap: () => mapHarness,
 }))
 
 const business = { id: 'b1', kind: 'business' as const, label: 'Farm', title: 'Westmoreland Farm', supportingText: 'Main Street', thumbnailUrl: null, targetPath: '/business/b1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: 2.4 }
@@ -31,10 +34,11 @@ describe('NativeExploreMap', () => {
   })
 
   it('centers on the user when available and otherwise the first eligible business', () => {
-    const { rerender } = render(<NativeExploreMap businesses={[business]} userCoordinates={{ latitude: 12, longitude: -34 }} selectedId={null} onSelect={vi.fn()} onOpen={vi.fn()} />)
-    expect(screen.getAllByTestId('map-container')[0]).toHaveAttribute('data-center', '12,-34')
-    rerender(<NativeExploreMap businesses={[business]} userCoordinates={null} selectedId={null} onSelect={vi.fn()} onOpen={vi.fn()} />)
+    const { rerender } = render(<NativeExploreMap businesses={[business]} userCoordinates={null} selectedId={null} onSelect={vi.fn()} onOpen={vi.fn()} />)
     expect(screen.getByTestId('map-container')).toHaveAttribute('data-center', '40,-79')
+    rerender(<NativeExploreMap businesses={[business]} userCoordinates={{ latitude: 12, longitude: -34 }} selectedId={null} onSelect={vi.fn()} onOpen={vi.fn()} />)
+    expect(screen.getByTestId('map-container')).toHaveAttribute('data-center', '12,-34')
+    expect(mapHarness.setView).toHaveBeenCalledWith([12, -34], 11)
   })
 
   it('treats selectedId as controlled and exposes Open details inside the marker popup', () => {

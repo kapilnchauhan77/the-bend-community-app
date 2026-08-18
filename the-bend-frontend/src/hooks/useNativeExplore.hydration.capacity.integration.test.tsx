@@ -24,9 +24,10 @@ describe('useNativeExplore hydration capacity integration', () => {
     const items = Array.from({ length: 10 }, (_, index) => shop(`all-${index}`))
     vi.mocked(shopApi.directory).mockResolvedValue({ data: { items } } as never)
     vi.mocked(shopApi.getShop).mockResolvedValue({ data: shop('detail', { latitude: 40, longitude: -79 }) } as never)
-    renderHook(() => useNativeExplore(allQuery), { reactStrictMode: false })
+    const { result } = renderHook(() => useNativeExplore(allQuery), { reactStrictMode: false })
     await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(5))
     expect(shopApi.getShop.mock.calls.map(([id]) => id)).toEqual(['all-0', 'all-1', 'all-2', 'all-3', 'all-4'])
+    await waitFor(() => expect(result.current.mapBusinesses.map((item) => item.id)).toEqual(['all-0', 'all-1', 'all-2', 'all-3', 'all-4']))
   })
 
   it('hydrates only the first twenty typed Businesses', async () => {
