@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import re
 import uuid
 import warnings
 from pathlib import Path
@@ -48,15 +49,25 @@ def is_cacheable_event_image(url: str | None) -> bool:
         port = parsed.port
     except ValueError:
         return False
-    return (
+    if not (
         parsed.scheme == "https"
-        and parsed.hostname == "www.flickr.com"
         and port in (None, 443)
         and parsed.username is None
         and parsed.password is None
-        and parsed.path == "/photo_download.gne"
         and not parsed.fragment
-    )
+    ):
+        return False
+    if parsed.hostname == "www.flickr.com":
+        return parsed.path == "/photo_download.gne"
+    if parsed.hostname == "live.staticflickr.com" and not parsed.query:
+        return bool(
+            re.fullmatch(
+                r"/\d+/[A-Za-z0-9_-]+\.(?:jpe?g|png|webp)",
+                parsed.path,
+                flags=re.IGNORECASE,
+            )
+        )
+    return False
 
 
 class EventImageCache:
