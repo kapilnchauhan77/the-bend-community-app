@@ -105,13 +105,20 @@ describe('useNativeExplore network hydration integration', () => {
     const registration = deferred<{ remove: () => Promise<void> }>()
     platform.network.addListener.mockImplementationOnce((handler: (status: 'online' | 'offline') => void) => { networkHandler = handler; return registration.promise })
     platform.network.getStatus.mockResolvedValue('offline')
-    const { unmount } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
+    const { result, unmount } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
     unmount()
     const lateHandler = networkHandler
     registration.resolve({ remove: removeListener })
     await act(async () => { await Promise.resolve() })
+    const onlineAfterUnmount = result.current.online
+    const mapBusinessesAfterUnmount = result.current.mapBusinesses
+    const detailCallsAfterUnmount = vi.mocked(shopApi.getShop).mock.calls.length
     lateHandler?.('online')
+    await act(async () => { await Promise.resolve() })
     expect(removeListener).toHaveBeenCalledTimes(1)
+    expect(result.current.online).toBe(onlineAfterUnmount)
+    expect(result.current.mapBusinesses).toBe(mapBusinessesAfterUnmount)
+    expect(vi.mocked(shopApi.getShop).mock.calls.length).toBe(detailCallsAfterUnmount)
   })
 
   it('refreshes failed hydration IDs without duplicating completed IDs', async () => {
@@ -141,5 +148,24 @@ describe('useNativeExplore network hydration integration', () => {
     await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(3))
     expect(vi.mocked(shopApi.directory).mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(vi.mocked(shopApi.getShop).mock.calls.map(([id]) => id)).toEqual(['failed', 'complete', 'failed'])
+  })
+
+  it('does not duplicate an in-flight typed hydration request during retry', async () => {
+    const secondDirectory = deferred<{ data: { items: ReturnType<typeof shop>[] } }>()
+    const pendingDetail = deferred<{ data: ReturnType<typeof shop> }>()
+    vi.mocked(shopApi.directory)
+      .mockResolvedValueOnce({ data: { items: [shop('pending')] } } as never)
+      .mockReturnValueOnce(secondDirectory.promise as never)
+    vi.mocked(shopApi.getShop).mockReturnValueOnce(pendingDetail.promise as never)
+    platform.network.getStatus.mockResolvedValue('online')
+    const { result } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
+    await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(1))
+    await act(async () => { void result.current.typed?.state.retry(); await Promise.resolve() })
+    await waitFor(() => expect(shopApi.directory).toHaveBeenCalledTimes(2))
+    secondDirectory.resolve({ data: { items: [shop('pending')] } })
+    await act(async () => { await Promise.resolve() })
+    expect(vi.mocked(shopApi.getShop).mock.calls.map(([id]) => id)).toEqual(['pending'])
+    pendingDetail.resolve({ data: { ...shop('pending'), latitude: 40, longitude: -79 } })
+    await waitFor(() => expect(result.current.mapBusinesses).toHaveLength(1))
   })
 })
