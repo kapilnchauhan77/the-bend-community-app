@@ -108,6 +108,16 @@ describe('NativeExplorePage production-path permission integration', () => {
     await waitFor(() => expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(1))
   })
 
+  it('does not evaluate the lazy map when a real map request has no eligible coordinates', async () => {
+    vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [{ ...farm, latitude: null, longitude: null }] } } as never)
+    vi.mocked(shopApi.getShop).mockResolvedValue({ data: { ...farm, latitude: null, longitude: null } } as never)
+    renderExplore('/explore?type=businesses&mode=map')
+    await screen.findByRole('button', { name: 'Farm' })
+    expect(screen.getByText(/Map is unavailable offline or until eligible business coordinates are available/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('lazy-map')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List' })).toBeEnabled()
+  })
+
   it('keeps location calls at zero through real search, type, category, map, and hydration actions', async () => {
     renderExplore()
     await screen.findByRole('button', { name: 'Farm' })

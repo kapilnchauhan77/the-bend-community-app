@@ -37,10 +37,32 @@ describe('NativeExplorePage', () => {
 
   it('keeps the normal business list and does not mount Leaflet while map is offline', () => {
     configureTyped([business]); fixture.online = false; fixture.mapBusinesses = []
-    render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument()
     expect(screen.getByText(/Map is unavailable offline/i)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Business map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
+    expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+  })
+
+  it.each(['listings', 'events', 'volunteer'] as const)('never exposes Map or Near controls for %s', (type) => {
+    configureTyped([type === 'listings' ? listing : type === 'events' ? event : volunteer])
+    render(<MemoryRouter initialEntries={[`/explore?type=${type}`]}><NativeExplorePage /></MemoryRouter>)
+    expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
+  })
+
+  it('exposes Map for All and Businesses only when the supplied eligible business set exists', () => {
+    configureAll(); fixture.online = true; fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByRole('button', { name: 'Map' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Map' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('mode=map')
+    cleanup()
+    configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }]); fixture.online = true; fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByRole('button', { name: 'Map' })).toBeEnabled()
   })
 
   it.each(['denied', 'unavailable'] as const)('shows Retry and Continue across Westmoreland after %s', async (status) => {
