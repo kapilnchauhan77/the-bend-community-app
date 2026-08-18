@@ -346,8 +346,10 @@ describe('NativeContentCache', () => {
     })
 
     const cache = new NativeContentCache({ storage: 'filesystem' })
+    await cache.put({ key: 'event:stable', kind: 'event', entityId: 'stable', cachedAt: new Date().toISOString(), payload: { title: 'Stable' }, imagePath: null, sizeBytes: 1 })
     await cache.put({ key: 'event:new', kind: 'event', entityId: 'new', cachedAt: new Date().toISOString(), payload: { title: 'New' }, imagePath: null, sizeBytes: 1 })
     const reloaded = new NativeContentCache({ storage: 'filesystem' })
+    await expect(reloaded.get('event:stable')).resolves.toMatchObject({ payload: { title: 'Stable' } })
     await expect(reloaded.get('event:new')).resolves.toMatchObject({ payload: { title: 'New' } })
   })
 })
