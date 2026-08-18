@@ -3,9 +3,11 @@
   min-height: 100dvh; color: var(--native-text); background: var(--native-page); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
 }
 .dark .native-app { --native-page: #121915; --native-card: #18221d; --native-elevated: #202c26; --native-text: #f4f0e7; --native-muted: #b6bdb8; --native-primary: #70b99b; --native-primary-contrast: #101814; --native-bronze: #d0a45f; --native-urgent-surface: #3a201e; --native-urgent-border: #d97b70; --native-urgent-text: #ffb6ad; --native-border: #33433a; --native-focus: #8cc9ef; --native-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
-.native-main { min-height: 100dvh; padding-bottom: calc(var(--native-nav-height) + env(safe-area-inset-bottom)); }
+.native-app .native-main { min-height: 100dvh; padding-bottom: calc(var(--native-nav-height) + env(safe-area-inset-bottom)); }
 .native-app *, .native-app *::before, .native-app *::after { box-sizing: border-box; }
-.native-control { min-height: 44px; }
+.native-app .native-control { min-height: 44px; }
+.native-app .native-sheet-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; background: rgb(0 0 0 / 40%); }
+.native-app .native-sheet-backdrop > [role="dialog"] { width: 100%; max-height: 90dvh; overflow: auto; padding: var(--native-space-4) var(--native-space-4) calc(max(16px, var(--native-safe-bottom)) + var(--native-keyboard-bottom)); color: var(--native-text); background: var(--native-elevated); border-radius: var(--native-radius-card) var(--native-radius-card) 0 0; box-shadow: var(--native-shadow); }
 .native-app button, .native-app input { font: inherit; }
 .native-app button:focus-visible, .native-app input:focus-visible { outline: 3px solid var(--native-focus); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .native-app *, .native-app *::before, .native-app *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
