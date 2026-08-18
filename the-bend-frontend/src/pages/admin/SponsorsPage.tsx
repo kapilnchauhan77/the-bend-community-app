@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { sponsorApi } from '@/services/sponsorApi';
+import { uploadApi } from '@/services/uploadApi';
+import { resolveAssetUrl } from '@/lib/constants';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +48,7 @@ interface Sponsor {
   id: string;
   name: string;
   description?: string;
+  logo_url?: string | null;
   website_url?: string;
   placement: Placement;
   contact_name?: string;
@@ -78,11 +81,19 @@ function isExpired(expires_at?: string): boolean {
   return new Date(expires_at) < new Date();
 }
 
+function sponsorLogoUploadError(error: unknown): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === 'string' && detail.trim()
+    ? detail
+    : 'Failed to upload sponsor logo. Please try again.';
+}
+
 type TabKey = 'all' | 'pending' | 'active' | 'inactive' | 'expired';
 
 interface EditFormData {
   name: string;
   description: string;
+  logo_url: string | null;
   website_url: string;
   placement: Placement;
   is_active: boolean;
@@ -91,10 +102,134 @@ interface EditFormData {
 const EMPTY_EDIT_FORM: EditFormData = {
   name: '',
   description: '',
+  logo_url: '',
   website_url: '',
   placement: 'homepage',
   is_active: true,
 };
+
+interface SponsorLogoControlProps {
+  inputId: string;
+  sponsorName: string;
+  logoUrl: string | null;
+  onFileChange: (file: File) => void;
+  onLogoUrlChange: (url: string) => void;
+  onRemove: () => void;
+  disabled?: boolean;
+}
+
+function SponsorLogoControl({
+  inputId,
+  sponsorName,
+  logoUrl,
+  onFileChange,
+  onLogoUrlChange,
+  onRemove,
+  disabled = false,
+}: SponsorLogoControlProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selectedPreviewRef = useRef<string | null>(null);
+  const [selectedPreviewUrl, setSelectedPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (selectedPreviewRef.current) URL.revokeObjectURL(selectedPreviewRef.current);
+    };
+  }, []);
+
+  const clearSelectedPreview = () => {
+    if (selectedPreviewRef.current) URL.revokeObjectURL(selectedPreviewRef.current);
+    selectedPreviewRef.current = null;
+    setSelectedPreviewUrl(null);
+  };
+
+  const selectFile = (file: File) => {
+    clearSelectedPreview();
+    const objectUrl = URL.createObjectURL(file);
+    selectedPreviewRef.current = objectUrl;
+    setSelectedPreviewUrl(objectUrl);
+    onFileChange(file);
+  };
+
+  const removeLogo = () => {
+    clearSelectedPreview();
+    onRemove();
+  };
+
+  const previewUrl = selectedPreviewUrl ?? resolveAssetUrl(logoUrl);
+  const previewName = sponsorName.trim() || 'Sponsor';
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={inputId}>Sponsor Logo</Label>
+      {previewUrl ? (
+        <div className="flex h-24 items-center justify-center rounded-md border border-[hsl(35,18%,87%)] bg-white p-3">
+          <img
+            src={previewUrl}
+            alt={`${previewName} logo preview`}
+            className="max-h-full max-w-full object-contain"
+          />
+        </div>
+      ) : (
+        <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-[hsl(35,18%,80%)] bg-muted/30 text-xs text-muted-foreground">
+          No logo selected
+        </div>
+      )}
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        aria-label="Sponsor Logo"
+        className="sr-only"
+        disabled={disabled}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) selectFile(file);
+          event.target.value = '';
+        }}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled}
+        >
+          {previewUrl ? 'Replace logo' : 'Choose logo'}
+        </Button>
+        {previewUrl && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={removeLogo}
+            disabled={disabled}
+            aria-label="Remove logo"
+            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            Remove
+          </Button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">PNG, JPG, or WebP, up to 5 MB.</p>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${inputId}-url`}>Logo URL</Label>
+        <Input
+          id={`${inputId}-url`}
+          value={logoUrl ?? ''}
+          disabled={disabled}
+          onChange={(event) => {
+            clearSelectedPreview();
+            onLogoUrlChange(event.target.value);
+          }}
+          placeholder="/uploads/images/... or https://..."
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function SponsorsPage() {
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
@@ -115,6 +250,8 @@ export default function SponsorsPage() {
     placement: 'homepage' as Placement,
     is_active: true,
   });
+  const [createLogoFile, setCreateLogoFile] = useState<File | null>(null);
+  const [createLogoUploading, setCreateLogoUploading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -126,16 +263,30 @@ export default function SponsorsPage() {
     }
     setCreating(true);
     try {
+      let logoUrl = createForm.logo_url.trim() || undefined;
+      if (createLogoFile) {
+        setCreateLogoUploading(true);
+        try {
+          const { data } = await uploadApi.uploadSponsorLogo(createLogoFile);
+          logoUrl = data.logo_url;
+        } catch (error) {
+          setCreateError(sponsorLogoUploadError(error));
+          return;
+        } finally {
+          setCreateLogoUploading(false);
+        }
+      }
       await sponsorApi.adminCreate({
         name: createForm.name.trim(),
         description: createForm.description.trim() || undefined,
         website_url: createForm.website_url.trim() || undefined,
-        logo_url: createForm.logo_url.trim() || undefined,
+        logo_url: logoUrl,
         placement: createForm.placement,
         is_active: createForm.is_active,
       });
       setCreateOpen(false);
       setCreateForm({ name: '', description: '', website_url: '', logo_url: '', placement: 'homepage', is_active: true });
+      setCreateLogoFile(null);
       await fetchSponsors();
     } catch {
       setCreateError('Failed to create sponsor. Please try again.');
@@ -144,6 +295,8 @@ export default function SponsorsPage() {
     }
   };
   const [editForm, setEditForm] = useState<EditFormData>(EMPTY_EDIT_FORM);
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+  const [editLogoUploading, setEditLogoUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -185,10 +338,12 @@ export default function SponsorsPage() {
     setEditForm({
       name: sponsor.name,
       description: sponsor.description ?? '',
+      logo_url: sponsor.logo_url ?? '',
       website_url: sponsor.website_url ?? '',
       placement: sponsor.placement,
       is_active: sponsor.is_active,
     });
+    setEditLogoFile(null);
     setFormError('');
   };
 
@@ -198,14 +353,29 @@ export default function SponsorsPage() {
     setSaving(true);
     setFormError('');
     try {
+      let logoUrl = editForm.logo_url?.trim() || null;
+      if (editLogoFile) {
+        setEditLogoUploading(true);
+        try {
+          const { data } = await uploadApi.uploadSponsorLogo(editLogoFile);
+          logoUrl = data.logo_url;
+        } catch (error) {
+          setFormError(sponsorLogoUploadError(error));
+          return;
+        } finally {
+          setEditLogoUploading(false);
+        }
+      }
       await sponsorApi.adminUpdate(editTarget.id, {
         name: editForm.name.trim(),
         description: editForm.description.trim() || undefined,
+        logo_url: logoUrl,
         website_url: editForm.website_url.trim() || undefined,
         placement: editForm.placement,
         is_active: editForm.is_active,
       });
       setEditTarget(null);
+      setEditLogoFile(null);
       fetchSponsors();
     } catch {
       setFormError('Failed to save. Please try again.');
@@ -278,7 +448,11 @@ export default function SponsorsPage() {
             </Button>
             <Button
               size="sm"
-              onClick={() => { setCreateError(''); setCreateOpen(true); }}
+              onClick={() => {
+                setCreateError('');
+                setCreateLogoFile(null);
+                setCreateOpen(true);
+              }}
               className="text-white"
               style={{ backgroundColor: PRIMARY }}
             >
@@ -537,8 +711,21 @@ export default function SponsorsPage() {
       </div>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={!!editTarget}
+        onOpenChange={(open) => {
+          if (!open && saving) return;
+          if (!open) {
+            setEditTarget(null);
+            setEditLogoFile(null);
+          }
+        }}
+      >
+        <DialogContent
+          className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto"
+          onEscapeKeyDown={(event) => { if (saving) event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (saving) event.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle>Edit Sponsor</DialogTitle>
             <DialogDescription>
@@ -566,6 +753,26 @@ export default function SponsorsPage() {
                 placeholder="Short description"
               />
             </div>
+
+            <SponsorLogoControl
+              inputId="sp-logo-file"
+              sponsorName={editForm.name}
+              logoUrl={editForm.logo_url}
+              onFileChange={(file) => {
+                setFormError('');
+                setEditLogoFile(file);
+                setEditForm((form) => ({ ...form, logo_url: '' }));
+              }}
+              onLogoUrlChange={(url) => {
+                setEditLogoFile(null);
+                setEditForm((form) => ({ ...form, logo_url: url }));
+              }}
+              onRemove={() => {
+                setEditLogoFile(null);
+                setEditForm((form) => ({ ...form, logo_url: null }));
+              }}
+              disabled={saving}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="sp-url">Website URL</Label>
@@ -605,11 +812,11 @@ export default function SponsorsPage() {
               <Label htmlFor="sp-active" className="cursor-pointer">Active</Label>
             </div>
 
-            {formError && <p className="text-xs text-red-500">{formError}</p>}
+            {formError && <p role="alert" className="text-xs text-red-500">{formError}</p>}
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setEditTarget(null)}>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={saving}>
               Cancel
             </Button>
             <Button
@@ -618,7 +825,12 @@ export default function SponsorsPage() {
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? (
+              {editLogoUploading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Uploading logo…
+                </span>
+              ) : saving ? (
                 <span className="flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin" />
                   Saving…
@@ -630,8 +842,21 @@ export default function SponsorsPage() {
       </Dialog>
 
       {/* Create Dialog (admin-comp sponsor) */}
-      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) setCreateOpen(false); }}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (!open && creating) return;
+          if (!open) {
+            setCreateOpen(false);
+            setCreateLogoFile(null);
+          }
+        }}
+      >
+        <DialogContent
+          className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto"
+          onEscapeKeyDown={(event) => { if (creating) event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (creating) event.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle>New Sponsor</DialogTitle>
             <DialogDescription>
@@ -660,15 +885,25 @@ export default function SponsorsPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="cr-logo">Logo URL</Label>
-              <Input
-                id="cr-logo"
-                value={createForm.logo_url}
-                onChange={(e) => setCreateForm((f) => ({ ...f, logo_url: e.target.value }))}
-                placeholder="/uploads/images/... or https://..."
-              />
-            </div>
+            <SponsorLogoControl
+              inputId="cr-logo-file"
+              sponsorName={createForm.name}
+              logoUrl={createForm.logo_url}
+              onFileChange={(file) => {
+                setCreateError('');
+                setCreateLogoFile(file);
+                setCreateForm((form) => ({ ...form, logo_url: '' }));
+              }}
+              onLogoUrlChange={(url) => {
+                setCreateLogoFile(null);
+                setCreateForm((form) => ({ ...form, logo_url: url }));
+              }}
+              onRemove={() => {
+                setCreateLogoFile(null);
+                setCreateForm((form) => ({ ...form, logo_url: '' }));
+              }}
+              disabled={creating}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="cr-url">Website URL</Label>
@@ -708,11 +943,11 @@ export default function SponsorsPage() {
               <Label htmlFor="cr-active" className="cursor-pointer">Active</Label>
             </div>
 
-            {createError && <p className="text-xs text-red-500">{createError}</p>}
+            {createError && <p role="alert" className="text-xs text-red-500">{createError}</p>}
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
               Cancel
             </Button>
             <Button
@@ -721,7 +956,12 @@ export default function SponsorsPage() {
               onClick={handleCreate}
               disabled={creating}
             >
-              {creating ? (
+              {createLogoUploading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Uploading logo…
+                </span>
+              ) : creating ? (
                 <span className="flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin" />
                   Creating…

@@ -27,6 +27,8 @@ async function stubHomeApi(page: Page) {
               id: 'sponsor-1',
               name: 'Partner One',
               description: 'First community partner',
+              logo_url:
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
               website_url: 'https://partner-one.example',
               placement: 'homepage',
             },
@@ -69,4 +71,8 @@ test('horizontal sponsor banner completes a two-partner loop in ten seconds', as
   const marquee = page.locator('.sponsor-marquee');
   await expect(marquee).toBeVisible();
   await expect(marquee).toHaveCSS('animation-duration', '10s');
+
+  const partnerLogo = marquee.getByRole('img', { name: 'Partner One' }).first();
+  await expect(partnerLogo).toBeVisible();
+  await expect.poll(() => partnerLogo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 });

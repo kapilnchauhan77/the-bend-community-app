@@ -1,4 +1,8 @@
+import io
+import warnings
+
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 
@@ -19,6 +23,15 @@ router = APIRouter(prefix="/upload", tags=["Upload"])
 
 file_service = FileService()
 
+MAX_SPONSOR_LOGO_BYTES = 5 * 1024 * 1024
+MAX_SPONSOR_LOGO_EDGE = 10_000
+MAX_SPONSOR_LOGO_PIXELS = 20_000_000
+SPONSOR_LOGO_FORMAT_BY_MIME = {
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WEBP",
+}
+
 
 @router.post("/images")
 async def upload_images(
@@ -30,6 +43,66 @@ async def upload_images(
     # may create listings by category).
     results = await file_service.upload_images(files)
     return {"images": results}
+
+
+@router.post("/sponsor-logo")
+async def upload_sponsor_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    content_type = (file.content_type or "").lower().split(";")[0].strip()
+    expected_format = SPONSOR_LOGO_FORMAT_BY_MIME.get(content_type)
+    if expected_format is None:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Sponsor logo must be a JPEG, PNG, or WebP image",
+        )
+
+    content = await file.read(MAX_SPONSOR_LOGO_BYTES + 1)
+    if len(content) > MAX_SPONSOR_LOGO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Sponsor logo must be 5 MB or less",
+        )
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(content)) as image:
+                actual_format = image.format
+                width, height = image.size
+                if (
+                    width > MAX_SPONSOR_LOGO_EDGE
+                    or height > MAX_SPONSOR_LOGO_EDGE
+                    or width * height > MAX_SPONSOR_LOGO_PIXELS
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="Sponsor logo dimensions are too large",
+                    )
+                image.load()
+    except (
+        UnidentifiedImageError,
+        OSError,
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+    ) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Sponsor logo is not a valid image",
+        ) from exc
+
+    if actual_format != expected_format:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Sponsor logo contents do not match its declared image type",
+        )
+
+    await file.seek(0)
+    results = await file_service.upload_images([file])
+    if not results:
+        raise HTTPException(status_code=400, detail="Upload failed")
+    return {"logo_url": results[0]["url"]}
 
 
 @router.post("/guidelines")
