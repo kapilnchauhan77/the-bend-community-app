@@ -259,7 +259,7 @@ export default function HomePage() {
             {/* Upcoming Events widget — top of the sidebar so it sits next
                 to the Community Board, visible without scrolling deep. */}
             {upcomingEvents.length > 0 && (
-              <div>
+              <div className="hidden lg:block">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-6 h-[2px]" style={{ backgroundColor: BRONZE }} />
@@ -421,7 +421,7 @@ export default function HomePage() {
 
       {/* Upcoming Events */}
       {upcomingEvents.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 md:px-8 mb-8">
+        <section className="max-w-7xl mx-auto px-4 md:px-8 mb-8 lg:hidden">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="w-8 h-[2px]" style={{ backgroundColor: BRONZE }} />

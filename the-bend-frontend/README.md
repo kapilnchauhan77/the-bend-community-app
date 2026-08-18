@@ -7,6 +7,24 @@ Currently, two official plugins are available:
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
+## Browser regression tests
+
+Install the frontend dependencies and Playwright's bundled Chromium once on a
+new machine, then run the browser suite:
+
+```bash
+npm ci --legacy-peer-deps
+npx playwright install chromium
+npm run test:e2e
+```
+
+To use an existing Google Chrome installation instead of downloading bundled
+Chromium, set the optional channel override:
+
+```bash
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e
+```
+
 ## React Compiler
 
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).

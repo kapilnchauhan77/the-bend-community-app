@@ -36,3 +36,6 @@ Thumbs.db
 # Uploads (local dev only)
 uploads/
 the-bend-backend/.playwright-cli
+
+# Local browser-test artifacts
+output/
