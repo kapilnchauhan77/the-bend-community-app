@@ -52,6 +52,12 @@ describe('native UI primitives', () => {
     render(<NativeResultGroup heading="Loading" status="loading" onRetry={vi.fn()}>{null}</NativeResultGroup>)
     expect(document.querySelector('.native-skeleton')).toHaveClass('native-skeleton')
   })
+  it('exposes one concise loading announcement and keeps the skeleton decorative', () => {
+    render(<NativeResultGroup heading="Loading" status="loading" onRetry={vi.fn()}>{null}</NativeResultGroup>)
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…')
+    expect(document.querySelector('.native-skeleton')).toHaveAttribute('aria-hidden', 'true')
+  })
 
   it('marks discovery images as lazy', () => {
     render(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: '/image.jpg' }} onOpen={vi.fn()} />)
