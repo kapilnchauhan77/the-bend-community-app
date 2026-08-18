@@ -377,7 +377,10 @@ async def admin_update_sponsor(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(Permission.require_community_admin()),
 ):
-    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    query = select(Sponsor).where(Sponsor.id == sponsor_id)
+    if _.tenant_id is not None:
+        query = query.where(Sponsor.tenant_id == _.tenant_id)
+    result = await db.execute(query)
     sponsor = result.scalar_one_or_none()
     if not sponsor:
         from app.core.exceptions import NotFoundError
