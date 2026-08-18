@@ -631,6 +631,11 @@ class _FakeEventImageCache:
         return self.cached_url
 
 
+class _ExplodingEventImageCache:
+    async def cache(self, source_url):
+        raise RuntimeError("unexpected image processor failure")
+
+
 @pytest.mark.asyncio
 async def test_resync_caches_flickr_and_atomically_replaces_the_matching_url():
     connector_id = uuid4()
@@ -767,6 +772,44 @@ async def test_new_connector_event_stores_a_locally_cached_flickr_image():
     assert result == {"synced": 1, "images_updated": 0, "total_parsed": 1}
     assert event_repo.creates[0]["image_url"] == local_url
     assert image_cache.seen == [flickr_url]
+
+
+@pytest.mark.asyncio
+async def test_unexpected_image_cache_failure_does_not_abort_connector_sync():
+    connector_id = uuid4()
+    source_url = "https://events.example.org/events/new"
+    flickr_url = (
+        "https://www.flickr.com/photo_download.gne?"
+        "id=123&secret=public-token&size=w"
+    )
+    connector = SimpleNamespace(
+        id=connector_id,
+        name="Westmoreland State Park",
+        category="outdoor",
+        tenant_id=uuid4(),
+    )
+    event_repo = _FakeEventRepository({})
+    service = ConnectorService(None)
+    service.connector_repo = _FakeConnectorRepository(connector)
+    service.event_repo = event_repo
+    service.image_cache = _ExplodingEventImageCache()
+
+    async def parse_source(_connector):
+        return [
+            {
+                "title": "New Event",
+                "start_date": datetime(2026, 8, 23, 13, 0),
+                "source_url": source_url,
+                "image_url": flickr_url,
+            }
+        ]
+
+    service._parse_source = parse_source
+
+    result = await service.sync_connector(connector_id)
+
+    assert result == {"synced": 1, "images_updated": 0, "total_parsed": 1}
+    assert "image_url" not in event_repo.creates[0]
 
 
 @pytest.mark.asyncio

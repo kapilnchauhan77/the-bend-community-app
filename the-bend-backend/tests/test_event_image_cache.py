@@ -38,6 +38,23 @@ def test_only_approved_flickr_download_urls_are_cacheable():
     assert not is_cacheable_event_image("https://images.example.org/event.jpg")
 
 
+def test_oversized_chunk_is_rejected_before_it_is_buffered():
+    from app.services.event_image_cache import (
+        _MAX_EVENT_IMAGE_BYTES,
+        _append_chunk_with_limit,
+    )
+
+    content = bytearray(b"already-buffered")
+
+    accepted = _append_chunk_with_limit(
+        content,
+        b"x" * (_MAX_EVENT_IMAGE_BYTES + 1),
+    )
+
+    assert accepted is False
+    assert content == b"already-buffered"
+
+
 @pytest.mark.asyncio
 async def test_caches_an_approved_flickr_image_once_in_local_uploads(tmp_path):
     from app.services.event_image_cache import EventImageCache
@@ -72,6 +89,37 @@ async def test_caches_an_approved_flickr_image_once_in_local_uploads(tmp_path):
         / first_url.replace("/uploads/", "uploads/").replace(".jpg", "_thumb.jpg")
     ).is_file()
     assert requests == 1
+
+
+@pytest.mark.asyncio
+async def test_cache_atomically_promotes_complete_image_files(tmp_path, monkeypatch):
+    import os
+
+    from app.services import event_image_cache
+
+    replacements = []
+    real_replace = os.replace
+
+    def track_replace(source, destination):
+        replacements.append((source, destination))
+        assert source.name.endswith(".tmp")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(event_image_cache.os, "replace", track_replace)
+
+    def serve_image(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "image/jpeg"},
+            content=_jpeg_bytes(),
+            request=request,
+        )
+
+    cached_url = await _cache_for_response(tmp_path, serve_image).cache(FLICKR_URL)
+
+    assert cached_url is not None
+    assert len(replacements) == 2
+    assert not list((tmp_path / "uploads" / "images").glob("*.tmp"))
 
 
 @pytest.mark.asyncio

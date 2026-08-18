@@ -1,5 +1,7 @@
 import hashlib
 import io
+import os
+import uuid
 import warnings
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,6 +25,18 @@ _ALLOWED_IMAGE_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
 _MAX_EVENT_IMAGE_BYTES = 5 * 1024 * 1024
 _MAX_EVENT_IMAGE_EDGE = 10_000
 _MAX_EVENT_IMAGE_PIXELS = 20_000_000
+
+
+def _append_chunk_with_limit(
+    content: bytearray,
+    chunk: bytes,
+    limit: int = _MAX_EVENT_IMAGE_BYTES,
+) -> bool:
+    """Append a response chunk only when it fits within the byte ceiling."""
+    if len(content) + len(chunk) > limit:
+        return False
+    content.extend(chunk)
+    return True
 
 
 def is_cacheable_event_image(url: str | None) -> bool:
@@ -94,8 +108,7 @@ class EventImageCache:
 
                     content = bytearray()
                     async for chunk in response.aiter_bytes():
-                        content.extend(chunk)
-                        if len(content) > _MAX_EVENT_IMAGE_BYTES:
+                        if not _append_chunk_with_limit(content, chunk):
                             return None
             except httpx.HTTPError:
                 return None
@@ -124,12 +137,20 @@ class EventImageCache:
         full_bytes, thumb_bytes, extension = _process_image(bytes(content))
         full_path = self.image_dir / f"{file_stem}{extension}"
         thumb_path = self.image_dir / f"{file_stem}_thumb{extension}"
+        temp_token = uuid.uuid4().hex
+        full_temp_path = self.image_dir / f".{full_path.name}.{temp_token}.tmp"
+        thumb_temp_path = self.image_dir / f".{thumb_path.name}.{temp_token}.tmp"
         try:
             self.image_dir.mkdir(parents=True, exist_ok=True)
-            full_path.write_bytes(full_bytes)
-            thumb_path.write_bytes(thumb_bytes)
+            full_temp_path.write_bytes(full_bytes)
+            thumb_temp_path.write_bytes(thumb_bytes)
+            # Promote the public full-size file last. The database is updated
+            # only after this method returns, so clients never receive a path
+            # whose write is still in progress.
+            os.replace(thumb_temp_path, thumb_path)
+            os.replace(full_temp_path, full_path)
         except OSError:
-            for path in (full_path, thumb_path):
+            for path in (full_temp_path, thumb_temp_path):
                 try:
                     path.unlink(missing_ok=True)
                 except OSError:

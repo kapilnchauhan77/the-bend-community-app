@@ -589,6 +589,15 @@ class ConnectorService:
         self.connector_repo = ConnectorRepository(db)
         self.image_cache = EventImageCache()
 
+    async def _cache_event_image(self, source_url: str) -> str | None:
+        """Cache an imported image without allowing media failures to stop sync."""
+        try:
+            return await self.image_cache.cache(source_url)
+        except Exception:
+            # Image caching is optional. Avoid logging the URL because approved
+            # Flickr download URLs contain a source-provided secret query value.
+            return None
+
     async def sync_connector(self, connector_id: UUID) -> dict:
         """Sync events from a single connector."""
         connector = await self.connector_repo.get_by_id(connector_id)
@@ -613,7 +622,7 @@ class ConnectorService:
                             and existing_image == imported_image
                             and is_cacheable_event_image(imported_image)
                         ):
-                            cached_image = await self.image_cache.cache(imported_image)
+                            cached_image = await self._cache_event_image(imported_image)
                             if (
                                 cached_image
                                 and await self.event_repo.update_image_if_matches(
@@ -627,7 +636,7 @@ class ConnectorService:
                         if imported_image and not str(existing_image or "").strip():
                             stored_image = imported_image
                             if is_cacheable_event_image(imported_image):
-                                stored_image = await self.image_cache.cache(
+                                stored_image = await self._cache_event_image(
                                     imported_image
                                 )
                             if (
@@ -641,7 +650,7 @@ class ConnectorService:
 
                 imported_image = event_data.get("image_url")
                 if is_cacheable_event_image(imported_image):
-                    cached_image = await self.image_cache.cache(imported_image)
+                    cached_image = await self._cache_event_image(imported_image)
                     if cached_image:
                         event_data["image_url"] = cached_image
                     else:
