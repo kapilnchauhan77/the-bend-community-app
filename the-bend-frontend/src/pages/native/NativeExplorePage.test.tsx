@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import NativeExplorePage from './NativeExplorePage'
 import type { NativeExploreGroup, NativeTypedResults } from '@/hooks/useNativeExplore'
@@ -16,6 +17,7 @@ function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | '
 function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null; fixture.mapBusinesses = [] }
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
+function UnmountHarness() { const [visible, setVisible] = useState(true); return <MemoryRouter initialEntries={['/explore?q=old']}><button type="button" onClick={() => setVisible(false)}>Unmount Explore</button>{visible && <NativeExplorePage />}<Probe /></MemoryRouter> }
 
 beforeEach(() => { vi.useFakeTimers(); configureAll(); fixture.location = { status: 'idle' }; fixture.requestLocation = vi.fn().mockResolvedValue({ status: 'granted', latitude: 40, longitude: -79 }) })
 afterEach(() => { vi.useRealTimers(); cleanup() })
@@ -85,6 +87,16 @@ describe('NativeExplorePage', () => {
   })
   it('P2 submits a trimmed q immediately, pushes, and cancels the pending debounce', async () => {
     render(<MemoryRouter initialEntries={['/explore?q=old']}><NativeExplorePage /><Probe /></MemoryRouter>); const input = screen.getByRole('searchbox'); fireEvent.change(input, { target: { value: '  generator  ' } }); fireEvent.submit(screen.getByRole('search')); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=generator'); await act(async () => { vi.advanceTimersByTime(500) }); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=generator'); fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true })); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old')
+  })
+  it('cancels a pending search debounce when Explore unmounts without mutating the URL or warning', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    render(<UnmountHarness />)
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'draft' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Unmount Explore' }))
+    await act(async () => { vi.advanceTimersByTime(500) })
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old')
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
   })
   it('P3 restores q, type, filters, mode, near, and input on browser Back', async () => {
     render(<MemoryRouter initialEntries={['/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc', '/explore?q=new&type=events&category=music&mode=map&near=true']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc'); expect(screen.getByRole('searchbox')).toHaveValue('old'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument(); expect(screen.getByText('staff')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument()

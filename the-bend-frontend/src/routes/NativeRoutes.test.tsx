@@ -5,16 +5,18 @@ import type { RuntimeConfig } from '@/platform/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NativeRoutes } from './NativeRoutes';
 
+const authState = vi.hoisted(() => ({ isAuthenticated: false, isLoading: false, user: null }));
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: (selector?: (state: { isAuthenticated: boolean; isLoading: boolean; user: null }) => unknown) =>
-    selector ? selector({ isAuthenticated: false, isLoading: false, user: null }) : { isAuthenticated: false, isLoading: false, user: null },
+  useAuthStore: (selector?: (state: typeof authState) => unknown) => selector ? selector(authState) : authState,
 }));
 vi.mock('@/pages/HomePage', () => ({ default: () => <div>web-home-sentinel</div> }));
 vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-home-sentinel</div> }));
 vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
+vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <div>native-listing-detail-sentinel</div> }));
+vi.mock('@/pages/MessagesPage', () => ({ default: () => <div>native-messages-sentinel</div> }));
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
 
-afterEach(() => cleanup());
+afterEach(() => { authState.isAuthenticated = false; cleanup(); });
 
 function renderNativeAt(path: string) {
   const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' };
@@ -52,6 +54,19 @@ describe('NativeRoutes', () => {
   it('redirects a guest protected route to the native login surface', () => {
     renderNativeAt('/messages');
     expect(screen.getByText('Login page: /messages')).toBeInTheDocument();
+  });
+
+  it('renders the native listing detail deep link', () => {
+    renderNativeAt('/listing/abc');
+    expect(screen.getByText('native-listing-detail-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText('native-home-sentinel')).not.toBeInTheDocument();
+  });
+
+  it('renders an authenticated protected messages route without Login', () => {
+    authState.isAuthenticated = true;
+    renderNativeAt('/messages');
+    expect(screen.getByText('native-messages-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText(/Login page/)).not.toBeInTheDocument();
   });
 
   it('opens post actions and retains a guest continuation', () => {
