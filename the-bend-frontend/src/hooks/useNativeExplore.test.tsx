@@ -120,10 +120,38 @@ describe('useNativeExplore grouped All behavior', () => {
     expect(shopApi.directory).toHaveBeenCalledTimes(2)
     expect(eventApi.list).toHaveBeenCalledTimes(2)
     expect(listingApi.getOpportunities).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(result.current.groups[0].state.status).toBe('error'))
+    expect(result.current.groups[1].state.status).toBe('success')
+    expect(result.current.groups[2].state.status).toBe('success')
+    expect(result.current.groups[3].state.status).toBe('success')
   })
 
   it('H12 exposes load more only for a valid cursor and exact business refinement', async () => {
     vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('one')], has_more: true, next_cursor: 'cursor' } } as never).mockResolvedValueOnce({ data: { items: [] } } as never); const { result } = renderHook(() => useNativeExplore({ q: '', type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(result.current.typed?.hasMore).toBe(true)); await act(async () => { await result.current.typed!.loadMore() }); expect(listingApi.browse.mock.calls[1][0]).toMatchObject({ cursor: 'cursor' }); vi.mocked(shopApi.directory).mockResolvedValueOnce({ data: { items: [], has_more: true } } as never); const businessResult = renderHook(() => useNativeExplore({ q: '', type: 'businesses', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(businessResult.result.current.typed?.refineMessage).toBe('Refine your search to narrow businesses')); expect(businessResult.result.current.typed?.hasMore).toBe(false)
+  })
+
+  it('H12 hides load more when has_more is false or the cursor is empty or missing', async () => {
+    const responses = [
+      { data: { items: [listing('false')], has_more: false, next_cursor: 'ignored' } },
+      { data: { items: [listing('empty')], has_more: true, next_cursor: '' } },
+      { data: { items: [listing('missing')], has_more: true } },
+    ]
+    vi.mocked(listingApi.browse).mockResolvedValueOnce(responses[0] as never).mockResolvedValueOnce(responses[1] as never).mockResolvedValueOnce(responses[2] as never)
+    const { result, rerender } = renderHook(({ q }) => useNativeExplore({ q, type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false }), { initialProps: { q: 'false' }, reactStrictMode: false })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['false']))
+    expect(result.current.typed?.hasMore).toBe(false)
+    await act(async () => { await result.current.typed!.loadMore() })
+    expect(listingApi.browse).toHaveBeenCalledTimes(1)
+    rerender({ q: 'empty' })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['empty']))
+    expect(result.current.typed?.hasMore).toBe(false)
+    await act(async () => { await result.current.typed!.loadMore() })
+    expect(listingApi.browse).toHaveBeenCalledTimes(2)
+    rerender({ q: 'missing' })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['missing']))
+    expect(result.current.typed?.hasMore).toBe(false)
+    await act(async () => { await result.current.typed!.loadMore() })
+    expect(listingApi.browse).toHaveBeenCalledTimes(3)
   })
 
   it('H13 keeps typed request count stable across state updates and equivalent query objects', async () => {
