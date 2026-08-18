@@ -22,6 +22,32 @@ const allQuery = (overrides = {}) => ({ q: '', type: 'all' as const, category: n
 beforeEach(() => { vi.clearAllMocks(); platform.network.getStatus.mockResolvedValue('online'); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never) })
 
 describe('useNativeExplore grouped All behavior', () => {
+  it('makes zero automatic location calls across lifecycle, query, and hydration rerenders', async () => {
+    vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [business('auto-1')] } } as never)
+    vi.mocked(shopApi.getShop).mockResolvedValue({ data: { ...business('auto-1'), latitude: 40, longitude: -79 } } as never)
+    const initial = { ...allQuery({ type: 'businesses' }), q: '' }
+    const { result, rerender } = renderHook(({ query }) => useNativeExplore(query), { initialProps: { query: initial }, reactStrictMode: false })
+    await waitFor(() => expect(result.current.typed?.state.status).toBe('success'))
+    for (const query of [{ ...initial, q: 'farm' }, { ...initial, category: 'Farm' }, { ...initial, mode: 'map' }, { ...allQuery(), type: 'listings' as const }]) {
+      rerender({ query })
+      await Promise.resolve()
+    }
+    expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(0)
+  })
+
+  it('clears granted coordinates immediately while a pending retry is requesting', async () => {
+    platform.location.getForegroundPosition.mockResolvedValueOnce({ latitude: 40, longitude: -79, accuracy: 5 })
+    const pending = deferred<{ latitude: number; longitude: number; accuracy: number }>()
+    platform.location.getForegroundPosition.mockReturnValueOnce(pending.promise)
+    const { result } = renderHook(() => useNativeExplore({ ...allQuery(), type: 'businesses' }), { reactStrictMode: false })
+    await act(async () => { await result.current.requestLocation() })
+    expect(result.current.userCoordinates).toEqual({ latitude: 40, longitude: -79 })
+    const retry = result.current.requestLocation()
+    await waitFor(() => expect(result.current.location.status).toBe('requesting'))
+    expect(result.current.userCoordinates).toBeNull()
+    await act(async () => { pending.reject({ code: 'TIMEOUT', message: 'timeout' }); await retry })
+    expect(result.current.userCoordinates).toBeNull()
+  })
   it('shares one foreground location request across rapid calls and clears stale coordinates on failure', async () => {
     const deferredPosition = deferred<{ latitude: number; longitude: number; accuracy: number }>()
     platform.location.getForegroundPosition.mockReturnValueOnce(deferredPosition.promise)

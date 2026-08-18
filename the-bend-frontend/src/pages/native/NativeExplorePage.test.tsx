@@ -17,7 +17,7 @@ function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listing
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
 
-beforeEach(() => { vi.useFakeTimers(); configureAll(); fixture.requestLocation = vi.fn().mockResolvedValue({ status: 'granted', latitude: 40, longitude: -79 }) })
+beforeEach(() => { vi.useFakeTimers(); configureAll(); fixture.location = { status: 'idle' }; fixture.requestLocation = vi.fn().mockResolvedValue({ status: 'granted', latitude: 40, longitude: -79 }) })
 afterEach(() => { vi.useRealTimers(); cleanup() })
 
 describe('NativeExplorePage', () => {
@@ -30,8 +30,8 @@ describe('NativeExplorePage', () => {
   it('offers Near me only in Businesses and records the explicit action', async () => {
     function Probe() { return <output data-testid="location">{useLocation().search}</output> }
     configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }]); fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
-    render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Near me' })); await act(async () => { await Promise.resolve() })
+    const view = render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' })); fixture.location = { status }; view.rerender(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>); await act(async () => { await Promise.resolve() })
     expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('location')).toHaveTextContent('near=true')
   })
@@ -61,6 +61,43 @@ describe('NativeExplorePage', () => {
     expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'Continue across Westmoreland' }))
     expect(screen.getByTestId('location')).not.toHaveTextContent('near=true')
+  })
+
+  it.each([
+    ['denied', true], ['unavailable', true], ['idle', false],
+  ] as const)('keeps Farm and clears Near after explicit %s outcome', async (status, primerVisible) => {
+    configureTyped([business]); fixture.location = { status: 'idle' }; fixture.requestLocation = vi.fn().mockResolvedValue({ status })
+    const view = render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' })); fixture.location = { status }; view.rerender(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>); await act(async () => { await Promise.resolve() })
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('location')).not.toHaveTextContent('near=true')
+    expect(screen.getByRole('button', { name: 'Farm' })).toBeInTheDocument()
+    if (primerVisible) expect(screen.queryByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    else expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+
+  it('retries a failed Near action exactly once and Continue does not request again', async () => {
+    configureTyped([business]); fixture.location = { status: 'idle' }; fixture.requestLocation = vi.fn().mockResolvedValueOnce({ status: 'denied' }).mockResolvedValueOnce({ status: 'denied' })
+    const view = render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' })); await act(async () => { await Promise.resolve() })
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
+    fixture.location = { status: 'denied' }
+    view.rerender(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    await act(async () => { await Promise.resolve() })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' })); await act(async () => { await Promise.resolve() })
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Continue across Westmoreland' }))
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Farm' })).toBeInTheDocument()
+  })
+
+  it('does not request location while an eligible map renders, then requests once on Use my location', async () => {
+    configureAll(); fixture.online = true; fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]; fixture.requestLocation = vi.fn().mockResolvedValue({ status: 'granted', latitude: 40, longitude: -79 })
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /></MemoryRouter>)
+    await act(async () => { await Promise.resolve() })
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
   })
 
   it('P1 keeps typed text visible, replaces q after 300ms, and does not add history', async () => {
