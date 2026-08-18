@@ -1,12 +1,14 @@
 import api from './api';
-import type { Listing, ListingDetail, PaginatedResponse } from '@/types';
+import type { AxiosResponse } from 'axios';
+import type { Listing, ListingDetail, PaginatedResponse, SuccessStory } from '@/types';
+export interface PublicRequestOptions { signal?: AbortSignal }
 
 export const listingApi = {
-  browse: (params: Record<string, string | number | boolean | undefined>) =>
-    api.get<PaginatedResponse<Listing>>('/listings', { params }),
+  browse: (params: Record<string, string | number | boolean | undefined>, options?: PublicRequestOptions): Promise<AxiosResponse<PaginatedResponse<Listing>>> =>
+    api.get<PaginatedResponse<Listing>>('/listings', { params, signal: options?.signal }),
 
-  getOpportunities: (params: Record<string, string | number | boolean | undefined>) =>
-    api.get<PaginatedResponse<Listing>>('/listings/opportunities', { params }),
+  getOpportunities: (params: Record<string, string | number | boolean | undefined>, options?: PublicRequestOptions): Promise<AxiosResponse<PaginatedResponse<Listing>>> =>
+    api.get<PaginatedResponse<Listing>>('/listings/opportunities', { params, signal: options?.signal }),
 
   getDetail: (id: string) =>
     api.get<ListingDetail>(`/listings/${id}`),
@@ -41,8 +43,8 @@ export const listingApi = {
   getMyListings: () =>
     api.get('/listings/mine'),
 
-  getStories: (params?: Record<string, string>) =>
-    api.get('/stories', { params }),
+  getStories: (params?: Record<string, string>): Promise<AxiosResponse<{ items: SuccessStory[] }>> =>
+    api.get<{ items: SuccessStory[] }>('/stories', { params }),
 
   reportListing: (listingId: string, data: { reason: string; details?: string }) =>
     api.post(`/listings/${listingId}/report`, data),

@@ -1,11 +1,14 @@
 import api from './api';
+import type { AxiosResponse } from 'axios';
+import type { CommunityEvent, ItemsResponse, PaginatedResponse } from '@/types';
+import type { PublicRequestOptions } from './listingApi';
 
 export const eventApi = {
   // Public
-  list: (params?: Record<string, string>) =>
-    api.get('/events', { params }),
-  getUpcoming: (limit = 5) =>
-    api.get('/events/upcoming', { params: { limit: String(limit) } }),
+  list: (params?: Record<string, string | number | boolean | undefined>, options?: PublicRequestOptions): Promise<AxiosResponse<PaginatedResponse<CommunityEvent>>> =>
+    api.get<PaginatedResponse<CommunityEvent>>('/events', { params, signal: options?.signal }),
+  getUpcoming: (limit = 5): Promise<AxiosResponse<ItemsResponse<CommunityEvent>>> =>
+    api.get<ItemsResponse<CommunityEvent>>('/events/upcoming', { params: { limit: String(limit) } }),
   getDetail: (id: string) =>
     api.get(`/events/${id}`),
 

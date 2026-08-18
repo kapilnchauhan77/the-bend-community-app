@@ -118,4 +118,30 @@ describe('useCachedPublicContent', () => {
     expect(cache.put.mock.calls.map(([entry]) => entry.key)).toEqual(['listing:1', 'listing:2'])
     expect(cache.put).toHaveBeenCalledTimes(2)
   })
+
+  it('exposes loading and network error states', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new Error('network failed'))
+    const { result } = renderHook(() => useCachedPublicContent('listing:error', fetcher))
+    expect(result.current).toMatchObject({ status: 'loading', data: null, error: null })
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    expect(result.current.error?.message).toBe('network failed')
+  })
+
+  it('uses a valid cache fallback with explicit success source', async () => {
+    status = 'offline'
+    cache.get.mockResolvedValue({ key: 'listing:cached', kind: 'listing', entityId: 'cached', cachedAt: '2026-01-01T00:00:00.000Z', payload: { id: 'cached' }, imagePath: null, sizeBytes: 16 })
+    const { result } = renderHook(() => useCachedPublicContent('listing:cached', vi.fn()))
+    await waitFor(() => expect(result.current).toMatchObject({ status: 'success', source: 'cache', data: { id: 'cached' } }))
+  })
+
+  it('resets visible state when the key changes and retry clears an error', async () => {
+    const second = deferred<{ id: string }>()
+    const fetcher = vi.fn().mockRejectedValueOnce(new Error('failed')).mockReturnValueOnce(second.promise)
+    const { result, rerender } = renderHook(({ key }) => useCachedPublicContent(key, fetcher), { initialProps: { key: 'listing:1' } })
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    rerender({ key: 'listing:2' })
+    await waitFor(() => expect(result.current).toMatchObject({ status: 'loading', data: null, error: null }))
+    await act(async () => { second.resolve({ id: 'fresh' }); await second.promise })
+    await waitFor(() => expect(result.current).toMatchObject({ status: 'success', data: { id: 'fresh' }, error: null }))
+  })
 })

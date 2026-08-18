@@ -1,8 +1,10 @@
 import api from './api';
+import type { AxiosResponse } from 'axios';
+import type { ItemsResponse, Sponsor } from '@/types';
 
 export const sponsorApi = {
-  list: (placement?: string) =>
-    api.get('/sponsors', { params: placement ? { placement } : {} }),
+  list: (placement?: string): Promise<AxiosResponse<ItemsResponse<Sponsor>>> =>
+    api.get<ItemsResponse<Sponsor>>('/sponsors', { params: placement ? { placement } : {} }),
 
   // Admin — sponsors
   adminList: () => api.get('/admin/sponsors'),

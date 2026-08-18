@@ -154,6 +154,8 @@ export interface PaginatedResponse<T> {
   has_more: boolean;
 }
 
+export interface ItemsResponse<T> { items: T[] }
+
 export interface AuthTokens {
   access_token: string;
   refresh_token: string;
