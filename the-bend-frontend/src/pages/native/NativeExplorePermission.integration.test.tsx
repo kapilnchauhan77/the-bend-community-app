@@ -108,7 +108,7 @@ describe('NativeExplorePage production-path permission integration', () => {
     await waitFor(() => expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(1))
   })
 
-  it('does not evaluate the lazy map when a real map request has no eligible coordinates', async () => {
+  it('does not render the lazy map when a real map request has no eligible coordinates', async () => {
     vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [{ ...farm, latitude: null, longitude: null }] } } as never)
     vi.mocked(shopApi.getShop).mockResolvedValue({ data: { ...farm, latitude: null, longitude: null } } as never)
     renderExplore('/explore?type=businesses&mode=map')
