@@ -6,7 +6,8 @@ from app.repositories.shop_repo import ShopRepository
 from app.models.shop import Shop
 from app.models.employee import Employee
 from app.models.user import User
-from app.core.exceptions import NotFoundError, ForbiddenError
+from app.core.business_types import BUSINESS_TYPES
+from app.core.exceptions import NotFoundError, ForbiddenError, ValidationError
 
 
 class ShopService:
@@ -26,6 +27,14 @@ class ShopService:
             raise NotFoundError("Shop")
         if current_user.role.value != "community_admin" and shop.admin_user_id != current_user.id:
             raise ForbiddenError("Cannot modify another shop")
+
+        requested_business_type = data.get("business_type")
+        if (
+            requested_business_type is not None
+            and requested_business_type != shop.business_type
+            and requested_business_type not in BUSINESS_TYPES
+        ):
+            raise ValidationError("Select a supported business type")
 
         # `regeocode` is a control flag, not a column. Capture it, then drop it so
         # it never reaches the repository write.

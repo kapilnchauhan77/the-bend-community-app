@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -29,6 +30,7 @@ class ShopResponse(BaseModel):
 
 class ShopUpdateRequest(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=150)
+    business_type: str | None = Field(None, min_length=1, max_length=50)
     address: str | None = None
     contact_phone: str | None = None
     whatsapp: str | None = None
