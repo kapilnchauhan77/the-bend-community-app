@@ -25,6 +25,10 @@ describe('NativeBottomNav', () => {
     renderNavAt('/explore'); fireEvent.click(screen.getByRole('button', { name: 'Explore' }))
     expect(scrollRootToTop).toHaveBeenCalledWith('explore'); expect(navigate).not.toHaveBeenCalled()
   })
+  it('scrolls an already-selected Home root instead of pushing another entry', () => {
+    renderNavAt('/'); fireEvent.click(screen.getByRole('button', { name: 'Home' }))
+    expect(scrollRootToTop).toHaveBeenCalledWith('home'); expect(navigate).not.toHaveBeenCalled()
+  })
   it('marks the active root tab with aria-current', () => {
     renderNavAt('/messages/thread-1')
     expect(screen.getByRole('button', { name: 'Inbox' })).toHaveAttribute('aria-current', 'page')

@@ -31,12 +31,21 @@ export function NativeAppShell() {
     };
   }, []);
   useEffect(() => {
-    if (typeof window.localStorage?.getItem === 'function' && window.localStorage.getItem('theme')) return;
-    if (typeof window.matchMedia !== 'function') return;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const update = () => document.documentElement.classList.toggle('dark', media.matches);
-    update(); media.addEventListener?.('change', update);
-    return () => media.removeEventListener?.('change', update);
+    const hadDarkClass = document.documentElement.classList.contains('dark');
+    const apply = (dark: boolean) => document.documentElement.classList.toggle('dark', dark);
+    const stored = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('theme') : null;
+    let media: MediaQueryList | undefined;
+    let update: (() => void) | undefined;
+    if (stored === 'dark' || stored === 'light') apply(stored === 'dark');
+    else if (typeof window.matchMedia === 'function') {
+      media = window.matchMedia('(prefers-color-scheme: dark)');
+      update = () => apply(media!.matches);
+      update(); media.addEventListener?.('change', update);
+    }
+    return () => {
+      if (media && update) media.removeEventListener?.('change', update);
+      apply(hadDarkClass);
+    };
   }, []);
   return <ShellContext.Provider value={shell}><div ref={rootRef} className="native-app"><main id="native-main" className="native-main"><Outlet /></main><NativeBottomNav /></div></ShellContext.Provider>;
 }

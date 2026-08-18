@@ -7,6 +7,9 @@ import type { RuntimeConfig } from '@/platform/contracts'
 
 vi.mock('@/deep-links/useDeepLinks', () => ({ useDeepLinks: () => undefined }))
 
+const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: '', wsBaseUrl: '', tenantSlug: '', appVersion: '', buildNumber: '', environment: 'test' }
+function renderShell() { return render(<PlatformServicesProvider config={config}><MemoryRouter><NativeAppShell /></MemoryRouter></PlatformServicesProvider>) }
+
 describe('NativeAppShell', () => {
   afterEach(() => vi.restoreAllMocks())
   it('owns one native-app root and removes the visual viewport listener', () => {
@@ -35,5 +38,35 @@ describe('NativeAppShell', () => {
     shell.registerRootScroll('explore', null); shell.scrollRootToTop('explore')
     expect(scrollTo).toHaveBeenCalledTimes(2)
     view.unmount()
+  })
+
+  it.each([['dark', true], ['light', false]] as const)('localStorage %s theme wins', (theme, dark) => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => theme } })
+    document.documentElement.classList.remove('dark')
+    const view = renderShell()
+    expect(document.documentElement.classList.contains('dark')).toBe(dark)
+    view.unmount()
+  })
+
+  it('uses and cleans the color-scheme media listener when no local theme exists', () => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => null } })
+    let change: (() => void) | undefined
+    const media = { matches: true, addEventListener: vi.fn((_type, listener) => { change = listener }), removeEventListener: vi.fn() }
+    vi.spyOn(window, 'matchMedia').mockReturnValue(media as unknown as MediaQueryList)
+    const view = renderShell()
+    expect(document.documentElement).toHaveClass('dark')
+    media.matches = false; change?.(); expect(document.documentElement).not.toHaveClass('dark')
+    view.unmount(); expect(media.removeEventListener).toHaveBeenCalledOnce()
+  })
+
+  it('restores the pre-shell dark class and keyboard inset on unmount', () => {
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => null } })
+    document.documentElement.classList.add('dark')
+    const root = document.createElement('div')
+    const add = vi.fn(); const remove = vi.fn()
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: { height: 700, offsetTop: 0, addEventListener: add, removeEventListener: remove } })
+    const view = renderShell()
+    view.unmount(); expect(document.documentElement).toHaveClass('dark'); expect(remove).toHaveBeenCalledOnce()
+    void root
   })
 })
