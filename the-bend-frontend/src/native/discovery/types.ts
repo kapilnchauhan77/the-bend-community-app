@@ -1,5 +1,3 @@
-import type { Listing, Shop, CommunityEvent } from '@/types'
-
 export type NativeDiscoveryKind = 'listing' | 'business' | 'event' | 'volunteer'
 export type NativeExploreType = 'all' | 'listings' | 'businesses' | 'events' | 'volunteer'
 export type NativeSectionStatus = 'loading' | 'success' | 'empty' | 'error'
@@ -41,5 +39,3 @@ export interface CachedPublicContentOptions<T> {
   enabled?: boolean
   cachePolicy?: 'public' | 'none'
 }
-
-export type NativeDiscoveryEntity = Listing | Shop | CommunityEvent

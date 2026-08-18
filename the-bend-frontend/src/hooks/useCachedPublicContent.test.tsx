@@ -144,4 +144,60 @@ describe('useCachedPublicContent', () => {
     await act(async () => { second.resolve({ id: 'fresh' }); await second.promise })
     await waitFor(() => expect(result.current).toMatchObject({ status: 'success', data: { id: 'fresh' }, error: null }))
   })
+
+  it('does not fetch or read while disabled, then activates one request', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ id: 'fresh' })
+    const { result, rerender } = renderHook(({ enabled }) => useCachedPublicContent('listing:disabled', fetcher, { enabled }), { initialProps: { enabled: false } })
+    expect(result.current).toMatchObject({ status: 'loading', data: null, source: null, error: null })
+    await act(async () => {})
+    expect(fetcher).not.toHaveBeenCalled(); expect(cache.get).not.toHaveBeenCalled()
+    rerender({ enabled: true })
+    await waitFor(() => expect(result.current.status).toBe('success'))
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips every cache operation when cache policy is none', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ id: 'fresh' })
+    const { result } = renderHook(() => useCachedPublicContent('listing:none', fetcher, { cachePolicy: 'none' }))
+    await waitFor(() => expect(result.current.status).toBe('success'))
+    expect(cache.get).not.toHaveBeenCalled(); expect(cache.put).not.toHaveBeenCalled()
+  })
+
+  it('keeps network success when cache write rejects', async () => {
+    cache.put.mockRejectedValue(new Error('write failed'))
+    const { result } = renderHook(() => useCachedPublicContent('listing:write-fail', vi.fn().mockResolvedValue({ id: 'fresh' })))
+    await waitFor(() => expect(result.current).toMatchObject({ status: 'success', source: 'network', data: { id: 'fresh' }, error: null }))
+  })
+
+  it('reports cache read failure when offline without masking the original no-network error', async () => {
+    status = 'offline'; cache.get.mockRejectedValue(new Error('read failed'))
+    const { result } = renderHook(() => useCachedPublicContent('listing:read-fail', vi.fn()))
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    expect(result.current.error?.message).toBe('OFFLINE_NO_CACHE')
+  })
+
+  it('marks empty network and cache values as empty', async () => {
+    const networkResult = renderHook(() => useCachedPublicContent('listing:empty-network', vi.fn().mockResolvedValue([])))
+    await waitFor(() => expect(networkResult.result.current.status).toBe('empty'))
+    status = 'offline'; cache.get.mockResolvedValue({ key: 'listing:empty-cache', kind: 'listing', entityId: 'empty-cache', cachedAt: '2026-01-01T00:00:00.000Z', payload: { items: [] }, imagePath: null, sizeBytes: 2 })
+    const cacheResult = renderHook(() => useCachedPublicContent('listing:empty-cache', vi.fn()))
+    await waitFor(() => expect(cacheResult.result.current).toMatchObject({ status: 'empty', source: 'cache', error: null }))
+  })
+
+  it('retries a same-key error and clears the prior error', async () => {
+    const fetcher = vi.fn().mockRejectedValueOnce(new Error('failed')).mockResolvedValueOnce({ id: 'retry' })
+    const { result } = renderHook(() => useCachedPublicContent('listing:retry', fetcher))
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    await act(async () => { await result.current.refresh() })
+    await waitFor(() => expect(result.current).toMatchObject({ status: 'success', data: { id: 'retry' }, error: null }))
+  })
+
+  it('does not expose stale completion after unmount', async () => {
+    const pending = deferred<{ id: string }>()
+    const { result, unmount } = renderHook(() => useCachedPublicContent('listing:unmounted', () => pending.promise))
+    await waitFor(() => expect(result.current.status).toBe('loading'))
+    unmount()
+    await act(async () => { pending.resolve({ id: 'late' }); await pending.promise })
+    expect(result.current.data).toBeNull(); expect(result.current.source).toBeNull()
+  })
 })

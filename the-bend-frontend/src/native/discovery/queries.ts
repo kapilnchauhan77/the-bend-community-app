@@ -24,10 +24,10 @@ export function serializeNativeExploreQuery(query: NativeExploreQuery): URLSearc
 }
 
 type Params = Record<string, string | number | boolean | undefined>
-function shared(query: NativeExploreQuery): Params { return { search: query.q || undefined, category: query.category || undefined, sort: query.sort || undefined } }
+function search(query: NativeExploreQuery): Params { return { search: query.q || undefined } }
 function allLimit(query: NativeExploreQuery): Params { return query.type === 'all' ? { limit: 5 } : {} }
 
-export function toListingParams(query: NativeExploreQuery): Params { return { ...shared(query), urgency: query.urgency || undefined, ...allLimit(query) } }
-export function toBusinessParams(query: NativeExploreQuery): Params { return { ...shared(query), ...allLimit(query) } }
-export function toEventParams(query: NativeExploreQuery): Params { return { ...shared(query), ...allLimit(query) } }
-export function toOpportunityParams(query: NativeExploreQuery): Params { return { ...shared(query), urgency: query.urgency || undefined, ...allLimit(query) } }
+export function toListingParams(query: NativeExploreQuery): Params { return { ...search(query), category: query.category || undefined, urgency: query.urgency || undefined, sort: query.sort || undefined, ...allLimit(query) } }
+export function toBusinessParams(query: NativeExploreQuery): Params { return { ...search(query), business_type: query.category || undefined, ...allLimit(query) } }
+export function toEventParams(query: NativeExploreQuery): Params { return { ...search(query), category: query.category || undefined, ...allLimit(query) } }
+export function toOpportunityParams(query: NativeExploreQuery): Params { return { ...search(query), urgency: query.urgency || undefined, sort: query.sort || undefined, ...allLimit(query) } }

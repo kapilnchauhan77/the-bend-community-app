@@ -12,11 +12,11 @@ describe('native explore query', () => {
     expect(serializeNativeExploreQuery(parseNativeExploreQuery(new URLSearchParams('type=nope&mode=nope&near=nope'))).toString()).toBe('')
   })
 
-  it('translates q to backend search and bounds all mode to five', () => {
+  it('translates q to search with exact endpoint-supported filters', () => {
     const query = parseNativeExploreQuery(new URLSearchParams('q=repair&type=all&category=food&urgency=urgent&sort=newest&mode=list&near=true'))
     expect(toListingParams(query)).toEqual({ search: 'repair', category: 'food', urgency: 'urgent', sort: 'newest', limit: 5 })
-    expect(toBusinessParams(query)).toEqual({ search: 'repair', category: 'food', sort: 'newest', limit: 5 })
-    expect(toEventParams(query)).toEqual({ search: 'repair', category: 'food', sort: 'newest', limit: 5 })
-    expect(toOpportunityParams(query)).toEqual({ search: 'repair', category: 'food', urgency: 'urgent', sort: 'newest', limit: 5 })
+    expect(toBusinessParams(query)).toEqual({ search: 'repair', business_type: 'food', limit: 5 })
+    expect(toEventParams(query)).toEqual({ search: 'repair', category: 'food', limit: 5 })
+    expect(toOpportunityParams(query)).toEqual({ search: 'repair', urgency: 'urgent', sort: 'newest', limit: 5 })
   })
 })
