@@ -25,6 +25,19 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
   const hydrationGeneration = useRef(0)
   const networkEventVersion = useRef(0)
   const hydrationScheduler = useRef<{ retry(): void } | null>(null)
+  const sharedHydrationRequests = useRef(new Map<string, Promise<{ latitude: number; longitude: number } | null>>())
+  const hydrateShop = useCallback((id: string) => {
+    const existing = sharedHydrationRequests.current.get(id)
+    if (existing) return existing
+    const request = shopApi.getShop(id).then((response) => {
+      const { latitude, longitude } = response.data
+      if (typeof latitude !== 'number' || typeof longitude !== 'number' || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null
+      return { latitude, longitude }
+    }).catch(() => null)
+    sharedHydrationRequests.current.set(id, request)
+    void request.finally(() => { if (sharedHydrationRequests.current.get(id) === request) sharedHydrationRequests.current.delete(id) })
+    return request
+  }, [])
   const locationInFlight = useRef<Promise<NativeLocationState> | null>(null)
   const queryKey = JSON.stringify(query); const { q, type, category, urgency, sort, mode, near } = query; const all = type === 'all'; const isDefault = !q && !category && !urgency && !sort && mode === 'list' && !near
   const requestQuery = useMemo(() => ({ q, type, category, urgency, sort, mode, near }), [q, type, category, urgency, sort, mode, near])
@@ -65,12 +78,9 @@ export function useNativeExplore(query: NativeExploreQuery): NativeExploreViewMo
         if (!item) continue
         active += 1
         inFlight.add(id)
-        void shopApi.getShop(id).then((response) => {
+        void hydrateShop(id).then((coordinates) => {
           const current = !disposed && hydrationGeneration.current === generation && online === true
-          const latitude = response.data.latitude
-          const longitude = response.data.longitude
-          const valid = typeof latitude === 'number' && typeof longitude === 'number' && Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
-          if (current && valid) { completed.add(id); setHydrated((previous) => ({ ...previous, [id]: { latitude, longitude } })) }
+          if (current && coordinates) { completed.add(id); setHydrated((previous) => ({ ...previous, [id]: coordinates })) }
         }).catch(() => undefined).finally(() => {
           active -= 1
           inFlight.delete(id)
