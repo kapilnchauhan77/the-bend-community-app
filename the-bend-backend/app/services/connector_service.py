@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import ConnectorType
 from app.repositories.event_repo import ConnectorRepository, EventRepository
+from app.services.event_image_cache import EventImageCache, is_cacheable_event_image
 
 # Some public calendar hosts (e.g. CivicPlus county sites behind Cloudflare
 # "Bot Fight Mode") reject requests that don't look like a real calendar
@@ -586,6 +587,7 @@ class ConnectorService:
         self.db = db
         self.event_repo = EventRepository(db)
         self.connector_repo = ConnectorRepository(db)
+        self.image_cache = EventImageCache()
 
     async def sync_connector(self, connector_id: UUID) -> dict:
         """Sync events from a single connector."""
@@ -608,14 +610,42 @@ class ConnectorService:
                         imported_image = event_data.get("image_url")
                         if (
                             imported_image
-                            and not str(existing_image or "").strip()
-                            and await self.event_repo.update_image_if_blank(
-                                existing.id, imported_image
-                            )
+                            and existing_image == imported_image
+                            and is_cacheable_event_image(imported_image)
                         ):
-                            images_updated += 1
+                            cached_image = await self.image_cache.cache(imported_image)
+                            if (
+                                cached_image
+                                and await self.event_repo.update_image_if_matches(
+                                    existing.id,
+                                    imported_image,
+                                    cached_image,
+                                )
+                            ):
+                                images_updated += 1
+                            continue
+                        if imported_image and not str(existing_image or "").strip():
+                            stored_image = imported_image
+                            if is_cacheable_event_image(imported_image):
+                                stored_image = await self.image_cache.cache(
+                                    imported_image
+                                )
+                            if (
+                                stored_image
+                                and await self.event_repo.update_image_if_blank(
+                                    existing.id, stored_image
+                                )
+                            ):
+                                images_updated += 1
                         continue
 
+                imported_image = event_data.get("image_url")
+                if is_cacheable_event_image(imported_image):
+                    cached_image = await self.image_cache.cache(imported_image)
+                    if cached_image:
+                        event_data["image_url"] = cached_image
+                    else:
+                        event_data.pop("image_url", None)
                 event_data["id"] = uuid4()
                 event_data["connector_id"] = connector_id
                 event_data["source"] = connector.name

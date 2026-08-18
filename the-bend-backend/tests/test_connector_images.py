@@ -609,8 +609,164 @@ class _FakeEventRepository:
                 return True
         return False
 
+    async def update_image_if_matches(self, event_id, current_url, image_url):
+        for event in self.existing_by_url.values():
+            if event.id == event_id and event.image_url == current_url:
+                self.updates.append((event_id, {"image_url": image_url}))
+                event.image_url = image_url
+                return True
+        return False
+
     async def create(self, data):
         self.creates.append(data)
+
+
+class _FakeEventImageCache:
+    def __init__(self, cached_url):
+        self.cached_url = cached_url
+        self.seen = []
+
+    async def cache(self, source_url):
+        self.seen.append(source_url)
+        return self.cached_url
+
+
+@pytest.mark.asyncio
+async def test_resync_caches_flickr_and_atomically_replaces_the_matching_url():
+    connector_id = uuid4()
+    source_url = "https://events.example.org/events/paddle"
+    flickr_url = (
+        "https://www.flickr.com/photo_download.gne?"
+        "id=123&secret=public-token&size=w"
+    )
+    local_url = "/uploads/images/event-paddle.jpg"
+    existing = SimpleNamespace(id=uuid4(), image_url=flickr_url)
+    connector = SimpleNamespace(
+        id=connector_id,
+        name="Westmoreland State Park",
+        category="outdoor",
+        tenant_id=uuid4(),
+    )
+    event_repo = _FakeEventRepository({source_url: existing})
+    image_cache = _FakeEventImageCache(local_url)
+    service = ConnectorService(None)
+    service.connector_repo = _FakeConnectorRepository(connector)
+    service.event_repo = event_repo
+    service.image_cache = image_cache
+
+    async def parse_source(_connector):
+        return [
+            {
+                "title": "Sunset Paddle",
+                "start_date": datetime(2026, 8, 19, 18, 0),
+                "source_url": source_url,
+                "image_url": flickr_url,
+            }
+        ]
+
+    service._parse_source = parse_source
+
+    result = await service.sync_connector(connector_id)
+
+    assert result == {"synced": 0, "images_updated": 1, "total_parsed": 1}
+    assert existing.image_url == local_url
+    assert image_cache.seen == [flickr_url]
+
+
+@pytest.mark.asyncio
+async def test_resync_caches_flickr_for_blank_images_and_preserves_manual_images():
+    connector_id = uuid4()
+    blank_source_url = "https://events.example.org/events/blank"
+    manual_source_url = "https://events.example.org/events/manual"
+    flickr_url = (
+        "https://www.flickr.com/photo_download.gne?"
+        "id=123&secret=public-token&size=w"
+    )
+    local_url = "/uploads/images/event-paddle.jpg"
+    blank_event = SimpleNamespace(id=uuid4(), image_url=None)
+    manual_event = SimpleNamespace(
+        id=uuid4(), image_url="/uploads/images/admin-choice.jpg"
+    )
+    connector = SimpleNamespace(
+        id=connector_id,
+        name="Westmoreland State Park",
+        category="outdoor",
+        tenant_id=uuid4(),
+    )
+    event_repo = _FakeEventRepository(
+        {blank_source_url: blank_event, manual_source_url: manual_event}
+    )
+    image_cache = _FakeEventImageCache(local_url)
+    service = ConnectorService(None)
+    service.connector_repo = _FakeConnectorRepository(connector)
+    service.event_repo = event_repo
+    service.image_cache = image_cache
+
+    async def parse_source(_connector):
+        return [
+            {
+                "title": "Blank Event",
+                "start_date": datetime(2026, 8, 19, 18, 0),
+                "source_url": blank_source_url,
+                "image_url": flickr_url,
+            },
+            {
+                "title": "Manual Event",
+                "start_date": datetime(2026, 8, 21, 18, 0),
+                "source_url": manual_source_url,
+                "image_url": flickr_url,
+            },
+        ]
+
+    service._parse_source = parse_source
+
+    result = await service.sync_connector(connector_id)
+
+    assert result == {"synced": 0, "images_updated": 1, "total_parsed": 2}
+    assert blank_event.image_url == local_url
+    assert manual_event.image_url == "/uploads/images/admin-choice.jpg"
+    assert image_cache.seen == [flickr_url]
+
+
+@pytest.mark.asyncio
+async def test_new_connector_event_stores_a_locally_cached_flickr_image():
+    connector_id = uuid4()
+    source_url = "https://events.example.org/events/new"
+    flickr_url = (
+        "https://www.flickr.com/photo_download.gne?"
+        "id=123&secret=public-token&size=w"
+    )
+    local_url = "/uploads/images/event-new.jpg"
+    connector = SimpleNamespace(
+        id=connector_id,
+        name="Westmoreland State Park",
+        category="outdoor",
+        tenant_id=uuid4(),
+    )
+    event_repo = _FakeEventRepository({})
+    image_cache = _FakeEventImageCache(local_url)
+    service = ConnectorService(None)
+    service.connector_repo = _FakeConnectorRepository(connector)
+    service.event_repo = event_repo
+    service.image_cache = image_cache
+
+    async def parse_source(_connector):
+        return [
+            {
+                "title": "New Event",
+                "start_date": datetime(2026, 8, 23, 13, 0),
+                "source_url": source_url,
+                "image_url": flickr_url,
+            }
+        ]
+
+    service._parse_source = parse_source
+
+    result = await service.sync_connector(connector_id)
+
+    assert result == {"synced": 1, "images_updated": 0, "total_parsed": 1}
+    assert event_repo.creates[0]["image_url"] == local_url
+    assert image_cache.seen == [flickr_url]
 
 
 @pytest.mark.asyncio
@@ -752,4 +908,28 @@ async def test_repository_backfill_is_one_atomic_blank_only_update():
     assert "events.image_url IS NULL" in compiled
     assert "btrim(events.image_url," in compiled
     assert "btrim(events.image_url) = ''" not in compiled
+    assert "RETURNING events.id" in compiled
+
+
+@pytest.mark.asyncio
+async def test_repository_replaces_only_the_matching_imported_image_url():
+    session = _CapturingSession()
+    repository = EventRepository(session)
+    source_url = (
+        "https://www.flickr.com/photo_download.gne?"
+        "id=123&secret=public-token&size=w"
+    )
+
+    updated = await repository.update_image_if_matches(
+        uuid4(), source_url, "/uploads/images/event-123.jpg"
+    )
+
+    compiled = str(
+        session.statement.compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    )
+    assert updated is False
+    assert "UPDATE events" in compiled
+    assert f"events.image_url = '{source_url}'" in compiled
     assert "RETURNING events.id" in compiled
