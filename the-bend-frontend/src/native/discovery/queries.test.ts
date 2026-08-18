@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { parseNativeExploreQuery, serializeNativeExploreQuery, toBusinessParams, toEventParams, toListingParams, toOpportunityParams } from './queries'
 
 describe('native explore query', () => {
+  it('drops Near me for non-business types during parse and serialization', () => {
+    for (const type of ['all', 'listings', 'events', 'volunteer']) {
+      const parsed = parseNativeExploreQuery(new URLSearchParams(`type=${type}&near=true`))
+      expect(parsed.near).toBe(false)
+      expect(serializeNativeExploreQuery({ ...parsed, near: true }).toString()).not.toContain('near=true')
+    }
+  })
   it('parses canonical values and serializes stable non-default parameters', () => {
     const query = parseNativeExploreQuery(new URLSearchParams('q=repair&type=businesses&category=food&urgency=urgent&sort=newest&mode=map&near=true'))
     expect(query).toEqual({ q: 'repair', type: 'businesses', category: 'food', urgency: null, sort: null, mode: 'map', near: true })
@@ -14,6 +21,7 @@ describe('native explore query', () => {
 
   it('translates q to search with exact endpoint-supported filters', () => {
     const query = parseNativeExploreQuery(new URLSearchParams('q=repair&type=all&category=food&urgency=urgent&sort=newest&mode=list&near=true'))
+    expect(query.near).toBe(false)
     expect(toListingParams(query)).toEqual({ search: 'repair', category: undefined, urgency: 'urgent', sort: undefined, limit: 5 })
     expect(toBusinessParams(query)).toEqual({ search: 'repair', business_type: 'food', limit: 5 })
     expect(toEventParams(query)).toEqual({ search: 'repair', category: 'food', limit: 5 })
