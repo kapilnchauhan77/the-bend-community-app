@@ -78,6 +78,18 @@ class EventRepository(BaseRepository[Event]):
         )
         return result.scalar_one_or_none() is not None
 
+    async def update_image_if_matches(
+        self, event_id: UUID, current_url: str, image_url: str
+    ) -> bool:
+        """Replace an imported URL only if an admin has not changed it."""
+        result = await self.session.execute(
+            update(Event)
+            .where(Event.id == event_id, Event.image_url == current_url)
+            .values(image_url=image_url)
+            .returning(Event.id)
+        )
+        return result.scalar_one_or_none() is not None
+
 
 class ConnectorRepository(BaseRepository[EventConnector]):
     def __init__(self, session: AsyncSession):
