@@ -128,8 +128,26 @@ export class NativeContentCache implements ContentCache {
     try {
       await Filesystem.mkdir({ path: 'bend-public-cache', directory: Directory.Data, recursive: true })
       const data = JSON.stringify([...this.entries.values()])
-      await Filesystem.writeFile({ path: `${INDEX_PATH}.tmp`, directory: Directory.Data, data, encoding: Encoding.UTF8 })
-      await Filesystem.rename({ from: `${INDEX_PATH}.tmp`, to: INDEX_PATH, directory: Directory.Data })
+      const temporaryPath = `${INDEX_PATH}.tmp`
+      const backupPath = `${INDEX_PATH}.bak`
+      await Filesystem.writeFile({ path: temporaryPath, directory: Directory.Data, data, encoding: Encoding.UTF8 })
+
+      let movedExisting = false
+      try { await Filesystem.deleteFile({ path: backupPath, directory: Directory.Data }) } catch { /* no stale backup */ }
+      try {
+        await Filesystem.rename({ from: INDEX_PATH, to: backupPath, directory: Directory.Data })
+        movedExisting = true
+      } catch { /* the index may not exist yet */ }
+
+      try {
+        await Filesystem.rename({ from: temporaryPath, to: INDEX_PATH, directory: Directory.Data })
+        if (movedExisting) await Filesystem.deleteFile({ path: backupPath, directory: Directory.Data })
+      } catch {
+        if (movedExisting) {
+          try { await Filesystem.deleteFile({ path: INDEX_PATH, directory: Directory.Data }) } catch { /* no partial destination */ }
+          try { await Filesystem.rename({ from: backupPath, to: INDEX_PATH, directory: Directory.Data }) } catch { /* retain whichever valid file the provider preserved */ }
+        }
+      }
     } catch { /* cache is best effort */ }
   }
 

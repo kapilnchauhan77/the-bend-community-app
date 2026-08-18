@@ -198,7 +198,7 @@ describe('NativeContentCache', () => {
     ]) })
     const cache = new NativeContentCache({ storage: 'filesystem' })
     expect((await cache.stats()).items).toBe(1)
-    expect(filesystem.deleteFile).not.toHaveBeenCalled()
+    expect(filesystem.deleteFile.mock.calls.some(([call]) => call.path === 'bend-public-cache/images/shared.jpg')).toBe(false)
   })
 
   it('persists structural sanitization for duplicate keys and changed content', async () => {
@@ -212,5 +212,68 @@ describe('NativeContentCache', () => {
     const persisted = JSON.parse(String(filesystem.writeFile.mock.calls.at(-1)?.[0]?.data))
     expect(persisted).toHaveLength(1)
     expect(persisted[0].payload).toEqual({ id: '1', title: 'Current' })
+  })
+
+  it('replaces an existing index safely when the filesystem refuses overwrite rename', async () => {
+    const files = new Map<string, string>()
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.writeFile.mockImplementation(async ({ path, data }: { path: string, data: string }) => {
+      files.set(path, data)
+    })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+    filesystem.rename.mockImplementation(async ({ from, to }: { from: string, to: string }) => {
+      if (files.has(to)) throw new Error('EEXIST')
+      const data = files.get(from)
+      if (data === undefined) throw new Error('ENOENT')
+      files.set(to, data)
+      files.delete(from)
+    })
+
+    const first = new NativeContentCache({ storage: 'filesystem' })
+    await first.put({ key: 'event:1', kind: 'event', entityId: '1', cachedAt: new Date().toISOString(), payload: { title: 'One' }, imagePath: null, sizeBytes: 1 })
+    await first.put({ key: 'event:2', kind: 'event', entityId: '2', cachedAt: new Date().toISOString(), payload: { title: 'Two' }, imagePath: null, sizeBytes: 1 })
+
+    const reloaded = new NativeContentCache({ storage: 'filesystem' })
+    await expect(reloaded.get('event:1')).resolves.toMatchObject({ payload: { title: 'One' } })
+    await expect(reloaded.get('event:2')).resolves.toMatchObject({ payload: { title: 'Two' } })
+    expect(files.has('bend-public-cache/index.json')).toBe(true)
+    expect(files.has('bend-public-cache/index.json.tmp')).toBe(false)
+  })
+
+  it('restores the previous valid index when replacement fails after backup', async () => {
+    const files = new Map<string, string>()
+    let backupMoveCount = 0
+    filesystem.readFile.mockImplementation(async ({ path }: { path: string }) => {
+      const data = files.get(path)
+      if (data === undefined) throw new Error('ENOENT')
+      return { data }
+    })
+    filesystem.writeFile.mockImplementation(async ({ path, data }: { path: string, data: string }) => { files.set(path, data) })
+    filesystem.deleteFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (!files.delete(path)) throw new Error('ENOENT')
+    })
+    filesystem.rename.mockImplementation(async ({ from, to }: { from: string, to: string }) => {
+      const data = files.get(from)
+      if (data === undefined) throw new Error('ENOENT')
+      if (from === 'bend-public-cache/index.json') backupMoveCount += 1
+      if (from.endsWith('.tmp') && backupMoveCount > 0) throw new Error('EIO')
+      if (files.has(to)) throw new Error('EEXIST')
+      files.set(to, data)
+      files.delete(from)
+    })
+
+    const cache = new NativeContentCache({ storage: 'filesystem' })
+    await cache.put({ key: 'event:stable', kind: 'event', entityId: 'stable', cachedAt: new Date().toISOString(), payload: { title: 'Stable' }, imagePath: null, sizeBytes: 1 })
+    await cache.put({ key: 'event:new', kind: 'event', entityId: 'new', cachedAt: new Date().toISOString(), payload: { title: 'New' }, imagePath: null, sizeBytes: 1 })
+
+    const reloaded = new NativeContentCache({ storage: 'filesystem' })
+    await expect(reloaded.get('event:stable')).resolves.toMatchObject({ payload: { title: 'Stable' } })
+    await expect(reloaded.get('event:new')).resolves.toBeNull()
   })
 })
