@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import NativeExplorePage from './NativeExplorePage'
@@ -15,7 +15,7 @@ vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixtu
 function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | 'error' = 'success') { return { status, data, source: 'network' as const, cachedAt: null, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
 function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null }
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
-function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button></> }
+function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
 
 beforeEach(() => { vi.useFakeTimers(); configureAll() })
 afterEach(() => { vi.useRealTimers(); cleanup() })
@@ -66,6 +66,40 @@ describe('NativeExplorePage', () => {
     renderType('listings'); fireEvent.click(screen.getByRole('button', { name: 'Filters' })); for (const value of ['staff', 'materials', 'equipment', 'normal', 'urgent', 'urgency_desc', 'created_desc', 'expiry_asc']) expect(screen.getByRole('button', { name: value, exact: true })).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'community', exact: true })).not.toBeInTheDocument(); cleanup(); configureAll()
     renderType('events'); fireEvent.click(screen.getByRole('button', { name: 'Filters' })); for (const value of ['community', 'music', 'art', 'food', 'market', 'historic', 'outdoor', 'education']) expect(screen.getByRole('button', { name: value, exact: true })).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'urgent', exact: true })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'urgency_desc', exact: true })).not.toBeInTheDocument(); cleanup(); configureAll()
     renderType('volunteer'); fireEvent.click(screen.getByRole('button', { name: 'Filters' })); expect(screen.getByRole('button', { name: 'urgent', exact: true })).toBeInTheDocument(); expect(screen.getByRole('button', { name: 'expiry_asc', exact: true })).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'staff', exact: true })).not.toBeInTheDocument(); cleanup(); configureTyped([business, { ...business, id: '2', label: 'Cafe' }]); render(<MemoryRouter initialEntries={['/explore?type=businesses&category=Farm&urgency=urgent&sort=created_desc&mode=map&near=true']}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'Filters' })); expect(screen.getByRole('button', { name: 'Farm', exact: true })).toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Cafe', exact: true })).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'urgent', exact: true })).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Remove Farm filter' })); expect(screen.getByTestId('location')).not.toHaveTextContent('category=Farm')
+  })
+  it('P4 clears every control when an external navigation returns to Explore defaults', async () => {
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'External' }))
+    await act(async () => { vi.advanceTimersByTime(1) })
+    fireEvent.click(screen.getByRole('button', { name: 'Defaults' }))
+    await act(async () => { vi.advanceTimersByTime(1) })
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore')
+    expect(screen.getByRole('searchbox')).toHaveValue('')
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Map' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Near me' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Remove .* filter/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Map', { selector: 'span' })).not.toBeInTheDocument()
+  })
+  it('P6 derives de-duplicated All business choices and pushes a selected category', () => {
+    fixture.groups = [
+      { kind: 'listing', heading: 'Listings', state: state([listing]) },
+      { kind: 'business', heading: 'Businesses', state: state([business, { ...business, id: '2', label: 'Farm' }, { ...business, id: '3', label: 'Cafe' }]) },
+      { kind: 'event', heading: 'Events', state: state([event]) },
+      { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) },
+    ]
+    fixture.typed = null
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getAllByRole('button', { name: 'Farm', exact: true })).toHaveLength(1)
+    expect(within(dialog).getAllByRole('button', { name: 'Cafe', exact: true })).toHaveLength(1)
+    expect(within(dialog).getByRole('button', { name: 'staff', exact: true })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'community', exact: true })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cafe', exact: true }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?category=Cafe')
+    expect(screen.getByRole('button', { name: 'Remove Cafe filter' })).toBeInTheDocument()
   })
   it('P7 See all preserves q and pushes the intended type', () => { render(<MemoryRouter initialEntries={['/explore?q=tractor']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('region', { name: 'Explore content' })).toBeInTheDocument() })
   it('P8 renders four local All groups without a fullscreen failure', () => { render(<MemoryRouter><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('region', { name: 'Explore content' })).toBeInTheDocument() })
