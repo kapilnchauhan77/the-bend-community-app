@@ -90,15 +90,26 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   await page.evaluate(() => document.fonts.ready);
   const tileContent = await mobileGrid.getByRole('link').evaluateAll((links) => links.map((link) => {
     const tile = link.getBoundingClientRect();
-    return Array.from(link.querySelectorAll('span')).map((content) => {
+    const spans = Array.from(link.querySelectorAll('span')).map((content) => {
       const rect = content.getBoundingClientRect();
       return {
         contained: rect.left >= tile.left && rect.right <= tile.right,
         fits: content.scrollWidth <= content.clientWidth,
       };
     });
+    const icon = link.querySelector('svg')?.getBoundingClientRect();
+    return {
+      spans,
+      iconSized: Boolean(icon && icon.width >= 16 && icon.height >= 16),
+      childrenContained: Array.from(link.children).every((child) => {
+        const rect = child.getBoundingClientRect();
+        return rect.top >= tile.top && rect.bottom <= tile.bottom;
+      }),
+    };
   }).flat());
-  expect(tileContent.every(({ contained, fits }) => contained && fits)).toBe(true);
+  expect(tileContent.every(({ spans, iconSized, childrenContained }) => (
+    spans.every(({ contained, fits }) => contained && fits) && iconSized && childrenContained
+  ))).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

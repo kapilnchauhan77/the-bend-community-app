@@ -897,7 +897,18 @@ html.dark [role="checkbox"][data-state="checked"] {
   font-size: clamp(0.63rem, 2.6vw, 0.75rem);
 }
 
+.home-mobile-service-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 1.35rem;
+  color: hsl(35 45% 42%);
+}
+
 .home-mobile-event-preview {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   animation: home-mobile-event-preview-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 

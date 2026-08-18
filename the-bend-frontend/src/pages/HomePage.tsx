@@ -191,7 +191,7 @@ export default function HomePage() {
               <Link key={label} to={href} aria-label={label} className="home-mobile-service-tile">
                 <Icon aria-hidden="true" className="home-mobile-service-icon" />
                 <span className="home-mobile-service-label">
-                  {label === 'Volunteer Opportunities' ? 'Opportunities' : label}
+                  {label === 'Volunteer Opportunities' ? 'Volunteer Ops' : label}
                 </span>
                 {label === 'Events' && (
                   <span
