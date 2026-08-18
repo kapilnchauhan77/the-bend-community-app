@@ -41,7 +41,7 @@ export function NativeExplorePage() {
     if (query.type === 'businesses' && query.near && model.location.status !== 'granted') change({ near: false }, true)
   }, [change, model.location.status, query.near, query.type])
   return <div className="native-explore-scroll" role="region" aria-label="Explore content">
-    <h1>Explore</h1>
+    <h1 className="native-explore-title native-safe-area">Explore</h1>
     <NativeSearchBar value={text} label="Search Westmoreland" placeholder="Search Westmoreland" onChange={(value) => { setText(value); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { timer.current = null; change({ q: value }, true) }, 300) }} onSubmit={submit} onClear={() => { setText(''); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: '' }) }} />
     <div role="tablist" aria-label="Explore types">{chips.map(([label, type]) => <button key={type} type="button" role="tab" aria-selected={query.type === type} onClick={() => change({ type, category: null, urgency: null, sort: null })}>{label}</button>)}</div>
     <div className="native-explore-controls">{mapAllowed && <button type="button" disabled={query.mode === 'list' && (model.online !== true || mapBusinesses.length === 0)} onClick={() => change({ mode: query.mode === 'list' ? 'map' : 'list' })}>{query.mode === 'list' ? 'Map' : 'List'}</button>}{query.type === 'businesses' && <button type="button" onClick={() => { if (!query.near) void requestCurrentLocation(true); else change({ near: false }) }}>{query.near ? 'Near me on' : 'Near me'}</button>}<button ref={trigger} type="button" onClick={() => setSheet(true)}>Filters</button></div>

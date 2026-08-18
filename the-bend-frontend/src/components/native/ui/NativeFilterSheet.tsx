@@ -30,5 +30,5 @@ export function NativeFilterSheet({ open, title = 'Filters', onClose, returnFocu
   }, [open, onClose, returnFocusRef])
 
   if (!open) return null
-  return <div className="native-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="native-sheet-title"><button className="native-control" ref={closeRef} type="button" aria-label="Close filters" onClick={onClose}>×</button><h2 id="native-sheet-title">{title}</h2>{children}</div></div>
+  return <div className="native-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="native-filter-sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="native-sheet-title"><button className="native-control" ref={closeRef} type="button" aria-label="Close filters" onClick={onClose}>×</button><h2 id="native-sheet-title">{title}</h2>{children}</div></div>
 }
