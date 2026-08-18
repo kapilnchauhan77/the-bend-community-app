@@ -43,6 +43,14 @@ describe('native UI primitives', () => {
     render(<NativeDiscoveryCard item={{ ...item, urgent: false, thumbnailUrl: 'https://example.com/a.jpg' }} onOpen={vi.fn()} />)
     expect(screen.getByRole('img')).toHaveAttribute('width', '96'); expect(screen.getByRole('img')).toHaveAttribute('height', '96')
   })
+  it('resolves backend upload paths before rendering discovery images', () => {
+    render(<NativeDiscoveryCard item={{ ...item, urgent: false, thumbnailUrl: '/uploads/images/listing.jpg' }} onOpen={vi.fn()} />)
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'http://localhost:8000/uploads/images/listing.jpg')
+  })
+  it('resolves backend upload paths before rendering urgent images', () => {
+    render(<NativeUrgentCard item={{ ...item, thumbnailUrl: '/uploads/images/urgent.jpg' }} onOpen={vi.fn()} />)
+    expect(document.querySelector('.native-urgent-row img')).toHaveAttribute('src', 'http://localhost:8000/uploads/images/urgent.jpg')
+  })
   it('keeps interactive targets at least 44 points and includes the full wordmark', () => {
     const onRemove = vi.fn()
     render(<><NativeFilterChip label="Urgent" removable onRemove={onRemove} /><NativePageHeader title="Home" /></>)
