@@ -54,7 +54,7 @@ async function stubHomeApi(page: Page) {
 }
 
 test('mobile home shows the full upcoming-events section exactly once', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 844 });
   await stubHomeApi(page);
   await page.goto('/');
 

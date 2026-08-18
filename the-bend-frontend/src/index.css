@@ -894,6 +894,10 @@ html.dark .home-mobile-service-tile {
   color: hsl(40 20% 92%);
 }
 
+html.dark .home-mobile-service-tile:focus-visible {
+  outline-color: hsl(40 20% 72%);
+}
+
 /* ── Date/time inputs ──
    The native WebKit calendar/clock picker icon sits flush against the right
    edge, where our rounded-xl inputs clip and crowd it. Inset it from the
