@@ -87,6 +87,18 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   expect(new Set(tiles.map(({ x }) => x)).size).toBe(3);
   expect(new Set(tiles.map(({ y }) => y)).size).toBe(3);
   expect(tiles.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+  await page.evaluate(() => document.fonts.ready);
+  const tileContent = await mobileGrid.getByRole('link').evaluateAll((links) => links.map((link) => {
+    const tile = link.getBoundingClientRect();
+    return Array.from(link.querySelectorAll('span')).map((content) => {
+      const rect = content.getBoundingClientRect();
+      return {
+        contained: rect.left >= tile.left && rect.right <= tile.right,
+        fits: content.scrollWidth <= content.clientWidth,
+      };
+    });
+  }).flat());
+  expect(tileContent.every(({ contained, fits }) => contained && fits)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

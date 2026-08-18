@@ -883,18 +883,42 @@ html.dark [role="checkbox"][data-state="checked"] {
   outline-offset: 2px;
 }
 
-@keyframes home-mobile-event-preview-in {
-  from { opacity: 0.65; filter: blur(1.5px); }
-  to { opacity: 1; filter: blur(0); }
-}
-
+.home-mobile-service-label,
 .home-mobile-event-preview {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.home-mobile-service-label {
+  font-size: clamp(0.63rem, 2.6vw, 0.75rem);
+}
+
+.home-mobile-event-preview {
   animation: home-mobile-event-preview-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.home-quick-action-register {
+  white-space: normal;
+  text-align: left;
+  height: auto;
+  min-height: 2.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.home-stats-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+
+@keyframes home-mobile-event-preview-in {
+  from { opacity: 0.65; filter: blur(1.5px); }
+  to { opacity: 1; filter: blur(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

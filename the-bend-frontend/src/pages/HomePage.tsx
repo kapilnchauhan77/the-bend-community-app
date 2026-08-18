@@ -436,7 +436,7 @@ export default function HomePage() {
                   <Button
                     variant="outline"
                     onClick={() => navigate('/register')}
-                    className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+                    className="home-quick-action-register w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
                   >
                     <Store className="w-4 h-4" />
                     Register as a Business or Individual
@@ -517,7 +517,7 @@ export default function HomePage() {
             {stats.map(({ value, label }) => (
               <div key={label} className="text-center">
                 <div className="text-3xl md:text-4xl font-bold font-serif text-[hsl(40,20%,95%)] tabular-nums">{value}</div>
-                <p className="text-xs text-[hsl(40,15%,70%)] mt-1 tracking-wider uppercase">{label}</p>
+                <p className="home-stats-label text-xs text-[hsl(40,15%,70%)] mt-1 tracking-wider uppercase">{label}</p>
               </div>
             ))}
           </div>
