@@ -55,6 +55,20 @@ describe('NativeExplorePage', () => {
   it('P3 restores q, type, filters, mode, near, and input on browser Back', async () => {
     render(<MemoryRouter initialEntries={['/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc', '/explore?q=new&type=events&category=music&mode=map&near=true']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc'); expect(screen.getByRole('searchbox')).toHaveValue('old'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.getByRole('button', { name: 'Map' })).toBeInTheDocument(); expect(screen.getByText('staff')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument()
   })
+  it('P3 cancels a pending debounce when Back restores an external Explore URL', async () => {
+    render(<MemoryRouter initialEntries={['/explore?q=restored&type=events&category=music', '/explore?q=old']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>)
+    const input = screen.getByRole('searchbox')
+    fireEvent.change(input, { target: { value: 'draft' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true }))
+    await act(async () => { vi.advanceTimersByTime(1) })
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=restored&type=events&category=music')
+    expect(input).toHaveValue('restored')
+    expect(screen.getByRole('tab', { name: 'Events' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Remove music filter' })).toBeInTheDocument()
+    await act(async () => { vi.advanceTimersByTime(500) })
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=restored&type=events&category=music')
+    expect(screen.getByRole('searchbox')).toHaveValue('restored')
+  })
   it('P4 treats external canonical URL changes as authoritative for every control', async () => {
     render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'External' })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByRole('searchbox')).toHaveValue('external'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.getByRole('button', { name: 'List' })).toBeInTheDocument(); expect(screen.getByText('materials')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument(); expect(screen.getByText('created_desc')).toBeInTheDocument(); expect(screen.getByText('Map')).toBeInTheDocument(); expect(screen.getByText('Near me')).toBeInTheDocument()
   })

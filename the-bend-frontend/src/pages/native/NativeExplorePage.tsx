@@ -14,16 +14,23 @@ const listingCategories = ['staff', 'materials', 'equipment']; const eventCatego
 
 export function NativeExplorePage() {
   const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
-  useEffect(() => { const sync = window.setTimeout(() => { if (!timer.current) setText(query.q) }, 0); return () => window.clearTimeout(sync) }, [query.q])
-  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current) }, [])
+  useEffect(() => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current)
+      timer.current = null
+    }
+    const sync = window.setTimeout(() => setText(query.q), 0)
+    return () => window.clearTimeout(sync)
+  }, [query.q])
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
   const change = (next: Partial<typeof query>, replace = false) => setParams(serializeNativeExploreQuery({ ...query, ...next }), { replace })
-  const submit = () => { if (timer.current) window.clearTimeout(timer.current); timer.current = null; change({ q: text.trim() }) }
+  const submit = () => { if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: text.trim() }) }
   const businessTypes = useMemo(() => Array.from(new Set((query.type === 'businesses' ? model.typed?.state.data ?? [] : model.groups.find((group) => group.kind === 'business')?.state.data ?? []).map((item) => item.label).filter(Boolean))), [model.groups, model.typed, query.type])
   const filterChoices = query.type === 'events' ? eventCategories : query.type === 'listings' ? listingCategories : query.type === 'businesses' ? businessTypes : query.type === 'all' ? [...listingCategories, ...eventCategories, ...businessTypes] : []
   const card = (item: NativeDiscoveryCardModel) => <NativeDiscoveryCard key={`${item.kind}:${item.id}`} item={item} onOpen={(path) => navigate(path)} />
   return <div className="native-explore-scroll" role="region" aria-label="Explore content">
     <h1>Explore</h1>
-    <NativeSearchBar value={text} label="Search Westmoreland" placeholder="Search Westmoreland" onChange={(value) => { setText(value); if (timer.current) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { timer.current = null; change({ q: value }, true) }, 300) }} onSubmit={submit} onClear={() => { setText(''); if (timer.current) window.clearTimeout(timer.current); timer.current = null; change({ q: '' }) }} />
+    <NativeSearchBar value={text} label="Search Westmoreland" placeholder="Search Westmoreland" onChange={(value) => { setText(value); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { timer.current = null; change({ q: value }, true) }, 300) }} onSubmit={submit} onClear={() => { setText(''); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: '' }) }} />
     <div role="tablist" aria-label="Explore types">{chips.map(([label, type]) => <button key={type} type="button" role="tab" aria-selected={query.type === type} onClick={() => change({ type, category: null, urgency: null, sort: null })}>{label}</button>)}</div>
     <div className="native-explore-controls"><button type="button" onClick={() => change({ mode: query.mode === 'list' ? 'map' : 'list' })}>{query.mode === 'list' ? 'Map' : 'List'}</button><button type="button" onClick={() => change({ near: !query.near })}>{query.near ? 'Near me on' : 'Near me'}</button><button ref={trigger} type="button" onClick={() => setSheet(true)}>Filters</button></div>
     {query.category && <NativeFilterChip label={query.category} removable onRemove={() => change({ category: null })} />}{query.urgency && <NativeFilterChip label={query.urgency} removable onRemove={() => change({ urgency: null })} />}{query.sort && <NativeFilterChip label={query.sort} removable onRemove={() => change({ sort: null })} />}{query.mode === 'map' && <NativeFilterChip label="Map" removable onRemove={() => change({ mode: 'list' })} />}{query.near && <NativeFilterChip label="Near me" removable onRemove={() => change({ near: false })} />}
