@@ -42,4 +42,11 @@ describe('pending destinations', () => {
     expect(storage.removeItem).toHaveBeenCalledWith('native_pending_post_path')
     expect(storage.removeItem).toHaveBeenCalledWith('native_pending_create_action')
   })
+
+  it('clears malformed Create action metadata with a path-only continuation', () => {
+    storage.getItem.mockImplementation((key: string) => key === 'native_pending_post_path' ? '/messages?thread=abc' : 'stale-action')
+    clearPendingDestination()
+    expect(storage.removeItem).toHaveBeenCalledWith('native_pending_post_path')
+    expect(storage.removeItem).toHaveBeenCalledWith('native_pending_create_action')
+  })
 })

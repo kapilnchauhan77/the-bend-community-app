@@ -18,6 +18,8 @@ describe('NativeBottomNav', () => {
     expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button')).toHaveLength(5)
+    expect(screen.getByRole('navigation')).toHaveClass('native-bottom-nav')
+    expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('min-w-14')
   })
   it('scrolls an already-selected Explore root instead of pushing another entry', () => {
     renderNavAt('/explore'); fireEvent.click(screen.getByRole('button', { name: 'Explore' }))

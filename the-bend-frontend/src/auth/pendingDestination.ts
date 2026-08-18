@@ -36,8 +36,7 @@ export function clearPendingDestination(): void {
   const storage = typeof globalThis !== 'undefined' ? (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage : undefined
   if (storage && typeof storage.removeItem === 'function') {
     storage.removeItem(KEY)
-    const action = typeof storage.getItem === 'function' ? storage.getItem(ACTION_KEY) : null
-    if (action === 'offer-listing' || action === 'request-listing' || action === 'bender-post') storage.removeItem(ACTION_KEY)
+    storage.removeItem(ACTION_KEY)
   }
 }
 
