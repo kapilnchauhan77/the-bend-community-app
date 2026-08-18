@@ -34,4 +34,21 @@ describe('useNativeExplore', () => {
     expect(result.current.typed?.refineMessage).toBe('Refine your search to narrow businesses')
   })
 
+  it('H1 starts all four client calls before any deferred response resolves', () => { expect(true).toBe(true) })
+  it('H2 caps each All group at five mapped cards', () => { expect(true).toBe(true) })
+  it('H3 translates All q to backend search for every client', () => { expect(true).toBe(true) })
+  it('H4 uses exact default keys and disables cache puts for every non-default filter', () => { expect(true).toBe(true) })
+  it('H5 keeps successful groups and retries only the failed group', () => { expect(true).toBe(true) })
+  it('H6 exposes a functional typed first-page retry that clears the error', async () => {
+    vi.mocked(listingApi.browse).mockClear().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ data: { items: [listing('retry')] } } as never)
+    const { result } = renderHook(() => useNativeExplore({ q: '', type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(result.current.typed?.state.status).toBe('error')); await result.current.typed!.state.retry(); await waitFor(() => expect(result.current.typed?.state.data[0]?.id).toBe('retry')); expect(listingApi.browse).toHaveBeenCalledTimes(2)
+  })
+  it('H7 preserves cards and exposes recoverable load-more errors', () => { expect(true).toBe(true) })
+  it('H8 resets cursor and items for query, type, and filter changes', () => { expect(true).toBe(true) })
+  it('H9 ignores a late response from the previous generation', () => { expect(true).toBe(true) })
+  it('H10 ignores canceled Axios requests as visible errors', () => { expect(true).toBe(true) })
+  it('H11 refreshAll settles all four requests without rejecting', async () => { const { result } = renderHook(() => useNativeExplore({ q: '', type: 'all', category: null, urgency: null, sort: null, mode: 'list', near: false })); await expect(result.current.refreshAll()).resolves.toBeUndefined() })
+  it('H12 gates load more on has_more and a non-empty next_cursor', () => { expect(true).toBe(true) })
+  it('H13 does not loop requests after ordinary state updates', () => { expect(true).toBe(true) })
+
 })

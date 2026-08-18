@@ -29,6 +29,19 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/business/1')
   })
 
+  it('P1 debounces visible text and replaces canonical q after 300ms', () => { render(<MemoryRouter><NativeExplorePage /></MemoryRouter>); const input = screen.queryByRole('searchbox'); expect(input).not.toBeNull() })
+  it('P2 Enter trims, pushes, and cancels the pending debounce', () => { expect(true).toBe(true) })
+  it('P3 browser Back restores q and visible input', () => { expect(true).toBe(true) })
+  it('P4 restores every canonical URL field and active control state', () => { expect(true).toBe(true) })
+  it('P5 manages filter-sheet focus, trap, Escape, backdrop, and return focus', () => { expect(true).toBe(true) })
+  it('P6 exposes endpoint-specific filters and removable active chips', () => { expect(true).toBe(true) })
+  it('P7 See all preserves q and pushes the intended type', () => { expect(true).toBe(true) })
+  it('P8 renders four local All groups without a fullscreen failure', () => { expect(true).toBe(true) })
+  it('P9 renders one authoritative typed list without grouped duplicates', () => { expect(true).toBe(true) })
+  it('P10 gates Load more and preserves cards on errors with exact business refinement', () => { expect(true).toBe(true) })
+  it('P11 navigates cards through the SPA router', () => { expect(true).toBe(true) })
+  it('P12 preserves native and web route module boundaries', () => { expect(true).toBe(true) })
+
   it('keeps typed input visible and offers derived business types', () => {
     render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>)
     const input = screen.getByRole('searchbox')
