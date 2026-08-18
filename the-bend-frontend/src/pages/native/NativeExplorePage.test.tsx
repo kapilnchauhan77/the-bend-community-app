@@ -101,12 +101,43 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/explore?category=Cafe')
     expect(screen.getByRole('button', { name: 'Remove Cafe filter' })).toBeInTheDocument()
   })
-  it('P7 See all preserves q and pushes the intended type', () => { render(<MemoryRouter initialEntries={['/explore?q=tractor']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('region', { name: 'Explore content' })).toBeInTheDocument() })
-  it('P8 renders four local All groups without a fullscreen failure', () => { render(<MemoryRouter><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('region', { name: 'Explore content' })).toBeInTheDocument() })
-  it('P9 renders one authoritative typed list without grouped duplicates', () => { render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('tab', { name: 'Businesses' })).toHaveAttribute('aria-selected', 'true') })
-  it('P10 gates Load more and preserves cards on errors with exact business refinement', () => { render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument() })
-  it('P11 navigates cards through the SPA router', () => { expect(screen).toBeDefined() })
-  it('P12 preserves native and web route module boundaries', () => { expect(NativeExplorePage).toBeDefined() })
+  it.each([
+    ['listing', 'listings', 'Listings'],
+    ['business', 'businesses', 'Businesses'],
+    ['event', 'events', 'Events'],
+    ['volunteer', 'volunteer', 'Volunteer'],
+  ])('P7 See all from the %s group preserves q and pushes %s', (_kind, type, heading) => {
+    configureAll()
+    render(<MemoryRouter initialEntries={['/explore?q=tractor']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    const group = screen.getByRole('heading', { name: heading }).closest('section')!
+    fireEvent.click(within(group).getByRole('button', { name: 'See all' }))
+    expect(screen.getByTestId('location')).toHaveTextContent(`/explore?q=tractor&type=${type}`)
+    expect(screen.getByRole('tab', { name: heading })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=tractor')
+  })
+  it('P8 keeps grouped partial failures local with retryable section state', () => {
+    const retry = vi.fn()
+    fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([], 'empty') }, { kind: 'event', heading: 'Events', state: { ...state([], 'error'), retry } }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]
+    fixture.typed = null
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: 'Listings' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Events' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Volunteer' })).toBeInTheDocument()
+    const failed = screen.getByRole('heading', { name: 'Events' }).closest('section')!
+    const volunteerSection = screen.getByRole('heading', { name: 'Volunteer' }).closest('section')!
+    const listingsSection = screen.getByRole('heading', { name: 'Listings' }).closest('section')!
+    expect(within(failed).getByRole('alert')).toHaveTextContent('Something went wrong'); expect(within(failed).getByRole('button', { name: 'Retry' })).toBeInTheDocument(); expect(within(listingsSection).getByRole('button', { name: /staff/ })).toBeInTheDocument(); expect(within(volunteerSection).getByRole('button', { name: 'Volunteer' })).toBeInTheDocument(); expect(screen.getByText('No results found.')).toBeInTheDocument(); fireEvent.click(within(failed).getByRole('button', { name: 'Retry' })); expect(retry).toHaveBeenCalledTimes(1)
+  })
+  it('P9 renders one authoritative typed list without grouped duplicates', () => {
+    configureTyped([{ ...business, id: 'typed-1', title: 'Typed one' }, { ...business, id: 'typed-2', title: 'Typed two' }])
+    fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]
+    render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument(); expect(screen.getAllByText('Typed one')).toHaveLength(1); expect(screen.getAllByText('Typed two')).toHaveLength(1); expect(screen.queryByRole('heading', { name: 'Listings' })).not.toBeInTheDocument(); expect(screen.queryByRole('heading', { name: 'Events' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'See all' })).not.toBeInTheDocument(); expect(screen.queryByText('Listing')).not.toBeInTheDocument()
+  })
+  it('P10 gates load more, preserves cards on errors, and renders business refinement', () => {
+    configureTyped([business]); fixture.typed!.hasMore = true; fixture.typed!.loadMore = vi.fn(); render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); const load = screen.getByRole('button', { name: 'Load more' }); fireEvent.click(load); expect(fixture.typed!.loadMore).toHaveBeenCalledTimes(1)
+    cleanup(); configureTyped([business]); fixture.typed!.hasMore = true; fixture.typed!.loadMoreError = new Error('page failed'); fixture.typed!.loadMore = vi.fn(); render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('button', { name: 'Farm' })).toBeInTheDocument(); expect(screen.getByRole('alert')).toHaveTextContent('Unable to load more results.'); expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+    cleanup(); configureTyped([business]); fixture.typed!.refineMessage = 'Refine your search to narrow businesses'; render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByText('Refine your search to narrow businesses')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
 
   it('keeps typed input visible and offers derived business types', () => {
     configureTyped([business, { ...business, id: '2', label: 'Cafe' }])

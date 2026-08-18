@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebRoutes } from './WebRoutes';
 
 vi.mock('@/stores/authStore', () => ({ useAuthStore: (selector?: (state: { isAuthenticated: boolean; isLoading: boolean; user: null }) => unknown) => selector ? selector({ isAuthenticated: false, isLoading: false, user: null }) : { isAuthenticated: false, isLoading: false, user: null } }));
+vi.mock('@/pages/HomePage', () => ({ default: () => <div>web-home-sentinel</div> }));
+vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-home-sentinel</div> }));
+vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
 vi.mock('@/pages/NotFoundPage', () => ({ default: () => <div>Public not found</div> }));
 vi.mock('@/pages/admin/DashboardPage', () => ({ default: () => <div>Admin dashboard</div> }));
 vi.mock('@/components/shared/ProtectedRoute', () => ({ ProtectedRoute: ({ children }: { children: React.ReactNode }) => children }));
@@ -13,9 +16,14 @@ afterEach(() => cleanup());
 function renderAt(path: string) { return render(<MemoryRouter initialEntries={[path]}><WebRoutes /></MemoryRouter>); }
 
 describe('WebRoutes', () => {
-  it('keeps web Explore outside the public route table', () => {
+  it('P12 renders web Home only at root and NotFound for web Explore', () => {
+    renderAt('/');
+    expect(screen.getByText('web-home-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText('native-home-sentinel')).not.toBeInTheDocument();
+    cleanup();
     renderAt('/explore');
     expect(screen.getByText('Public not found')).toBeInTheDocument();
+    expect(screen.queryByText('native-explore-sentinel')).not.toBeInTheDocument();
   });
   it('does not render the public not-found surface alongside admin routes', () => {
     renderAt('/admin');

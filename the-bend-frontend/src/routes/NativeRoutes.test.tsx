@@ -9,9 +9,9 @@ vi.mock('@/stores/authStore', () => ({
   useAuthStore: (selector?: (state: { isAuthenticated: boolean; isLoading: boolean; user: null }) => unknown) =>
     selector ? selector({ isAuthenticated: false, isLoading: false, user: null }) : { isAuthenticated: false, isLoading: false, user: null },
 }));
-vi.mock('@/pages/HomePage', () => ({ default: () => <div>Native home</div> }));
-vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>Native home</div> }));
-vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>Native explore</div> }));
+vi.mock('@/pages/HomePage', () => ({ default: () => <div>web-home-sentinel</div> }));
+vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-home-sentinel</div> }));
+vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
 
 afterEach(() => cleanup());
@@ -26,12 +26,14 @@ function renderNativeAt(path: string) {
 }
 
 describe('NativeRoutes', () => {
-  it('uses native-only Home and Explore surfaces', () => {
+  it('P12 uses distinct native Home and Explore module boundaries', () => {
     renderNativeAt('/');
-    expect(screen.getByText('Native home')).toBeInTheDocument();
+    expect(screen.getByText('native-home-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText('web-home-sentinel')).not.toBeInTheDocument();
     cleanup();
     renderNativeAt('/explore');
-    expect(screen.getByText('Native explore')).toBeInTheDocument();
+    expect(screen.getByText('native-explore-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText('native-home-sentinel')).not.toBeInTheDocument();
   });
   it.each(['/admin', '/super-admin'])('does not render %s in native mode', async (path) => {
     renderNativeAt(path);
