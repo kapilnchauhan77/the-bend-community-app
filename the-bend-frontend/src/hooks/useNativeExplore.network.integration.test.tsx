@@ -78,9 +78,32 @@ describe('useNativeExplore network hydration integration', () => {
     expect(result.current.online).toBe(false)
   })
 
+  it('settles usable offline state when initial status rejects without an unhandled promise', async () => {
+    platform.network.getStatus.mockRejectedValueOnce(new Error('status unavailable'))
+    const { result } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
+    await waitFor(() => expect(result.current.online).toBe(false))
+    expect(shopApi.getShop).not.toHaveBeenCalled()
+  })
+
+  it('ignores listener registration rejection without an unhandled promise', async () => {
+    platform.network.addListener.mockRejectedValueOnce(new Error('listener unavailable'))
+    platform.network.getStatus.mockResolvedValue('online')
+    const { result } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
+    await waitFor(() => expect(result.current.online).toBe(true))
+    expect(result.current.online).toBe(true)
+  })
+
+  it('ignores listener removal rejection during unmount without an unhandled promise', async () => {
+    platform.network.getStatus.mockResolvedValue('offline')
+    platform.network.addListener.mockImplementationOnce((handler: (status: 'online' | 'offline') => void) => { networkHandler = handler; return Promise.resolve({ remove: vi.fn().mockRejectedValue(new Error('remove unavailable')) }) })
+    const { unmount } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
+    unmount()
+    await act(async () => { await Promise.resolve() })
+  })
+
   it('removes a listener exactly once even when registration resolves after unmount', async () => {
     const registration = deferred<{ remove: () => Promise<void> }>()
-    platform.network.addListener.mockReturnValueOnce(registration.promise)
+    platform.network.addListener.mockImplementationOnce((handler: (status: 'online' | 'offline') => void) => { networkHandler = handler; return registration.promise })
     platform.network.getStatus.mockResolvedValue('offline')
     const { unmount } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
     unmount()
@@ -102,6 +125,21 @@ describe('useNativeExplore network hydration integration', () => {
     await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(2))
     await act(async () => { await result.current.refreshAll() })
     await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(3))
+    expect(vi.mocked(shopApi.getShop).mock.calls.map(([id]) => id)).toEqual(['failed', 'complete', 'failed'])
+  })
+
+  it('retries failed typed hydration through the production typed retry without duplicating completed IDs', async () => {
+    vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [shop('failed'), shop('complete')] } } as never)
+    vi.mocked(shopApi.getShop)
+      .mockRejectedValueOnce(new Error('failed'))
+      .mockResolvedValueOnce({ data: { ...shop('complete'), latitude: 40, longitude: -79 } } as never)
+      .mockResolvedValueOnce({ data: { ...shop('failed'), latitude: 41, longitude: -80 } } as never)
+    platform.network.getStatus.mockResolvedValue('online')
+    const { result } = renderHook(() => useNativeExplore(query), { reactStrictMode: false })
+    await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(2))
+    await act(async () => { await result.current.typed?.state.retry() })
+    await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(3))
+    expect(vi.mocked(shopApi.directory).mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(vi.mocked(shopApi.getShop).mock.calls.map(([id]) => id)).toEqual(['failed', 'complete', 'failed'])
   })
 })
