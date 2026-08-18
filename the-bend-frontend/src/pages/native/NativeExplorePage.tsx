@@ -36,6 +36,9 @@ export function NativeExplorePage() {
   const mapUnavailable = query.mode === "map" && mapAllowed && (model.online !== true || mapBusinesses.length === 0)
   const mapSelected = mapBusinesses.some((item) => item.id === selectedMapId) ? selectedMapId : null
   const requestCurrentLocation = async (forNear = false) => { const result = await model.requestLocation(); if (forNear) change({ near: result.status === 'granted' }) }
+  useEffect(() => {
+    if (query.type === 'businesses' && query.near && model.location.status !== 'granted') change({ near: false }, true)
+  }, [model.location.status, query.near, query.type])
   return <div className="native-explore-scroll" role="region" aria-label="Explore content">
     <h1>Explore</h1>
     <NativeSearchBar value={text} label="Search Westmoreland" placeholder="Search Westmoreland" onChange={(value) => { setText(value); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { timer.current = null; change({ q: value }, true) }, 300) }} onSubmit={submit} onClear={() => { setText(''); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: '' }) }} />
