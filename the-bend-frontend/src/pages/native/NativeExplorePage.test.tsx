@@ -138,6 +138,17 @@ describe('NativeExplorePage', () => {
     cleanup(); configureTyped([business]); fixture.typed!.hasMore = true; fixture.typed!.loadMoreError = new Error('page failed'); fixture.typed!.loadMore = vi.fn(); render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByRole('button', { name: 'Farm' })).toBeInTheDocument(); expect(screen.getByRole('alert')).toHaveTextContent('Unable to load more results.'); expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
     cleanup(); configureTyped([business]); fixture.typed!.refineMessage = 'Refine your search to narrow businesses'; render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>); expect(screen.getByText('Refine your search to narrow businesses')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
   })
+  it('P10 disables Load more while a real typed page is loading', () => {
+    configureTyped([business])
+    fixture.typed!.hasMore = true
+    fixture.typed!.loadingMore = true
+    fixture.typed!.loadMore = vi.fn()
+    render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>)
+    const load = screen.getByRole('button', { name: 'Load more' })
+    expect(load).toBeDisabled()
+    fireEvent.click(load)
+    expect(fixture.typed!.loadMore).not.toHaveBeenCalled()
+  })
 
   it('keeps typed input visible and offers derived business types', () => {
     configureTyped([business, { ...business, id: '2', label: 'Cafe' }])
