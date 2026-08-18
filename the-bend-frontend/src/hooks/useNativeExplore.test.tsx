@@ -9,7 +9,7 @@ vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOppo
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
 
-const platform = { network: { getStatus: vi.fn().mockResolvedValue('online'), addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) }, cache: { put: vi.fn().mockResolvedValue(undefined), get: vi.fn().mockResolvedValue(null) } }
+const platform = { network: { getStatus: vi.fn().mockResolvedValue('online'), addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) }, location: { getForegroundPosition: vi.fn() }, cache: { put: vi.fn().mockResolvedValue(undefined), get: vi.fn().mockResolvedValue(null) } }
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 vi.mock('./useNativeLifecycle', () => ({ useNativeLifecycle: vi.fn() }))
 
@@ -22,6 +22,30 @@ const allQuery = (overrides = {}) => ({ q: '', type: 'all' as const, category: n
 beforeEach(() => { vi.clearAllMocks(); platform.network.getStatus.mockResolvedValue('online'); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never) })
 
 describe('useNativeExplore grouped All behavior', () => {
+  it('shares one foreground location request across rapid calls and clears stale coordinates on failure', async () => {
+    const deferredPosition = deferred<{ latitude: number; longitude: number; accuracy: number }>()
+    platform.location.getForegroundPosition.mockReturnValueOnce(deferredPosition.promise)
+    const { result } = renderHook(() => useNativeExplore({ ...allQuery(), type: 'businesses' }))
+    const first = result.current.requestLocation(); const second = result.current.requestLocation()
+    expect(platform.location.getForegroundPosition).toHaveBeenCalledTimes(1)
+    await act(async () => { deferredPosition.resolve({ latitude: 40, longitude: -79, accuracy: 5 }); await first; await second })
+    expect(result.current.location.status).toBe('granted')
+    platform.location.getForegroundPosition.mockRejectedValueOnce({ code: 'PERMISSION_DENIED', message: 'denied' })
+    await act(async () => { await result.current.requestLocation() })
+    expect(result.current.location.status).toBe('denied')
+    expect(result.current.userCoordinates).toBeNull()
+  })
+  it('does not hydrate before unresolved network status and hydrates after online', async () => {
+    let resolveStatus!: (status: 'online' | 'offline') => void
+    platform.network.getStatus.mockReturnValueOnce(new Promise((resolve) => { resolveStatus = resolve }))
+    vi.mocked(shopApi.directory).mockResolvedValueOnce({ data: { items: [business('b1')] } } as never)
+    vi.mocked(shopApi.getShop).mockResolvedValue({ data: { ...business('b1'), latitude: 40, longitude: -79 } } as never)
+    renderHook(() => useNativeExplore(allQuery()), { reactStrictMode: false })
+    await Promise.resolve()
+    expect(shopApi.getShop).not.toHaveBeenCalled()
+    await act(async () => { resolveStatus('online'); await Promise.resolve() })
+    await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(1))
+  })
   it('H1 starts all four client calls before any deferred response resolves with bounded params', async () => {
     const listingRequest = deferred<unknown>(); const businessRequest = deferred<unknown>(); const eventRequest = deferred<unknown>(); const volunteerRequest = deferred<unknown>()
     vi.mocked(listingApi.browse).mockReturnValueOnce(listingRequest.promise as never); vi.mocked(shopApi.directory).mockReturnValueOnce(businessRequest.promise as never); vi.mocked(eventApi.list).mockReturnValueOnce(eventRequest.promise as never); vi.mocked(listingApi.getOpportunities).mockReturnValueOnce(volunteerRequest.promise as never)
