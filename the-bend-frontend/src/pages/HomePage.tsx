@@ -14,6 +14,9 @@ import {
   TrendingUp,
   AlertTriangle,
   Music,
+  CalendarDays,
+  Building2,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +42,13 @@ const services = [
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },
 ];
 
+const mobileServices = [
+  ...services,
+  { icon: CalendarDays, label: 'Events', desc: '', href: '/events' },
+  { icon: Building2, label: 'Business Directory', desc: '', href: '/directory' },
+  { icon: Sparkles, label: 'Bender', desc: '', href: '/bender' },
+];
+
 // Stats fetched from API — see useEffect below
 
 
@@ -53,6 +63,7 @@ export default function HomePage() {
   const [loadingUrgent, setLoadingUrgent] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [upcomingEvents, setUpcomingEvents] = useState<CommunityEvent[]>([]);
+  const [mobileEventIndex, setMobileEventIndex] = useState(0);
   const [fulfilledListings, setFulfilledListings] = useState<Listing[]>([]);
   const [stories, setStories] = useState<SuccessStory[]>([]);
   const [stats, setStats] = useState([
@@ -60,6 +71,38 @@ export default function HomePage() {
     { value: '—', label: 'Active Listings' },
     { value: '—', label: 'Items Shared' },
   ]);
+
+  useEffect(() => {
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const mobileMenuQuery = window.matchMedia('(max-width: 767px)');
+    let intervalId: number | undefined;
+
+    const syncInterval = () => {
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+      intervalId = undefined;
+      if (upcomingEvents.length <= 1 || reducedMotionQuery.matches || !mobileMenuQuery.matches) return;
+
+      intervalId = window.setInterval(() => {
+        setMobileEventIndex((index) => (index + 1) % upcomingEvents.length);
+      }, 5000);
+    };
+
+    syncInterval();
+    reducedMotionQuery.addEventListener('change', syncInterval);
+    mobileMenuQuery.addEventListener('change', syncInterval);
+    window.addEventListener('resize', syncInterval);
+
+    return () => {
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+      reducedMotionQuery.removeEventListener('change', syncInterval);
+      mobileMenuQuery.removeEventListener('change', syncInterval);
+      window.removeEventListener('resize', syncInterval);
+    };
+  }, [upcomingEvents.length]);
+
+  const activeMobileEvent = upcomingEvents.length > 0
+    ? upcomingEvents[mobileEventIndex % upcomingEvents.length]
+    : null;
 
   useEffect(() => {
     listingApi
@@ -159,7 +202,29 @@ export default function HomePage() {
 
       {/* Services — Museum exhibit cards */}
       <section className="max-w-7xl mx-auto px-4 md:px-8 -mt-8 relative z-20">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="home-mobile-menu md:hidden">
+          <div aria-hidden="true" className="home-mobile-menu__gold-square" />
+          <div data-testid="mobile-service-grid" className="home-mobile-service-grid">
+            {mobileServices.map(({ icon: Icon, label, href }) => (
+              <Link key={label} to={href} aria-label={label} className="home-mobile-service-tile">
+                <Icon aria-hidden="true" className="home-mobile-service-icon" />
+                <span className="home-mobile-service-label">
+                  {label === 'Volunteer Opportunities' ? 'Volunteer Ops' : label}
+                </span>
+                {label === 'Events' && (
+                  <span
+                    key={activeMobileEvent?.id ?? 'fallback'}
+                    data-testid="mobile-events-preview"
+                    className="home-mobile-event-preview"
+                  >
+                    {activeMobileEvent?.title ?? 'See what’s happening'}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div data-testid="desktop-service-grid" className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-3">
           {services.map(({ icon: Icon, label, desc, href }) => (
             <Link
               key={label}
@@ -389,7 +454,7 @@ export default function HomePage() {
                   <Button
                     variant="outline"
                     onClick={() => navigate('/register')}
-                    className="w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+                    className="home-quick-action-register w-full justify-start gap-2 h-10 text-xs tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
                   >
                     <Store className="w-4 h-4" />
                     Register as a Business or Individual
@@ -470,7 +535,7 @@ export default function HomePage() {
             {stats.map(({ value, label }) => (
               <div key={label} className="text-center">
                 <div className="text-3xl md:text-4xl font-bold font-serif text-[hsl(40,20%,95%)] tabular-nums">{value}</div>
-                <p className="text-xs text-[hsl(40,15%,70%)] mt-1 tracking-wider uppercase">{label}</p>
+                <p className="home-stats-label text-xs text-[hsl(40,15%,70%)] mt-1 tracking-wider uppercase">{label}</p>
               </div>
             ))}
           </div>
