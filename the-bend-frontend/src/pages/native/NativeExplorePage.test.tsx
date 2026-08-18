@@ -9,11 +9,11 @@ const business = { id: '1', kind: 'business' as const, label: 'Farm', title: 'Fa
 const listing = { ...business, id: 'listing', kind: 'listing' as const, label: 'staff', title: 'Listing', targetPath: '/listing/1' }
 const event = { ...business, id: 'event', kind: 'event' as const, label: 'community', title: 'Event', targetPath: '/event/1' }
 const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, label: 'Volunteer', title: 'Volunteer', targetPath: '/volunteer/1' }
-const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn() }
+const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn>; mapBusinesses?: unknown[]; userCoordinates?: unknown; online?: boolean; location?: { status: string }; requestLocation?: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn(), mapBusinesses: [], userCoordinates: null, online: true, location: { status: 'idle' }, requestLocation: vi.fn() }
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixture) }))
 
 function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | 'error' = 'success') { return { status, data, source: 'network' as const, cachedAt: null, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
-function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null }
+function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null; fixture.mapBusinesses = [] }
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
 
@@ -27,11 +27,13 @@ describe('NativeExplorePage', () => {
     expect(screen.queryByRole('button', { name: 'Talent' })).not.toBeInTheDocument()
   })
 
-  it('pushes canonical mode and near controls', () => {
+  it('offers Near me only in Businesses and records the explicit action', () => {
     function Probe() { return <output data-testid="location">{useLocation().search}</output> }
-    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Map' })); fireEvent.click(screen.getByRole('button', { name: 'Near me' }))
-    expect(screen.getByTestId('location')).toHaveTextContent('mode=map&near=true')
+    configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }]); fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Near me' }))
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('location')).toHaveTextContent('near=true')
   })
 
   it('uses SPA navigation for discovery cards', () => {
@@ -53,7 +55,7 @@ describe('NativeExplorePage', () => {
     render(<MemoryRouter initialEntries={['/explore?q=old']}><NativeExplorePage /><Probe /></MemoryRouter>); const input = screen.getByRole('searchbox'); fireEvent.change(input, { target: { value: '  generator  ' } }); fireEvent.submit(screen.getByRole('search')); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=generator'); await act(async () => { vi.advanceTimersByTime(500) }); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=generator'); fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true })); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old')
   })
   it('P3 restores q, type, filters, mode, near, and input on browser Back', async () => {
-    render(<MemoryRouter initialEntries={['/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc', '/explore?q=new&type=events&category=music&mode=map&near=true']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc'); expect(screen.getByRole('searchbox')).toHaveValue('old'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.getByRole('button', { name: 'Map' })).toBeInTheDocument(); expect(screen.getByText('staff')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument()
+    render(<MemoryRouter initialEntries={['/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc', '/explore?q=new&type=events&category=music&mode=map&near=true']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old&type=listings&category=staff&urgency=urgent&sort=created_desc'); expect(screen.getByRole('searchbox')).toHaveValue('old'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument(); expect(screen.getByText('staff')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument()
   })
   it('P3 cancels a pending debounce when Back restores an external Explore URL', async () => {
     render(<MemoryRouter initialEntries={['/explore?q=restored&type=events&category=music', '/explore?q=old']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>)
@@ -77,8 +79,8 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=same&type=events&category=music&mode=map&near=true')
     expect(screen.getByRole('searchbox')).toHaveValue('same')
     expect(screen.getByRole('tab', { name: 'Events' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: 'List' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Near me on' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'List' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remove music filter' })).toBeInTheDocument()
     await act(async () => { vi.advanceTimersByTime(500) })
     expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=same&type=events&category=music&mode=map&near=true')
@@ -86,7 +88,7 @@ describe('NativeExplorePage', () => {
     expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'false')
   })
   it('P4 treats external canonical URL changes as authoritative for every control', async () => {
-    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'External' })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByRole('searchbox')).toHaveValue('external'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.getByRole('button', { name: 'List' })).toBeInTheDocument(); expect(screen.getByText('materials')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument(); expect(screen.getByText('created_desc')).toBeInTheDocument(); expect(screen.getByText('Map')).toBeInTheDocument(); expect(screen.getByText('Near me')).toBeInTheDocument()
+    render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /><Probe /></MemoryRouter>); fireEvent.click(screen.getByRole('button', { name: 'External' })); await act(async () => { vi.advanceTimersByTime(1) }); expect(screen.getByRole('searchbox')).toHaveValue('external'); expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'true'); expect(screen.queryByRole('button', { name: 'List' })).not.toBeInTheDocument(); expect(screen.getByText('materials')).toBeInTheDocument(); expect(screen.getByText('urgent')).toBeInTheDocument(); expect(screen.getByText('created_desc')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
   })
   it('P5 focuses, traps, and closes the filter sheet with return focus', () => {
     render(<MemoryRouter><NativeExplorePage /></MemoryRouter>); const trigger = screen.getByRole('button', { name: 'Filters' }); fireEvent.click(trigger); const dialog = screen.getByRole('dialog'); const close = screen.getByRole('button', { name: 'Close filters' }); expect(document.activeElement).toBe(close); const controls = [...dialog.querySelectorAll('button')]; const last = controls.at(-1)!; last.focus(); fireEvent.keyDown(document, { key: 'Tab' }); expect(document.activeElement).toBe(close); fireEvent.keyDown(document, { key: 'Tab', shiftKey: true }); expect(document.activeElement).toBe(last); fireEvent.keyDown(document, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(document.activeElement).toBe(trigger); fireEvent.click(trigger); fireEvent.mouseDown(screen.getByRole('presentation')); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(document.activeElement).toBe(trigger)
@@ -106,8 +108,8 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/explore')
     expect(screen.getByRole('searchbox')).toHaveValue('')
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: 'Map' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Near me' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Map' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Remove .* filter/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Map', { selector: 'span' })).not.toBeInTheDocument()
   })
