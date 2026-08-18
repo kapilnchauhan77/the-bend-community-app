@@ -12,9 +12,11 @@ const authState = { isAuthenticated: false }
 vi.mock('@/stores/authStore', () => ({ useAuthStore: () => authState }))
 const navigate = vi.fn()
 vi.mock('react-router-dom', async () => { const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom'); return { ...actual, useNavigate: () => navigate } })
+const { pendingIntent } = vi.hoisted(() => ({ pendingIntent: vi.fn() }))
+vi.mock('@/auth/pendingDestination', () => ({ setPendingIntent: pendingIntent }))
 
 describe('NativeHomePage', () => {
-  afterEach(() => { cleanup(); navigate.mockClear(); registerRootScroll.mockClear(); Object.values(homeState).forEach((section) => { section.status = 'success'; section.data = []; section.source = 'network'; section.cachedAt = null; section.retry = vi.fn() }) })
+  afterEach(() => { cleanup(); navigate.mockClear(); pendingIntent.mockClear(); registerRootScroll.mockClear(); Object.values(homeState).forEach((section) => { section.status = 'success'; section.data = []; section.source = 'network'; section.cachedAt = null; section.retry = vi.fn() }) })
   it('renders the compact ordered dashboard and transfers search to Explore', () => {
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: /around westmoreland/i })).toBeInTheDocument()
@@ -23,6 +25,12 @@ describe('NativeHomePage', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: /search westmoreland/i }), { target: { value: 'generator' } })
     fireEvent.submit(screen.getByRole('search'))
     expect(navigate).toHaveBeenCalledWith('/explore?q=generator')
+  })
+
+  it('keeps the compact header and actions before urgent content', () => {
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+    const nodes = [screen.getByLabelText('The Bend Community'), screen.getByRole('heading', { name: /around westmoreland/i }), screen.getByRole('searchbox'), screen.getByRole('button', { name: 'Offer' }), screen.getByRole('button', { name: 'Find' }), screen.getByRole('button', { name: 'Volunteer' }), screen.getByRole('button', { name: 'Events' }), screen.getByRole('heading', { name: /urgent needs/i })]
+    nodes.slice(1).forEach((node, index) => expect(nodes[index]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy())
   })
 
   it('registers the Home root scroll and includes the partner destination', () => {
@@ -77,6 +85,6 @@ describe('NativeHomePage', () => {
   it('routes every quick action and stores the guest Offer continuation', () => {
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Offer' })); fireEvent.click(screen.getByRole('button', { name: 'Find' })); fireEvent.click(screen.getByRole('button', { name: 'Volunteer' })); fireEvent.click(screen.getByRole('button', { name: 'Events' }))
-    expect(navigate).toHaveBeenCalledWith('/login'); expect(navigate).toHaveBeenCalledWith('/explore?type=listings'); expect(navigate).toHaveBeenCalledWith('/explore?type=volunteer'); expect(navigate).toHaveBeenCalledWith('/explore?type=events')
+    expect(pendingIntent).toHaveBeenCalledWith({ destination: '/create?type=offer', action: 'offer-listing' }); expect(navigate).toHaveBeenCalledWith('/login'); expect(navigate).toHaveBeenCalledWith('/explore?type=listings'); expect(navigate).toHaveBeenCalledWith('/explore?type=volunteer'); expect(navigate).toHaveBeenCalledWith('/explore?type=events')
   })
 })

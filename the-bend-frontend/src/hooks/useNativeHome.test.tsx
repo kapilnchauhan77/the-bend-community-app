@@ -67,8 +67,12 @@ describe('useNativeHome', () => {
     const { result, unmount } = renderHook(() => useNativeHome()); await waitFor(() => expect(result.current.urgent.status).toBe('error')); const before = vi.mocked(eventApi.getUpcoming).mock.calls.length; void result.current.urgent.retry(); await waitFor(() => expect(listingApi.browse).toHaveBeenCalledTimes(2)); expect(eventApi.getUpcoming).toHaveBeenCalledTimes(before); unmount(); pending.resolve({ data: { items: [] } } as never); await pending.promise
   })
 
-  it('uses fixed cache keys without query, identity, token, or coordinates', () => {
-    const keys = ['listing:native-home-urgent', 'event:native-home-upcoming', 'listing:native-home-opportunities', 'listing:native-home-highlights', 'listing:native-home-partners']
-    expect(keys).toEqual(expect.arrayContaining(['listing:native-home-urgent', 'event:native-home-upcoming', 'listing:native-home-opportunities'])); expect(keys.join('|')).not.toMatch(/search|user|token|coord/i)
+  it('uses only the three real public cache keys and never caches network-only sections', async () => {
+    const response = { data: { items: [] } }
+    vi.mocked(listingApi.browse).mockResolvedValue(response as never); vi.mocked(eventApi.getUpcoming).mockResolvedValue(response as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue(response as never); vi.mocked(listingApi.getStories).mockResolvedValue(response as never); vi.mocked(sponsorApi.list).mockResolvedValue(response as never)
+    renderHook(() => useNativeHome()); await waitFor(() => expect(platform.cache.put).toHaveBeenCalledTimes(3))
+    const keys = platform.cache.put.mock.calls.map(([entry]) => entry.key)
+    expect(keys).toEqual(expect.arrayContaining(['listing:native-home-urgent', 'event:native-home-upcoming', 'listing:native-home-opportunities']))
+    expect(keys.join('|')).not.toMatch(/search|user|token|coord/i); expect(platform.cache.get).not.toHaveBeenCalledWith(expect.stringMatching(/highlights|partners/))
   })
 })
