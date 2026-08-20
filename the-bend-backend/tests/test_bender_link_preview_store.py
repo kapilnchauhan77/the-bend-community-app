@@ -265,9 +265,22 @@ async def test_resolve_invalid_draft_deletes_corrupt_value_and_returns_none():
 async def test_missing_or_expired_draft_is_a_miss_without_delete():
     redis = _FakeRedis()
     store = BenderLinkPreviewStore(redis)
-    token = await store.issue_draft(_snapshot(), user_id=uuid4(), tenant_id=None)
+    user_id = uuid4()
+    tenant_id = uuid4()
+    token = await store.issue_draft(_snapshot(), user_id=user_id, tenant_id=tenant_id)
+    assert await store.resolve_draft(
+        token,
+        user_id=user_id,
+        tenant_id=tenant_id,
+        caption="https://example.org/start",
+    ) == _snapshot()
     redis.advance(store.ttl_seconds)
-    assert await store.resolve_draft(token, user_id=uuid4(), tenant_id=None, caption="https://example.org/start") is None
+    assert await store.resolve_draft(
+        token,
+        user_id=user_id,
+        tenant_id=tenant_id,
+        caption="https://example.org/start",
+    ) is None
     assert not any(call[0] == "delete" for call in redis.calls)
 
 
