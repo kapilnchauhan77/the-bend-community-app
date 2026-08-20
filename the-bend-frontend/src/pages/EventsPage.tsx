@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, ChevronDown, Calendar, List, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 import { usePlatformServices } from '@/platform/createPlatformServices';
 import { parseSafeExternalUrl } from '@/lib/safeExternalUrl';
+import { publicWestmorelandUrl } from '@/lib/publicUrl';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -108,21 +109,11 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
 export function EventCard({ event }: { event: CommunityEvent }) {
-  const navigate = useNavigate();
   const native = useNativePresentation();
   const services = usePlatformServices();
   const cat = getCategoryConfig(event.category);
   const safeSource = parseSafeExternalUrl(event.source_url);
-  const openCard = () => {
-    if (native) { navigate(`/events/${event.id}`); return; }
-    if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
-  };
-  return (
-    <Card
-      id={`event-${event.id}`}
-      onClick={native || event.source_url ? openCard : undefined}
-      className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${native || event.source_url ? 'cursor-pointer' : ''}`}
-    >
+  const summary = <>
       <div className="relative">
         <EventThumb event={event} className="h-40 rounded-t-2xl" />
         {isRecentlyPosted(event) && (
@@ -136,7 +127,7 @@ export function EventCard({ event }: { event: CommunityEvent }) {
           </div>
         )}
       </div>
-      <CardContent className="p-4">
+      <CardContent className="p-4 pb-2">
         <div className="flex items-start justify-between gap-2 mb-2">
           <Badge className={`text-xs rounded-full border-0 font-medium ${cat.color}`}>
             {cat.label}
@@ -161,7 +152,24 @@ export function EventCard({ event }: { event: CommunityEvent }) {
         {event.description && (
           <p className="text-xs text-gray-500 line-clamp-2 mb-2">{event.description}</p>
         )}
+      </CardContent>
+    </>;
+  return (
+    <Card
+      id={`event-${event.id}`}
+      className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${native || safeSource ? 'cursor-pointer' : ''}`}
+    >
+      {native ? (
+        <Link to={`/events/${event.id}`} aria-label={`Open ${event.title}`} className="block rounded-t-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset">
+          {summary}
+        </Link>
+      ) : safeSource ? (
+        <a href={safeSource.href} target="_blank" rel="noopener noreferrer" className="block rounded-t-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset">
+          {summary}
+        </a>
+      ) : summary}
 
+      <CardContent className="px-4 pb-4 pt-0">
         <div className="flex items-center justify-between mt-2">
           {event.source && event.source !== 'manual' ? (
             <span className="text-[10px] text-gray-400 truncate max-w-[55%]">{event.source}</span>
@@ -171,14 +179,14 @@ export function EventCard({ event }: { event: CommunityEvent }) {
           <div className="flex items-center gap-2">
             <span onClick={(e) => e.stopPropagation()}>
               <ShareButton
-                url={`/events#event-${event.id}`}
+                url={native ? publicWestmorelandUrl(`/events/${event.id}`) : `/events#event-${event.id}`}
                 title={event.title}
                 description={`${event.title} - ${formatEventDate(event.start_date, event.end_date)}${event.location ? ' at ' + event.location : ''}`}
               />
             </span>
-            {(!native && event.source_url) && (
+            {(!native && safeSource) && (
               <a
-                href={event.source_url}
+                href={safeSource.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
@@ -194,7 +202,7 @@ export function EventCard({ event }: { event: CommunityEvent }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); void services.browser.open(safeSource.href); }}
-                className="text-[10px] font-medium hover:underline"
+                className="native-control text-[10px] font-medium hover:underline"
                 style={{ color: PRIMARY }}
               >
                 View source
@@ -210,27 +218,45 @@ export function EventCard({ event }: { event: CommunityEvent }) {
 // ─── Mini Event Row (used in calendar day panel) ──────────────────────────────
 
 function MiniEventRow({ event }: { event: CommunityEvent }) {
+  const native = useNativePresentation();
+  const services = usePlatformServices();
   const cat = getCategoryConfig(event.category);
-  const openSource = () => {
-    if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
-  };
+  const safeSource = parseSafeExternalUrl(event.source_url);
+  const summary = <>
+    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${cat.dot}`} />
+    <div className="min-w-0 flex-1">
+      <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">{event.title}</p>
+      <p className="text-xs text-[hsl(160,25%,32%)] mt-0.5">
+        {parseDate(event.start_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        {event.location && <span className="text-gray-400"> · {event.location}</span>}
+      </p>
+    </div>
+  </>;
   return (
-    <div
-      onClick={event.source_url ? openSource : undefined}
-      className={`flex items-start gap-3 py-3 border-b border-gray-100 last:border-0 ${event.source_url ? 'cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors' : ''}`}
-    >
-      <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${cat.dot}`} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-1">{event.title}</p>
-        <p className="text-xs text-[hsl(160,25%,32%)] mt-0.5">
-          {parseDate(event.start_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-          {event.location && <span className="text-gray-400"> · {event.location}</span>}
-        </p>
-      </div>
-      {event.source_url && (
-        <span className="text-[10px] font-medium flex-shrink-0 mt-1" style={{ color: PRIMARY }}>
-          →
-        </span>
+    <div className="flex items-center gap-2 py-3 border-b border-gray-100 last:border-0">
+      {native ? (
+        <Link to={`/events/${event.id}`} aria-label={`Open ${event.title}`} className="flex min-w-0 flex-1 items-start gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2">
+          {summary}
+        </Link>
+      ) : safeSource ? (
+        <a href={safeSource.href} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-3 rounded-lg hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2">
+          {summary}
+          <span className="text-[10px] font-medium flex-shrink-0 mt-1" style={{ color: PRIMARY }}>→</span>
+        </a>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-start gap-3">{summary}</div>
+      )}
+      {native && safeSource && (
+        <a
+          href={safeSource.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => { event.preventDefault(); void services.browser.open(safeSource.href); }}
+          className="native-control text-[10px] font-medium flex-shrink-0"
+          style={{ color: PRIMARY }}
+        >
+          View source
+        </a>
       )}
     </div>
   );
@@ -399,11 +425,10 @@ export default function EventsPage() {
   const native = useNativePresentation();
   const { online, run: runOnline } = useOnlineMutation();
   const cached = useCachedPublicContent<CommunityEvent[]>('event:feed', useCallback(async () => (await eventApi.list({ limit: '300' })).data.items ?? [], []));
+  const events = cached.data ?? [];
   const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [category, setCategory] = useState<string | null>(null);
-  const [events, setEvents] = useState<CommunityEvent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [listMode, setListMode] = useState<'upcoming' | 'recent' | 'all'>('upcoming');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -424,11 +449,6 @@ export default function EventsPage() {
   const [postSuccess, setPostSuccess] = useState(false);
 
   // Check for success return from Stripe
-  useEffect(() => {
-    if (!cached.data) return;
-    setEvents(cached.data); setLoading(false);
-  }, [cached.data]);
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('posted') === 'success') {
@@ -610,7 +630,7 @@ export default function EventsPage() {
       {/* ── Main Content ── */}
       <section className="py-8">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
-          {loading ? (
+          {!cached.data && cached.status === 'loading' ? (
             /* Skeleton grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {[1, 2, 3, 4, 5, 6].map(n => (
@@ -624,6 +644,13 @@ export default function EventsPage() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          ) : !cached.data && cached.status === 'error' ? (
+            <div role="alert" className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+              <Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Unable to load events</h2>
+              <p className="text-sm text-gray-500 mb-4">We couldn't load community events right now.</p>
+              <Button type="button" onClick={() => void cached.refresh()}>Retry events</Button>
             </div>
           ) : view === 'list' ? (
             displayedEvents.length === 0 ? (

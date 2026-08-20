@@ -11,7 +11,8 @@ vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children }: { 
 vi.mock('@/components/shared/ShareButton', () => ({ ShareButton: ({ url }: { url: string }) => <span data-testid="share-url">{url}</span> }));
 const browserOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()), usePlatformServices: () => ({ browser: { open: browserOpen } }) }));
-vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => true }));
+let nativePresentation = true;
+vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => nativePresentation }));
 
 const eventId = '00000000-0000-0000-0000-000000000003';
 const secondEventId = '00000000-0000-0000-0000-000000000004';
@@ -22,7 +23,7 @@ function renderAt(id = eventId) { return render(<MemoryRouter initialEntries={[`
 function SwitchToSecondEvent() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate(`/events/${secondEventId}`)}>switch</button>; }
 function PathProbe() { return <output data-testid="path">{useLocation().pathname}</output>; }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); nativePresentation = true; });
 afterEach(() => cleanup());
 
 describe('EventDetailPage', () => {
@@ -98,16 +99,31 @@ describe('EventDetailPage', () => {
 });
 
 describe('native event cards', () => {
-  it('navigates source-less cards internally', () => {
+  it('exposes one semantic internal destination and canonical share URL', () => {
     render(<MemoryRouter initialEntries={['/events']}><Routes><Route path="*" element={<><EventCard event={cardEvent()} /><PathProbe /></>} /></Routes></MemoryRouter>);
-    fireEvent.click(screen.getByRole('heading', { name: event.title }));
+    const link = screen.getByRole('link', { name: `Open ${event.title}` });
+    expect(link).toHaveAttribute('href', `/events/${eventId}`);
+    expect(screen.getByTestId('share-url')).toHaveTextContent(`https://westmoreland.bend.community/events/${eventId}`);
+    fireEvent.click(link);
     expect(screen.getByTestId('path')).toHaveTextContent(`/events/${eventId}`);
   });
 
   it('opens safe sources through the platform browser and omits unsafe sources', () => {
     render(<MemoryRouter><EventCard event={cardEvent('https://events.example.test/source')} /><EventCard event={cardEvent('javascript:alert(1)')} /></MemoryRouter>);
-    expect(screen.getAllByRole('link', { name: 'View source' })).toHaveLength(1);
-    fireEvent.click(screen.getByRole('link', { name: 'View source' }));
+    const source = screen.getByRole('link', { name: 'View source' });
+    expect(source).toHaveClass('native-control');
+    fireEvent.click(source);
     expect(browserOpen).toHaveBeenCalledWith('https://events.example.test/source');
+  });
+
+  it('omits unsafe source destinations from web event cards', () => {
+    nativePresentation = false;
+    render(<MemoryRouter><EventCard event={cardEvent('https://events.example.test/source')} /><EventCard event={cardEvent('javascript:alert(1)')} /></MemoryRouter>);
+
+    const destinations = screen.getAllByRole('link').map((link) => link.getAttribute('href'));
+    expect(destinations).toEqual([
+      'https://events.example.test/source',
+      'https://events.example.test/source',
+    ]);
   });
 });
