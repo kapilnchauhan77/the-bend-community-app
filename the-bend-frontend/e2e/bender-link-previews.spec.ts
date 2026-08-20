@@ -325,9 +325,14 @@ test('composer debounces a link and replaces loading with a preview', async ({ p
 test('stale create success cannot prepend after the composer session closes', async ({ page }) => {
   await stubFeed(page, { ...base, caption: null, link_preview: null });
   let releaseCreate!: () => void;
+  let createStartedResolve!: () => void;
+  const createStarted = new Promise<void>((resolve) => { createStartedResolve = resolve; });
   await page.route('**/api/v1/bender/posts', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
-    await new Promise<void>((resolve) => { releaseCreate = resolve; });
+    await new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+      createStartedResolve();
+    });
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify(createdPost({ id: 'stale-create', caption: 'Stale response', link_preview: null })),
@@ -337,33 +342,42 @@ test('stale create success cannot prepend after the composer session closes', as
   await page.getByPlaceholder('Write a caption…').fill('Stale draft');
   await page.getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Posting…' })).toBeDisabled();
+  await createStarted;
   await page.getByTestId('composer-harness-force-close').evaluate((button) => (button as HTMLButtonElement).click());
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByTestId('composer-harness-reopen').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByPlaceholder('Write a caption…')).toHaveValue('');
   const createResponse = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/v1/bender/posts'));
   releaseCreate();
   await createResponse;
   await expect(page.getByTestId('composer-harness-state')).toContainText('"createdCount":0');
-  await page.getByTestId('composer-harness-reopen').click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByPlaceholder('Write a caption…')).toHaveValue('');
   await unmountComposerHarness(page);
 });
 
 test('stale create rejection cannot show an error after close and reopen', async ({ page }) => {
   await stubFeed(page, { ...base, caption: null, link_preview: null });
   let releaseCreate!: () => void;
+  let createStartedResolve!: () => void;
+  const createStarted = new Promise<void>((resolve) => { createStartedResolve = resolve; });
   await page.route('**/api/v1/bender/posts', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
-    await new Promise<void>((resolve) => { releaseCreate = resolve; });
+    await new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+      createStartedResolve();
+    });
     await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
   });
   await mountComposerHarness(page);
   await page.getByPlaceholder('Write a caption…').fill('Stale failure');
   await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Posting…' })).toBeDisabled();
+  await createStarted;
   await page.getByTestId('composer-harness-force-close').evaluate((button) => (button as HTMLButtonElement).click());
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByTestId('composer-harness-reopen').click();
   await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByPlaceholder('Write a caption…')).toHaveValue('');
   const createResponse = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/v1/bender/posts'));
   releaseCreate();
   await createResponse;
