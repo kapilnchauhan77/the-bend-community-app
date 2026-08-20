@@ -23,6 +23,27 @@ describe('useBenderPost', () => {
     await waitFor(() => expect(result.current.post?.id).toBe('two'))
   })
 
+  it('issues a new request when retry is called', async () => {
+    const first = deferred<{ data: BenderPost }>(); const second = deferred<{ data: BenderPost }>()
+    vi.mocked(benderApi.getPost).mockReturnValueOnce(first.promise as never).mockReturnValueOnce(second.promise as never)
+    const { result } = renderHook(() => useBenderPost('one'))
+    await waitFor(() => expect(benderApi.getPost).toHaveBeenCalledTimes(1))
+    act(() => result.current.retry())
+    await waitFor(() => expect(benderApi.getPost).toHaveBeenCalledTimes(2))
+    await act(async () => { second.resolve({ data: post('one') }) })
+    await waitFor(() => expect(result.current.status).toBe('success'))
+  })
+
+  it('aborts the active request on unmount', async () => {
+    const request = deferred<{ data: BenderPost }>()
+    vi.mocked(benderApi.getPost).mockReturnValue(request.promise as never)
+    const { unmount } = renderHook(() => useBenderPost('one'))
+    await waitFor(() => expect(benderApi.getPost).toHaveBeenCalledTimes(1))
+    const signal = vi.mocked(benderApi.getPost).mock.calls[0][1]?.signal
+    unmount()
+    expect(signal?.aborted).toBe(true)
+  })
+
   it.each([400, 401, 403, 404, 422])('maps %i to unavailable', async (status) => {
     vi.mocked(benderApi.getPost).mockRejectedValue({ response: { status } })
     const { result } = renderHook(() => useBenderPost('one'))
