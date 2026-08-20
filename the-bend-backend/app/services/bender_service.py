@@ -80,8 +80,8 @@ class BenderService:
         return user.role in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN)
 
     @staticmethod
-    def _preview_block(value: dict[str, object] | None) -> BenderLinkPreview | None:
-        if value is None:
+    def _preview_block(value: object | None) -> BenderLinkPreview | None:
+        if not isinstance(value, dict):
             return None
         version = value.get("version")
         if isinstance(version, bool) or not isinstance(version, int) or version != 1:

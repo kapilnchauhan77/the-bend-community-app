@@ -176,3 +176,8 @@ def test_public_preview_block_rejects_missing_or_non_strict_storage_version(vers
     else:
         stored["version"] = version
     assert BenderService._preview_block(stored) is None
+
+
+@pytest.mark.parametrize("stored", [[], "bad", 1, True])
+def test_public_preview_block_treats_non_object_storage_as_null(stored):
+    assert BenderService._preview_block(stored) is None
