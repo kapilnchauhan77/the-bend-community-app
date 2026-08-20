@@ -491,7 +491,6 @@ export default function RegisterPage() {
                       aria-describedby={errors.password ? 'password-error' : undefined}
                       className={`h-11 pr-10 border-[hsl(35,18%,84%)] bg-white ${errors.password ? 'border-red-400' : ''}`}
                     />
-                    <FieldError id="whatsapp-error" message={errors.whatsapp?.message} />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}

@@ -113,6 +113,24 @@ describe('RegisterPage native steps', () => {
     expect(screen.getByRole('combobox', { name: /Business Type/ })).not.toHaveAttribute('aria-describedby')
   })
 
+  it('keeps the WhatsApp error beside WhatsApp and out of Security', async () => {
+    renderNative()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Your details' })
+    fireEvent.change(screen.getByRole('textbox', { name: /Business Name/ }), { target: { value: 'Bend Market' } })
+    fireEvent.click(screen.getByRole('combobox', { name: /Business Type/ }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Food and Drink' }))
+    fireEvent.change(screen.getByRole('textbox', { name: /Your Name/ }), { target: { value: 'Pat Neighbor' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /Email Address/ }), { target: { value: 'pat@example.com' } })
+    fireEvent.change(screen.getAllByPlaceholderText('+1 555 0100')[1], { target: { value: '123456789012345678901' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const whatsappError = await screen.findByText(/20 character|20 characters|<=20/)
+    expect(document.querySelectorAll('#whatsapp-error')).toHaveLength(1)
+    expect(screen.getAllByPlaceholderText('+1 555 0100')[1]).toHaveAttribute('aria-describedby', 'whatsapp-error')
+    expect(whatsappError.closest('div')?.querySelector('#whatsapp')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Security and guidelines' })).not.toBeInTheDocument()
+  })
+
   it('keeps the exact pure step mappings and clamps navigation', () => {
     expect(registrationFieldsForStep('account-type', 'business')).toEqual(['user_type'])
     expect(registrationFieldsForStep('details', 'business')).toEqual(['shop_name', 'business_type', 'owner_name', 'email', 'phone', 'address', 'whatsapp'])
