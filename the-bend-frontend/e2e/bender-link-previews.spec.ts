@@ -274,6 +274,12 @@ async function stubComposerPost(page: Page, response: Record<string, unknown>) {
   });
 }
 
+function expectNoPreviewMetadata(body: Record<string, unknown>) {
+  for (const key of ['link_preview', 'preview', 'source_url', 'image_url', 'title', 'description']) {
+    expect(body).not.toHaveProperty(key);
+  }
+}
+
 test('composer debounces a link and replaces loading with a preview', async ({ page }) => {
   await page.clock.install();
   const paths = await stubFeed(page, { ...base, caption: null, link_preview: null });
@@ -325,17 +331,41 @@ test('Post waits for an active preview and sends only its token', async ({ page 
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('dialog').click({ position: { x: 2, y: 2 } });
   await expect(page.getByRole('dialog')).toBeVisible();
+  expect(postRequests).toHaveLength(0);
   releasePreview();
   const request = await postRequest;
-  expect(request.postDataJSON()).toEqual({ caption: 'Read https://example.org/article', preview_token: 'preview-token' });
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body).toEqual({ caption: 'Read https://example.org/article', preview_token: 'preview-token' });
+  expectNoPreviewMetadata(body);
   expect(postRequests).toHaveLength(1);
+});
+
+test('mismatched preview source cannot attach a token or card', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(previewResponse({ source_url: 'https://other.example/wrong', title: 'Wrong source' })),
+    });
+  });
+  await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/article', link_preview: null }));
+  await openComposer(page);
+  await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/article');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
+  const postRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts'));
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  const body = (await postRequest).postDataJSON() as Record<string, unknown>;
+  expect(body).toEqual({ caption: 'Read https://example.org/article' });
+  expectNoPreviewMetadata(body);
 });
 
 test('create failure unlocks the captured draft and controls', async ({ page }) => {
   await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
   await page.route('**/api/v1/bender/link-preview', async (route) => {
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse()) });
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: 'https://example.org/article' })) });
   });
   let releasePost!: () => void;
   await page.route('**/api/v1/bender/posts', async (route) => {
@@ -362,42 +392,111 @@ test('create failure unlocks the captured draft and controls', async ({ page }) 
   await expect(page.getByTestId('bender-link-preview')).toBeVisible();
 });
 
+test('late media upload cannot mutate a closed composer', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  let releaseUpload!: () => void;
+  await page.route('**/api/v1/upload/media', async (route) => {
+    await new Promise<void>((resolve) => { releaseUpload = resolve; });
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ url: '/uploads/late-photo.jpg', thumbnail_url: null, type: 'image' }),
+    });
+  });
+  await stubComposerPost(page, createdPost({ caption: 'Caption', link_preview: null }));
+  await openComposer(page);
+  const uploadRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/upload/media'));
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'late-photo.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('fake-image'),
+  });
+  await uploadRequest;
+  await page.getByPlaceholder('Write a caption…').fill('Caption');
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const uploadResponse = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/v1/upload/media'));
+  releaseUpload();
+  await uploadResponse;
+  await page.getByRole('button', { name: 'New post' }).click();
+  await expect(page.getByPlaceholder('Write a caption…')).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Remove media' })).toHaveCount(0);
+});
+
 test('Post continues after the five-second preview wait expires', async ({ page }) => {
   await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.route('**/api/v1/upload/media', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ url: '/uploads/actual-photo.jpg', thumbnail_url: null, type: 'image' }),
+    });
+  });
   let releasePreview!: () => void;
   await page.route('**/api/v1/bender/link-preview', async (route) => {
+    const source = (route.request().postDataJSON() as { url: string }).url;
     await new Promise<void>((resolve) => { releasePreview = resolve; });
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse()) });
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: source })) });
   });
-  await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/slow', media_url: '/uploads/photo.jpg', media_type: 'image' }));
+  await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/slow', media_url: '/uploads/actual-photo.jpg', media_type: 'image' }));
   await openComposer(page);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'actual-photo.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('fake-image'),
+  });
+  await expect(page.getByRole('button', { name: 'Remove media' })).toBeVisible();
   await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/slow');
   await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview-loading')).toBeVisible();
+  const postRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts')) postRequests.push(request.postData() ?? '');
+  });
   const postRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts'));
-  await page.getByRole('button', { name: 'Post', exact: true }).click();
-  await page.clock.runFor(5000);
+  await page.getByRole('button', { name: 'Post', exact: true }).dispatchEvent('click');
+  await page.clock.runFor(4999);
+  expect(postRequests).toHaveLength(0);
+  await page.clock.runFor(1);
   const request = await postRequest;
-  expect(request.postDataJSON()).toEqual({ caption: 'Read https://example.org/slow' });
+  const body = request.postDataJSON() as Record<string, unknown>;
+  expect(body).toEqual({
+    caption: 'Read https://example.org/slow',
+    media_url: '/uploads/actual-photo.jpg',
+    media_type: 'image',
+  });
+  expectNoPreviewMetadata(body);
+  expect(postRequests).toHaveLength(1);
   releasePreview();
 });
 
-test('unusable token response still creates a plain-link post', async ({ page }) => {
+test('failed preview still creates a plain-link post', async ({ page }) => {
+  await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
   await page.route('**/api/v1/bender/link-preview', async (route) => {
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse()) });
+    await route.fulfill({ status: 422, contentType: 'application/json', body: '{}' });
   });
   await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/article', link_preview: null }));
   await openComposer(page);
   await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/article');
-  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
+  const postRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts'));
   await page.getByRole('button', { name: 'Post', exact: true }).click();
+  const body = (await postRequest).postDataJSON() as Record<string, unknown>;
+  expect(body).toEqual({ caption: 'Read https://example.org/article' });
+  expectNoPreviewMetadata(body);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'https://example.org/article' })).toBeVisible();
+  const created = page.locator('[data-testid="bender-post"]').filter({ hasText: 'Read https://example.org/article' });
+  const rawLink = created.getByRole('link', { name: 'https://example.org/article' });
+  await expect(rawLink).toHaveAttribute('href', 'https://example.org/article');
+  await expect(rawLink).toHaveAttribute('target', '_blank');
+  await expect(rawLink).toHaveAttribute('rel', /noopener/);
+  await expect(rawLink).toHaveAttribute('rel', /noreferrer/);
   await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
 });
 
 test('successful create response prepends the immutable preview', async ({ page }) => {
+  await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
   await page.route('**/api/v1/bender/link-preview', async (route) => {
     await route.fulfill({
@@ -411,12 +510,26 @@ test('successful create response prepends the immutable preview', async ({ page 
   }));
   await openComposer(page);
   await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/article and https://other.example/x');
+  await page.clock.runFor(400);
   await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  const postRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts'));
   await page.getByRole('button', { name: 'Post', exact: true }).click();
+  const body = (await postRequest).postDataJSON() as Record<string, unknown>;
+  expect(body).toEqual({ caption: 'Read https://example.org/article and https://other.example/x', preview_token: 'preview-token' });
+  expectNoPreviewMetadata(body);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Server snapshot, Server site' })).toHaveAttribute('href', 'https://example.org/server');
-  await expect(page.getByRole('link', { name: 'https://other.example/x' })).toHaveAttribute('href', 'https://other.example/x');
-  await expect(page.getByText('Composer preview')).toHaveCount(0);
+  const created = page.locator('[data-testid="bender-post"]').filter({ hasText: 'Server snapshot' });
+  const card = created.getByRole('link', { name: 'Server snapshot, Server site' });
+  await expect(card).toHaveAttribute('href', 'https://example.org/server');
+  await expect(card).toHaveAttribute('target', '_blank');
+  await expect(card).toHaveAttribute('rel', 'noopener noreferrer');
+  const otherLink = created.getByRole('link', { name: 'https://other.example/x' });
+  await expect(otherLink).toHaveAttribute('href', 'https://other.example/x');
+  await expect(otherLink).toHaveAttribute('target', '_blank');
+  await expect(otherLink).toHaveAttribute('rel', /noopener/);
+  await expect(otherLink).toHaveAttribute('rel', /noreferrer/);
+  await expect(created.getByRole('link', { name: 'https://example.org/article' })).toHaveCount(0);
+  await expect(created).not.toContainText('Composer preview');
 });
 
 test('composer shows a text-only preview', async ({ page }) => {
@@ -509,9 +622,10 @@ test('closing the composer cancels and resets preview state', async ({ page }) =
   });
   await page.route('**/api/v1/bender/link-preview', async (route) => {
     requests.push(route.request().url());
+    const source = (route.request().postDataJSON() as { url: string }).url;
     await new Promise<void>((resolve) => releases.push(resolve));
     try {
-      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ title: 'Old response' })) });
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: source, title: 'Old response' })) });
     } catch {
       failed = true;
     }

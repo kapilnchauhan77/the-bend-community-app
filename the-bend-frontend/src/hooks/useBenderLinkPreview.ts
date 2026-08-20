@@ -93,7 +93,19 @@ export function useBenderLinkPreview(caption: string, enabled: boolean): UseBend
       void benderApi.generateLinkPreview(detectedUrl, controller.signal)
         .then((response) => {
           if (activeRequestRef.current !== request || generationRef.current !== generation || controller.signal.aborted) return;
-          setPreview(response.data.preview);
+          const responsePreview = response.data?.preview;
+          if (
+            !responsePreview
+            || responsePreview.source_url !== detectedUrl
+            || responsePreview.source_url !== request.sourceUrl
+          ) {
+            setPreview(null);
+            setPreviewToken(null);
+            setStatus('unavailable');
+            request.settle(null);
+            return;
+          }
+          setPreview(responsePreview);
           setPreviewToken(response.data.preview_token);
           setStatus('success');
           request.settle(response.data.preview_token);

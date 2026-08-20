@@ -589,6 +589,8 @@ function BenderComposer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const composerOpenRef = useRef(open);
+  composerOpenRef.current = open;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const linkPreview = useBenderLinkPreview(caption, open);
@@ -615,7 +617,7 @@ function BenderComposer({
   }, [open, resetLinkPreview]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
-    if (submittingRef.current) return;
+    if (submittingRef.current || !composerOpenRef.current) return;
     setPending({
       url: result.url,
       thumbnail_url: result.thumbnail_url,
@@ -626,7 +628,7 @@ function BenderComposer({
 
   const handleFilePicked = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (submittingRef.current) return;
+      if (submittingRef.current || !composerOpenRef.current) return;
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
@@ -640,7 +642,7 @@ function BenderComposer({
         const res = await api.post('/upload/media', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        if (submittingRef.current) return;
+        if (submittingRef.current || !composerOpenRef.current) return;
         const data = res.data as Record<string, unknown>;
         setPending({
           url: String(data.url || ''),
