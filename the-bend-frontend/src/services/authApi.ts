@@ -1,19 +1,11 @@
 import api from './api';
 import type { AuthTokens } from '@/types';
+import type { RegisterPayload } from '@/auth/registrationFlow';
+
+export type { RegisterPayload } from '@/auth/registrationFlow';
 
 export const authApi = {
-  register: (data: {
-    user_type?: 'business' | 'individual';
-    shop_name?: string;
-    business_type?: string;
-    owner_name: string;
-    email: string;
-    phone?: string;
-    whatsapp?: string;
-    password: string;
-    address?: string;
-    guidelines_accepted: boolean;
-  }) => api.post<{ message: string; shop_id?: string }>('/auth/register', data),
+  register: (data: RegisterPayload) => api.post<{ message: string; shop_id?: string }>('/auth/register', data),
 
   login: (email: string, password: string) =>
     api.post<AuthTokens>('/auth/login', { email, password }),

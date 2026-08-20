@@ -10,6 +10,19 @@ export const REGISTRATION_STEPS = [
 export type RegistrationStep = (typeof REGISTRATION_STEPS)[number]['id']
 export type RegistrationUserType = RegisterFormData['user_type']
 
+export interface RegisterPayload {
+  user_type?: 'business' | 'individual'
+  shop_name?: string
+  business_type?: string
+  owner_name: string
+  email: string
+  phone?: string
+  whatsapp?: string
+  password: string
+  address?: string
+  guidelines_accepted: boolean
+}
+
 export const BUSINESS_ONLY_REGISTRATION_FIELDS = [
   'shop_name',
   'business_type',
@@ -25,6 +38,32 @@ export type RegistrationResetOperations = {
 export function resetBusinessRegistrationFields(operations: RegistrationResetOperations): void {
   for (const field of BUSINESS_ONLY_REGISTRATION_FIELDS) operations.resetField(field, { defaultValue: '' })
   operations.clearErrors([...BUSINESS_ONLY_REGISTRATION_FIELDS])
+}
+
+export function buildRegistrationPayload(data: RegisterFormData): RegisterPayload {
+  if (data.user_type === 'individual') {
+    return {
+      user_type: 'individual',
+      owner_name: data.owner_name,
+      email: data.email,
+      phone: data.phone || undefined,
+      password: data.password,
+      guidelines_accepted: data.guidelines_accepted,
+    }
+  }
+
+  return {
+    user_type: 'business',
+    shop_name: data.shop_name || undefined,
+    business_type: data.business_type || undefined,
+    owner_name: data.owner_name,
+    email: data.email,
+    phone: data.phone || undefined,
+    whatsapp: data.whatsapp || undefined,
+    password: data.password,
+    address: data.address || undefined,
+    guidelines_accepted: data.guidelines_accepted,
+  }
 }
 
 const NEXT_REGISTRATION_STEP: Record<RegistrationStep, RegistrationStep> = {

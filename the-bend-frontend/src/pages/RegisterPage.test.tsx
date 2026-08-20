@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RegisterPage from './RegisterPage'
@@ -7,14 +7,34 @@ import { nextRegistrationStep, previousRegistrationStep, registrationFieldsForSt
 
 vi.mock('@/services/authApi', () => ({ authApi: { register: vi.fn() } }))
 
+import { authApi } from '@/services/authApi'
+
 function renderNative() {
   if (!globalThis.ResizeObserver) globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as typeof ResizeObserver
   if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => undefined
   return render(<MemoryRouter initialEntries={['/register']}><NativePresentationProvider><RegisterPage /></NativePresentationProvider></MemoryRouter>)
 }
 
+async function fillNativeBusinessForm() {
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+  await screen.findByRole('heading', { name: 'Your details' })
+  fireEvent.change(screen.getByRole('textbox', { name: /Business Name/ }), { target: { value: 'Bend Market' } })
+  fireEvent.click(screen.getByRole('combobox', { name: /Business Type/ }))
+  fireEvent.click(await screen.findByRole('option', { name: 'Food and Drink' }))
+  fireEvent.change(screen.getByRole('textbox', { name: /Your Name/ }), { target: { value: 'Pat Neighbor' } })
+  fireEvent.change(screen.getByRole('textbox', { name: /Email Address/ }), { target: { value: 'pat@example.com' } })
+  fireEvent.change(screen.getByRole('textbox', { name: /Phone/ }), { target: { value: '5405550100' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+  await screen.findByRole('heading', { name: 'Security and guidelines' })
+  fireEvent.change(document.getElementById('password')!, { target: { value: 'safe-password1' } })
+  fireEvent.change(document.getElementById('confirm_password')!, { target: { value: 'safe-password1' } })
+}
+
 describe('RegisterPage native steps', () => {
-  afterEach(() => document.body.innerHTML = '')
+  afterEach(() => {
+    vi.clearAllMocks()
+    document.body.innerHTML = ''
+  })
 
   it('starts on account type and focuses the step heading after advancing', async () => {
     renderNative()
@@ -138,5 +158,53 @@ describe('RegisterPage native steps', () => {
     expect(registrationFieldsForStep('security', 'individual')).toEqual(['password', 'confirm_password', 'guidelines_accepted'])
     expect(nextRegistrationStep('security')).toBe('security')
     expect(previousRegistrationStep('account-type')).toBe('account-type')
+  })
+
+  it('keeps Register disabled before consent and enables it after consent', async () => {
+    renderNative()
+    await fillNativeBusinessForm()
+    const registerButton = screen.getByRole('button', { name: 'Register business' })
+    expect(registerButton).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /agree to the community guidelines/i }))
+    expect(registerButton).toBeEnabled()
+  })
+
+  it('sends the exact hand-written payload and stays disabled while pending', async () => {
+    let resolveRequest!: () => void
+    vi.mocked(authApi.register).mockReturnValue(new Promise((resolve) => {
+      resolveRequest = () => resolve({ data: { message: 'ok' } } as never)
+    }) as never)
+    renderNative()
+    await fillNativeBusinessForm()
+    fireEvent.click(screen.getByRole('checkbox', { name: /agree to the community guidelines/i }))
+    const registerButton = screen.getByRole('button', { name: 'Register business' })
+    fireEvent.click(registerButton)
+    await waitFor(() => expect(registerButton).toBeDisabled())
+    expect(authApi.register).toHaveBeenCalledWith({
+      user_type: 'business',
+      shop_name: 'Bend Market',
+      business_type: 'food_and_drink',
+      owner_name: 'Pat Neighbor',
+      email: 'pat@example.com',
+      phone: '5405550100',
+      whatsapp: undefined,
+      password: 'safe-password1',
+      address: undefined,
+      guidelines_accepted: true,
+    })
+    resolveRequest()
+  })
+
+  it('stays on Security after rejection and retains values and confirmation', async () => {
+    vi.mocked(authApi.register).mockRejectedValueOnce(new Error('Nope'))
+    renderNative()
+    await fillNativeBusinessForm()
+    fireEvent.click(screen.getByRole('checkbox', { name: /agree to the community guidelines/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Register business' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Registration failed')
+    expect(screen.getByRole('heading', { name: 'Security and guidelines' })).toBeInTheDocument()
+    expect(document.getElementById('password')).toHaveValue('safe-password1')
+    expect(document.getElementById('confirm_password')).toHaveValue('safe-password1')
+    expect(screen.getByRole('checkbox', { name: /agree to the community guidelines/i })).toBeChecked()
   })
 })

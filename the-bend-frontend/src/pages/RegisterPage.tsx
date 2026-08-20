@@ -25,6 +25,7 @@ import {
   previousRegistrationStep,
   registrationFieldsForStep,
   resetBusinessRegistrationFields,
+  buildRegistrationPayload,
   type RegistrationStep,
   type RegistrationUserType,
 } from '@/auth/registrationFlow';
@@ -74,29 +75,7 @@ export default function RegisterPage() {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      if (data.user_type === 'individual') {
-        await authApi.register({
-          user_type: 'individual',
-          owner_name: data.owner_name,
-          email: data.email,
-          phone: data.phone || undefined,
-          password: data.password,
-          guidelines_accepted: data.guidelines_accepted,
-        });
-      } else {
-        await authApi.register({
-          user_type: 'business',
-          shop_name: data.shop_name || undefined,
-          business_type: data.business_type || undefined,
-          owner_name: data.owner_name,
-          email: data.email,
-          phone: data.phone || undefined,
-          whatsapp: data.whatsapp || undefined,
-          password: data.password,
-          address: data.address || undefined,
-          guidelines_accepted: data.guidelines_accepted,
-        });
-      }
+      await authApi.register(buildRegistrationPayload(data));
       setSubmitted(true);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
@@ -595,7 +574,7 @@ export default function RegisterPage() {
                 backgroundColor: isSubmitting ? 'hsl(160, 25%, 18%)' : PRIMARY,
                 boxShadow: isSubmitting ? 'none' : '0 2px 8px hsl(160, 25%, 24%, 0.3)',
               }}
-              disabled={isSubmitting}
+              disabled={!watch('guidelines_accepted') || isSubmitting}
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
