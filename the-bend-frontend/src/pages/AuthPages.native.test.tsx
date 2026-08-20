@@ -40,6 +40,23 @@ describe('native auth pages', () => {
     expect(screen.queryByRole('button', { name: 'Go back' })).not.toBeInTheDocument()
   })
 
+  it('scopes every native auth page and its password controls', () => {
+    for (const [page, path] of [
+      [<LoginPage />, '/login'],
+      [<RegisterPage />, '/register'],
+      [<ForgotPasswordPage />, '/forgot-password'],
+      [<ResetPasswordPage />, '/reset-password?token=test'],
+    ] as const) {
+      cleanup()
+      const { container } = renderNative(page, path)
+      const authRoot = container.querySelector('.native-auth-page')
+      expect(authRoot).toBeInTheDocument()
+      for (const input of authRoot?.querySelectorAll('input[type="password"]') ?? []) {
+        expect(input.closest('.native-auth-page')).toBe(authRoot)
+      }
+    }
+  })
+
   it('exposes stable native auth control classes', () => {
     renderNative(<LoginPage />, '/login')
     expect(screen.getByText('Forgot password?')).toHaveClass('native-auth-inline-action')
@@ -64,5 +81,8 @@ describe('native auth pages', () => {
       expect(nativeCss).toContain(`.native-app ${selector}:focus-visible`)
       expect(nativeCss).toContain('outline: 3px solid var(--native-focus)')
     }
+    expect(cssRule(".native-app .native-auth-page input[type='password']")).toMatch(/padding-right:\s*52px/)
+    expect(cssRule(".native-app .native-auth-page input[autocomplete='new-password']")).toMatch(/padding-right:\s*52px/)
+    expect(cssRule(".native-app .native-auth-page input[autocomplete='current-password']")).toMatch(/padding-right:\s*52px/)
   })
 })

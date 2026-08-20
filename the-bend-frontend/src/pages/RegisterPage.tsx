@@ -124,7 +124,7 @@ export default function RegisterPage() {
   const isIndividual = userType === 'individual';
 
   return (
-    <div className="min-h-screen flex">
+    <div className="native-auth-page min-h-screen flex">
       {/* Left — Heritage image panel */}
       <div className="hidden lg:flex lg:w-5/12 relative overflow-hidden" style={{ backgroundColor: PRIMARY }}>
         <div
