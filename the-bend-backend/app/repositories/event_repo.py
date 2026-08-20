@@ -75,6 +75,31 @@ class EventRepository(BaseRepository[Event]):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_tenant(self, event_id: UUID, tenant_id: UUID) -> Event | None:
+        result = await self.session.execute(
+            select(Event).where(Event.id == event_id, Event.tenant_id == tenant_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def update_for_tenant(self, event_id: UUID, tenant_id: UUID, data: dict) -> Event | None:
+        event = await self.get_by_id_for_tenant(event_id, tenant_id)
+        if event is None:
+            return None
+        for key, value in data.items():
+            if hasattr(event, key):
+                setattr(event, key, value)
+        await self.session.flush()
+        await self.session.refresh(event)
+        return event
+
+    async def delete_for_tenant(self, event_id: UUID, tenant_id: UUID) -> bool:
+        event = await self.get_by_id_for_tenant(event_id, tenant_id)
+        if event is None:
+            return False
+        await self.session.delete(event)
+        await self.session.flush()
+        return True
+
     async def get_visible_by_id(
         self,
         event_id: UUID,
@@ -104,8 +129,45 @@ class ConnectorRepository(BaseRepository[EventConnector]):
     def __init__(self, session: AsyncSession):
         super().__init__(EventConnector, session)
 
-    async def get_active(self):
+    async def get_by_id_for_tenant(
+        self, connector_id: UUID, tenant_id: UUID
+    ) -> EventConnector | None:
         result = await self.session.execute(
-            select(EventConnector).where(EventConnector.is_active == True).order_by(EventConnector.name)
+            select(EventConnector).where(
+                EventConnector.id == connector_id,
+                EventConnector.tenant_id == tenant_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def update_for_tenant(
+        self, connector_id: UUID, tenant_id: UUID, data: dict
+    ) -> EventConnector | None:
+        connector = await self.get_by_id_for_tenant(connector_id, tenant_id)
+        if connector is None:
+            return None
+        for key, value in data.items():
+            if hasattr(connector, key):
+                setattr(connector, key, value)
+        await self.session.flush()
+        await self.session.refresh(connector)
+        return connector
+
+    async def delete_for_tenant(self, connector_id: UUID, tenant_id: UUID) -> bool:
+        connector = await self.get_by_id_for_tenant(connector_id, tenant_id)
+        if connector is None:
+            return False
+        await self.session.delete(connector)
+        await self.session.flush()
+        return True
+
+    async def get_active(self, tenant_id: UUID):
+        result = await self.session.execute(
+            select(EventConnector)
+            .where(
+                EventConnector.is_active == True,
+                EventConnector.tenant_id == tenant_id,
+            )
+            .order_by(EventConnector.name)
         )
         return list(result.scalars().all())

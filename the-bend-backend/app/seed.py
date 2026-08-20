@@ -251,7 +251,7 @@ async def sync_connector():
             return
 
         from app.services.connector_service import ConnectorService
-        svc = ConnectorService(session)
+        svc = ConnectorService(session, tenant_id=connector.tenant_id)
         try:
             result = await svc.sync_connector(connector.id)
             await session.commit()

@@ -4,7 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.permissions import Permission
+from app.core.permissions import Permission, get_current_tenant
+from app.core.exceptions import NotFoundError
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.enums import UserRole
 from app.services.admin_service import AdminService
@@ -173,6 +175,16 @@ def get_event_service(db: AsyncSession = Depends(get_db)):
     return EventService(db)
 
 
+async def get_matching_admin_tenant(
+    tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User = Depends(Permission.require_community_admin()),
+) -> Tenant:
+    """Resolve an admin tenant without revealing cross-tenant state."""
+    if tenant is None or current_user.tenant_id != tenant.id:
+        raise NotFoundError("Tenant")
+    return tenant
+
+
 # --- Event Admin Routes ---
 
 @router.get("/events")
@@ -180,9 +192,9 @@ async def admin_list_events(
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    event_service.tenant_id = _.tenant_id
+    event_service.tenant_id = tenant.id
     result = await event_service.list_all_events(cursor, limit)
     from app.api.v1.events import _serialize_event
     items = [_serialize_event(e) for e in result.items]
@@ -193,9 +205,9 @@ async def admin_list_events(
 async def admin_create_event(
     data: EventCreate,
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    event_service.tenant_id = _.tenant_id
+    event_service.tenant_id = tenant.id
     event = await event_service.create_event(data)
     return {"id": str(event.id), "title": event.title}
 
@@ -205,8 +217,9 @@ async def admin_update_event(
     event_id: UUID,
     data: EventUpdate,
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    event_service.tenant_id = tenant.id
     event = await event_service.update_event(event_id, data)
     return {"id": str(event.id), "status": "updated"}
 
@@ -215,8 +228,9 @@ async def admin_update_event(
 async def admin_delete_event(
     event_id: UUID,
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    event_service.tenant_id = tenant.id
     await event_service.delete_event(event_id)
     return {"status": "deleted"}
 
@@ -242,9 +256,9 @@ def _serialize_connector(c):
 @router.get("/connectors")
 async def admin_list_connectors(
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    event_service.tenant_id = _.tenant_id
+    event_service.tenant_id = tenant.id
     connectors = await event_service.list_connectors()
     return {"items": [_serialize_connector(c) for c in connectors]}
 
@@ -253,9 +267,9 @@ async def admin_list_connectors(
 async def admin_create_connector(
     data: ConnectorCreate,
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    event_service.tenant_id = _.tenant_id
+    event_service.tenant_id = tenant.id
     connector = await event_service.create_connector(data)
     return {"id": str(connector.id), "name": connector.name}
 
@@ -265,8 +279,9 @@ async def admin_update_connector(
     connector_id: UUID,
     data: ConnectorUpdate,
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    event_service.tenant_id = tenant.id
     connector = await event_service.update_connector(connector_id, data)
     return {"id": str(connector.id), "status": "updated"}
 
@@ -275,8 +290,9 @@ async def admin_update_connector(
 async def admin_delete_connector(
     connector_id: UUID,
     event_service: EventService = Depends(get_event_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    event_service.tenant_id = tenant.id
     await event_service.delete_connector(connector_id)
     return {"status": "deleted"}
 
@@ -289,8 +305,9 @@ def get_connector_service(db: AsyncSession = Depends(get_db)):
 async def admin_sync_connector(
     connector_id: UUID,
     connector_service: ConnectorService = Depends(get_connector_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    connector_service.tenant_id = tenant.id
     result = await connector_service.sync_connector(connector_id)
     return result
 
@@ -300,8 +317,9 @@ async def admin_test_connector(
     connector_id: UUID,
     event_service: EventService = Depends(get_event_service),
     connector_service: ConnectorService = Depends(get_connector_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    event_service.tenant_id = tenant.id
     connector = await event_service.get_connector(connector_id)
     result = await connector_service.test_connector(
         connector.type.value if hasattr(connector.type, "value") else connector.type,
@@ -314,8 +332,9 @@ async def admin_test_connector(
 @router.post("/connectors/sync-all")
 async def admin_sync_all(
     connector_service: ConnectorService = Depends(get_connector_service),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    connector_service.tenant_id = tenant.id
     return await connector_service.sync_all()
 
 

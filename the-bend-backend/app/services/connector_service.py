@@ -1,15 +1,20 @@
 import re
+import hashlib
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from uuid import UUID, uuid4
 
-import httpx
 from dateutil import parser as dateutil_parser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.event_repo import EventRepository, ConnectorRepository
 from app.models.enums import ConnectorType
+from app.services.external_urls import (
+    deterministic_source_url,
+    normalize_external_url,
+)
+from app.services.safe_external_fetcher import SafeExternalFetcher
 
 
 # Some public calendar hosts (e.g. CivicPlus county sites behind Cloudflare
@@ -190,9 +195,7 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
         if not _is_details_link(details_link):
             continue
 
-        source_url = urljoin(page_url, details_link["href"])
-        if urlparse(source_url).scheme not in {"http", "https"} or source_url in seen_urls:
-            continue
+        candidate_source_url = urljoin(page_url, details_link["href"])
 
         block = _find_dcr_event_block(details_link)
         if block is None:
@@ -248,6 +251,13 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
             description = f"This event has been canceled. {description or ''}".strip()
 
         start_date, end_date = parsed_range
+        source_url = deterministic_source_url(
+            page_url,
+            candidate_source_url,
+            f"{title}|{start_date.isoformat()}|{location or ''}",
+        )
+        if source_url in seen_urls:
+            continue
         events.append({
             "title": title[:255],
             "description": description[:2000] if description else None,
@@ -273,21 +283,43 @@ def _dcr_page_url(url: str, page_number: int) -> str:
 
 
 class ConnectorService:
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+        tenant_id: UUID | None = None,
+        fetcher: SafeExternalFetcher | None = None,
+    ):
         self.db = db
+        self.tenant_id = tenant_id
         self.event_repo = EventRepository(db)
         self.connector_repo = ConnectorRepository(db)
+        self.fetcher = fetcher or SafeExternalFetcher(headers=_FEED_HEADERS)
 
     async def sync_connector(self, connector_id: UUID) -> dict:
         """Sync events from a single connector."""
-        connector = await self.connector_repo.get_by_id(connector_id)
+        if self.tenant_id is None:
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError("Connector")
+        connector = await self.connector_repo.get_by_id_for_tenant(
+            connector_id, self.tenant_id
+        )
         if not connector:
-            raise ValueError("Connector not found")
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError("Connector")
 
         try:
             events = await self._parse_source(connector)
             saved = 0
             for event_data in events:
+                source_identity = "|".join(
+                    str(event_data.get(field) or "")
+                    for field in ("title", "start_date", "location", "source_url")
+                )
+                event_data["source_url"] = deterministic_source_url(
+                    connector.url,
+                    event_data.get("source_url"),
+                    source_identity,
+                )
                 # Dedup by source_url + connector_id
                 if event_data.get("source_url"):
                     existing = await self.event_repo.find_by_source_url(
@@ -308,7 +340,7 @@ class ConnectorService:
                 saved += 1
 
             # Update connector sync status
-            await self.connector_repo.update(connector_id, {
+            await self.connector_repo.update_for_tenant(connector_id, self.tenant_id, {
                 "last_synced_at": datetime.utcnow(),
                 "last_sync_count": saved,
                 "last_sync_error": None,
@@ -316,7 +348,7 @@ class ConnectorService:
             return {"synced": saved, "total_parsed": len(events)}
 
         except Exception as e:
-            await self.connector_repo.update(connector_id, {
+            await self.connector_repo.update_for_tenant(connector_id, self.tenant_id, {
                 "last_synced_at": datetime.utcnow(),
                 "last_sync_count": 0,
                 "last_sync_error": str(e)[:500],
@@ -338,7 +370,10 @@ class ConnectorService:
 
     async def sync_all(self) -> dict:
         """Sync all active connectors."""
-        connectors = await self.connector_repo.get_active()
+        if self.tenant_id is None:
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError("Tenant")
+        connectors = await self.connector_repo.get_active(self.tenant_id)
         results = {}
         for connector in connectors:
             try:
@@ -367,9 +402,8 @@ class ConnectorService:
         """Parse an ICS calendar feed."""
         from icalendar import Calendar
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=_FEED_HEADERS) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
+        resp = await self.fetcher.fetch_text(url)
+        resp.raise_for_status()
 
         body = resp.text
         # Guard: many calendar "feed" URLs are actually HTML landing pages
@@ -428,15 +462,23 @@ class ConnectorService:
             # the whole feed into a single saved event. Prefer a real per-event
             # http(s) link, then namespace by the canonical per-event UID so two
             # events can never share a key even if the feed reuses one URL.
-            event_link = next(
-                (s for s in (url_prop, description)
-                 if s.lower().startswith(("http://", "https://"))),
-                "",
-            )
+            event_link = ""
+            for candidate in (url_prop, description):
+                if not candidate:
+                    continue
+                try:
+                    event_link = normalize_external_url(candidate)
+                    break
+                except ValueError:
+                    continue
+            identity = uid or f"{summary}|{start.isoformat()}|{location}"
             if uid:
-                source_url = f"{event_link}#uid={uid}" if event_link else f"uid:{uid}"
+                source_base = event_link or normalize_external_url(url)
+                source_base = source_base.split("#", 1)[0]
+                digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
+                source_url = f"{source_base}#event-{digest}"
             else:
-                source_url = event_link or None
+                source_url = deterministic_source_url(url, event_link or None, identity)
 
             # If DESCRIPTION is just the event's own URL (common in CivicPlus
             # exports), don't echo it back as body text.
@@ -458,9 +500,8 @@ class ConnectorService:
         """Parse an RSS/Atom feed for event-like entries."""
         import feedparser
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=_FEED_HEADERS) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
+        resp = await self.fetcher.fetch_text(url)
+        resp.raise_for_status()
 
         feed = feedparser.parse(resp.text)
         events = []
@@ -492,13 +533,20 @@ class ConnectorService:
             if not start_date:
                 start_date = datetime.utcnow()
 
+            identity = str(
+                entry.get("id")
+                or entry.get("guid")
+                or f"{title}|{start_date.isoformat()}|{link}"
+            )
+            source_url = deterministic_source_url(url, link or None, identity)
+
             events.append({
                 "title": title[:255],
                 "description": description[:2000] if description else None,
                 "start_date": start_date,
                 "end_date": None,
                 "location": None,
-                "source_url": link or None,
+                "source_url": source_url,
                 "status": "active",
             })
 
@@ -513,44 +561,43 @@ class ConnectorService:
         desc_sel = config.get("description_selector", "p")
         link_sel = config.get("link_selector", "a")
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=_FEED_HEADERS) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
+        resp = await self.fetcher.fetch_text(url)
+        resp.raise_for_status()
 
-            if _is_dcr_events_url(url):
-                first_events, reported_count = _parse_dcr_event_page(resp.text, url)
-                if reported_count is None:
-                    raise ValueError(
-                        "The DCR page did not include an event result count; its markup may have changed."
-                    )
-                if reported_count == 0:
-                    return []
-                if not first_events:
-                    raise ValueError(
-                        f"DCR reported {reported_count} events, but no valid event cards could be parsed."
-                    )
+        if _is_dcr_events_url(url):
+            first_events, reported_count = _parse_dcr_event_page(resp.text, url)
+            if reported_count is None:
+                raise ValueError(
+                    "The DCR page did not include an event result count; its markup may have changed."
+                )
+            if reported_count == 0:
+                return []
+            if not first_events:
+                raise ValueError(
+                    f"DCR reported {reported_count} events, but no valid event cards could be parsed."
+                )
 
-                all_events = {event["source_url"]: event for event in first_events}
-                page_count = ceil(reported_count / len(first_events))
-                if page_count > 50:
-                    raise ValueError(
-                        f"DCR results require {page_count} pages, exceeding the safe sync limit."
-                    )
+            all_events = {event["source_url"]: event for event in first_events}
+            page_count = ceil(reported_count / len(first_events))
+            if page_count > 50:
+                raise ValueError(
+                    f"DCR results require {page_count} pages, exceeding the safe sync limit."
+                )
 
-                for page_number in range(2, page_count + 1):
-                    page_url = _dcr_page_url(url, page_number)
-                    page_resp = await client.get(page_url)
-                    page_resp.raise_for_status()
-                    page_events, _ = _parse_dcr_event_page(page_resp.text, page_url)
-                    for event in page_events:
-                        all_events[event["source_url"]] = event
+            for page_number in range(2, page_count + 1):
+                page_url = _dcr_page_url(url, page_number)
+                page_resp = await self.fetcher.fetch_text(page_url)
+                page_resp.raise_for_status()
+                page_events, _ = _parse_dcr_event_page(page_resp.text, page_url)
+                for event in page_events:
+                    all_events[event["source_url"]] = event
 
-                if len(all_events) != reported_count:
-                    raise ValueError(
-                        f"DCR reported {reported_count} events, but only "
-                        f"{len(all_events)} unique event cards were parsed. No events were saved."
-                    )
-                return list(all_events.values())
+            if len(all_events) != reported_count:
+                raise ValueError(
+                    f"DCR reported {reported_count} events, but only "
+                    f"{len(all_events)} unique event cards were parsed. No events were saved."
+                )
+            return list(all_events.values())
 
         soup = BeautifulSoup(resp.text, "lxml")
         events = []
@@ -590,14 +637,14 @@ class ConnectorService:
 
             # Link
             link_el = parent.select_one(link_sel) if link_sel != title_sel else title_el
-            source_url = None
+            candidate_source_url = None
             if link_el and link_el.get("href"):
-                source_url = urljoin(url, link_el["href"])
-
-            # HTML imports are deduplicated by source_url. Saving a linkless
-            # card would create a duplicate on every scheduled sync.
-            if not source_url or urlparse(source_url).scheme not in {"http", "https"}:
-                continue
+                candidate_source_url = urljoin(url, link_el["href"])
+            source_url = deterministic_source_url(
+                url,
+                candidate_source_url,
+                f"{title}|{start_date.isoformat()}|{candidate_source_url or ''}",
+            )
 
             events.append({
                 "title": title[:255],

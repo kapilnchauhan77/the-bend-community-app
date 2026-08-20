@@ -2,7 +2,6 @@ from datetime import datetime
 
 import pytest
 
-from app.services import connector_service
 from app.services.connector_service import (
     ConnectorService,
     _dcr_page_url,
@@ -185,24 +184,15 @@ class _FakeResponse:
         return None
 
 
-class _FakeClient:
+class _FakeFetcher:
     pages: dict[str, str] = {}
 
-    def __init__(self, *args, **kwargs):
-        pass
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, traceback):
-        return None
-
-    async def get(self, url: str):
+    async def fetch_text(self, url: str):
         return _FakeResponse(self.pages[url])
 
 
 @pytest.mark.asyncio
-async def test_dcr_parser_fetches_every_results_page(monkeypatch):
+async def test_dcr_parser_fetches_every_results_page():
     first_page = _results_page(
         3,
         _event_card(
@@ -217,7 +207,7 @@ async def test_dcr_parser_fetches_every_results_page(monkeypatch):
         ),
     )
     second_url = _dcr_page_url(DCR_URL, 2)
-    _FakeClient.pages = {
+    _FakeFetcher.pages = {
         DCR_URL: first_page,
         second_url: _results_page(
             3,
@@ -228,9 +218,7 @@ async def test_dcr_parser_fetches_every_results_page(monkeypatch):
             ),
         ),
     }
-    monkeypatch.setattr(connector_service.httpx, "AsyncClient", _FakeClient)
-
-    events = await ConnectorService(None)._parse_html(DCR_URL, {})
+    events = await ConnectorService(None, fetcher=_FakeFetcher())._parse_html(DCR_URL, {})
 
     assert [event["title"] for event in events] == [
         "First Event",
@@ -240,13 +228,11 @@ async def test_dcr_parser_fetches_every_results_page(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_generic_html_parser_does_not_turn_a_summary_into_an_event(monkeypatch):
+async def test_generic_html_parser_does_not_turn_a_summary_into_an_event():
     url = "https://example.com/events"
-    _FakeClient.pages = {
+    _FakeFetcher.pages = {
         url: _results_page(63),
     }
-    monkeypatch.setattr(connector_service.httpx, "AsyncClient", _FakeClient)
-
-    events = await ConnectorService(None)._parse_html(url, {})
+    events = await ConnectorService(None, fetcher=_FakeFetcher())._parse_html(url, {})
 
     assert events == []
