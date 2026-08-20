@@ -53,6 +53,8 @@
 .native-app .native-result-group .native-section-header { margin-bottom: var(--native-space-3); }
 .native-app .native-card { display: block; min-width: 0; padding: var(--native-space-3); border: 1px solid var(--native-border); border-radius: var(--native-radius-card); color: var(--native-text); background: var(--native-elevated); overflow-wrap: anywhere; }
 .native-app .native-partner-button { display: inline-flex; align-items: center; justify-content: center; margin: var(--native-space-3) 0 var(--native-space-6); padding: 10px var(--native-space-4); border: 1px solid var(--native-bronze); border-radius: var(--native-radius-control); color: var(--native-primary); background: transparent; text-decoration: none; }
+.native-app button.native-partner-button:focus-visible { outline: 3px solid var(--native-focus); outline-offset: 2px; }
+.native-app .native-partner-error { margin: calc(var(--native-space-6) * -1) 0 var(--native-space-6); color: var(--native-urgent-text); font-size: 13px; }
 .native-app .native-partner-carousel { width: 100%; min-width: 0; }
 .native-app .native-partner-track {
   display: grid;

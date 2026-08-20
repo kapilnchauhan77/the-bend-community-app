@@ -10,6 +10,7 @@ vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-hom
 vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
 vi.mock('@/pages/NotFoundPage', () => ({ default: () => <div>Public not found</div> }));
 vi.mock('@/pages/BenderPage', () => ({ default: () => <div>bender-page-sentinel</div> }));
+vi.mock('@/pages/AdvertisePage', () => ({ default: () => <div>advertise-page-sentinel</div> }));
 vi.mock('@/services/eventApi', () => ({ eventApi: { getDetail: vi.fn() } }));
 vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()), usePlatformServices: () => ({ browser: { open: vi.fn() } }) }));
 vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children }: { children: React.ReactNode }) => <div data-testid="public-page-layout"><nav>public web chrome</nav>{children}</div> }));
@@ -47,6 +48,12 @@ describe('WebRoutes', () => {
   it('renders Bender at the canonical focused-post route', () => {
     renderAt('/bender/00000000-0000-0000-0000-000000000001');
     expect(screen.getByText('bender-page-sentinel')).toBeInTheDocument();
+  });
+
+  it('keeps the public advertising journey on the web route', () => {
+    renderAt('/advertise');
+    expect(screen.getByText('advertise-page-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText('Public not found')).not.toBeInTheDocument();
   });
 
   it('renders event detail on the public web route with web routing', async () => {

@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NativeHomePage } from './NativeHomePage'
+import { publicWestmorelandUrl } from '@/lib/publicUrl'
 import type { BenderPost, Sponsor } from '@/types'
 
 type SectionFixture = { status: string; data: unknown[]; source: string; cachedAt: string | null; retry: ReturnType<typeof vi.fn> }
@@ -14,12 +15,14 @@ vi.mock('@/components/layout/NativeAppShell', () => ({ useNativeAppShell: () => 
 const authState = { isAuthenticated: false }
 vi.mock('@/stores/authStore', () => ({ useAuthStore: () => authState }))
 const navigate = vi.fn()
+const browserOpen = vi.fn(() => Promise.resolve())
 vi.mock('react-router-dom', async () => { const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom'); return { ...actual, useNavigate: () => navigate } })
 const { pendingIntent } = vi.hoisted(() => ({ pendingIntent: vi.fn() }))
 vi.mock('@/auth/pendingDestination', () => ({ setPendingIntent: pendingIntent }))
+vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => ({ browser: { open: browserOpen } }) }))
 
 describe('NativeHomePage', () => {
-  afterEach(() => { cleanup(); navigate.mockClear(); pendingIntent.mockClear(); registerRootScroll.mockClear(); Object.values(homeState).forEach((section) => { section.status = 'success'; section.data = []; section.source = 'network'; section.cachedAt = null; section.retry = vi.fn() }) })
+  afterEach(() => { cleanup(); navigate.mockClear(); browserOpen.mockReset().mockResolvedValue(undefined); pendingIntent.mockClear(); registerRootScroll.mockClear(); Object.values(homeState).forEach((section) => { section.status = 'success'; section.data = []; section.source = 'network'; section.cachedAt = null; section.retry = vi.fn() }) })
   it('renders the compact ordered dashboard and transfers search to Explore', () => {
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: /what’s happening nearby/i })).toBeInTheDocument()
@@ -44,9 +47,11 @@ describe('NativeHomePage', () => {
     nodes.slice(1).forEach((node, index) => expect(nodes[index]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy())
   })
 
-  it('registers the Home root scroll and includes the partner destination', () => {
+  it('opens the public advertising journey without changing the native route', async () => {
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
-    expect(screen.getByRole('link', { name: /partner with us/i })).toHaveAttribute('data-path', '/advertise')
+    fireEvent.click(screen.getByRole('button', { name: /partner with us/i }))
+    await waitFor(() => expect(browserOpen).toHaveBeenCalledWith(publicWestmorelandUrl('/advertise')))
+    expect(navigate).not.toHaveBeenCalledWith('/advertise')
   })
 
   it('owns the partner carousel and Partner with us action inside the Partners section', () => {
@@ -58,10 +63,10 @@ describe('NativeHomePage', () => {
 
     const section = screen.getByRole('heading', { name: /partners/i }).closest('section')!
     const carousel = within(section).getByRole('region', { name: 'Community partners carousel' })
-    const partnerAction = within(section).getByRole('link', { name: /partner with us/i })
+    const partnerAction = within(section).getByRole('button', { name: /partner with us/i })
 
-    expect(screen.getAllByRole('link', { name: /partner with us/i })).toHaveLength(1)
-    expect(partnerAction).toHaveAttribute('data-path', '/advertise')
+    expect(screen.getAllByRole('button', { name: /partner with us/i })).toHaveLength(1)
+    expect(partnerAction).toHaveClass('native-partner-button')
     expect(carousel.compareDocumentPosition(partnerAction) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(section.querySelectorAll(':scope > a.native-card')).toHaveLength(0)
     expect(within(section).queryByRole('link', { name: /Second Partner/i })).toBeNull()
@@ -73,8 +78,25 @@ describe('NativeHomePage', () => {
 
     const section = screen.getByRole('heading', { name: /partners/i }).closest('section')!
     expect(within(section).getByText(/no results found/i)).toBeInTheDocument()
-    expect(within(section).getByRole('link', { name: /partner with us/i })).toHaveAttribute('href', '/advertise')
-    expect(screen.getAllByRole('link', { name: /partner with us/i })).toHaveLength(1)
+    expect(within(section).getByRole('button', { name: /partner with us/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /partner with us/i })).toHaveLength(1)
+  })
+
+  it.each(['loading', 'error'] as const)('keeps Partner with us available while Partners is %s', (status) => {
+    homeState.partners.status = status
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+    expect(screen.getByRole('button', { name: /partner with us/i })).toBeInTheDocument()
+  })
+
+  it('shows a retryable accessible failure when the public browser rejects', async () => {
+    browserOpen.mockRejectedValueOnce(new Error('browser unavailable')).mockResolvedValueOnce(undefined)
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: /partner with us/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/could not open the partner journey/i)
+    expect(navigate).not.toHaveBeenCalledWith('/advertise')
+    fireEvent.click(screen.getByRole('button', { name: /partner with us/i }))
+    await waitFor(() => expect(browserOpen).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText(/could not open the partner journey/i)).toBeNull()
   })
 
   it('shows no Account entry and routes signed-in header actions to notifications and messages', () => {

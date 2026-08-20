@@ -13,16 +13,19 @@ import { NativeBenderCard } from '@/components/native/ui/NativeBenderCard'
 import { NativePartnerCarousel } from '@/components/native/ui/NativePartnerCarousel'
 import { CachedContentNotice } from '@/components/native/CachedContentNotice'
 import { useNativeHome } from '@/hooks/useNativeHome'
+import { usePlatformServices } from '@/platform/createPlatformServices'
+import { publicWestmorelandUrl } from '@/lib/publicUrl'
 import type { NativeDiscoveryCardModel } from '@/native/discovery/types'
 import { CalendarDays, HeartHandshake, Search, SquarePlus } from 'lucide-react'
 
 export interface NativeHomePageProps { now?: Date }
 
 export function NativeHomePage({ now }: NativeHomePageProps) {
-  const navigate = useNavigate(); const auth = useAuthStore(); const { registerRootScroll } = useNativeAppShell(); const rootRef = useRef<HTMLDivElement>(null); const [search, setSearch] = useState(''); const home = useNativeHome(now)
+  const navigate = useNavigate(); const auth = useAuthStore(); const { registerRootScroll } = useNativeAppShell(); const { browser } = usePlatformServices(); const rootRef = useRef<HTMLDivElement>(null); const [search, setSearch] = useState(''); const [partnerOpenError, setPartnerOpenError] = useState(false); const home = useNativeHome(now)
   const open = (path: string) => navigate(path)
   const submitSearch = () => { const q = search.trim(); if (q) navigate(`/explore?q=${encodeURIComponent(q)}`) }
   const action = (path: string, protectedAction = false) => { if (protectedAction && !auth.isAuthenticated) { setPendingIntent({ destination: path, action: 'offer-listing' }); navigate('/login'); return } navigate(path) }
+  const openPartnerJourney = () => { setPartnerOpenError(false); void browser.open(publicWestmorelandUrl('/advertise')).catch(() => setPartnerOpenError(true)) }
   const cards = (data: NativeDiscoveryCardModel[]) => <div className="native-card-list">{data.map((item) => <NativeDiscoveryCard key={`${item.kind}:${item.id}`} item={item} onOpen={open} />)}</div>
   return <div ref={(node) => { rootRef.current = node; registerRootScroll('home', node) }} role="region" aria-label="Home content" className="native-home-scroll">
     <NativePageHeader title="What’s happening nearby" isAuthenticated={auth.isAuthenticated} onNotifications={auth.isAuthenticated ? () => navigate('/notifications') : undefined} onMessages={auth.isAuthenticated ? () => navigate('/messages') : undefined} />
@@ -34,7 +37,7 @@ export function NativeHomePage({ now }: NativeHomePageProps) {
     <NativeResultGroup heading="Opportunities" status={home.opportunities.status} count={home.opportunities.data.length} onRetry={home.opportunities.retry} onSeeAll={() => open('/explore?type=volunteer')}><CachedContentNotice cachedAt={home.opportunities.cachedAt} />{cards(home.opportunities.data)}</NativeResultGroup>
     <NativeResultGroup heading="From Bender" status={home.bender.status} count={home.bender.data.length} onRetry={home.bender.retry} onSeeAll={() => open('/bender')}><div className="native-bender-list">{home.bender.data.map((post) => <NativeBenderCard key={post.id} post={post} onOpen={open} />)}</div></NativeResultGroup>
     <NativeResultGroup heading="Community highlights" status={home.highlights.status} count={home.highlights.data.length} onRetry={home.highlights.retry}>{home.highlights.data.map((story) => <article key={story.id} className="native-card"><strong>{story.listing_title}</strong><p>{story.quote}</p></article>)}</NativeResultGroup>
-    <NativeResultGroup heading="Partners" status={home.partners.status} count={home.partners.data.length} onRetry={home.partners.retry} footer={<a className="native-control native-partner-button" data-path="/advertise" href="/advertise">Partner with us</a>}><NativePartnerCarousel partners={home.partners.data} /></NativeResultGroup>
+    <NativeResultGroup heading="Partners" status={home.partners.status} count={home.partners.data.length} onRetry={home.partners.retry} footer={<><button type="button" className="native-control native-partner-button" onClick={openPartnerJourney}>Partner with us</button>{partnerOpenError && <p className="native-partner-error" role="status">Could not open the partner journey. Try again.</p>}</>}><NativePartnerCarousel partners={home.partners.data} /></NativeResultGroup>
   </div>
 }
 
