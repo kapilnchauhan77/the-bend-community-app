@@ -32,9 +32,9 @@ import {
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
 
-function FieldError({ message }: { message?: string }) {
+function FieldError({ message, id }: { message?: string; id: string }) {
   if (!message) return null;
-  return <p className="text-xs text-red-500 mt-1">{message}</p>;
+  return <p id={id} className="text-xs text-red-500 mt-1">{message}</p>;
 }
 
 export default function RegisterPage() {
@@ -289,11 +289,6 @@ export default function RegisterPage() {
               </button>
             </div>
           </div>}
-          {native && step === 'account-type' && <div className="sr-only">
-            <a href="/guidelines" className="native-auth-guideline-action">View</a>
-            <a href="/guidelines" className="native-auth-guideline-action">community guidelines</a>
-            <button type="button" role="checkbox" aria-checked="false" className="native-auth-consent-control" />
-          </div>}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
             {submitError && (
@@ -329,9 +324,11 @@ export default function RegisterPage() {
                         id="shop_name"
                         placeholder="e.g. Corner Bakehouse"
                         {...register('shop_name')}
+                        aria-invalid={errors.shop_name ? 'true' : 'false'}
+                        aria-describedby={errors.shop_name ? 'shop_name-error' : undefined}
                         className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.shop_name ? 'border-red-400' : ''}`}
                       />
-                      <FieldError message={errors.shop_name?.message} />
+                      <FieldError id="shop_name-error" message={errors.shop_name?.message} />
                     </div>
 
                     <div className="space-y-1.5">
@@ -343,7 +340,7 @@ export default function RegisterPage() {
                         control={control}
                         render={({ field }) => (
                           <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger id="business_type" className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.business_type ? 'border-red-400' : ''}`}>
+                            <SelectTrigger ref={field.ref} id="business_type" aria-invalid={errors.business_type ? 'true' : 'false'} aria-describedby={errors.business_type ? 'business_type-error' : undefined} className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.business_type ? 'border-red-400' : ''}`}>
                               <SelectValue placeholder="Select your business type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -356,7 +353,7 @@ export default function RegisterPage() {
                           </Select>
                         )}
                       />
-                      <FieldError message={errors.business_type?.message} />
+                      <FieldError id="business_type-error" message={errors.business_type?.message} />
                     </div>
 
                     <div className="space-y-1.5">
@@ -392,9 +389,11 @@ export default function RegisterPage() {
                     id="owner_name"
                     placeholder="Jane Smith"
                     {...register('owner_name')}
+                    aria-invalid={errors.owner_name ? 'true' : 'false'}
+                    aria-describedby={errors.owner_name ? 'owner_name-error' : undefined}
                     className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.owner_name ? 'border-red-400' : ''}`}
                   />
-                  <FieldError message={errors.owner_name?.message} />
+                  <FieldError id="owner_name-error" message={errors.owner_name?.message} />
                 </div>
 
                 <div className="space-y-1.5">
@@ -407,9 +406,11 @@ export default function RegisterPage() {
                     autoComplete="email"
                     placeholder={isIndividual ? 'jane@example.com' : 'jane@yourbusiness.com'}
                     {...register('email')}
+                    aria-invalid={errors.email ? 'true' : 'false'}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
                     className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.email ? 'border-red-400' : ''}`}
                   />
-                  <FieldError message={errors.email?.message} />
+                  <FieldError id="email-error" message={errors.email?.message} />
                 </div>
 
                 {isIndividual ? (
@@ -424,7 +425,7 @@ export default function RegisterPage() {
                       {...register('phone')}
                       className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
                     />
-                    <FieldError message={errors.phone?.message} />
+                    <FieldError id="phone-error" message={errors.phone?.message} />
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
@@ -439,7 +440,7 @@ export default function RegisterPage() {
                         {...register('phone')}
                         className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
                       />
-                      <FieldError message={errors.phone?.message} />
+                      <FieldError id="phone-error" message={errors.phone?.message} />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="whatsapp" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
@@ -478,6 +479,8 @@ export default function RegisterPage() {
                       autoComplete="new-password"
                       placeholder="Min. 8 characters"
                       {...register('password')}
+                      aria-invalid={errors.password ? 'true' : 'false'}
+                      aria-describedby={errors.password ? 'password-error' : undefined}
                       className={`h-11 pr-10 border-[hsl(35,18%,84%)] bg-white ${errors.password ? 'border-red-400' : ''}`}
                     />
                     <button
@@ -489,7 +492,7 @@ export default function RegisterPage() {
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <FieldError message={errors.password?.message} />
+                  <FieldError id="password-error" message={errors.password?.message} />
                 </div>
 
                 <div className="space-y-1.5">
@@ -503,6 +506,8 @@ export default function RegisterPage() {
                       autoComplete="new-password"
                       placeholder="Repeat your password"
                       {...register('confirm_password')}
+                      aria-invalid={errors.confirm_password ? 'true' : 'false'}
+                      aria-describedby={errors.confirm_password ? 'confirm_password-error' : undefined}
                       className={`h-11 pr-10 border-[hsl(35,18%,84%)] bg-white ${errors.confirm_password ? 'border-red-400' : ''}`}
                     />
                     <button
@@ -514,7 +519,7 @@ export default function RegisterPage() {
                       {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <FieldError message={errors.confirm_password?.message} />
+                  <FieldError id="confirm_password-error" message={errors.confirm_password?.message} />
                 </div>
               </div>
             </div>}
@@ -557,6 +562,8 @@ export default function RegisterPage() {
                     <Checkbox
                       id="guidelines_accepted"
                       checked={field.value}
+                      aria-invalid={errors.guidelines_accepted ? 'true' : 'false'}
+                      aria-describedby={errors.guidelines_accepted ? 'guidelines_accepted-error' : undefined}
                       onCheckedChange={field.onChange}
                       className="native-auth-consent-control mt-0.5"
                     />
@@ -569,7 +576,7 @@ export default function RegisterPage() {
                   </div>
                 )}
               />
-              <FieldError message={errors.guidelines_accepted?.message} />
+              <FieldError id="guidelines_accepted-error" message={errors.guidelines_accepted?.message} />
             </div>}
 
             {/* Submit */}

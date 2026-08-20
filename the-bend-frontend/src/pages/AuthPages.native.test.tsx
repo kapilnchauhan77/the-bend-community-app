@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import LoginPage from './LoginPage'
@@ -57,12 +57,19 @@ describe('native auth pages', () => {
     }
   })
 
-  it('exposes stable native auth control classes', () => {
+  it('exposes stable native auth control classes', async () => {
     renderNative(<LoginPage />, '/login')
     expect(screen.getByText('Forgot password?')).toHaveClass('native-auth-inline-action')
     expect(screen.getByRole('button', { name: 'Show password' })).toHaveClass('native-auth-password-toggle')
     cleanup()
     renderNative(<RegisterPage />, '/register')
+    fireEvent.click(screen.getByRole('button', { name: 'An individual' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Your details' })
+    fireEvent.change(screen.getByRole('textbox', { name: /Your Name/ }), { target: { value: 'Pat Neighbor' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /Email Address/ }), { target: { value: 'pat@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Security and guidelines' })
     expect(screen.getByRole('link', { name: 'View' })).toHaveClass('native-auth-guideline-action')
     expect(screen.getByRole('link', { name: 'community guidelines' })).toHaveClass('native-auth-guideline-action')
     expect(screen.getByRole('checkbox')).toHaveClass('native-auth-consent-control')

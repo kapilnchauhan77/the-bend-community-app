@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RegisterPage from './RegisterPage'
 import { NativePresentationProvider } from '@/components/layout/NativePresentationContext'
+import { nextRegistrationStep, previousRegistrationStep, registrationFieldsForStep } from '@/auth/registrationFlow'
 
 vi.mock('@/services/authApi', () => ({ authApi: { register: vi.fn() } }))
 
@@ -56,5 +57,22 @@ describe('RegisterPage native steps', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Register business' })).toBeInTheDocument()
+  })
+
+  it('connects rendered validation controls to stable error ids', async () => {
+    renderNative()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Your details' })
+    expect(screen.getByRole('textbox', { name: /Business Name/ })).toHaveAttribute('aria-invalid', 'false')
+    expect(screen.getByRole('combobox', { name: /Business Type/ })).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('keeps the exact pure step mappings and clamps navigation', () => {
+    expect(registrationFieldsForStep('account-type', 'business')).toEqual(['user_type'])
+    expect(registrationFieldsForStep('details', 'business')).toEqual(['shop_name', 'business_type', 'owner_name', 'email', 'phone', 'address', 'whatsapp'])
+    expect(registrationFieldsForStep('details', 'individual')).toEqual(['owner_name', 'email', 'phone'])
+    expect(registrationFieldsForStep('security', 'individual')).toEqual(['password', 'confirm_password', 'guidelines_accepted'])
+    expect(nextRegistrationStep('security')).toBe('security')
+    expect(previousRegistrationStep('account-type')).toBe('account-type')
   })
 })
