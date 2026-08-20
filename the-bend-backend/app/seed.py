@@ -19,6 +19,8 @@ from app.core.security import hash_password
 
 # Module-level reference to the default tenant id
 _default_tenant_id = None
+_LOCAL_SCOOP_NAME = "Local Scoop Magazine"
+_LOCAL_SCOOP_URL = "https://www.localscoopmagazine.com/api/rss/content.rss"
 
 
 async def ensure_default_tenant() -> "uuid.UUID":
@@ -135,27 +137,69 @@ async def create_community_admin(
         print(f"Community admin created: {email} / {password}")
 
 
-async def seed_connector():
-    """Seed the Local Scoop Magazine RSS connector."""
-    async with async_session() as session:
-        from sqlalchemy import select
-        result = await session.execute(
-            select(EventConnector).where(EventConnector.name == "Local Scoop Magazine")
+async def _resolve_local_scoop_connector(session, tenant_id, *, create: bool):
+    """Resolve only the default tenant's seed row, repairing one legacy row."""
+    from sqlalchemy import select
+
+    scoped = await session.execute(
+        select(EventConnector)
+        .where(
+            EventConnector.name == _LOCAL_SCOOP_NAME,
+            EventConnector.tenant_id == tenant_id,
         )
-        if result.scalar_one_or_none():
+        .order_by(EventConnector.created_at, EventConnector.id)
+        .limit(1)
+    )
+    connector = scoped.scalar_one_or_none()
+    if connector is not None:
+        return connector, "existing"
+
+    legacy = await session.execute(
+        select(EventConnector)
+        .where(
+            EventConnector.name == _LOCAL_SCOOP_NAME,
+            EventConnector.tenant_id.is_(None),
+        )
+        .order_by(EventConnector.created_at, EventConnector.id)
+        .limit(1)
+    )
+    connector = legacy.scalar_one_or_none()
+    if connector is not None:
+        connector.tenant_id = tenant_id
+        await session.flush()
+        return connector, "repaired"
+
+    if not create:
+        return None, "missing"
+
+    connector = EventConnector(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        name=_LOCAL_SCOOP_NAME,
+        type="rss",
+        url=_LOCAL_SCOOP_URL,
+        category="community",
+        is_active=True,
+    )
+    session.add(connector)
+    await session.flush()
+    return connector, "created"
+
+
+async def seed_connector():
+    """Seed or repair the default tenant's Local Scoop RSS connector."""
+    tenant_id = await ensure_default_tenant()
+    async with async_session() as session:
+        _, action = await _resolve_local_scoop_connector(
+            session, tenant_id, create=True
+        )
+        await session.commit()
+        if action == "existing":
             print("Connector already seeded")
             return
-
-        connector = EventConnector(
-            id=uuid4(),
-            name="Local Scoop Magazine",
-            type="rss",
-            url="https://www.localscoopmagazine.com/api/rss/content.rss",
-            category="community",
-            is_active=True,
-        )
-        session.add(connector)
-        await session.commit()
+        if action == "repaired":
+            print("Repaired: Local Scoop Magazine RSS connector tenant")
+            return
         print("Seeded: Local Scoop Magazine RSS connector")
 
 
@@ -240,18 +284,18 @@ async def seed_talent():
 
 async def sync_connector():
     """Sync the RSS connector to pull in events."""
+    tenant_id = await ensure_default_tenant()
     async with async_session() as session:
-        from sqlalchemy import select
-        result = await session.execute(
-            select(EventConnector).where(EventConnector.name == "Local Scoop Magazine")
+        connector, _ = await _resolve_local_scoop_connector(
+            session, tenant_id, create=False
         )
-        connector = result.scalar_one_or_none()
         if not connector:
             print("No connector to sync")
             return
+        await session.commit()
 
         from app.services.connector_service import ConnectorService
-        svc = ConnectorService(session, tenant_id=connector.tenant_id)
+        svc = ConnectorService(session, tenant_id=tenant_id)
         try:
             result = await svc.sync_connector(connector.id)
             await session.commit()

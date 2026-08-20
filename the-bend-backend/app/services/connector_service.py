@@ -1,5 +1,4 @@
 import re
-import hashlib
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
@@ -472,13 +471,7 @@ class ConnectorService:
                 except ValueError:
                     continue
             identity = uid or f"{summary}|{start.isoformat()}|{location}"
-            if uid:
-                source_base = event_link or normalize_external_url(url)
-                source_base = source_base.split("#", 1)[0]
-                digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
-                source_url = f"{source_base}#event-{digest}"
-            else:
-                source_url = deterministic_source_url(url, event_link or None, identity)
+            source_url = deterministic_source_url(url, event_link or None, identity)
 
             # If DESCRIPTION is just the event's own URL (common in CivicPlus
             # exports), don't echo it back as body text.

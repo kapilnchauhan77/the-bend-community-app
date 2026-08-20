@@ -122,22 +122,28 @@ def deterministic_source_url(
     candidate_url: str | None,
     identity: str,
 ) -> str:
-    """Keep safe entry links and replace unsafe links with a stable feed anchor."""
+    """Build a safe, stable storage key for one imported source entry."""
+    source_url = feed_url
     if candidate_url:
         try:
-            return normalize_external_url(candidate_url)
+            source_url = normalize_external_url(candidate_url)
         except ValueError:
             pass
 
-    normalized_feed = normalize_external_url(feed_url)
-    parsed_feed = urlsplit(normalized_feed)
-    anchor_base = urlunsplit(parsed_feed._replace(fragment=""))
+    return identity_namespaced_url(source_url, identity)
+
+
+def identity_namespaced_url(source_url: str, identity: str) -> str:
+    """Namespace a safe URL by identity without exceeding its DB column."""
+    normalized_source = normalize_external_url(source_url)
+    parsed_source = urlsplit(normalized_source)
+    anchor_base = urlunsplit(parsed_source._replace(fragment=""))
     digest = hashlib.sha256(identity.encode("utf-8", errors="replace")).hexdigest()[:32]
     fragment = f"#event-{digest}"
     if len(anchor_base) + len(fragment) <= _MAX_STORED_URL_LENGTH:
         return f"{anchor_base}{fragment}"
 
-    origin = urlunsplit((parsed_feed.scheme, parsed_feed.netloc, "/", "", ""))
+    origin = urlunsplit((parsed_source.scheme, parsed_source.netloc, "/", "", ""))
     if len(origin) + len(fragment) > _MAX_STORED_URL_LENGTH:
         raise ValueError("URL host is too long")
     return f"{origin}{fragment}"

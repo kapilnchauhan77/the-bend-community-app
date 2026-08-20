@@ -546,6 +546,22 @@ def test_deterministic_source_url_respects_the_database_column_limit():
     assert "#event-" in source_url
 
 
+def test_source_url_keys_namespace_distinct_identities_without_changing_destination():
+    candidate = "https://example.com/events/shared"
+
+    first = connector_service.deterministic_source_url(
+        "https://example.com/feed.xml", candidate, "entry-one"
+    )
+    second = connector_service.deterministic_source_url(
+        "https://example.com/feed.xml", candidate, "entry-two"
+    )
+
+    assert first != second
+    assert first.split("#", 1)[0] == second.split("#", 1)[0] == candidate
+    assert len(first) <= 500
+    assert len(second) <= 500
+
+
 @dataclass
 class _FetchHop:
     status_code: int
@@ -728,6 +744,39 @@ END:VCALENDAR
     assert first[0]["description"] == "http://127.0.0.1/private"
 
 
+def _public_url_with_length(length: int) -> str:
+    prefix = "https://example.com/"
+    return prefix + ("a" * (length - len(prefix)))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("candidate_length", [462, 500])
+async def test_ics_identity_keys_never_exceed_the_source_url_column(candidate_length):
+    feed_url = "https://93.184.216.34/calendar.ics"
+    candidate = _public_url_with_length(candidate_length)
+    _ParserFetcher.response = _ParserResponse(
+        f"""BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:bounded-entry-{candidate_length}
+DTSTART:20310101T100000
+SUMMARY:Bounded linked event
+URL:{candidate}
+END:VEVENT
+END:VCALENDAR
+""",
+        "text/calendar",
+    )
+
+    event = (
+        await ConnectorService(None, fetcher=_ParserFetcher())._parse_ics(feed_url)
+    )[0]
+
+    assert len(event["source_url"]) <= 500
+    assert event["source_url"].startswith("https://example.com/")
+    assert "#event-" in event["source_url"]
+
+
 @pytest.mark.asyncio
 async def test_rss_and_html_imports_never_persist_unsafe_entry_urls():
     feed_url = "https://93.184.216.34/feed.xml"
@@ -766,3 +815,126 @@ async def test_rss_and_html_imports_never_persist_unsafe_entry_urls():
     assert len(html_events) == 1
     assert html_events[0]["source_url"].startswith(page_url + "#event-")
     assert "169.254.169.254" not in html_events[0]["source_url"]
+
+
+@pytest.mark.asyncio
+async def test_rss_entries_sharing_a_safe_link_persist_once_each_across_resync(
+    admin_security_rows, monkeypatch
+):
+    ids = admin_security_rows
+    feed_url = "https://example.com/shared-link-feed.xml"
+    shared_link = "https://example.com/events/shared"
+    _ParserFetcher.response = _ParserResponse(
+        f"""<rss><channel>
+          <item><guid>rss-one</guid><title>RSS event one</title>
+            <link>{shared_link}</link>
+            <pubDate>Tue, 1 Jan 2031 10:00:00 GMT</pubDate></item>
+          <item><guid>rss-two</guid><title>RSS event two</title>
+            <link>{shared_link}</link>
+            <pubDate>Tue, 1 Jan 2031 11:00:00 GMT</pubDate></item>
+        </channel></rss>""",
+        "application/rss+xml",
+    )
+    parser = ConnectorService(None, fetcher=_ParserFetcher())
+    parsed = await parser._parse_rss(feed_url)
+    parsed_again = await parser._parse_rss(feed_url)
+
+    assert [event["source_url"] for event in parsed] == [
+        event["source_url"] for event in parsed_again
+    ]
+    assert len({event["source_url"] for event in parsed}) == 2
+    assert {event["source_url"].split("#", 1)[0] for event in parsed} == {shared_link}
+
+    connector_id = uuid4()
+    async with async_session() as db:
+        db.add(
+            EventConnector(
+                id=connector_id,
+                tenant_id=ids["tenant_b"],
+                name="Shared-link RSS connector",
+                type=ConnectorType.RSS,
+                url=feed_url,
+                category=EventCategory.COMMUNITY,
+                is_active=True,
+            )
+        )
+        await db.flush()
+        service = ConnectorService(db, tenant_id=ids["tenant_b"])
+
+        async def fresh_parse(_connector):
+            return [dict(event) for event in parsed]
+
+        monkeypatch.setattr(service, "_parse_source", fresh_parse)
+        first_sync = await service.sync_connector(connector_id)
+        second_sync = await service.sync_connector(connector_id)
+        persisted = (
+            (await db.execute(select(Event).where(Event.connector_id == connector_id)))
+            .scalars()
+            .all()
+        )
+
+        assert first_sync == {"synced": 2, "total_parsed": 2}
+        assert second_sync == {"synced": 0, "total_parsed": 2}
+        assert len(persisted) == 2
+
+
+@pytest.mark.asyncio
+async def test_html_entries_sharing_a_safe_link_persist_once_each_across_resync(
+    admin_security_rows, monkeypatch
+):
+    ids = admin_security_rows
+    page_url = "https://example.com/shared-link-events"
+    shared_link = "https://example.com/events/shared"
+    _ParserFetcher.response = _ParserResponse(
+        f"""<html><body>
+          <article><h2>HTML event one</h2>
+            <time datetime="2031-01-01T10:00:00">January 1</time>
+            <a href="{shared_link}">Details</a></article>
+          <article><h2>HTML event two</h2>
+            <time datetime="2031-01-01T11:00:00">January 1</time>
+            <a href="{shared_link}">Details</a></article>
+        </body></html>""",
+        "text/html",
+    )
+    parser = ConnectorService(None, fetcher=_ParserFetcher())
+    parsed = await parser._parse_html(page_url, {})
+    parsed_again = await parser._parse_html(page_url, {})
+
+    assert [event["source_url"] for event in parsed] == [
+        event["source_url"] for event in parsed_again
+    ]
+    assert len({event["source_url"] for event in parsed}) == 2
+    assert {event["source_url"].split("#", 1)[0] for event in parsed} == {shared_link}
+
+    connector_id = uuid4()
+    async with async_session() as db:
+        db.add(
+            EventConnector(
+                id=connector_id,
+                tenant_id=ids["tenant_b"],
+                name="Shared-link HTML connector",
+                type=ConnectorType.HTML,
+                url=page_url,
+                category=EventCategory.COMMUNITY,
+                is_active=True,
+                config={},
+            )
+        )
+        await db.flush()
+        service = ConnectorService(db, tenant_id=ids["tenant_b"])
+
+        async def fresh_parse(_connector):
+            return [dict(event) for event in parsed]
+
+        monkeypatch.setattr(service, "_parse_source", fresh_parse)
+        first_sync = await service.sync_connector(connector_id)
+        second_sync = await service.sync_connector(connector_id)
+        persisted = (
+            (await db.execute(select(Event).where(Event.connector_id == connector_id)))
+            .scalars()
+            .all()
+        )
+
+        assert first_sync == {"synced": 2, "total_parsed": 2}
+        assert second_sync == {"synced": 0, "total_parsed": 2}
+        assert len(persisted) == 2

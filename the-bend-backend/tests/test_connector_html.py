@@ -44,7 +44,7 @@ def _results_page(count: int, *cards: str) -> str:
             Between 07/21/2026 and 12/31/2026
             <span>({count}) Events Found For All Event Types</span>
           </h2>
-          {''.join(cards)}
+          {"".join(cards)}
         </body></html>
     """
 
@@ -63,18 +63,20 @@ def test_dcr_parser_ignores_results_heading_and_parses_event_fields():
 
     assert reported_count == 1
     assert len(events) == 1
+    source_url = events[0].pop("source_url")
     assert events[0] == {
         "title": "Campfire Kickoff",
         "description": "A ranger-led program for park visitors.",
         "start_date": datetime(2026, 8, 21, 19, 0),
         "end_date": datetime(2026, 8, 21, 20, 0),
         "location": "Westmoreland State Park Visitor Center",
-        "source_url": (
-            "https://www.dcr.virginia.gov/state-parks/"
-            "event-detail?event=campfire-kickoff"
-        ),
         "status": "active",
     }
+    assert source_url.startswith(
+        "https://www.dcr.virginia.gov/state-parks/"
+        "event-detail?event=campfire-kickoff#event-"
+    )
+    assert len(source_url) <= 500
 
 
 def test_dcr_parser_marks_cancelled_events_and_deduplicates_detail_links():
@@ -218,7 +220,9 @@ async def test_dcr_parser_fetches_every_results_page():
             ),
         ),
     }
-    events = await ConnectorService(None, fetcher=_FakeFetcher())._parse_html(DCR_URL, {})
+    events = await ConnectorService(None, fetcher=_FakeFetcher())._parse_html(
+        DCR_URL, {}
+    )
 
     assert [event["title"] for event in events] == [
         "First Event",
