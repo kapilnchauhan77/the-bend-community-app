@@ -12,6 +12,7 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    imports=("app.workers.scheduled_tasks",),
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
@@ -33,6 +34,10 @@ celery_app.conf.update(
         "cleanup-read-notifications": {
             "task": "app.workers.scheduled_tasks.cleanup_read_notifications",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Weekly Sunday 3 AM
+        },
+        "cleanup-link-preview-images": {
+            "task": "app.workers.scheduled_tasks.cleanup_link_preview_images",
+            "schedule": crontab(hour=4, minute=0),
         },
     },
 )

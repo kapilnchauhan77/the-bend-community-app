@@ -96,6 +96,32 @@ def cleanup_read_notifications():
     asyncio.run(_cleanup_notifications())
 
 
+@celery_app.task
+def cleanup_link_preview_images():
+    """Remove old link-preview images with no database or Redis references."""
+    import asyncio
+
+    asyncio.run(_cleanup_link_preview_images())
+
+
+async def _cleanup_link_preview_images():
+    from app.core.rate_limit import get_redis
+    from app.database import async_session
+    from app.services.link_preview_cleanup import cleanup_link_preview_image_files
+
+    async with async_session() as session:
+        redis = await get_redis()
+        stats = await cleanup_link_preview_image_files(session, redis)
+        logger.info(
+            "Cleaned link-preview images: scanned=%d deleted=%d preserved_recent=%d preserved_referenced=%d",
+            stats.scanned,
+            stats.deleted,
+            stats.preserved_recent,
+            stats.preserved_referenced,
+        )
+        return stats.deleted
+
+
 async def _cleanup_notifications():
     from app.database import async_session
     from app.models.notification import Notification
