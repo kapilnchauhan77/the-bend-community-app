@@ -8,6 +8,7 @@ export interface BenderLinkPreviewResponse {
 
 export type CreatePostPayload = {
   caption?: string;
+  preview_token?: string;
   media_url?: string;
   media_thumbnail_url?: string;
   media_type?: 'image' | 'video';

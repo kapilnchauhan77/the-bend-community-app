@@ -24,7 +24,7 @@ import { BenderLogo } from '@/components/shared/BenderLogo';
 import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
-import { isSafeHttpUrl } from '@/lib/benderLinks';
+import { extractFirstHttpUrl, isSafeHttpUrl } from '@/lib/benderLinks';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
 import { BenderCaption } from '@/components/features/bender/BenderCaption';
 import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPreviewCard';
@@ -588,10 +588,11 @@ function BenderComposer({
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const linkPreview = useBenderLinkPreview(caption, open);
-  const { reset: resetLinkPreview } = linkPreview;
+  const { reset: resetLinkPreview, waitForPreviewToken } = linkPreview;
 
   // Autosize textarea — grows up to ~12 lines then scrolls.
   useEffect(() => {
@@ -609,10 +610,12 @@ function BenderComposer({
       setPending(null);
       setError(null);
       setSubmitting(false);
+      submittingRef.current = false;
     }
   }, [open, resetLinkPreview]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
+    if (submittingRef.current) return;
     setPending({
       url: result.url,
       thumbnail_url: result.thumbnail_url,
@@ -623,6 +626,7 @@ function BenderComposer({
 
   const handleFilePicked = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (submittingRef.current) return;
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
@@ -636,6 +640,7 @@ function BenderComposer({
         const res = await api.post('/upload/media', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
+        if (submittingRef.current) return;
         const data = res.data as Record<string, unknown>;
         setPending({
           url: String(data.url || ''),
@@ -652,12 +657,17 @@ function BenderComposer({
   const canSubmit = (caption.trim().length > 0 || pending !== null) && !submitting;
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
+      const submittedCaption = caption.trim();
+      const submittedSourceUrl = extractFirstHttpUrl(submittedCaption);
+      const previewToken = await waitForPreviewToken(submittedSourceUrl, 5000);
       const payload: CreatePostPayload = {};
-      if (caption.trim()) payload.caption = caption.trim();
+      if (submittedCaption) payload.caption = submittedCaption;
+      if (previewToken) payload.preview_token = previewToken;
       if (pending) {
         payload.media_url = pending.url;
         if (pending.thumbnail_url) payload.media_thumbnail_url = pending.thumbnail_url;
@@ -665,13 +675,15 @@ function BenderComposer({
       }
       const res = await benderApi.createPost(payload);
       onCreated(res.data);
+      submittingRef.current = false;
       resetLinkPreview();
       onClose();
     } catch {
       setError('Could not post. Please try again.');
+      submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [canSubmit, caption, onCreated, onClose, pending, resetLinkPreview]);
+  }, [canSubmit, caption, onCreated, onClose, pending, resetLinkPreview, waitForPreviewToken]);
 
   if (!open) return null;
 
@@ -681,7 +693,7 @@ function BenderComposer({
         className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center"
         role="dialog"
         aria-modal="true"
-        onClick={onClose}
+        onClick={() => { if (!submitting) onClose(); }}
       >
         <div
           className="bg-white w-full md:max-w-md md:rounded-lg shadow-2xl flex flex-col max-h-[90vh] md:max-h-[80vh]"
@@ -690,7 +702,8 @@ function BenderComposer({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(35,18%,88%)]">
             <button
-              onClick={onClose}
+              onClick={() => { if (!submitting) onClose(); }}
+              disabled={submitting}
               className="text-[hsl(30,10%,40%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
               aria-label="Cancel"
             >
@@ -717,6 +730,7 @@ function BenderComposer({
               ref={textareaRef}
               value={caption}
               onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION))}
+              disabled={submitting}
               placeholder="Write a caption…"
               className="resize-none border-0 shadow-none focus-visible:ring-0 text-[14px] px-0 min-h-[80px]"
               maxLength={MAX_CAPTION}
@@ -730,7 +744,7 @@ function BenderComposer({
                 mode="composer"
                 state="ready"
                 preview={linkPreview.preview}
-                onRemove={linkPreview.dismiss}
+                onRemove={() => { if (!submitting) linkPreview.dismiss(); }}
               />
             )}
 
@@ -765,7 +779,8 @@ function BenderComposer({
                   />
                 )}
                 <button
-                  onClick={() => setPending(null)}
+                  onClick={() => { if (!submitting) setPending(null); }}
+                  disabled={submitting}
                   className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
                   aria-label="Remove media"
                 >
@@ -778,7 +793,8 @@ function BenderComposer({
               <div className="flex items-center gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setCameraOpen(true)}
+                  onClick={() => { if (!submitting) setCameraOpen(true); }}
+                  disabled={submitting}
                   className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
                 >
                   <Camera size={14} />
@@ -786,7 +802,8 @@ function BenderComposer({
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => { if (!submitting) fileInputRef.current?.click(); }}
+                  disabled={submitting}
                   className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
                 >
                   <ImageIcon size={14} />
@@ -797,6 +814,7 @@ function BenderComposer({
                   type="file"
                   accept="image/*,video/*"
                   className="hidden"
+                  disabled={submitting}
                   onChange={handleFilePicked}
                 />
               </div>
@@ -814,8 +832,8 @@ function BenderComposer({
       </div>
 
       <CameraCapture
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
+        open={cameraOpen && !submitting}
+        onClose={() => { if (!submitting) setCameraOpen(false); }}
         onCaptured={handleCameraResult}
         mode="both"
       />

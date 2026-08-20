@@ -257,6 +257,23 @@ function previewResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createdPost(overrides: Record<string, unknown> = {}) {
+  return {
+    ...base,
+    id: 'created-1',
+    caption: 'Read https://example.org/article',
+    created_at: '2026-08-21T10:00:00Z',
+    ...overrides,
+  };
+}
+
+async function stubComposerPost(page: Page, response: Record<string, unknown>) {
+  await page.route('**/api/v1/bender/posts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(response) });
+  });
+}
+
 test('composer debounces a link and replaces loading with a preview', async ({ page }) => {
   await page.clock.install();
   const paths = await stubFeed(page, { ...base, caption: null, link_preview: null });
@@ -277,6 +294,129 @@ test('composer debounces a link and replaces loading with a preview', async ({ p
   await expect(page.getByTestId('bender-link-preview')).toContainText('Title');
   expect(requests).toHaveLength(1);
   expect(paths).toContain('POST /api/v1/bender/link-preview');
+});
+
+test('Post waits for an active preview and sends only its token', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  let releasePreview!: () => void;
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    await new Promise<void>((resolve) => { releasePreview = resolve; });
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: 'https://example.org/article' })) });
+  });
+  await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/article' }));
+  await openComposer(page);
+  const caption = page.getByPlaceholder('Write a caption…');
+  await caption.fill('  Read https://example.org/article  ');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview-loading')).toBeVisible();
+  const postRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts')) postRequests.push(request.postData() ?? '');
+  });
+  const postRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts'));
+  await page.getByRole('button', { name: 'Post', exact: true }).dblclick();
+  await expect(page.getByRole('button', { name: 'Posting…' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Post', exact: true })).toHaveCount(0);
+  await expect(caption).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Camera' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Pick from library' })).toBeDisabled();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').click({ position: { x: 2, y: 2 } });
+  await expect(page.getByRole('dialog')).toBeVisible();
+  releasePreview();
+  const request = await postRequest;
+  expect(request.postDataJSON()).toEqual({ caption: 'Read https://example.org/article', preview_token: 'preview-token' });
+  expect(postRequests).toHaveLength(1);
+});
+
+test('create failure unlocks the captured draft and controls', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse()) });
+  });
+  let releasePost!: () => void;
+  await page.route('**/api/v1/bender/posts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await new Promise<void>((resolve) => { releasePost = resolve; });
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await openComposer(page);
+  const caption = page.getByPlaceholder('Write a caption…');
+  await caption.fill('Keep https://example.org/article');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Remove link preview' }).click();
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  releasePost();
+  await expect(page.getByText('Could not post. Please try again.')).toBeVisible();
+  await expect(caption).toHaveValue('Keep https://example.org/article');
+  await expect(caption).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Camera' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Pick from library' })).toBeEnabled();
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+});
+
+test('Post continues after the five-second preview wait expires', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  let releasePreview!: () => void;
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    await new Promise<void>((resolve) => { releasePreview = resolve; });
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse()) });
+  });
+  await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/slow', media_url: '/uploads/photo.jpg', media_type: 'image' }));
+  await openComposer(page);
+  await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/slow');
+  await page.clock.runFor(400);
+  const postRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/bender/posts'));
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await page.clock.runFor(5000);
+  const request = await postRequest;
+  expect(request.postDataJSON()).toEqual({ caption: 'Read https://example.org/slow' });
+  releasePreview();
+});
+
+test('unusable token response still creates a plain-link post', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse()) });
+  });
+  await stubComposerPost(page, createdPost({ caption: 'Read https://example.org/article', link_preview: null }));
+  await openComposer(page);
+  await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/article');
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'https://example.org/article' })).toBeVisible();
+  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
+});
+
+test('successful create response prepends the immutable preview', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(previewResponse({ source_url: 'https://example.org/article', title: 'Composer preview' })),
+    });
+  });
+  await stubComposerPost(page, createdPost({
+    caption: 'Read https://example.org/article and https://other.example/x',
+    link_preview: preview({ source_url: 'https://example.org/article', url: 'https://example.org/server', title: 'Server snapshot', site_name: 'Server site' }),
+  }));
+  await openComposer(page);
+  await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/article and https://other.example/x');
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Server snapshot, Server site' })).toHaveAttribute('href', 'https://example.org/server');
+  await expect(page.getByRole('link', { name: 'https://other.example/x' })).toHaveAttribute('href', 'https://other.example/x');
+  await expect(page.getByText('Composer preview')).toHaveCount(0);
 });
 
 test('composer shows a text-only preview', async ({ page }) => {
