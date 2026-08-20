@@ -574,7 +574,7 @@ type PendingMedia = {
   type: 'image' | 'video';
 };
 
-function BenderComposer({
+export function BenderComposer({
   open,
   onClose,
   onCreated,
@@ -710,8 +710,8 @@ function BenderComposer({
         payload.media_type = pending.type;
       }
       const res = await benderApi.createPost(payload);
-      onCreated(res.data);
       if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
+      onCreated(res.data);
       submittingRef.current = false;
       resetLinkPreview();
       closeComposer();
