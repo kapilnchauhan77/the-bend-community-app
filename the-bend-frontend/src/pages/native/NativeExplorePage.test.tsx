@@ -130,6 +130,14 @@ describe('NativeExplorePage', () => {
     expect(screen.queryByRole('button', { name: /Remove Map filter/i })).not.toBeInTheDocument()
   })
 
+  it('keeps location request explicit and describes the location action', () => {
+    configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }]); fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /></MemoryRouter>)
+    expect(fixture.requestLocation).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Use my location' })).toHaveAttribute('aria-describedby', 'native-map-location-help')
+    expect(fixture.requestLocation).not.toHaveBeenCalled()
+  })
+
   it.each(['success', 'empty', 'error'] as const)('replaces All map mode after business group %s with no coordinates', (status) => {
     fixture.groups = [{ kind: 'business', heading: 'Businesses', state: state([], status) }]
     fixture.mapBusinesses = []
