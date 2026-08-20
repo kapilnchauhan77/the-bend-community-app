@@ -34,6 +34,7 @@ import { useBenderDraft } from '@/hooks/useBenderDraft';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 import { benderPostPath, getLegacyBenderPostId } from '@/routes/benderRoutes';
 import { publicWestmorelandUrl } from '@/lib/publicUrl';
+import { parseCanonicalUuid } from '@/deep-links/deepLinkRoutes';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -877,7 +878,7 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
   // actually in the DOM, scroll it into view and briefly ring-highlight it.
   // If the id isn't in the loaded set (later page, or deleted), no-op — we
   // don't force-paginate to find it.
-  const focusPostId = postId ?? getLegacyBenderPostId(searchParams.toString(), hash);
+  const focusPostId = parseCanonicalUuid(postId ?? '') ?? getLegacyBenderPostId(searchParams.toString(), hash);
   useEffect(() => {
     if (!focusPostId || loading) return;
     if (focusedPostRef.current === focusPostId) return;

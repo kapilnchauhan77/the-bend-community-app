@@ -2,7 +2,8 @@ import { parseCanonicalUuid } from '@/deep-links/deepLinkRoutes'
 
 export function benderPostPath(postId: string): string {
   const canonical = parseCanonicalUuid(postId)
-  return `/bender/${encodeURIComponent(canonical ?? postId)}`
+  if (!canonical) throw new TypeError('Expected a canonical Bender post UUID')
+  return `/bender/${encodeURIComponent(canonical)}`
 }
 
 function canonicalLegacyId(value: string | null): string | null {
