@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 
-**Status:** Approved design, written specification pending user review
+**Status:** Approved
 
 **Product:** The Bend Community, Westmoreland native iOS and Android apps
 
