@@ -157,7 +157,7 @@ def test_rejects_hidden_empty_data_svg_tiny_tracking_and_non_http_candidates():
         <img hidden src="/hidden.jpg"><img style="display: none" src="/style-hidden.jpg">
         <img src=""><img src="data:image/png;base64,abc"><img src="/vector.svg">
         <img width="1" height="1" src="/pixel.jpg"><img class="tracking-pixel" src="/track.jpg">
-        <img src="mailto:image@example.org"><img src="//example.org/valid.jpg">
+        <main><img src="mailto:image@example.org"><img src="//example.org/valid.jpg"></main>
         """,
         final_url=FINAL_URL,
     )
@@ -196,3 +196,82 @@ def test_malformed_html_and_json_ld_never_crash():
     )
     assert parsed.title == "Open title"
     assert parsed.image_candidates == ()
+
+
+def test_duplicate_metadata_skips_empty_or_unusable_values_before_valid_values():
+    parsed = PARSER.parse(
+        b"""
+        <meta property="og:title" content="   ">
+        <meta property="og:title" content="Usable title">
+        <meta property="og:image" content="data:image/png;base64,broken">
+        <meta property="og:image" content="/usable.jpg">
+        <meta property="og:url" content="mailto:nope@example.org">
+        <meta property="og:url" content="/canonical">
+        """,
+        final_url=FINAL_URL,
+    )
+    assert parsed.title == "Usable title"
+    assert parsed.image_candidates == ("https://example.org/usable.jpg",)
+    assert parsed.destination_candidate == "https://example.org/canonical"
+
+
+def test_svg_and_data_candidates_are_rejected_from_every_source_with_fragments():
+    parsed = PARSER.parse(
+        b"""
+        <meta property="og:image" content="/vector.svg#hero">
+        <meta name="twitter:image" content="data:image/png;base64,abc">
+        <script type="application/ld+json">{"image": "/structured.svg#x", "logo": "/logo.png"}</script>
+        <main><img src="/inline.svg#x"><img src="/valid.jpg"></main>
+        <link rel="icon" href="/favicon.svg#x">
+        <link rel="icon" href="/favicon.png">
+        """,
+        final_url=FINAL_URL,
+    )
+    assert parsed.image_candidates == (
+        "https://example.org/logo.png",
+        "https://example.org/valid.jpg",
+        "https://example.org/favicon.png",
+    )
+
+
+def test_generic_images_are_omitted_and_icon_inside_article_is_last():
+    parsed = PARSER.parse(
+        b"""
+        <img src="/generic.jpg">
+        <article><img class="icon" src="/article-icon.jpg"><img src="/article.jpg"></article>
+        <link rel="icon" href="/favicon.ico">
+        """,
+        final_url=FINAL_URL,
+    )
+    assert parsed.image_candidates == (
+        "https://example.org/article.jpg",
+        "https://example.org/favicon.ico",
+        "https://example.org/article-icon.jpg",
+    )
+
+
+def test_deep_and_broad_json_ld_are_bounded_and_never_crash():
+    deep = '{"image": ' + ("{" * 1100) + '"/deep.jpg"' + ("}" * 1100) + "}"
+    broad = '{"image": ["/first.jpg", ' + ",".join('"/extra-%s.jpg"' % i for i in range(200)) + "]}"
+    parsed = PARSER.parse(
+        (f'<script type="application/ld+json">{deep}</script><script type="application/ld+json">{broad}</script>').encode(),
+        final_url=FINAL_URL,
+    )
+    assert parsed.image_candidates[0] == "https://example.org/first.jpg"
+    assert len(parsed.image_candidates) == 4
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [
+        'style="width:1px;height:1px"',
+        'width="1px" height="1px"',
+        'width="2.0" height="100"',
+    ],
+)
+def test_tiny_css_and_unit_dimensions_do_not_consume_image_slots(attributes):
+    parsed = PARSER.parse(
+        f'<main><img src="/tiny.jpg" {attributes}><img src="/usable.jpg"></main>'.encode(),
+        final_url=FINAL_URL,
+    )
+    assert parsed.image_candidates == ("https://example.org/usable.jpg",)

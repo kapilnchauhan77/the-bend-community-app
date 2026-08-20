@@ -15,6 +15,11 @@ _WHITESPACE = re.compile(r"\s+", re.UNICODE)
 _TRACKING_NAME = re.compile(r"(?:tracking|pixel|spacer|blank)", re.I)
 _QUALIFIED_NAME = re.compile(r"(?:hero|banner|cover|logo|brand)", re.I)
 _MAIN_NAME = re.compile(r"(?:article|content|main|post|feature)", re.I)
+_DIMENSION = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*(?:px)?\s*$", re.I)
+_STYLE_DIMENSION = re.compile(r"(?:^|;)\s*(width|height)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:px)?\s*(?:;|$)", re.I)
+_JSONLD_BYTES = 128 * 1024
+_JSONLD_NODES = 512
+_JSONLD_DEPTH = 32
 
 
 @dataclass(frozen=True)
@@ -40,16 +45,22 @@ def _first_text(*values: object, limit: int) -> str | None:
     return None
 
 
-def _meta(soup: BeautifulSoup, *, property_name: str | None = None, name: str | None = None) -> str | None:
+def _meta_values(soup: BeautifulSoup, *, property_name: str | None = None, name: str | None = None) -> list[str]:
     attribute, expected = ("property", property_name) if property_name is not None else ("name", name)
     if expected is None:
-        return None
+        return []
+    values: list[str] = []
     for tag in soup.find_all("meta"):
         if str(tag.get(attribute, "")).strip().lower() == expected.lower():
             content = tag.get("content")
             if content is not None:
-                return str(content)
-    return None
+                values.append(str(content))
+    return values
+
+
+def _meta(soup: BeautifulSoup, *, property_name: str | None = None, name: str | None = None) -> str | None:
+    values = _meta_values(soup, property_name=property_name, name=name)
+    return values[0] if values else None
 
 
 def _absolute_url(value: object, base_url: str) -> str | None:
@@ -81,10 +92,10 @@ def _metadata_urls(soup: BeautifulSoup, final_url: str) -> list[str]:
         ("og:image", None),
         (None, "twitter:image"),
     ):
-        value = _meta(soup, property_name=property_name, name=name)
-        candidate = _absolute_url(value, final_url)
-        if candidate and _candidate_is_image(candidate):
-            values.append(candidate)
+        for value in _meta_values(soup, property_name=property_name, name=name):
+            candidate = _absolute_url(value, final_url)
+            if candidate and _candidate_is_image(candidate):
+                values.append(candidate)
     for link in soup.find_all("link"):
         rel = link.get("rel", [])
         rels = {str(item).lower() for item in (rel if isinstance(rel, list) else [rel])}
@@ -97,18 +108,32 @@ def _metadata_urls(soup: BeautifulSoup, final_url: str) -> list[str]:
 
 
 def _structured_image_values(value: object) -> list[str]:
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list):
-        result: list[str] = []
-        for item in value:
-            result.extend(_structured_image_values(item))
-        return result
-    if isinstance(value, dict):
-        for key in ("url", "contentUrl"):
-            if isinstance(value.get(key), str):
-                return [value[key]]
-    return []
+    result: list[str] = []
+    stack: list[tuple[object, int]] = [(value, 0)]
+    visited: set[int] = set()
+    while stack and len(result) < 32:
+        item, depth = stack.pop()
+        if depth > _JSONLD_DEPTH:
+            continue
+        if isinstance(item, str):
+            result.append(item)
+            continue
+        if not isinstance(item, (dict, list)):
+            continue
+        marker = id(item)
+        if marker in visited:
+            continue
+        visited.add(marker)
+        if len(visited) > _JSONLD_NODES:
+            break
+        if isinstance(item, list):
+            stack.extend((child, depth + 1) for child in reversed(item[:64]))
+        else:
+            for key in ("url", "contentUrl"):
+                if isinstance(item.get(key), str):
+                    result.append(item[key])
+            stack.extend((child, depth + 1) for child in reversed(list(item.values())[:64]) if isinstance(child, (dict, list)))
+    return result[:32]
 
 
 def _structured_candidates(soup: BeautifulSoup, final_url: str) -> list[str]:
@@ -116,24 +141,36 @@ def _structured_candidates(soup: BeautifulSoup, final_url: str) -> list[str]:
     for script in soup.find_all("script"):
         if "json" not in str(script.get("type", "")).lower():
             continue
-        try:
-            data = json.loads(script.string or script.get_text())
-        except (TypeError, ValueError, json.JSONDecodeError):
+        raw = script.string or script.get_text()
+        if len(raw.encode("utf-8", "ignore")) > _JSONLD_BYTES:
             continue
-        stack = [data]
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError, RecursionError):
+            continue
+        stack: list[tuple[object, int]] = [(data, 0)]
+        visited: set[int] = set()
+        nodes = 0
         while stack:
-            item = stack.pop(0)
+            item, depth = stack.pop()
+            if depth > _JSONLD_DEPTH or nodes >= _JSONLD_NODES:
+                continue
+            nodes += 1
             if isinstance(item, list):
-                stack[0:0] = item
+                stack.extend((child, depth + 1) for child in reversed(item[:64]))
             elif isinstance(item, dict):
+                marker = id(item)
+                if marker in visited:
+                    continue
+                visited.add(marker)
                 for key in ("image", "logo"):
                     for value in _structured_image_values(item.get(key)):
                         candidate = _absolute_url(value, final_url)
-                        if candidate:
+                        if candidate and _candidate_is_image(candidate):
                             candidates.append(candidate)
-                for value in item.values():
+                for value in list(item.values())[:64]:
                     if isinstance(value, (dict, list)):
-                        stack.append(value)
+                        stack.append((value, depth + 1))
     return candidates
 
 
@@ -153,8 +190,8 @@ def _image_usable(tag: Tag) -> bool:
     src = str(tag.get("src", "")).strip()
     if (
         not src
-        or not _candidate_is_image(src)
         or src.lower().startswith("data:")
+        or src.lower().split("?", 1)[0].split("#", 1)[0].endswith(".svg")
         or str(tag.get("type", "")).lower().split(";", 1)[0].strip() == "image/svg+xml"
     ):
         return False
@@ -163,19 +200,24 @@ def _image_usable(tag: Tag) -> bool:
     attrs = " ".join(str(tag.get(key, "")) for key in ("id", "class", "alt", "src")).lower()
     if _TRACKING_NAME.search(attrs):
         return False
-    try:
-        width = int(str(tag.get("width", "")))
-        height = int(str(tag.get("height", "")))
-    except ValueError:
-        width = height = 0
-    if (width and width <= 2) or (height and height <= 2):
+    dimensions: list[float] = []
+    for key in ("width", "height"):
+        match = _DIMENSION.match(str(tag.get(key, "")))
+        if match:
+            dimensions.append(float(match.group(1)))
+    for match in _STYLE_DIMENSION.finditer(str(tag.get("style", ""))):
+        dimensions.append(float(match.group(2)))
+    if any(value <= 2 for value in dimensions):
         return False
     return True
 
 
 def _candidate_is_image(value: str) -> bool:
-    lowered = value.lower().split("?", 1)[0]
-    return not lowered.startswith("data:") and not lowered.endswith(".svg")
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return parts.scheme.lower() in {"http", "https"} and not parts.path.lower().endswith(".svg")
 
 
 def _rank_image_candidates(soup: BeautifulSoup, final_url: str) -> list[str]:
@@ -184,7 +226,7 @@ def _rank_image_candidates(soup: BeautifulSoup, final_url: str) -> list[str]:
 
     def add(value: object) -> None:
         candidate = _absolute_url(value, final_url)
-        if candidate and candidate not in seen:
+        if candidate and _candidate_is_image(candidate) and candidate not in seen:
             seen.add(candidate)
             result.append(candidate)
 
@@ -203,13 +245,11 @@ def _rank_image_candidates(soup: BeautifulSoup, final_url: str) -> list[str]:
             for node in [image, *[parent for parent in image.parents if isinstance(parent, Tag)][:2]]
             for key in ("id", "class", "alt", "role")
         )
-        if _QUALIFIED_NAME.search(context):
+        if re.search(r"(?:icon|favicon)", context, re.I):
+            icons.append(image)
+        elif _QUALIFIED_NAME.search(context):
             qualified.append(image)
         elif any(parent.name in {"main", "article"} for parent in image.parents if isinstance(parent, Tag)) or _MAIN_NAME.search(context):
-            main.append(image)
-        elif re.search(r"(?:icon|favicon)", context, re.I):
-            icons.append(image)
-        else:
             main.append(image)
     for image in [*qualified, *main]:
         add(image.get("src"))
@@ -228,19 +268,19 @@ class LinkPreviewMetadataParser:
     def parse(self, html_bytes: bytes, *, final_url: str) -> ParsedLinkPreview:
         soup = BeautifulSoup(html_bytes, "lxml")
         title = _first_text(
-            _meta(soup, property_name="og:title"),
-            _meta(soup, name="twitter:title"),
+            *_meta_values(soup, property_name="og:title"),
+            *_meta_values(soup, name="twitter:title"),
             soup.title.get_text(" ", strip=False) if soup.title else None,
             limit=180,
         )
         description = _first_text(
-            _meta(soup, property_name="og:description"),
-            _meta(soup, name="twitter:description"),
-            _meta(soup, name="description"),
+            *_meta_values(soup, property_name="og:description"),
+            *_meta_values(soup, name="twitter:description"),
+            *_meta_values(soup, name="description"),
             limit=300,
         )
         site_name = _first_text(
-            _meta(soup, property_name="og:site_name"),
+            *_meta_values(soup, property_name="og:site_name"),
             urlsplit(final_url).hostname,
             limit=80,
         )
@@ -248,6 +288,9 @@ class LinkPreviewMetadataParser:
             title=title,
             description=description,
             site_name=site_name,
-            destination_candidate=_absolute_url(_meta(soup, property_name="og:url"), final_url),
+            destination_candidate=next(
+                (candidate for value in _meta_values(soup, property_name="og:url") if (candidate := _absolute_url(value, final_url))),
+                None,
+            ),
             image_candidates=tuple(_rank_image_candidates(soup, final_url)),
         )
