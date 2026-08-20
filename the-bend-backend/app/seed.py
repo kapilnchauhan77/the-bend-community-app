@@ -141,6 +141,12 @@ async def _resolve_local_scoop_connector(session, tenant_id, *, create: bool):
     """Resolve only the default tenant's seed row, repairing one legacy row."""
     from sqlalchemy import select
 
+    locked_tenant = await session.execute(
+        select(Tenant.id).where(Tenant.id == tenant_id).with_for_update()
+    )
+    if locked_tenant.scalar_one_or_none() is None:
+        raise RuntimeError("Default tenant disappeared before connector seeding")
+
     scoped = await session.execute(
         select(EventConnector)
         .where(

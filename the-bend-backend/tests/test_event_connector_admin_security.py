@@ -463,6 +463,112 @@ async def test_sync_count_matches_the_number_of_persisted_event_rows(
         assert connector.last_sync_count == persisted_count == 2
 
 
+@pytest.mark.asyncio
+async def test_sync_migrates_a_legacy_plain_source_key_without_duplicating_the_event(
+    admin_security_rows, monkeypatch
+):
+    ids = admin_security_rows
+    legacy_event_id = uuid4()
+    legacy_url = "https://example.com/events/legacy"
+    stable_key = f"{legacy_url}#event-6c2783d79d2511e2c4cebd386e22f12a"
+
+    async def parsed_event(self, connector):
+        return [
+            {
+                "title": "Legacy imported event",
+                "start_date": datetime(2031, 1, 1, 10, 0),
+                "source_url": stable_key,
+                "status": "active",
+            }
+        ]
+
+    monkeypatch.setattr(ConnectorService, "_parse_source", parsed_event)
+    async with async_session() as db:
+        db.add(
+            Event(
+                id=legacy_event_id,
+                tenant_id=ids["tenant_b"],
+                title="Legacy imported event",
+                start_date=datetime(2031, 1, 1, 10, 0),
+                category=EventCategory.COMMUNITY,
+                status=EventStatus.ACTIVE,
+                source="Tenant B connector",
+                source_url=legacy_url,
+                connector_id=ids["connector_b"],
+            )
+        )
+        await db.flush()
+
+        result = await ConnectorService(db, tenant_id=ids["tenant_b"]).sync_connector(
+            ids["connector_b"]
+        )
+        persisted = (
+            (
+                await db.execute(
+                    select(Event).where(
+                        Event.connector_id == ids["connector_b"],
+                        Event.tenant_id == ids["tenant_b"],
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        assert result == {"synced": 0, "total_parsed": 1}
+        assert [(event.id, event.source_url) for event in persisted] == [
+            (legacy_event_id, stable_key)
+        ]
+
+
+@pytest.mark.asyncio
+async def test_sync_preserves_parser_identity_when_event_metadata_changes(
+    admin_security_rows, monkeypatch
+):
+    ids = admin_security_rows
+    stable_key = (
+        "https://example.com/events/shared#event-f9a8c2217ac964b1888c8ee122b823ec"
+    )
+    parse_count = 0
+
+    async def changing_event(self, connector):
+        nonlocal parse_count
+        parse_count += 1
+        return [
+            {
+                "title": f"Imported title {parse_count}",
+                "start_date": datetime(2031, 1, parse_count, 10, 0),
+                "location": f"Location {parse_count}",
+                "source_url": stable_key,
+                "status": "active",
+            }
+        ]
+
+    monkeypatch.setattr(ConnectorService, "_parse_source", changing_event)
+    async with async_session() as db:
+        service = ConnectorService(db, tenant_id=ids["tenant_b"])
+
+        first = await service.sync_connector(ids["connector_b"])
+        second = await service.sync_connector(ids["connector_b"])
+        persisted = (
+            (
+                await db.execute(
+                    select(Event).where(
+                        Event.connector_id == ids["connector_b"],
+                        Event.tenant_id == ids["tenant_b"],
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        assert first == {"synced": 1, "total_parsed": 1}
+        assert second == {"synced": 0, "total_parsed": 1}
+        assert len(persisted) == 1
+        assert persisted[0].source_url == stable_key
+
+
 def _normalize_external_url(value: str) -> str:
     normalizer = getattr(connector_service, "normalize_external_url", None)
     assert callable(normalizer), "shared outbound URL policy is missing"
@@ -716,6 +822,166 @@ class _ParserFetcher:
 
 
 @pytest.mark.asyncio
+async def test_rss_safe_link_occurrences_survive_metadata_corrections():
+    feed_url = "https://example.com/events.xml"
+    shared_link = "https://example.com/events/shared"
+    _ParserFetcher.response = _ParserResponse(
+        f"""<rss><channel>
+          <item><title>First title</title><link>{shared_link}</link>
+            <pubDate>Tue, 1 Jan 2031 10:00:00 GMT</pubDate></item>
+          <item><title>Second title</title><link>{shared_link}</link>
+            <pubDate>Tue, 1 Jan 2031 11:00:00 GMT</pubDate></item>
+        </channel></rss>""",
+        "application/rss+xml",
+    )
+    parser = ConnectorService(None, fetcher=_ParserFetcher())
+    before = await parser._parse_rss(feed_url)
+
+    _ParserFetcher.response = _ParserResponse(
+        f"""<rss><channel>
+          <item><title>Corrected first title</title><link>{shared_link}</link>
+            <pubDate>Wed, 2 Jan 2031 12:00:00 GMT</pubDate></item>
+          <item><title>Corrected second title</title><link>{shared_link}</link>
+            <pubDate>Wed, 2 Jan 2031 13:00:00 GMT</pubDate></item>
+        </channel></rss>""",
+        "application/rss+xml",
+    )
+    after = await parser._parse_rss(feed_url)
+
+    before_keys = [event["source_url"] for event in before]
+    after_keys = [event["source_url"] for event in after]
+    assert before_keys == after_keys
+    assert len(set(before_keys)) == 2
+    assert {key.split("#", 1)[0] for key in before_keys} == {shared_link}
+
+
+@pytest.mark.asyncio
+async def test_html_safe_link_occurrences_survive_metadata_corrections():
+    page_url = "https://example.com/events"
+    shared_link = "https://example.com/events/shared"
+    _ParserFetcher.response = _ParserResponse(
+        f"""<html><body>
+          <article><h2>First title</h2>
+            <time datetime="2031-01-01T10:00:00">January 1</time>
+            <a href="{shared_link}">Details</a></article>
+          <article><h2>Second title</h2>
+            <time datetime="2031-01-01T11:00:00">January 1</time>
+            <a href="{shared_link}">Details</a></article>
+        </body></html>""",
+        "text/html",
+    )
+    parser = ConnectorService(None, fetcher=_ParserFetcher())
+    before = await parser._parse_html(page_url, {})
+
+    _ParserFetcher.response = _ParserResponse(
+        f"""<html><body>
+          <article><h2>Corrected first title</h2>
+            <time datetime="2031-01-02T12:00:00">January 2</time>
+            <a href="{shared_link}">Details</a></article>
+          <article><h2>Corrected second title</h2>
+            <time datetime="2031-01-02T13:00:00">January 2</time>
+            <a href="{shared_link}">Details</a></article>
+        </body></html>""",
+        "text/html",
+    )
+    after = await parser._parse_html(page_url, {})
+
+    before_keys = [event["source_url"] for event in before]
+    after_keys = [event["source_url"] for event in after]
+    assert before_keys == after_keys
+    assert len(set(before_keys)) == 2
+    assert {key.split("#", 1)[0] for key in before_keys} == {shared_link}
+
+
+@pytest.mark.asyncio
+async def test_ics_safe_link_occurrences_survive_metadata_corrections():
+    feed_url = "https://example.com/calendar.ics"
+    shared_link = "https://example.com/events/shared"
+    _ParserFetcher.response = _ParserResponse(
+        f"""BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20310101T100000
+SUMMARY:First title
+LOCATION:First location
+URL:{shared_link}
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20310101T110000
+SUMMARY:Second title
+LOCATION:Second location
+URL:{shared_link}
+END:VEVENT
+END:VCALENDAR
+""",
+        "text/calendar",
+    )
+    parser = ConnectorService(None, fetcher=_ParserFetcher())
+    before = await parser._parse_ics(feed_url)
+
+    _ParserFetcher.response = _ParserResponse(
+        f"""BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20310102T120000
+SUMMARY:Corrected first title
+LOCATION:Corrected first location
+URL:{shared_link}
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20310102T130000
+SUMMARY:Corrected second title
+LOCATION:Corrected second location
+URL:{shared_link}
+END:VEVENT
+END:VCALENDAR
+""",
+        "text/calendar",
+    )
+    after = await parser._parse_ics(feed_url)
+
+    before_keys = [event["source_url"] for event in before]
+    after_keys = [event["source_url"] for event in after]
+    assert before_keys == after_keys
+    assert len(set(before_keys)) == 2
+    assert {key.split("#", 1)[0] for key in before_keys} == {shared_link}
+
+
+@pytest.mark.asyncio
+async def test_rss_fallback_without_link_or_id_excludes_synthesized_time(monkeypatch):
+    feed_url = "https://example.com/events.xml"
+    _ParserFetcher.response = _ParserResponse(
+        """<rss><channel><item>
+          <title>Undated notice without a link</title>
+          <description>Stable source content</description>
+        </item></channel></rss>""",
+        "application/rss+xml",
+    )
+
+    class AdvancingDatetime(datetime):
+        values = iter(
+            [
+                datetime(2031, 1, 1, 10, 0),
+                datetime(2031, 1, 2, 10, 0),
+            ]
+        )
+
+        @classmethod
+        def utcnow(cls):
+            return next(cls.values)
+
+    monkeypatch.setattr(connector_service, "datetime", AdvancingDatetime)
+    parser = ConnectorService(None, fetcher=_ParserFetcher())
+
+    first = await parser._parse_rss(feed_url)
+    second = await parser._parse_rss(feed_url)
+
+    assert first[0]["start_date"] != second[0]["start_date"]
+    assert first[0]["source_url"] == second[0]["source_url"]
+    assert first[0]["source_url"].startswith(feed_url + "#event-")
+
+
+@pytest.mark.asyncio
 async def test_ics_import_replaces_unsafe_entry_urls_with_a_deterministic_safe_key():
     feed_url = "https://93.184.216.34/calendar.ics"
     _ParserFetcher.response = _ParserResponse(
@@ -815,6 +1081,65 @@ async def test_rss_and_html_imports_never_persist_unsafe_entry_urls():
     assert len(html_events) == 1
     assert html_events[0]["source_url"].startswith(page_url + "#event-")
     assert "169.254.169.254" not in html_events[0]["source_url"]
+
+
+@pytest.mark.asyncio
+async def test_undated_rss_without_id_keeps_one_stable_event_across_resync(
+    admin_security_rows, monkeypatch
+):
+    ids = admin_security_rows
+    _ParserFetcher.response = _ParserResponse(
+        """<rss><channel><item>
+          <title>Undated community notice</title>
+          <link>https://example.com/events/undated</link>
+          <description>Stable source content</description>
+        </item></channel></rss>""",
+        "application/rss+xml",
+    )
+
+    class AdvancingDatetime(datetime):
+        values = iter(
+            [
+                datetime(2031, 1, 1, 10, 0),
+                datetime(2031, 1, 1, 10, 1),
+                datetime(2031, 1, 2, 10, 0),
+                datetime(2031, 1, 2, 10, 1),
+            ]
+        )
+
+        @classmethod
+        def utcnow(cls):
+            return next(cls.values)
+
+    monkeypatch.setattr(connector_service, "datetime", AdvancingDatetime)
+    async with async_session() as db:
+        service = ConnectorService(
+            db,
+            tenant_id=ids["tenant_b"],
+            fetcher=_ParserFetcher(),
+        )
+
+        first = await service.sync_connector(ids["connector_b"])
+        second = await service.sync_connector(ids["connector_b"])
+        persisted = (
+            (
+                await db.execute(
+                    select(Event).where(
+                        Event.connector_id == ids["connector_b"],
+                        Event.tenant_id == ids["tenant_b"],
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        assert first == {"synced": 1, "total_parsed": 1}
+        assert second == {"synced": 0, "total_parsed": 1}
+        assert len(persisted) == 1
+        assert persisted[0].source_url.startswith(
+            "https://example.com/events/undated#event-"
+        )
 
 
 @pytest.mark.asyncio

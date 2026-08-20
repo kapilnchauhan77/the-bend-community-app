@@ -11,7 +11,9 @@ from app.repositories.event_repo import EventRepository, ConnectorRepository
 from app.models.enums import ConnectorType
 from app.services.external_urls import (
     deterministic_source_url,
+    legacy_source_url,
     normalize_external_url,
+    sanitize_imported_source_url,
 )
 from app.services.safe_external_fetcher import SafeExternalFetcher
 
@@ -179,6 +181,22 @@ def _is_dcr_chrome_line(value: str) -> bool:
     )
 
 
+def _next_safe_link_identity(
+    candidate_url: str | None,
+    occurrences: dict[str, int],
+) -> tuple[str, str] | None:
+    """Return a canonical link and stable zero-based occurrence identity."""
+    if not candidate_url:
+        return None
+    try:
+        normalized_link = normalize_external_url(candidate_url)
+    except ValueError:
+        return None
+    occurrence = occurrences.get(normalized_link, 0)
+    occurrences[normalized_link] = occurrence + 1
+    return normalized_link, f"link:{normalized_link}|occurrence:{occurrence}"
+
+
 def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | None]:
     """Parse one rendered DCR results page into real event cards."""
     from bs4 import BeautifulSoup
@@ -253,7 +271,7 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
         source_url = deterministic_source_url(
             page_url,
             candidate_source_url,
-            f"{title}|{start_date.isoformat()}|{location or ''}",
+            candidate_source_url,
         )
         if source_url in seen_urls:
             continue
@@ -310,14 +328,9 @@ class ConnectorService:
             events = await self._parse_source(connector)
             saved = 0
             for event_data in events:
-                source_identity = "|".join(
-                    str(event_data.get(field) or "")
-                    for field in ("title", "start_date", "location", "source_url")
-                )
-                event_data["source_url"] = deterministic_source_url(
+                event_data["source_url"] = sanitize_imported_source_url(
                     connector.url,
                     event_data.get("source_url"),
-                    source_identity,
                 )
                 # Dedup by source_url + connector_id
                 if event_data.get("source_url"):
@@ -326,6 +339,15 @@ class ConnectorService:
                     )
                     if existing:
                         continue
+                    legacy_url = legacy_source_url(event_data["source_url"])
+                    if legacy_url:
+                        legacy = await self.event_repo.find_by_source_url(
+                            legacy_url, connector_id
+                        )
+                        if legacy:
+                            legacy.source_url = event_data["source_url"]
+                            await self.db.flush()
+                            continue
 
                 event_data["id"] = uuid4()
                 event_data["connector_id"] = connector_id
@@ -424,6 +446,7 @@ class ConnectorService:
         cal = Calendar.from_ical(body)
         events = []
         now = datetime.utcnow()
+        link_occurrences: dict[str, int] = {}
 
         for component in cal.walk():
             if component.name != "VEVENT":
@@ -470,7 +493,15 @@ class ConnectorService:
                     break
                 except ValueError:
                     continue
-            identity = uid or f"{summary}|{start.isoformat()}|{location}"
+            identity = uid
+            if not identity:
+                link_identity = _next_safe_link_identity(
+                    event_link or None, link_occurrences
+                )
+                if link_identity:
+                    event_link, identity = link_identity
+            if not identity:
+                identity = f"{summary}|{start.isoformat()}|{location}"
             source_url = deterministic_source_url(url, event_link or None, identity)
 
             # If DESCRIPTION is just the event's own URL (common in CivicPlus
@@ -498,6 +529,7 @@ class ConnectorService:
 
         feed = feedparser.parse(resp.text)
         events = []
+        link_occurrences: dict[str, int] = {}
 
         for entry in feed.entries:
             title = entry.get("title", "").strip()
@@ -523,15 +555,25 @@ class ConnectorService:
                         pass
                     break
 
+            source_start_date = start_date
             if not start_date:
                 start_date = datetime.utcnow()
 
-            identity = str(
-                entry.get("id")
-                or entry.get("guid")
-                or f"{title}|{start_date.isoformat()}|{link}"
+            identity = entry.get("id") or entry.get("guid")
+            safe_link = None
+            if not identity:
+                link_identity = _next_safe_link_identity(link or None, link_occurrences)
+                if link_identity:
+                    safe_link, identity = link_identity
+            if not identity and source_start_date:
+                identity = f"{title}|{source_start_date.isoformat()}|{link}"
+            if not identity:
+                source_date_text = entry.get("published") or entry.get("updated") or ""
+                identity = f"{title}|{source_date_text}|{link}|{description or ''}"
+            identity = str(identity)
+            source_url = deterministic_source_url(
+                url, safe_link or link or None, identity
             )
-            source_url = deterministic_source_url(url, link or None, identity)
 
             events.append({
                 "title": title[:255],
@@ -594,6 +636,7 @@ class ConnectorService:
 
         soup = BeautifulSoup(resp.text, "lxml")
         events = []
+        link_occurrences: dict[str, int] = {}
 
         # Find all title elements as event anchors
         title_elements = soup.select(title_sel)
@@ -633,10 +676,19 @@ class ConnectorService:
             candidate_source_url = None
             if link_el and link_el.get("href"):
                 candidate_source_url = urljoin(url, link_el["href"])
+            link_identity = _next_safe_link_identity(
+                candidate_source_url, link_occurrences
+            )
+            safe_link = link_identity[0] if link_identity else None
+            identity = (
+                link_identity[1]
+                if link_identity
+                else f"{title}|{start_date.isoformat()}|{candidate_source_url or ''}"
+            )
             source_url = deterministic_source_url(
                 url,
-                candidate_source_url,
-                f"{title}|{start_date.isoformat()}|{candidate_source_url or ''}",
+                safe_link or candidate_source_url,
+                identity,
             )
 
             events.append({

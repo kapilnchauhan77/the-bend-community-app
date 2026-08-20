@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import re
 import socket
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
@@ -11,6 +12,7 @@ from urllib.parse import SplitResult, urlsplit, urlunsplit
 _ALLOWED_SCHEMES = {"http", "https"}
 _ALLOWED_PORTS = {80, 443}
 _MAX_STORED_URL_LENGTH = 500
+_EVENT_KEY_FRAGMENT_RE = re.compile(r"event-[0-9a-f]{32}")
 _BLOCKED_HOSTS = {
     "localhost",
     "localhost.localdomain",
@@ -131,6 +133,24 @@ def deterministic_source_url(
             pass
 
     return identity_namespaced_url(source_url, identity)
+
+
+def sanitize_imported_source_url(feed_url: str, candidate_url: str | None) -> str:
+    """Keep a safe parser key unchanged or replace an unsafe one deterministically."""
+    if candidate_url:
+        try:
+            return normalize_external_url(candidate_url)
+        except ValueError:
+            pass
+    return identity_namespaced_url(feed_url, candidate_url or "")
+
+
+def legacy_source_url(source_url: str) -> str | None:
+    """Return the plain URL used before imported keys gained event fragments."""
+    parsed_source = urlsplit(source_url)
+    if not _EVENT_KEY_FRAGMENT_RE.fullmatch(parsed_source.fragment):
+        return None
+    return urlunsplit(parsed_source._replace(fragment=""))
 
 
 def identity_namespaced_url(source_url: str, identity: str) -> str:

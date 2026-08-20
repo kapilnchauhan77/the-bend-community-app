@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -221,3 +222,53 @@ async def test_seed_sync_repairs_legacy_connector_and_invokes_real_service_with_
     async with async_session() as db:
         assert (await db.get(EventConnector, legacy_id)).tenant_id == rows["default"]
         assert (await db.get(EventConnector, other_id)).tenant_id == rows["other"]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_seed_sessions_create_only_one_default_connector(
+    seed_connector_rows, monkeypatch
+):
+    rows = seed_connector_rows
+    _patch_default_connector(monkeypatch, rows)
+    original_resolve = seed._resolve_local_scoop_connector
+    both_created = asyncio.Event()
+    created_count = 0
+
+    async def widen_the_insert_race(session, tenant_id, *, create):
+        nonlocal created_count
+        result = await original_resolve(session, tenant_id, create=create)
+        if result[1] == "created":
+            created_count += 1
+            if created_count == 2:
+                both_created.set()
+            try:
+                await asyncio.wait_for(both_created.wait(), timeout=0.2)
+            except TimeoutError:
+                pass
+        return result
+
+    monkeypatch.setattr(
+        seed,
+        "_resolve_local_scoop_connector",
+        widen_the_insert_race,
+    )
+
+    await asyncio.wait_for(
+        asyncio.gather(seed.seed_connector(), seed.seed_connector()),
+        timeout=2,
+    )
+
+    async with async_session() as db:
+        connectors = (
+            (
+                await db.execute(
+                    select(EventConnector).where(
+                        EventConnector.name == rows["connector_name"],
+                        EventConnector.tenant_id == rows["default"],
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(connectors) == 1
