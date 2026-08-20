@@ -120,6 +120,25 @@ describe('NativePartnerCarousel', () => {
     expect(screen.queryByRole('link', { name: /Unsafe Scheme Partner/i })).toBeNull()
   })
 
+  it.each([
+    '/example.com/path',
+    '\\\\example.com/path',
+    './example.com',
+    '../example.com',
+    '?next=example.com',
+    '#example.com',
+  ])('keeps a relative website prefix noninteractive: %s', (websiteUrl) => {
+    render(<NativePartnerCarousel partners={[partner('relative', 'Relative Partner', { website_url: websiteUrl })]} />)
+
+    expect(screen.queryByRole('link', { name: /Relative Partner/i })).toBeNull()
+  })
+
+  it('normalizes a bare host with a numeric port', () => {
+    render(<NativePartnerCarousel partners={[partner('port', 'Port Partner', { website_url: 'example.com:8443/path' })]} />)
+
+    expect(screen.getByRole('heading', { name: 'Port Partner' }).closest('a')).toHaveAttribute('href', 'https://example.com:8443/path')
+  })
+
   it('updates the active slide and visual position dots from a manual horizontal swipe', async () => {
     const { container } = render(<NativePartnerCarousel partners={partners} />)
     const track = screen.getByRole('list', { name: 'Community partners' })

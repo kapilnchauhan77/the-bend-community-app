@@ -15,9 +15,11 @@ const initialsFor = (name: string) => {
 const websiteFor = (partner: Sponsor) => {
   const raw = partner.website_url?.trim()
   if (!raw) return null
+  if (/^(?:[\\/?#]|\.\.?[\\/])/.test(raw)) return null
   const scheme = raw.match(/^([a-z][a-z\d+.-]*):/i)?.[1]?.toLowerCase()
-  if (scheme && scheme !== 'http' && scheme !== 'https') return null
-  const candidate = scheme ? raw : `https://${raw}`
+  const hasBareHostPort = /^[^/?#:\\\s]+:\d+(?:[/?#]|$)/.test(raw)
+  if (scheme && !hasBareHostPort && scheme !== 'http' && scheme !== 'https') return null
+  const candidate = scheme && !hasBareHostPort ? raw : `https://${raw}`
   try {
     const url = new URL(candidate)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
