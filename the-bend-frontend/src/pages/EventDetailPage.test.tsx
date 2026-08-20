@@ -30,7 +30,7 @@ describe('EventDetailPage', () => {
   it('renders the event fields and canonical public share URL', async () => {
     vi.mocked(eventApi.getDetail).mockResolvedValue({ data: event } as never);
     renderAt();
-    expect(screen.getByRole('status')).toHaveTextContent('Loading event');
+    expect(screen.getByText('Loading event')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: event.title })).toBeInTheDocument();
     expect(screen.getByText('community')).toBeInTheDocument();
     expect(screen.getByText('Market Square')).toBeInTheDocument();
@@ -81,11 +81,43 @@ describe('EventDetailPage', () => {
     let resolveFirst!: (value: unknown) => void;
     const first = new Promise((resolve) => { resolveFirst = resolve; });
     vi.mocked(eventApi.getDetail).mockReturnValueOnce(first as never).mockResolvedValueOnce({ data: { ...event, id: secondEventId, title: 'New event' } } as never);
-    render(<MemoryRouter initialEntries={[`/events/${eventId}`]}><Routes><Route path="/events/:eventId" element={<><EventDetailPage /><SwitchToSecondEvent /></>} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={[`/events/${eventId}`]}><Routes><Route path="/events/:eventId" element={<><EventDetailPage /><SwitchToSecondEvent /><PathProbe /></>} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'switch' }));
     expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
     resolveFirst({ data: event });
     await waitFor(() => expect(screen.queryByRole('heading', { name: event.title })).not.toBeInTheDocument());
+  });
+
+  it('clears event A while event B is pending and ignores a late event A response', async () => {
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    const first = new Promise((resolve) => { resolveFirst = resolve; });
+    const second = new Promise((resolve) => { resolveSecond = resolve; });
+    const nextEvent = { ...event, id: secondEventId, title: 'New event' };
+    vi.mocked(eventApi.getDetail).mockReturnValueOnce(first as never).mockReturnValueOnce(second as never);
+
+    render(<MemoryRouter initialEntries={[`/events/${eventId}`]}><Routes><Route path="/events/:eventId" element={<><EventDetailPage /><SwitchToSecondEvent /><PathProbe /></>} /></Routes></MemoryRouter>);
+    resolveFirst({ data: event });
+    expect(await screen.findByRole('heading', { name: event.title })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'switch' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(`/events/${secondEventId}`);
+    expect(screen.queryByRole('heading', { name: event.title })).not.toBeInTheDocument();
+    expect(screen.getByText('Loading event')).toBeInTheDocument();
+    resolveSecond({ data: nextEvent });
+    expect(await screen.findByRole('heading', { name: nextEvent.title })).toBeInTheDocument();
+  });
+
+  it('rejects an event response whose id does not match the requested id, then retries successfully', async () => {
+    vi.mocked(eventApi.getDetail)
+      .mockResolvedValueOnce({ data: { ...event, id: secondEventId, title: 'Wrong event' } } as never)
+      .mockResolvedValueOnce({ data: { ...event, id: eventId, title: 'Requested event' } } as never);
+    renderAt();
+
+    expect(await screen.findByRole('button', { name: 'Retry event' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Wrong event' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry event' }));
+    expect(await screen.findByRole('heading', { name: 'Requested event' })).toBeInTheDocument();
   });
 
   it.each([
