@@ -22,7 +22,7 @@ def _alembic(root: Path, schema: str, *args):
 async def test_nat006_upgrade_downgrade_reupgrade_preserves_seeded_rows_and_public_head():
     root = Path(__file__).resolve().parents[1]
     public = subprocess.run([str(root / ".venv/bin/alembic"), "current"], cwd=root, capture_output=True, text=True, check=True).stdout
-    assert "nat006" in public
+    assert "nat007" in public
     schema = f"task8_nat006_{uuid4().hex}"
     engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
     tenant_id, pricing_id, sponsor_id, event_id, coupon_id = (uuid4() for _ in range(5))
@@ -58,7 +58,7 @@ async def test_nat006_upgrade_downgrade_reupgrade_preserves_seeded_rows_and_publ
             await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         await engine.dispose()
     after = subprocess.run([str(root / ".venv/bin/alembic"), "current"], cwd=root, capture_output=True, text=True, check=True).stdout
-    assert "nat006" in after
+    assert "nat007" in after
 
 
 @pytest.mark.asyncio

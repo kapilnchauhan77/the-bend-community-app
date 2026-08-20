@@ -13,7 +13,7 @@ from sqlalchemy import delete, func, select
 
 from app.api.deps import get_db
 from app.api.v1.admin import router as admin_router
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, NotFoundError
 from app.core.permissions import get_current_tenant, get_current_user
 from app.database import async_session, engine
 from app.models.ad_pricing import AdPricing
@@ -29,11 +29,14 @@ from app.models.enums import (
 from app.models.listing import Listing
 from app.models.notification import Notification
 from app.models.notification_outbox import NotificationOutbox
+from app.models.report import Report
+from app.models.report_audit import ReportAudit
 from app.models.shop import Shop
 from app.models.sponsor import Sponsor
 from app.models.success_story import SuccessStory
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services.report_service import ReportService
 
 
 def _admin_app(db, tenant: Tenant | None, user: User) -> FastAPI:
@@ -308,12 +311,8 @@ async def admin_mutation_rows():
                     "Shop listing B",
                     shop_id=ids["suspend_b"],
                 ),
-                _listing(
-                    ids["story_listing_a"], ids["tenant_a"], "Story listing A"
-                ),
-                _listing(
-                    ids["story_listing_b"], ids["tenant_b"], "Story listing B"
-                ),
+                _listing(ids["story_listing_a"], ids["tenant_a"], "Story listing A"),
+                _listing(ids["story_listing_b"], ids["tenant_b"], "Story listing B"),
             ]
         )
         await db.flush()
@@ -369,6 +368,10 @@ async def admin_mutation_rows():
             await db.execute(
                 delete(Notification).where(Notification.tenant_id.in_(tenant_ids))
             )
+            await db.execute(
+                delete(ReportAudit).where(ReportAudit.tenant_id.in_(tenant_ids))
+            )
+            await db.execute(delete(Report).where(Report.tenant_id.in_(tenant_ids)))
             await db.execute(
                 delete(SuccessStory).where(SuccessStory.tenant_id.in_(tenant_ids))
             )
@@ -430,16 +433,16 @@ async def test_every_tenant_admin_collection_requires_matching_request_tenant(
         app = _admin_app(db, tenant, admin_a)
         sponsor_count = (
             await db.execute(
-                select(func.count()).select_from(Sponsor).where(
-                    Sponsor.tenant_id == ids["tenant_a"]
-                )
+                select(func.count())
+                .select_from(Sponsor)
+                .where(Sponsor.tenant_id == ids["tenant_a"])
             )
         ).scalar_one()
         pricing_count = (
             await db.execute(
-                select(func.count()).select_from(AdPricing).where(
-                    AdPricing.tenant_id == ids["tenant_a"]
-                )
+                select(func.count())
+                .select_from(AdPricing)
+                .where(AdPricing.tenant_id == ids["tenant_a"])
             )
         ).scalar_one()
 
@@ -453,16 +456,16 @@ async def test_every_tenant_admin_collection_requires_matching_request_tenant(
         )
         assert (
             await db.execute(
-                select(func.count()).select_from(Sponsor).where(
-                    Sponsor.tenant_id == ids["tenant_a"]
-                )
+                select(func.count())
+                .select_from(Sponsor)
+                .where(Sponsor.tenant_id == ids["tenant_a"])
             )
         ).scalar_one() == sponsor_count
         assert (
             await db.execute(
-                select(func.count()).select_from(AdPricing).where(
-                    AdPricing.tenant_id == ids["tenant_a"]
-                )
+                select(func.count())
+                .select_from(AdPricing)
+                .where(AdPricing.tenant_id == ids["tenant_a"])
             )
         ).scalar_one() == pricing_count
 
@@ -561,18 +564,18 @@ async def test_tenant_admin_cannot_mutate_another_tenants_admin_targets(
         assert (
             await db.get(Listing, ids["shop_listing_a"])
         ).status == ListingStatus.ACTIVE
-        assert (
-            await db.get(Shop, ids["reactivate_a"])
-        ).status == ShopStatus.SUSPENDED
+        assert (await db.get(Shop, ids["reactivate_a"])).status == ShopStatus.SUSPENDED
         assert (await db.get(User, ids["individual_suspend_a"])).is_active is True
-        assert (
-            await db.get(User, ids["individual_reactivate_a"])
-        ).is_active is False
+        assert (await db.get(User, ids["individual_reactivate_a"])).is_active is False
         assert (await db.get(Listing, ids["listing_a"])).status == ListingStatus.ACTIVE
-        assert (await db.get(Sponsor, ids["sponsor_update_a"])).name == "Sponsor update a"
+        assert (
+            await db.get(Sponsor, ids["sponsor_update_a"])
+        ).name == "Sponsor update a"
         assert await db.get(Sponsor, ids["sponsor_delete_a"]) is not None
         assert (await db.get(Sponsor, ids["sponsor_approve_a"])).approved is False
-        assert (await db.get(AdPricing, ids["pricing_update_a"])).name == "Pricing update a"
+        assert (
+            await db.get(AdPricing, ids["pricing_update_a"])
+        ).name == "Pricing update a"
         assert await db.get(AdPricing, ids["pricing_delete_a"]) is not None
         assert (await db.get(SuccessStory, ids["story_a"])).is_featured is False
 
@@ -708,15 +711,17 @@ async def test_matching_tenant_admin_operations_remain_scoped_and_functional(
         ).status == ListingStatus.DELETED
         assert (await db.get(Shop, ids["reactivate_b"])).status == ShopStatus.ACTIVE
         assert (await db.get(User, ids["individual_suspend_b"])).is_active is False
-        assert (
-            await db.get(User, ids["individual_reactivate_b"])
-        ).is_active is True
+        assert (await db.get(User, ids["individual_reactivate_b"])).is_active is True
         assert (await db.get(Listing, ids["listing_b"])).status == ListingStatus.DELETED
-        assert (await db.get(Sponsor, ids["sponsor_update_b"])).name == "Updated sponsor B"
+        assert (
+            await db.get(Sponsor, ids["sponsor_update_b"])
+        ).name == "Updated sponsor B"
         assert await db.get(Sponsor, ids["sponsor_delete_b"]) is None
         assert (await db.get(Sponsor, ids["sponsor_approve_b"])).approved is True
         assert (await db.get(Sponsor, ids["sponsor_approve_b"])).is_active is True
-        assert (await db.get(AdPricing, ids["pricing_update_b"])).name == "Updated pricing B"
+        assert (
+            await db.get(AdPricing, ids["pricing_update_b"])
+        ).name == "Updated pricing B"
         assert await db.get(AdPricing, ids["pricing_delete_b"]) is None
         assert (await db.get(SuccessStory, ids["story_b"])).is_featured is True
 
@@ -732,9 +737,7 @@ async def test_platform_admin_requires_a_resolved_tenant_and_stays_scoped_to_it(
         resolved_app = _admin_app(db, tenant_b, super_admin)
         unresolved_app = _admin_app(db, None, super_admin)
 
-        unresolved = await _request(
-            unresolved_app, "GET", "/api/v1/admin/sponsors"
-        )
+        unresolved = await _request(unresolved_app, "GET", "/api/v1/admin/sponsors")
         listed = await _request(resolved_app, "GET", "/api/v1/admin/sponsors")
         updated = await _request(
             resolved_app,
@@ -788,3 +791,122 @@ async def test_pricing_update_cannot_reassign_the_rows_tenant(admin_mutation_row
         pricing = await db.get(AdPricing, ids["pricing_update_b"])
         assert pricing.name == "Safe pricing update"
         assert pricing.tenant_id == ids["tenant_b"]
+
+
+@pytest.mark.asyncio
+async def test_platform_and_tenant_admin_report_resolution_records_valid_audit_actors(
+    admin_mutation_rows,
+):
+    ids = admin_mutation_rows
+    platform_report_id, tenant_report_id, rejected_report_id = (
+        uuid4(),
+        uuid4(),
+        uuid4(),
+    )
+    async with async_session() as db:
+        db.add_all(
+            [
+                Report(
+                    id=report_id,
+                    tenant_id=ids["tenant_b"],
+                    target_type="listing",
+                    target_id=target_id,
+                    reporter_id=ids["individual_suspend_b"],
+                    reason="spam",
+                    status="open",
+                    resolved=False,
+                )
+                for report_id, target_id in (
+                    (platform_report_id, ids["listing_b"]),
+                    (tenant_report_id, ids["shop_listing_b"]),
+                    (rejected_report_id, ids["story_listing_b"]),
+                )
+            ]
+        )
+        await db.commit()
+
+        tenant_b = await db.get(Tenant, ids["tenant_b"])
+        super_admin = await db.get(User, ids["super_admin"])
+        tenant_admin = await db.get(User, ids["admin_b"])
+        super_app = _admin_app(db, tenant_b, super_admin)
+        tenant_app = _admin_app(db, tenant_b, tenant_admin)
+
+        platform_response = await _request(
+            super_app,
+            "POST",
+            f"/api/v1/admin/reports/flags/{platform_report_id}/resolve",
+            raise_app_exceptions=False,
+        )
+
+        assert platform_response.status_code == 200
+        report = await db.get(Report, platform_report_id)
+        assert report.status == "resolved"
+        assert report.resolved is True
+        assert report.resolved_by_id is None
+        assert report.resolved_by_platform_admin_id == ids["super_admin"]
+        audit = (
+            await db.execute(
+                select(ReportAudit).where(ReportAudit.report_id == platform_report_id)
+            )
+        ).scalar_one()
+        assert audit.actor_id is None
+        assert audit.platform_actor_id == ids["super_admin"]
+        assert audit.tenant_id == ids["tenant_b"]
+
+        list_response = await _request(
+            super_app,
+            "GET",
+            "/api/v1/admin/reports/flags?resolved=true",
+        )
+        assert list_response.status_code == 200
+        listed = next(
+            item
+            for item in list_response.json()["items"]
+            if item["id"] == str(platform_report_id)
+        )
+        assert listed["resolved_by_id"] == str(ids["super_admin"])
+        assert listed["audit_actors"] == [
+            {
+                "id": str(ids["super_admin"]),
+                "display_name": "Platform admin",
+            }
+        ]
+
+        tenant_response = await _request(
+            tenant_app,
+            "POST",
+            f"/api/v1/admin/reports/flags/{tenant_report_id}/resolve",
+        )
+
+        assert tenant_response.status_code == 200
+        report = await db.get(Report, tenant_report_id)
+        assert report.status == "resolved"
+        assert report.resolved is True
+        assert report.resolved_by_id == ids["admin_b"]
+        assert report.resolved_by_platform_admin_id is None
+        audit = (
+            await db.execute(
+                select(ReportAudit).where(ReportAudit.report_id == tenant_report_id)
+            )
+        ).scalar_one()
+        assert audit.actor_id == ids["admin_b"]
+        assert audit.platform_actor_id is None
+        assert audit.tenant_id == ids["tenant_b"]
+
+        with pytest.raises(NotFoundError):
+            await ReportService(db).resolve(
+                rejected_report_id,
+                ids["admin_a"],
+                tenant_id=ids["tenant_b"],
+            )
+        report = await db.get(Report, rejected_report_id)
+        assert report.status == "open"
+        assert report.resolved is False
+        assert report.resolved_by_id is None
+        assert (
+            await db.execute(
+                select(func.count())
+                .select_from(ReportAudit)
+                .where(ReportAudit.report_id == rejected_report_id)
+            )
+        ).scalar_one() == 0

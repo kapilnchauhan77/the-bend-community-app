@@ -27,8 +27,8 @@ from app.services.report_service import ReportService
 
 def test_generic_report_contract_has_polymorphic_target_and_audit():
     names = set(Report.__table__.columns.keys())
-    assert {"target_type", "target_id", "status", "resolved_at", "resolved_by_id"}.issubset(names)
-    assert {"report_id", "tenant_id", "actor_id", "action"}.issubset(set(ReportAudit.__table__.columns.keys()))
+    assert {"target_type", "target_id", "status", "resolved_at", "resolved_by_id", "resolved_by_platform_admin_id"}.issubset(names)
+    assert {"report_id", "tenant_id", "actor_id", "platform_actor_id", "action"}.issubset(set(ReportAudit.__table__.columns.keys()))
 
 
 def test_alembic_schema_rejects_invalid_identifier():
@@ -50,7 +50,7 @@ async def test_two_isolated_alembic_schemas_can_migrate_concurrently():
         results = await asyncio.gather(*(migrate(schema) for schema in schemas))
         assert all(result.returncode == 0 for result in results), [result.stderr for result in results]
         public = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
-        assert "nat006" in public
+        assert "nat007" in public
     finally:
         async with engine.begin() as db:
             for schema in schemas:
@@ -164,7 +164,7 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
         await db.execute(text(f'CREATE SCHEMA "{schema}"'))
     try:
         current = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
-        assert "nat006" in current, current
+        assert "nat007" in current, current
         alembic("upgrade","nat003")
         async with async_session() as db:
             await db.execute(text(f'SET search_path TO "{schema}"'))
@@ -190,7 +190,7 @@ async def test_nat004_real_seeded_legacy_backfill_and_reversible_listing_only():
         async with engine.begin() as cleanup:
             await cleanup.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         public_current = subprocess.run([str(root/".venv/bin/alembic"), "current"], cwd=root, check=True, capture_output=True, text=True).stdout
-        assert "nat006" in public_current, public_current
+        assert "nat007" in public_current, public_current
 
 
 @pytest.mark.asyncio
@@ -217,7 +217,7 @@ async def test_nat005_isolated_upgrade_downgrade_reupgrade_preserves_legacy_rows
         [str(root / ".venv/bin/alembic"), "current"], cwd=root,
         capture_output=True, text=True, check=True,
     ).stdout
-    assert "nat006" in public_before
+    assert "nat007" in public_before
     isolated_engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
     isolated_sessions = async_sessionmaker(isolated_engine, expire_on_commit=False)
     try:
@@ -282,4 +282,4 @@ async def test_nat005_isolated_upgrade_downgrade_reupgrade_preserves_legacy_rows
             [str(root / ".venv/bin/alembic"), "current"], cwd=root,
             capture_output=True, text=True, check=True,
         ).stdout
-        assert "nat006" in public_after
+        assert "nat007" in public_after
