@@ -1,0 +1,9 @@
+[
+  {"caption":"See https://example.org/event.","urls":["https://example.org/event"]},
+  {"caption":"Join (https://example.org/a_(b)).","urls":["https://example.org/a_(b)"]},
+  {"caption":"First https://a.example/x then https://b.example/y","urls":["https://a.example/x","https://b.example/y"]},
+  {"caption":"Query https://example.org/search?q=town#results","urls":["https://example.org/search?q=town#results"]},
+  {"caption":"Not ftp://example.org/file","urls":[]},
+  {"caption":"Bracket https://example.org/path]","urls":["https://example.org/path"]},
+  {"caption":"Curly ‘https://example.org/news’","urls":["https://example.org/news"]}
+]
