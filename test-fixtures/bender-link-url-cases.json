@@ -8,5 +8,7 @@
   {"caption":"Curly ‘https://example.org/news’","urls":["https://example.org/news"]},
   {"caption":"Malformed https://example.org/%zz then https://valid.example/path”","urls":["https://valid.example/path"]},
   {"caption":"Encoded host https://example.org%40evil.com/x then https://valid.example/path","urls":["https://valid.example/path"]},
-  {"caption":"Backslash host https://example.org\\@evil.com/x then https://valid.example/path","urls":["https://valid.example/path"]}
+  {"caption":"Backslash host https://example.org\\@evil.com/x then https://valid.example/path","urls":["https://valid.example/path"]},
+  {"caption":"Encoded authority https://%65xample.org/x then https://valid.example/path","urls":["https://valid.example/path"]},
+  {"caption":"Encoded private authority https://%31%32%37.0.0.1/x then https://valid.example/path","urls":["https://valid.example/path"]}
 ]

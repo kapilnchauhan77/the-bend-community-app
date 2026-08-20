@@ -30,7 +30,14 @@ function hasControlCharacter(value: string): boolean {
 }
 
 export function isSafeHttpUrl(value: string | null | undefined): boolean {
-  if (!value || value.includes('\\') || hasControlCharacter(value) || /%(?![0-9a-f]{2})/i.test(value)) return false;
+  const authority = value?.match(/^https?:\/\/([^/?#]*)/i)?.[1];
+  if (
+    !value
+    || value.includes('\\')
+    || authority?.includes('%')
+    || hasControlCharacter(value)
+    || /%(?![0-9a-f]{2})/i.test(value)
+  ) return false;
   try {
     const url = new URL(value);
     return (

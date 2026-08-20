@@ -26,3 +26,10 @@ Follow-up verification:
 - Backend compile, Alembic head (`bender_link_preview`), and `git diff --check`: passed.
 - Docker builds remain pending Docker Desktop storage recovery. No image-build success is claimed.
 - No push, merge, or deployment was performed.
+
+Parity follow-up:
+
+- Added raw-authority percent rejection for frontend URLs, matching backend behavior for encoded hostname authorities.
+- RED shared-fixture Playwright: 1 failed before the frontend change.
+- GREEN shared-fixture Playwright: 1 passed in 7.8 seconds.
+- Frontend build, scoped ESLint, and `git diff --check`: passed.
