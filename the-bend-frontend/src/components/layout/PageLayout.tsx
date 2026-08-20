@@ -3,6 +3,7 @@ import { BottomNav } from './BottomNav';
 import { Footer } from './Footer';
 import { InstallBanner } from '../shared/InstallBanner';
 import { SponsorBanner } from '../shared/SponsorBanner';
+import { useNativePresentation } from './NativePresentationContext';
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -12,7 +13,9 @@ interface PageLayoutProps {
 }
 
 export function PageLayout({ children, showFooter = true, embeddedNative = false, embeddedClassName }: PageLayoutProps) {
-  if (embeddedNative) {
+  const nativePresentation = useNativePresentation();
+  const embedded = embeddedNative || nativePresentation;
+  if (embedded) {
     return (
       <div className={['native-embedded-page', embeddedClassName].filter(Boolean).join(' ')}>
         {children}

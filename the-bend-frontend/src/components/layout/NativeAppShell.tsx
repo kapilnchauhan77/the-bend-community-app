@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { NativeBottomNav } from './NativeBottomNav';
 import { useDeepLinks } from '@/deep-links/useDeepLinks';
 import { createContext, useContext, useEffect, useRef } from 'react';
@@ -7,11 +7,15 @@ import '@/styles/native.css';
 import type { NativeAppShellContextValue, NativeRootTab } from '@/platform/contracts';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { NativePresentationProvider } from './NativePresentationContext';
+import { showsNativeBottomNavigation } from '@/routes/nativeRoutePolicy';
 const ShellContext = createContext<NativeAppShellContextValue | null>(null)
 export function useNativeAppShell() { const value = useContext(ShellContext); if (!value) throw new Error('useNativeAppShell must be used inside NativeAppShell'); return value }
 
 export function NativeAppShell() {
   useDeepLinks();
+  const { pathname } = useLocation();
+  const showBottomNavigation = showsNativeBottomNavigation(pathname);
   const rootRef = useRef<HTMLDivElement>(null);
   const roots = useRef(new Map<NativeRootTab, HTMLElement>());
   const shell = {
@@ -77,5 +81,5 @@ export function NativeAppShell() {
       document.body.style.backgroundColor = previousBodyBackground;
     };
   }, []);
-  return <ShellContext.Provider value={shell}><div ref={rootRef} className="native-app"><div className="native-status-bar-scrim" aria-hidden="true" /><main id="native-main" className="native-main"><Outlet /></main><NativeBottomNav /></div></ShellContext.Provider>;
+  return <ShellContext.Provider value={shell}><NativePresentationProvider><div ref={rootRef} className="native-app"><div className="native-status-bar-scrim" aria-hidden="true" /><main id="native-main" className="native-main" data-bottom-navigation={showBottomNavigation ? 'visible' : 'hidden'}><Outlet /></main>{showBottomNavigation && <NativeBottomNav />}</div></NativePresentationProvider></ShellContext.Provider>;
 }

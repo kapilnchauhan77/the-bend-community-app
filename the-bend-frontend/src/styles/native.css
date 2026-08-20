@@ -4,7 +4,13 @@
 }
 .dark .native-app { --native-page: #121915; --native-card: #18221d; --native-elevated: #202c26; --native-text: #f4f0e7; --native-muted: #b6bdb8; --native-primary: #70b99b; --native-primary-contrast: #101814; --native-bronze: #d0a45f; --native-urgent-surface: #3a201e; --native-urgent-border: #d97b70; --native-urgent-text: #ffb6ad; --native-border: #33433a; --native-focus: #8cc9ef; --native-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
 .native-app .native-status-bar-scrim { position: fixed; z-index: 50; top: 0; right: 0; left: 0; height: var(--native-safe-top); background: var(--native-page); pointer-events: none; }
-.native-app .native-main { min-height: 100dvh; padding-bottom: calc(88px + var(--native-safe-bottom)); }
+.native-app .native-main { min-height: 100dvh; }
+.native-main[data-bottom-navigation="visible"] { padding-bottom: calc(88px + var(--native-safe-bottom)); }
+.native-main[data-bottom-navigation="hidden"] { padding-bottom: var(--native-safe-bottom); }
+.native-route-header { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; border-bottom: 1px solid var(--native-border); }
+.native-route-header > [data-testid="native-route-title"] { flex: 1; color: var(--native-text); font-size: 17px; font-weight: 700; }
+.native-route-back { display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--native-primary); background: transparent; }
+.native-route-actions { display: flex; align-items: center; gap: 4px; }
 .native-app .native-auth-page { min-height: calc(100dvh - 88px - var(--native-safe-bottom)); }
 .native-app h1,
 .native-app h2,

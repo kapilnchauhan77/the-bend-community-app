@@ -1,6 +1,7 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useNavigate } from 'react-router-dom'
 import { NativeAppShell, useNativeAppShell } from './NativeAppShell'
 import { PlatformServicesProvider } from '@/platform/createPlatformServices'
 import type { RuntimeConfig } from '@/platform/contracts'
@@ -134,5 +135,16 @@ describe('NativeAppShell', () => {
     expect(remove).toHaveBeenCalledWith('resize', expect.any(Function))
     expect(root.style.getPropertyValue('--native-fixed-text-scale')).toBe('')
     expect(add).toHaveBeenCalled()
+  })
+
+  it('updates bottom navigation and inset as routes transition', () => {
+    function Probe() { const navigate = useNavigate(); return <button onClick={() => navigate('/')}>root</button> }
+    const view = render(<PlatformServicesProvider config={config}><MemoryRouter initialEntries={['/bender/one']}><Routes><Route element={<NativeAppShell />}><Route path="*" element={<Probe />} /></Route></Routes></MemoryRouter></PlatformServicesProvider>)
+    const main = document.querySelector('.native-main')!
+    expect(main).toHaveAttribute('data-bottom-navigation', 'hidden')
+    expect(main).toHaveClass('native-main')
+    fireEvent.click(screen.getByRole('button', { name: 'root' }))
+    expect(document.querySelector('.native-main')).toHaveAttribute('data-bottom-navigation', 'visible')
+    view.unmount()
   })
 })
