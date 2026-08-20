@@ -1,7 +1,7 @@
 # Bender Link Previews Design
 
-**Status:** Approved interaction and architecture, pending written-spec review  
-**Date:** 2026-08-20  
+**Status:** Approved
+**Date:** 2026-08-20
 **Target:** Bender composer and feed on all Bend tenants
 
 ## Summary
@@ -146,6 +146,7 @@ The endpoint uses normal status codes for diagnostics:
 - `422` when the page is valid HTML but has no usable title.
 - `429` when the preview rate limit is exceeded.
 - `502` for invalid upstream content or an upstream connection failure.
+- `503` when Redis is unavailable for the preview draft handoff.
 - `504` for the total request timeout.
 
 The composer treats all non-authentication preview failures as a plain-link fallback.
