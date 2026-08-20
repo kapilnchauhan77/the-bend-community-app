@@ -20,11 +20,11 @@ import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
 import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 import {
-  BUSINESS_ONLY_REGISTRATION_FIELDS,
   REGISTRATION_STEPS,
   nextRegistrationStep,
   previousRegistrationStep,
   registrationFieldsForStep,
+  resetBusinessRegistrationFields,
   type RegistrationStep,
   type RegistrationUserType,
 } from '@/auth/registrationFlow';
@@ -56,6 +56,7 @@ export default function RegisterPage() {
     resetField,
     clearErrors,
     setError,
+    setFocus,
     getValues,
     formState: { errors },
   } = useForm<RegisterFormData>({
@@ -111,8 +112,7 @@ export default function RegisterPage() {
     if (previousType === type) return;
     setValue('user_type', type, { shouldValidate: false });
     if (previousType === 'business' && type === 'individual') {
-      for (const field of BUSINESS_ONLY_REGISTRATION_FIELDS) resetField(field, { defaultValue: '' });
-      clearErrors([...BUSINESS_ONLY_REGISTRATION_FIELDS]);
+      resetBusinessRegistrationFields({ resetField, clearErrors });
     }
   };
 
@@ -126,6 +126,7 @@ export default function RegisterPage() {
       }
       if (!values.business_type) {
         setError('business_type', { type: 'manual', message: 'Please select a business type' });
+        setFocus('business_type');
         return;
       }
     }
@@ -423,6 +424,8 @@ export default function RegisterPage() {
                       type="tel"
                       placeholder="+1 555 0100"
                       {...register('phone')}
+                      aria-invalid={errors.phone ? 'true' : 'false'}
+                      aria-describedby={errors.phone ? 'phone-error' : undefined}
                       className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
                     />
                     <FieldError id="phone-error" message={errors.phone?.message} />
@@ -438,6 +441,8 @@ export default function RegisterPage() {
                         type="tel"
                         placeholder="+1 555 0100"
                         {...register('phone')}
+                        aria-invalid={errors.phone ? 'true' : 'false'}
+                        aria-describedby={errors.phone ? 'phone-error' : undefined}
                         className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
                       />
                       <FieldError id="phone-error" message={errors.phone?.message} />
@@ -451,8 +456,11 @@ export default function RegisterPage() {
                         type="tel"
                         placeholder="+1 555 0100"
                         {...register('whatsapp')}
+                        aria-invalid={errors.whatsapp ? 'true' : 'false'}
+                        aria-describedby={errors.whatsapp ? 'whatsapp-error' : undefined}
                         className="h-11 border-[hsl(35,18%,84%)] bg-white"
                       />
+                      <FieldError id="whatsapp-error" message={errors.whatsapp?.message} />
                     </div>
                   </div>
                 )}
@@ -483,6 +491,7 @@ export default function RegisterPage() {
                       aria-describedby={errors.password ? 'password-error' : undefined}
                       className={`h-11 pr-10 border-[hsl(35,18%,84%)] bg-white ${errors.password ? 'border-red-400' : ''}`}
                     />
+                    <FieldError id="whatsapp-error" message={errors.whatsapp?.message} />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}

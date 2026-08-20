@@ -17,6 +17,16 @@ export const BUSINESS_ONLY_REGISTRATION_FIELDS = [
   'whatsapp',
 ] as const satisfies readonly FieldPath<RegisterFormData>[]
 
+export type RegistrationResetOperations = {
+  resetField: (name: (typeof BUSINESS_ONLY_REGISTRATION_FIELDS)[number], options: { defaultValue: '' }) => void
+  clearErrors: (names: readonly (typeof BUSINESS_ONLY_REGISTRATION_FIELDS)[number][]) => void
+}
+
+export function resetBusinessRegistrationFields(operations: RegistrationResetOperations): void {
+  for (const field of BUSINESS_ONLY_REGISTRATION_FIELDS) operations.resetField(field, { defaultValue: '' })
+  operations.clearErrors([...BUSINESS_ONLY_REGISTRATION_FIELDS])
+}
+
 const NEXT_REGISTRATION_STEP: Record<RegistrationStep, RegistrationStep> = {
   'account-type': 'details',
   details: 'security',
