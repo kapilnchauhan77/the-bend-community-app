@@ -222,7 +222,7 @@ function CommentsDrawer({
   );
 
   return (
-    <div className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
+    <div data-testid="bender-comments-drawer" className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
       <div className="max-h-80 overflow-y-auto px-3 py-2">
         {loading ? (
           <div className="space-y-2 py-2">
@@ -540,6 +540,7 @@ function BenderPostCard({
       {/* View comments link */}
       {post.comment_count > 0 && !commentsOpen && (
         <button
+          data-testid="bender-comments-link"
           onClick={() => setCommentsOpen(true)}
           className="block px-3 pb-2 pt-0.5 text-[12px] text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
         >

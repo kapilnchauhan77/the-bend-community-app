@@ -6,6 +6,7 @@ const sharedFixtureRows = JSON.parse(
   readFileSync(new URL('../../test-fixtures/bender-link-url-cases.json', import.meta.url), 'utf8'),
 ) as FixtureRow[];
 const author = { id: 'u1', name: 'Alex', avatar_url: null, shop_id: null, shop_name: null };
+const comment = { id: 'c1', author, content: 'A comment', created_at: '2026-08-20T10:01:00Z' };
 const base = {
   id: 'p1',
   author,
@@ -38,6 +39,10 @@ async function stubFeed(page: Page, post: Record<string, unknown>) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [post], next_cursor: null, has_more: false }) });
       return;
     }
+    if (request.method() === 'GET' && /\/api\/v1\/bender\/posts\/[^/]+\/comments$/.test(url.pathname)) {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [comment], next_cursor: null, has_more: false }) });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], next_cursor: null, has_more: false }) });
   });
   await page.goto('/bender');
@@ -58,18 +63,20 @@ function preview(overrides: Record<string, unknown> = {}) {
 
 test('published preview omits only its source and renders a safe card', async ({ page }) => {
   await stubFeed(page, { ...base, caption: 'Before https://example.org/event. After https://other.example/x', link_preview: preview({ source_url: 'https://example.org/event', title: 'Event title', site_name: 'Example' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore . After https://other.example/x');
+  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore. After https://other.example/x');
   await expect(page.getByRole('link', { name: 'https://other.example/x' })).toHaveAttribute('href', 'https://other.example/x');
   await expect(page.getByRole('link', { name: 'Event title, Example' })).toHaveAttribute('href', 'https://example.org/canonical');
 });
 
 test('legacy posts retain caption and render no card', async ({ page }) => {
-  await stubFeed(page, { ...base, caption: 'https://example.org/a and https://example.org/b', link_preview: null });
+  await stubFeed(page, { ...base, media_url: '/uploads/post.jpg', comment_count: 1, caption: 'https://example.org/a and https://example.org/b', link_preview: null });
   await expect(page.getByRole('link', { name: 'https://example.org/a' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'https://example.org/b' })).toBeVisible();
   await expect(page.locator('[data-testid="bender-link-preview"]')).toHaveCount(0);
+  await expect(page.getByTestId('bender-comments-link')).toHaveCount(1);
+  await page.getByRole('button', { name: 'View all 1 comment' }).click();
   const order = await page.locator('[data-testid="bender-post"] > *').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')).filter(Boolean));
-  expect(order).toEqual(['bender-post-header', 'bender-actions', 'bender-caption']);
+  expect(order).toEqual(['bender-post-header', 'bender-media', 'bender-actions', 'bender-caption', 'bender-comments-drawer']);
 });
 
 test('text-only card has no image wrapper', async ({ page }) => {
@@ -139,29 +146,52 @@ test('source omission handles same-line spaces, punctuation, and newlines', asyn
   await stubFeed(page, { ...base, caption: 'Join https://example.org today', link_preview: preview({ source_url: 'https://example.org' }) });
   await expect(page.getByTestId('bender-caption')).toHaveText('AlexJoin today');
   await stubFeed(page, { ...base, id: 'p2', caption: 'Before https://example.org. After', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore . After');
+  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore. After');
   await stubFeed(page, { ...base, id: 'p3', caption: 'Before\nhttps://example.org\nAfter', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore\n\nAfter');
+  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore\nAfter');
   await stubFeed(page, { ...base, id: 'p4', caption: 'https://example.org today', link_preview: preview({ source_url: 'https://example.org' }) });
   await expect(page.getByTestId('bender-caption')).toHaveText('Alextoday');
-  await stubFeed(page, { ...base, id: 'p5', caption: 'today https://example.org', link_preview: preview({ source_url: 'https://example.org' }) });
+  await stubFeed(page, { ...base, id: 'p5', caption: 'today https://example.org ', link_preview: preview({ source_url: 'https://example.org' }) });
   await expect(page.getByTestId('bender-caption')).toHaveText('Alextoday');
   await stubFeed(page, { ...base, id: 'p6', caption: 'https://example.org and https://example.org', link_preview: preview({ source_url: 'https://example.org' }) });
   await expect(page.getByRole('link', { name: 'https://example.org' })).toHaveCount(1);
+  await stubFeed(page, { ...base, id: 'p7', caption: '\nhttps://example.org\nAfter', link_preview: preview({ source_url: 'https://example.org' }) });
+  await expect(page.getByTestId('bender-caption')).toHaveText('AlexAfter');
+  await stubFeed(page, { ...base, id: 'p8', caption: 'Before\nhttps://example.org\n', link_preview: preview({ source_url: 'https://example.org' }) });
+  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore');
+  await stubFeed(page, { ...base, id: 'p9', caption: 'Before\n\nhttps://example.org\nAfter', link_preview: preview({ source_url: 'https://example.org' }) });
+  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore\n\nAfter');
 });
 
 test('valid preview order is caption, card, media, actions', async ({ page }) => {
-  await stubFeed(page, { ...base, media_url: '/uploads/post.jpg', caption: 'Before https://example.org', link_preview: preview() });
+  await stubFeed(page, { ...base, media_url: '/uploads/post.jpg', comment_count: 1, caption: 'Before https://example.org', link_preview: preview() });
+  await expect(page.getByTestId('bender-comments-link')).toHaveCount(1);
+  await page.getByRole('button', { name: 'View all 1 comment' }).click();
   const order = await page.locator('[data-testid="bender-post"] > *').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')).filter(Boolean));
-  expect(order).toEqual(['bender-post-header', 'bender-caption', 'bender-preview-slot', 'bender-media', 'bender-actions']);
+  expect(order).toEqual(['bender-post-header', 'bender-caption', 'bender-preview-slot', 'bender-media', 'bender-actions', 'bender-comments-drawer']);
 });
 
 test('long metadata stays contained and image ratio is close to 1.91:1', async ({ page }) => {
   for (const width of [320, 390, 430, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await stubFeed(page, { ...base, id: `wide-${width}`, caption: 'https://example.org', link_preview: preview({ title: 'T'.repeat(180), description: 'D'.repeat(300), site_name: 'S'.repeat(80), image_url: `/uploads/link-previews/${'b'.repeat(64)}.webp` }) });
-    const metrics = await page.getByTestId('bender-link-preview').evaluate((card) => ({ cardWidth: card.clientWidth, scrollWidth: card.scrollWidth }));
+    const metrics = await page.getByTestId('bender-link-preview').evaluate((card) => {
+      const cardRect = card.getBoundingClientRect();
+      const visibleChildren = [...card.querySelectorAll('*')].filter((child) => {
+        const style = window.getComputedStyle(child);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      return {
+        cardWidth: card.clientWidth,
+        scrollWidth: card.scrollWidth,
+        childrenInside: visibleChildren.every((child) => {
+          const rect = child.getBoundingClientRect();
+          return rect.left >= cardRect.left - 0.5 && rect.right <= cardRect.right + 0.5 && rect.top >= cardRect.top - 0.5 && rect.bottom <= cardRect.bottom + 0.5;
+        }),
+      };
+    });
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.cardWidth);
+    expect(metrics.childrenInside).toBe(true);
     const box = await page.getByTestId('bender-link-preview-image-wrapper').boundingBox();
     expect(box).not.toBeNull();
     expect((box?.width ?? 0) / (box?.height ?? 1)).toBeCloseTo(1.91, 1);
@@ -174,11 +204,38 @@ test('card is a single keyboard-focusable safe anchor and tenant route is explic
   await expect.poll(() => paths.includes('GET /api/v1/tenant/current')).toBe(true);
   expect(paths).toContain('GET /api/v1/tenant/current');
   const card = page.getByTestId('bender-link-preview');
-  await card.focus();
-  await expect(card).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
+  await page.getByRole('button', { name: 'More' }).first().focus();
   await page.keyboard.press('Tab');
   await expect(card).toBeFocused();
   await expect(card.locator('a')).toHaveCount(0);
   await expect(card).toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('composer loading and ready modes expose the approved markup and controls', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  const result = await page.evaluate(async () => {
+    const ReactModule = await import('/node_modules/.vite/deps/react.js');
+    const React = ReactModule.default ?? ReactModule;
+    const ReactDOMModule = await import('/node_modules/.vite/deps/react-dom_client.js');
+    const ReactDOM = ReactDOMModule.default ?? ReactDOMModule;
+    const { BenderLinkPreviewCard } = await import('/src/components/features/bender/BenderLinkPreviewCard.tsx');
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = ReactDOM.createRoot(host);
+    const waitForRender = () => new Promise((resolve) => setTimeout(resolve, 50));
+    root.render(React.createElement(BenderLinkPreviewCard, { mode: 'composer', state: 'loading' }));
+    await waitForRender();
+    const loading = { role: host.querySelector('[role="status"]')?.getAttribute('role'), text: host.textContent };
+    let removed = false;
+    root.render(React.createElement(BenderLinkPreviewCard, { mode: 'composer', state: 'ready', preview: { source_url: 'https://example.org', url: 'https://example.org/canonical', title: 'Title', description: null, site_name: null, image_url: null }, onRemove: () => { removed = true; } }));
+    await waitForRender();
+    const ready = { anchorCount: host.querySelectorAll('a').length, removeLabel: host.querySelector('button')?.getAttribute('aria-label') };
+    host.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    root.unmount();
+    host.remove();
+    return { loading, ready, removed };
+  });
+  expect(result.loading).toEqual({ role: 'status', text: 'Loading link preview' });
+  expect(result.ready).toEqual({ anchorCount: 0, removeLabel: 'Remove link preview' });
+  expect(result.removed).toBe(true);
 });

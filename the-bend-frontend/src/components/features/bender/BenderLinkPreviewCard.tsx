@@ -3,14 +3,41 @@ import { isBendLinkPreviewImageUrl, isSafeHttpUrl } from '@/lib/benderLinks';
 import type { BenderLinkPreview } from '@/types';
 
 export type BenderLinkPreviewCardProps =
-  | { mode: 'composer'; state: 'loading' }
+  | {
+      mode: 'composer';
+      state: 'loading';
+      preview?: never;
+      onRemove?: never;
+    }
   | {
       mode: 'composer';
       state: 'ready';
       preview: BenderLinkPreview;
       onRemove: () => void;
     }
-  | { mode: 'feed'; state: 'ready'; preview: BenderLinkPreview };
+  | {
+      mode: 'feed';
+      state: 'ready';
+      preview: BenderLinkPreview;
+      onRemove?: never;
+    };
+
+const benderLinkPreviewTypeProbe = () => {
+  type LoadingCard = Extract<BenderLinkPreviewCardProps, { mode: 'composer'; state: 'loading' }>;
+  type FeedCard = Extract<BenderLinkPreviewCardProps, { mode: 'feed'; state: 'ready' }>;
+  const _loadingPreviewKey: 'preview' extends keyof LoadingCard ? true : never = true;
+  const _feedRemoveKey: 'onRemove' extends keyof FeedCard ? true : never = true;
+  const probePreview = {} as BenderLinkPreview;
+  const probeRemove = () => undefined;
+  const invalidLoading = { mode: 'composer' as const, state: 'loading' as const, preview: probePreview };
+  const invalidFeed = { mode: 'feed' as const, state: 'ready' as const, preview: probePreview, onRemove: probeRemove };
+  // @ts-expect-error composer/loading must reject spread preview props
+  const _loadingProbe: BenderLinkPreviewCardProps = invalidLoading;
+  // @ts-expect-error feed/ready must reject spread onRemove props
+  const _feedProbe: BenderLinkPreviewCardProps = invalidFeed;
+  void [_loadingPreviewKey, _feedRemoveKey, _loadingProbe, _feedProbe];
+};
+void benderLinkPreviewTypeProbe;
 
 function PreviewContents({ preview }: { preview: BenderLinkPreview }) {
   const image = isBendLinkPreviewImageUrl(preview.image_url)

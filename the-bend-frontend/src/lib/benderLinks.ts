@@ -6,6 +6,7 @@ export type BenderCaptionToken = BenderCaptionPart;
 
 const URL_RE = /https?:\/\/[^\s<>"'“”‘’]+/gi;
 const TERMINAL_PUNCTUATION = new Set(['.', ',', '!', '?', ';', ':']);
+const BOUNDARY_PUNCTUATION = new Set(['.', ',', '!', '?', ';', ':']);
 
 function cleanUrlToken(raw: string): string {
   let value = raw;
@@ -68,26 +69,34 @@ export function removeFirstExactUrl(caption: string, sourceUrl: string): string 
   );
   if (!match) return caption;
 
-  let before = caption.slice(0, match.index);
-  let after = caption.slice(match.index + match.value.length);
-  const leftWhitespace = before.match(/[ \t]+$/)?.[0] ?? '';
-  const rightWhitespace = after.match(/^[ \t]+/)?.[0] ?? '';
+  const before = caption.slice(0, match.index);
+  const after = caption.slice(match.index + match.value.length);
+  const leftWhitespace = before.match(/[ \t\r\n]+$/)?.[0] ?? '';
+  const rightWhitespace = after.match(/^[ \t\r\n]+/)?.[0] ?? '';
+  const beforeContent = before.slice(0, before.length - leftWhitespace.length);
+  const afterContent = after.slice(rightWhitespace.length);
 
   if (leftWhitespace && rightWhitespace) {
-    before = before.slice(0, -leftWhitespace.length);
-    after = after.slice(rightWhitespace.length);
-    return `${before} ${after}`;
+    if (!beforeContent.trim()) return afterContent;
+    if (!afterContent.trim()) return beforeContent;
+    if (leftWhitespace.includes('\n') || rightWhitespace.includes('\n')) {
+      const lineBreaks = Math.max(
+        (leftWhitespace.match(/\n/g) ?? []).length,
+        (rightWhitespace.match(/\n/g) ?? []).length,
+      );
+      return `${beforeContent}${'\n'.repeat(lineBreaks)}${afterContent}`;
+    }
+    return `${beforeContent} ${afterContent}`;
   }
 
-  // Only horizontal whitespace exposed at the beginning or end by omission
-  // is trimmed. Newlines remain part of the caption's intentional layout.
-  if (!before.trim()) {
-    before = before.replace(/^[ \t]+/, '');
-    after = after.replace(/^[ \t]+/, '');
-  }
-  if (!after.trim()) {
-    before = before.replace(/[ \t]+$/, '');
-    after = after.replace(/[ \t]+$/, '');
+  if (!before.trim()) return after.replace(/^[ \t\r\n]+/, '');
+  if (!after.trim()) return before.replace(/[ \t\r\n]+$/, '');
+  if (
+    leftWhitespace &&
+    !rightWhitespace &&
+    BOUNDARY_PUNCTUATION.has(after[0] ?? '')
+  ) {
+    return `${beforeContent}${after}`;
   }
   return `${before}${after}`;
 }
