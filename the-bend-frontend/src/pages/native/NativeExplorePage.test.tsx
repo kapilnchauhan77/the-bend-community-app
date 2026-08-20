@@ -42,6 +42,9 @@ describe('NativeExplorePage', () => {
   it('renders the approved type chips without Talent', () => {
     render(<MemoryRouter><NativeExplorePage /></MemoryRouter>)
     for (const label of ['All', 'Listings', 'Businesses', 'Events', 'Bender', 'Volunteer']) expect(screen.getByRole('tab', { name: label })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-controls', 'native-explore-results')
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('id', 'native-explore-results')
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'native-explore-tab-all')
     expect(screen.queryByRole('button', { name: 'Talent' })).not.toBeInTheDocument()
   })
 
