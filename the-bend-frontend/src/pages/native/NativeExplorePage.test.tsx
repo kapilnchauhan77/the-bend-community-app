@@ -9,7 +9,7 @@ import type { NativeDiscoveryCardModel } from '@/native/discovery/types'
 const business = { id: '1', kind: 'business' as const, label: 'Farm', title: 'Farm', supportingText: '', thumbnailUrl: null, targetPath: '/business/1', coordinates: null, urgent: false }
 const listing = { ...business, id: 'listing', kind: 'listing' as const, label: 'staff', title: 'Listing', targetPath: '/listing/1' }
 const event = { ...business, id: 'event', kind: 'event' as const, label: 'community', title: 'Event', targetPath: '/event/1' }
-const bender = { ...business, id: 'bender', kind: 'bender' as never, label: 'Bender', title: 'Community update', supportingText: 'Pat Owner', targetPath: '/bender?post=bender' }
+const bender = { ...business, id: '00000000-0000-0000-0000-000000000001', kind: 'bender' as never, label: 'Bender', title: 'Community update', supportingText: 'Pat Owner', targetPath: '/bender/00000000-0000-0000-0000-000000000001' }
 const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, label: 'Volunteer', title: 'Volunteer', targetPath: '/volunteer/1' }
 const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn>; mapBusinesses?: unknown[]; userCoordinates?: unknown; online?: boolean; location?: { status: string }; requestLocation?: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn(), mapBusinesses: [], userCoordinates: null, online: true, location: { status: 'idle' }, requestLocation: vi.fn() }
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixture) }))
@@ -88,7 +88,7 @@ describe('NativeExplorePage', () => {
     configureTyped([bender])
     render(<MemoryRouter initialEntries={['/explore?type=bender']}><NativeExplorePage /><Probe /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Open Bender post by Pat Owner: Community update' }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/bender?post=bender')
+    expect(screen.getByTestId('location')).toHaveTextContent('/bender/00000000-0000-0000-0000-000000000001')
   })
 
   it('exposes Map for All and Businesses only when the supplied eligible business set exists', () => {

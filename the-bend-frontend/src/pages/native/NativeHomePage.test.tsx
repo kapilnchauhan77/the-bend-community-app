@@ -115,7 +115,7 @@ describe('NativeHomePage', () => {
   })
 
   it('renders Bender previews as full-width cards with feed and post destinations', () => {
-    homeState.bender.data = [benderPost('post-one', 'Fresh vegetables today', 'Alex Neighbor'), benderPost('post-two', 'Community cleanup Saturday', 'Jordan Neighbor')]
+    homeState.bender.data = [benderPost('00000000-0000-0000-0000-000000000001', 'Fresh vegetables today', 'Alex Neighbor'), benderPost('00000000-0000-0000-0000-000000000002', 'Community cleanup Saturday', 'Jordan Neighbor')]
     render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     const benderHeading = screen.getByRole('heading', { name: /from bender/i })
     const benderSection = benderHeading.closest('section')!
@@ -126,7 +126,7 @@ describe('NativeHomePage', () => {
     fireEvent.click(within(benderSection).getByRole('button', { name: 'See all' }))
     fireEvent.click(cards[0]!)
     expect(navigate).toHaveBeenCalledWith('/bender')
-    expect(navigate).toHaveBeenCalledWith('/bender?post=post-one')
+    expect(navigate).toHaveBeenCalledWith('/bender/00000000-0000-0000-0000-000000000001')
   })
 
   it('keeps a Bender error local and wires its retry action', () => {

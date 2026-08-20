@@ -76,3 +76,11 @@ async def test_user_without_shop_has_null_url():
                                  role=types.SimpleNamespace(value="individual"))
     card = await rs.resolve_reference(_DB([user]), tid, "user", user.id)
     assert card["url"] is None
+
+
+@pytest.mark.asyncio
+async def test_bender_card_uses_canonical_focused_post_path():
+    tid = _tenant()
+    post = types.SimpleNamespace(id=uuid.uuid4(), tenant_id=tid, caption="Fresh update", media_thumbnail_url=None, media_url=None, author_user_id=uuid.uuid4())
+    card = await rs.resolve_reference(_DB([post]), tid, "bender", post.id)
+    assert card["url"] == f"/bender/{post.id}"

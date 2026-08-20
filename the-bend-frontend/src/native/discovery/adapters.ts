@@ -2,6 +2,7 @@ import type { BenderPost, CommunityEvent, Listing, Shop } from '@/types'
 import { isVideoUrl } from '@/lib/utils'
 import { getSafeBenderPreview } from './benderPresentation'
 import type { NativeDiscoveryCardModel } from './types'
+import { benderPostPath } from '@/routes/benderRoutes'
 
 function publicCoordinates(shop: Shop) {
   const { latitude, longitude } = shop
@@ -47,5 +48,5 @@ export function adaptBender(post: BenderPost): NativeDiscoveryCardModel {
   const { previewUrl } = getSafeBenderPreview(post)
   const avatarUrl = post.author.avatar_url && !isVideoUrl(post.author.avatar_url) ? post.author.avatar_url : null
   const thumbnailUrl = previewUrl || avatarUrl
-  return { id: post.id, kind: 'bender', label: 'Bender', title: caption || `Post from ${author}`, supportingText: author, thumbnailUrl, targetPath: `/bender?post=${encodeURIComponent(post.id)}`, coordinates: null, urgent: false }
+  return { id: post.id, kind: 'bender', label: 'Bender', title: caption || `Post from ${author}`, supportingText: author, thumbnailUrl, targetPath: benderPostPath(post.id), coordinates: null, urgent: false }
 }

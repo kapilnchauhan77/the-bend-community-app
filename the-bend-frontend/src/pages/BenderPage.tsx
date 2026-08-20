@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Heart,
   MessageCircle,
@@ -32,6 +32,8 @@ import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 import { useBenderFeed } from '@/hooks/useBenderFeed';
 import { useBenderDraft } from '@/hooks/useBenderDraft';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
+import { benderPostPath, getLegacyBenderPostId } from '@/routes/benderRoutes';
+import { publicWestmorelandUrl } from '@/lib/publicUrl';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -392,7 +394,7 @@ function BenderPostCard({
   }, [post, isAuthenticated, navigate, onPatch, runOnline]);
 
   const handleShare = useCallback(async () => {
-    const url = `${window.location.origin}/bender#post-${post.id}`;
+    const url = publicWestmorelandUrl(benderPostPath(post.id));
     const title = `${display} on Bender`;
     const text = post.caption || `${display} posted on Bender`;
     if (navigator.share) {
@@ -838,13 +840,15 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
   const feed = useBenderFeed();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { hash } = useLocation();
+  const { postId } = useParams();
   const { user, isAuthenticated } = useAuthStore();
   const [composerOpen, setComposerOpen] = useState(false);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const feedTopRef = useRef<HTMLDivElement>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Tracks which `?post=` id we've already scrolled to, so re-renders (e.g.
+  // Tracks which focused id we've already scrolled to, so re-renders (e.g.
   // more pages loading) don't keep re-scrolling once the target was found.
   const focusedPostRef = useRef<string | null>(null);
 
@@ -869,11 +873,11 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
   }, [cursor, hasMore, loading, loadingMore, loadMoreError, loadNext]);
 
   // Deep-link focus — a bender reference card in a message links to
-  // `/bender?post={id}`. Once the feed has loaded and the target post is
+  // `/bender/{id}`. Once the feed has loaded and the target post is
   // actually in the DOM, scroll it into view and briefly ring-highlight it.
   // If the id isn't in the loaded set (later page, or deleted), no-op — we
   // don't force-paginate to find it.
-  const focusPostId = searchParams.get('post');
+  const focusPostId = postId ?? getLegacyBenderPostId(searchParams.toString(), hash);
   useEffect(() => {
     if (!focusPostId || loading) return;
     if (focusedPostRef.current === focusPostId) return;

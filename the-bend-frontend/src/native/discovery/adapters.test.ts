@@ -18,7 +18,7 @@ const event: CommunityEvent = {
 }
 
 const benderPost: BenderPost = {
-  id: 'post-1', author: { id: 'author-1', name: 'Pat Owner', shop_id: 'shop-1', shop_name: 'Westmoreland Works', avatar_url: '/author.jpg' },
+  id: '00000000-0000-0000-0000-000000000001', author: { id: 'author-1', name: 'Pat Owner', shop_id: 'shop-1', shop_name: 'Westmoreland Works', avatar_url: '/author.jpg' },
   caption: 'Fresh produce this weekend', media_url: '/uploads/bender/post.mp4', media_thumbnail_url: '/uploads/bender/post-thumb.jpg', media_type: 'video',
   like_count: 3, comment_count: 2, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z',
 }
@@ -60,8 +60,8 @@ describe('native discovery adapters', () => {
 
   it('maps a Bender post to a focused native card without exposing social viewer state', () => {
     expect(adaptBender(benderPost)).toEqual({
-      id: 'post-1', kind: 'bender', label: 'Bender', title: 'Fresh produce this weekend', supportingText: 'Westmoreland Works',
-      thumbnailUrl: '/uploads/bender/post-thumb.jpg', targetPath: '/bender?post=post-1', coordinates: null, urgent: false,
+      id: '00000000-0000-0000-0000-000000000001', kind: 'bender', label: 'Bender', title: 'Fresh produce this weekend', supportingText: 'Westmoreland Works',
+      thumbnailUrl: '/uploads/bender/post-thumb.jpg', targetPath: '/bender/00000000-0000-0000-0000-000000000001', coordinates: null, urgent: false,
     })
   })
 

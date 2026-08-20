@@ -57,7 +57,7 @@ def _bender_card(obj, author) -> dict:
         "type": "bender", "id": str(obj.id), "title": title,
         "subtitle": author.name if author else "",
         "image_url": obj.media_thumbnail_url or obj.media_url,
-        "url": f"/bender?post={obj.id}",
+        "url": f"/bender/{obj.id}",
     }
 
 

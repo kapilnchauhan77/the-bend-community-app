@@ -4,7 +4,7 @@ import { NativeBenderCard } from './NativeBenderCard'
 import type { BenderPost } from '@/types'
 
 const post = (overrides: Partial<BenderPost> = {}): BenderPost => ({
-  id: 'post-1',
+  id: '00000000-0000-0000-0000-000000000001',
   author: { id: 'author-1', name: 'Alex Neighbor', avatar_url: null, shop_id: null, shop_name: null },
   caption: 'Fresh vegetables at the market today',
   media_url: null,
@@ -37,11 +37,11 @@ describe('NativeBenderCard', () => {
     expect(screen.getByText('3 comments')).toBeInTheDocument()
   })
 
-  it('opens the canonical post query from its accessible card control', () => {
+  it('opens the canonical post path from its accessible card control', () => {
     const onOpen = vi.fn()
-    render(<NativeBenderCard post={post({ id: 'post id/with spaces' })} onOpen={onOpen} />)
+    render(<NativeBenderCard post={post()} onOpen={onOpen} />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Bender post by Alex Neighbor: Fresh vegetables at the market today' }))
-    expect(onOpen).toHaveBeenCalledWith('/bender?post=post%20id%2Fwith%20spaces')
+    expect(onOpen).toHaveBeenCalledWith('/bender/00000000-0000-0000-0000-000000000001')
   })
 
   it('distinguishes posts from the same author and bounds extreme accessible names', () => {
