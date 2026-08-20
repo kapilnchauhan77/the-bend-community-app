@@ -125,20 +125,21 @@ def test_store_reuse_race_never_touches_outside_symlink_target(tmp_path, monkeyp
     outside = tmp_path / "outside.webp"
     outside.write_bytes(b"outside")
     old_mtime = outside.stat().st_mtime_ns
-    original_lstat = Path.lstat
+    original_stat = Path.stat
     swapped = False
 
-    def swap_after_lstat(path):
+    def swap_after_stat(path, *, follow_symlinks=True):
+        result = original_stat(path, follow_symlinks=follow_symlinks)
         nonlocal swapped
-        result = original_lstat(path)
-        if path == target and not swapped:
+        if path == target and follow_symlinks is False and not swapped:
             swapped = True
             target.unlink()
             target.symlink_to(outside)
         return result
 
-    monkeypatch.setattr(Path, "lstat", swap_after_lstat)
+    monkeypatch.setattr(Path, "stat", swap_after_stat)
     assert store.store(payload) == url
+    assert swapped is True
     assert outside.stat().st_mtime_ns == old_mtime
     assert outside.read_bytes() == b"outside"
 
@@ -266,3 +267,7 @@ def test_shared_lock_coordinates_with_exclusive_lock_across_processes(tmp_path):
         if process.is_alive():
             process.terminate()
         process.join(timeout=2)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=2)
+        assert not process.is_alive()
