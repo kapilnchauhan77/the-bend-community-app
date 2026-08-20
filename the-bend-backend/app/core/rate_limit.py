@@ -1,5 +1,6 @@
 """Redis-based sliding window rate limiter."""
 import time
+import secrets
 from typing import Callable
 
 from fastapi import Request, Depends
@@ -51,7 +52,7 @@ async def check_rate_limit(
     # Remove old entries
     pipe.zremrangebyscore(key, 0, window_start)
     # Add current request
-    pipe.zadd(key, {str(now): now})
+    pipe.zadd(key, {f"{now:.9f}:{secrets.token_hex(16)}": now})
     # Count requests in window
     pipe.zcard(key)
     # Set expiry on the key

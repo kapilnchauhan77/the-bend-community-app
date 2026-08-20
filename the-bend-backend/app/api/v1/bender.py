@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -9,6 +10,8 @@ from app.core.permissions import (
     get_current_user,
     get_current_user_optional,
 )
+from app.core.exceptions import AppException, RateLimitError
+from app.core.rate_limit import check_rate_limit, get_redis
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.bender import (
@@ -18,14 +21,96 @@ from app.schemas.bender import (
     BenderFeedResponse,
     BenderPostCreate,
     BenderPostResponse,
+    BenderLinkPreviewRequest,
+    BenderLinkPreviewResponse,
 )
 from app.services.bender_service import BenderService
+from app.services.bender_link_preview_service import BenderLinkPreviewService
+from app.services.bender_link_preview_store import BenderLinkPreviewStore
+from app.services.link_preview_generator import BenderLinkPreviewGenerator
+from app.services.link_preview_errors import (
+    LinkPreviewDeadlineExceeded,
+    LinkPreviewResponseTooLarge,
+    LinkPreviewTitleMissing,
+    LinkPreviewUpstreamFailure,
+)
+from app.services.bender_link_urls import LinkPreviewURLRejected
+from app.services.link_preview_metadata import LinkPreviewMetadataParser
+from app.services.link_preview_image_store import LinkPreviewImageStore
+from app.services.safe_external_fetcher import SafeExternalFetcher
 
 router = APIRouter(prefix="/bender", tags=["Bender"])
 
 
 def get_service(db: AsyncSession = Depends(get_db)) -> BenderService:
     return BenderService(db)
+
+
+async def enforce_link_preview_rate_limit(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    try:
+        await check_rate_limit(request, str(current_user.id), max_requests=10, window_seconds=60)
+    except RedisError as exc:
+        raise AppException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "LINK_PREVIEW_UNAVAILABLE",
+            "Link preview is temporarily unavailable",
+        ) from exc
+
+
+async def get_link_preview_store(redis=Depends(get_redis)) -> BenderLinkPreviewStore:
+    return BenderLinkPreviewStore(redis)
+
+
+def get_link_preview_generator() -> BenderLinkPreviewGenerator:
+    return BenderLinkPreviewGenerator(
+        fetcher=SafeExternalFetcher(),
+        parser=LinkPreviewMetadataParser(),
+        image_store=LinkPreviewImageStore(),
+    )
+
+
+def get_link_preview_service(
+    store: BenderLinkPreviewStore = Depends(get_link_preview_store),
+    generator: BenderLinkPreviewGenerator = Depends(get_link_preview_generator),
+) -> BenderLinkPreviewService:
+    return BenderLinkPreviewService(store, generator)
+
+
+@router.post(
+    "/link-preview",
+    response_model=BenderLinkPreviewResponse,
+    dependencies=[Depends(enforce_link_preview_rate_limit)],
+)
+async def create_link_preview(
+    data: BenderLinkPreviewRequest,
+    service: BenderLinkPreviewService = Depends(get_link_preview_service),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        if not data.url.strip() or len(data.url.strip()) > 2048:
+            raise LinkPreviewURLRejected("invalid_length")
+        return await service.create_preview(
+            data.url,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
+        )
+    except LinkPreviewURLRejected as exc:
+        raise AppException(status.HTTP_400_BAD_REQUEST, "LINK_PREVIEW_URL_REJECTED", "Invalid preview URL") from exc
+    except LinkPreviewResponseTooLarge as exc:
+        raise AppException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "LINK_PREVIEW_TOO_LARGE", "Preview response is too large") from exc
+    except LinkPreviewTitleMissing as exc:
+        raise AppException(status.HTTP_422_UNPROCESSABLE_ENTITY, "LINK_PREVIEW_TITLE_MISSING", "Preview metadata is unavailable") from exc
+    except LinkPreviewUpstreamFailure as exc:
+        raise AppException(status.HTTP_502_BAD_GATEWAY, "LINK_PREVIEW_UPSTREAM_FAILURE", "Preview source is unavailable") from exc
+    except LinkPreviewDeadlineExceeded as exc:
+        raise AppException(status.HTTP_504_GATEWAY_TIMEOUT, "LINK_PREVIEW_TIMEOUT", "Preview request timed out") from exc
+    except RateLimitError:
+        raise
+    except RedisError as exc:
+        raise AppException(status.HTTP_503_SERVICE_UNAVAILABLE, "LINK_PREVIEW_UNAVAILABLE", "Link preview is temporarily unavailable") from exc
 
 
 # ----------------------------------------------------------------------
