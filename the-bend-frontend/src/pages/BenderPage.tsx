@@ -411,15 +411,17 @@ function BenderPostCard({
 
   const visiblePreview = post.link_preview && isSafeHttpUrl(post.link_preview.url) ? post.link_preview : null;
   const captionBlock = post.caption ? (
-    <div className="px-3 pt-1 pb-1 text-[13px] leading-snug min-w-0">
-      <span className="font-semibold text-[hsl(30,15%,18%)] mr-1">{display}</span>
-      <BenderCaption caption={post.caption} sourceUrl={visiblePreview?.source_url} />
-    </div>
+    <BenderCaption
+      caption={post.caption}
+      authorName={display}
+      omittedSourceUrl={visiblePreview?.source_url}
+    />
   ) : null;
 
   return (
     <article
       id={`post-${post.id}`}
+      data-testid="bender-post"
       className={`bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden mb-3 transition-shadow duration-300 ${
         isHighlighted
           ? 'ring-2 ring-offset-2 ring-[hsl(35,45%,42%)]'
@@ -427,7 +429,7 @@ function BenderPostCard({
       }`}
     >
       {/* Header row */}
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div data-testid="bender-post-header" className="flex items-center gap-2 px-3 py-2">
         <AuthorAvatar author={post.author} size={28} />
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-[hsl(30,15%,18%)] truncate">
@@ -451,11 +453,15 @@ function BenderPostCard({
       </div>
 
       {visiblePreview && captionBlock}
-      {visiblePreview && <div className="px-3 pb-1 min-w-0"><BenderLinkPreviewCard preview={visiblePreview} /></div>}
+      {visiblePreview && (
+        <div data-testid="bender-preview-slot" className="px-3 pb-1 min-w-0">
+          <BenderLinkPreviewCard mode="feed" state="ready" preview={visiblePreview} />
+        </div>
+      )}
 
       {/* Media (1:1) */}
       {post.media_url && (
-        <div className="relative w-full bg-black aspect-square overflow-hidden">
+        <div data-testid="bender-media" className="relative w-full bg-black aspect-square overflow-hidden">
           {isVideo ? (
             <video
               controls
@@ -477,7 +483,7 @@ function BenderPostCard({
       )}
 
       {/* Action row */}
-      <div className="flex items-center gap-3 px-3 pt-2 pb-1">
+      <div data-testid="bender-actions" className="flex items-center gap-3 px-3 pt-2 pb-1">
         <button
           onClick={handleLikeToggle}
           className="flex items-center gap-1 cursor-pointer transition-transform active:scale-90"

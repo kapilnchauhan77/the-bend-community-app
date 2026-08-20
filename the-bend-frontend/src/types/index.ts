@@ -340,9 +340,9 @@ export interface BenderLinkPreview {
   source_url: string;
   url: string;
   title: string;
-  description?: string | null;
-  site_name?: string | null;
-  image_url?: string | null;
+  description: string | null;
+  site_name: string | null;
+  image_url: string | null;
 }
 
 export interface BenderComment {
