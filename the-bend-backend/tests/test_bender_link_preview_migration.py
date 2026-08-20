@@ -20,7 +20,11 @@ def test_migration_adds_nullable_jsonb_column(monkeypatch):
         captured["table"] = table
         captured["column"] = column
 
+    def drop_column(table, column):
+        captured.setdefault("dropped", []).append((table, column))
+
     monkeypatch.setattr(migration.op, "add_column", add_column)
+    monkeypatch.setattr(migration.op, "drop_column", drop_column)
     migration.upgrade()
 
     assert migration.revision == "bender_link_preview"
@@ -29,3 +33,5 @@ def test_migration_adds_nullable_jsonb_column(monkeypatch):
     assert captured["column"].name == "link_preview"
     assert isinstance(captured["column"].type, postgresql.JSONB)
     assert captured["column"].nullable is True
+    migration.downgrade()
+    assert ("bender_posts", "link_preview") in captured["dropped"]
