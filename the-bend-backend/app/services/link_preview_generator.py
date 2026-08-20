@@ -80,7 +80,7 @@ class BenderLinkPreviewGenerator:
             try:
                 validated = await self.fetcher.validate_destination(parsed.destination_candidate, deadline=deadline)
                 destination = validated.normalized_url
-            except (LinkPreviewURLRejected, LinkPreviewUpstreamFailure, LinkPreviewDeadlineExceeded, ValueError):
+            except (LinkPreviewURLRejected, LinkPreviewUpstreamFailure, ValueError):
                 destination = page.final_url
 
         outcomes: set[LinkPreviewOutcome] = {"success"}
@@ -113,7 +113,7 @@ class BenderLinkPreviewGenerator:
                 outcomes.update({"image_processing_failure", "oversized_response"})
             except LinkPreviewDeadlineExceeded:
                 outcomes.update({"image_processing_failure", "timeout"})
-            except (LinkPreviewUpstreamFailure, LinkPreviewImageProcessingError, ValueError):
+            except (LinkPreviewUpstreamFailure, LinkPreviewImageProcessingError, OSError, ValueError):
                 outcomes.update({"image_processing_failure", "invalid_content"})
 
         metadata = LinkPreviewMetadata(
@@ -126,7 +126,7 @@ class BenderLinkPreviewGenerator:
         return GeneratedLinkPreview(metadata, normalized_request_url, page.final_url, frozenset(outcomes))
 
     async def touch_cached_image(self, image_url: str | None) -> bool:
-        if not image_url:
+        if image_url is None:
             return True
         return await asyncio.to_thread(self.image_store.touch, image_url)
 

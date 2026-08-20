@@ -84,6 +84,13 @@ class _FakeStore:
         return path == LOCAL_IMAGE
 
 
+class _SleepingParser(_FakeParser):
+    def parse(self, body, *, final_url, deadline=None):
+        self.seen_deadline = deadline
+        time.sleep(0.05)
+        return super().parse(body, final_url=final_url, deadline=deadline)
+
+
 def _generator(*, fetcher=None, parsed=None, store=None, clock=None, deadline_seconds=4.5):
     from app.services.link_preview_generator import BenderLinkPreviewGenerator
 
@@ -120,6 +127,17 @@ async def test_unsafe_canonical_falls_back_to_fetched_final_url():
     generated = await _generator(fetcher=fetcher, parsed=parsed).generate(PAGE_URL)
     assert generated.metadata.url == "https://example.org/final"
     assert all(kind != "html" for kind, _ in fetcher.calls[1:])
+
+
+@pytest.mark.asyncio
+async def test_canonical_timeout_is_not_swallowed_into_fallback_success():
+    parsed = ParsedLinkPreview("Title", None, "Example", CANONICAL_URL, ())
+    fetcher = _FakeFetcher(
+        SafeFetchResponse(PAGE_URL, b"html", "text/html"),
+        canonical_error=LinkPreviewDeadlineExceeded("deadline_exceeded"),
+    )
+    with pytest.raises(LinkPreviewDeadlineExceeded):
+        await _generator(fetcher=fetcher, parsed=parsed).generate(PAGE_URL)
 
 
 @pytest.mark.asyncio
@@ -160,7 +178,6 @@ async def test_attempts_no_more_than_four_image_candidates():
         (LinkPreviewDeadlineExceeded("deadline_exceeded"), "timeout"),
         (LinkPreviewResponseTooLarge("response_too_large"), "oversized_response"),
         (LinkPreviewUpstreamFailure("invalid_content"), "invalid_content"),
-        (LinkPreviewImageProcessingError("invalid_image"), "invalid_content"),
     ],
 )
 async def test_image_only_failures_return_text_only_and_record_outcomes(error, secondary):
@@ -169,6 +186,30 @@ async def test_image_only_failures_return_text_only_and_record_outcomes(error, s
     generated = await _generator(fetcher=fetcher, parsed=parsed).generate(PAGE_URL)
     assert generated.metadata.image_url is None
     assert generated.outcomes == frozenset({"success", "image_processing_failure", secondary})
+
+
+@pytest.mark.asyncio
+async def test_image_store_processing_failure_is_text_only_at_store_stage():
+    parsed = ParsedLinkPreview("Title", "Description", "Example", None, (IMAGE_URLS[0],))
+    generated = await _generator(
+        fetcher=_FakeFetcher(SafeFetchResponse(PAGE_URL, b"html", "text/html")),
+        parsed=parsed,
+        store=_FakeStore(error=LinkPreviewImageProcessingError("invalid_image")),
+    ).generate(PAGE_URL)
+    assert generated.metadata.image_url is None
+    assert generated.outcomes == frozenset({"success", "image_processing_failure", "invalid_content"})
+
+
+@pytest.mark.asyncio
+async def test_image_store_oserror_is_text_only_and_invalid_content():
+    parsed = ParsedLinkPreview("Title", "Description", "Example", None, (IMAGE_URLS[0],))
+    generated = await _generator(
+        fetcher=_FakeFetcher(SafeFetchResponse(PAGE_URL, b"html", "text/html")),
+        parsed=parsed,
+        store=_FakeStore(error=OSError("disk full")),
+    ).generate(PAGE_URL)
+    assert generated.metadata.image_url is None
+    assert generated.outcomes == frozenset({"success", "image_processing_failure", "invalid_content"})
 
 
 @pytest.mark.asyncio
@@ -205,6 +246,24 @@ async def test_page_deadline_is_not_converted_to_text_only():
 
 
 @pytest.mark.asyncio
+async def test_parser_timeout_uses_same_absolute_deadline_and_raises_typed_error():
+    fetcher = _FakeFetcher(SafeFetchResponse(PAGE_URL, b"html", "text/html"))
+    parser = _SleepingParser(ParsedLinkPreview("Title", None, "Example", None, ()))
+    from app.services.link_preview_generator import BenderLinkPreviewGenerator
+
+    loop_clock = asyncio.get_running_loop().time
+    with pytest.raises(LinkPreviewDeadlineExceeded):
+        await BenderLinkPreviewGenerator(
+            fetcher,
+            parser,
+            _FakeStore(),
+            clock=loop_clock,
+            deadline_seconds=0.001,
+        ).generate(PAGE_URL)
+    assert fetcher.deadlines and parser.seen_deadline == fetcher.deadlines[0]
+
+
+@pytest.mark.asyncio
 async def test_touch_cached_image_has_no_work_for_none_and_uses_thread_for_path():
     store = _FakeStore()
     generator = _generator(store=store)
@@ -212,4 +271,6 @@ async def test_touch_cached_image_has_no_work_for_none_and_uses_thread_for_path(
     assert store.calls == []
     assert await generator.touch_cached_image(LOCAL_IMAGE) is True
     assert store.calls == [("touch", LOCAL_IMAGE)]
+    assert await generator.touch_cached_image("") is False
+    assert store.calls[-1] == ("touch", "")
     assert await generator.touch_cached_image("/uploads/link-previews/" + "b" * 64 + ".webp") is False
