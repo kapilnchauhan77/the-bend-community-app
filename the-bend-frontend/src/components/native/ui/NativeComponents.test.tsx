@@ -12,7 +12,7 @@ import { NativeQuickAction } from './NativeQuickAction'
 import { NativeSectionHeader } from './NativeSectionHeader'
 import { PermissionPrimer } from '../PermissionPrimer'
 
-const item = { id: 'listing-1', kind: 'listing' as const, label: 'Generator', title: 'Power generator needed', supportingText: 'Community request', thumbnailUrl: null, targetPath: '/listing/listing-1', coordinates: null, urgent: true }
+const item = { id: 'listing-1', kind: 'listing' as const, label: 'Generator', title: 'Power generator needed', supportingText: 'Community request', thumbnailUrl: null, mediaFit: 'cover' as const, targetPath: '/listing/listing-1', coordinates: null, urgent: true }
 const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 const indexHtml = readFileSync('index.html', 'utf8')
 const cssRules = [...nativeCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selectors, body]) => ({ selectors: selectors.split(',').map((selector) => selector.trim()), body }))
@@ -50,6 +50,18 @@ describe('native UI primitives', () => {
   it('sets fixed image dimensions on discovery cards', () => {
     render(<NativeDiscoveryCard item={{ ...item, urgent: false, thumbnailUrl: 'https://example.com/a.jpg' }} onOpen={vi.fn()} />)
     expect(screen.getByRole('img')).toHaveAttribute('width', '96'); expect(screen.getByRole('img')).toHaveAttribute('height', '96')
+  })
+  it('exposes explicit media fit and preserves stable fallback geometry', () => {
+    const { rerender } = render(<NativeDiscoveryCard item={{ ...item, kind: 'business', mediaFit: 'contain', thumbnailUrl: '/logo.png', urgent: false }} onOpen={vi.fn()} />)
+    expect(screen.getByRole('img')).toHaveAttribute('data-media-fit', 'contain')
+    expect(screen.getByRole('img')).toHaveClass('native-discovery-media--contain')
+    fireEvent.error(screen.getByRole('img'))
+    const fallback = document.querySelector('.native-thumbnail-fallback')
+    expect(fallback).toHaveAttribute('data-media-fit', 'contain')
+    expect(fallback).toHaveClass('native-discovery-media--contain')
+    expect(fallback).toHaveClass('native-thumbnail')
+    rerender(<NativeDiscoveryCard item={{ ...item, mediaFit: 'cover', thumbnailUrl: '/listing.jpg', urgent: false }} onOpen={vi.fn()} />)
+    expect(screen.getByRole('img')).toHaveAttribute('data-media-fit', 'cover')
   })
   it('resolves backend upload paths before rendering discovery images', () => {
     render(<NativeDiscoveryCard item={{ ...item, urgent: false, thumbnailUrl: '/uploads/images/listing.jpg' }} onOpen={vi.fn()} />)

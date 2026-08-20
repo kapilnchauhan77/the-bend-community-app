@@ -37,15 +37,15 @@ describe('native discovery adapters', () => {
     ['Already Human Title', 'Already Human Title'],
   ])('preserves human casing for %s', (value, expected) => { expect(humanizeLabel(value)).toBe(expected) })
   it('maps a listing to its public card and direct path', () => {
-    expect(adaptListing(listing, 'en-US')).toMatchObject({ id: 'listing-1', kind: 'listing', title: 'Portable generator', label: 'Generator Repair', thumbnailUrl: '/thumb.jpg', targetPath: '/listing/listing-1', urgent: true, coordinates: null })
+    expect(adaptListing(listing, 'en-US')).toMatchObject({ id: 'listing-1', kind: 'listing', title: 'Portable generator', label: 'Generator Repair', thumbnailUrl: '/thumb.jpg', mediaFit: 'cover', targetPath: '/listing/listing-1', urgent: true, coordinates: null })
   })
 
   it('normalizes an opportunity as volunteer and never exposes coordinates', () => {
-    expect(adaptOpportunity({ ...listing, category: 'volunteer' }, 'en-US')).toMatchObject({ kind: 'volunteer', targetPath: '/listing/listing-1', coordinates: null })
+    expect(adaptOpportunity({ ...listing, category: 'volunteer' }, 'en-US')).toMatchObject({ kind: 'volunteer', mediaFit: 'cover', targetPath: '/listing/listing-1', coordinates: null })
   })
 
   it('maps public business fields and valid coordinates', () => {
-    expect(adaptBusiness(shop, 'en-US')).toMatchObject({ kind: 'business', supportingText: '1 Main St', thumbnailUrl: '/avatar.png', targetPath: '/business/shop-1', coordinates: { latitude: 40.1, longitude: -79.5 } })
+    expect(adaptBusiness(shop, 'en-US')).toMatchObject({ kind: 'business', supportingText: '1 Main St', thumbnailUrl: '/avatar.png', mediaFit: 'contain', targetPath: '/business/shop-1', coordinates: { latitude: 40.1, longitude: -79.5 } })
   })
 
   it.each([
@@ -55,13 +55,13 @@ describe('native discovery adapters', () => {
   })
 
   it('maps an event date and location and keeps coordinates private', () => {
-    expect(adaptEvent(event, 'en-US', new Date('2026-08-18T00:00:00Z'))).toMatchObject({ kind: 'event', supportingText: expect.stringContaining('Main street'), thumbnailUrl: '/event.jpg', targetPath: '/events/event-1', coordinates: null })
+    expect(adaptEvent(event, 'en-US', new Date('2026-08-18T00:00:00Z'))).toMatchObject({ kind: 'event', supportingText: expect.stringContaining('Main street'), thumbnailUrl: '/event.jpg', mediaFit: 'cover', targetPath: '/events/event-1', coordinates: null })
   })
 
   it('maps a Bender post to a focused native card without exposing social viewer state', () => {
     expect(adaptBender(benderPost)).toEqual({
       id: '00000000-0000-0000-0000-000000000001', kind: 'bender', label: 'Bender', title: 'Fresh produce this weekend', supportingText: 'Westmoreland Works',
-      thumbnailUrl: '/uploads/bender/post-thumb.jpg', targetPath: '/bender/00000000-0000-0000-0000-000000000001', coordinates: null, urgent: false,
+      thumbnailUrl: '/uploads/bender/post-thumb.jpg', mediaFit: 'cover', targetPath: '/bender/00000000-0000-0000-0000-000000000001', coordinates: null, urgent: false,
     })
   })
 

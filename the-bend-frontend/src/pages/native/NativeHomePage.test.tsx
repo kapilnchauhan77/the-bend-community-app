@@ -104,7 +104,7 @@ describe('NativeHomePage', () => {
   })
 
   it('renders populated sections in exact order with lazy media and all See all destinations', () => {
-    const item = { id: 'u1', kind: 'listing', label: 'Urgent', title: 'Generator', supportingText: 'Need', thumbnailUrl: '/generator.jpg', targetPath: '/listing/u1', coordinates: null, urgent: true }
+    const item = { id: 'u1', kind: 'listing', label: 'Urgent', title: 'Generator', supportingText: 'Need', thumbnailUrl: '/generator.jpg', mediaFit: 'cover' as const, targetPath: '/listing/u1', coordinates: null, urgent: true }
     homeState.urgent.data = [item]; homeState.upcoming.data = [{ ...item, id: 'e1', kind: 'event', title: 'Town hall', urgent: false }]; homeState.opportunities.data = [{ ...item, id: 'v1', kind: 'volunteer', title: 'Food drive', urgent: false }]; homeState.bender.data = [benderPost('00000000-0000-0000-0000-000000000003', 'Fresh vegetables', 'Alex Neighbor')]
     const { container } = render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     const headings = [...container.querySelectorAll('h2')].map((node) => node.textContent?.replace(/\s*\(\d+\)/, ''))

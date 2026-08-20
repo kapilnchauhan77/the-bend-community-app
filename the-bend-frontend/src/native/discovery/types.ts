@@ -1,4 +1,5 @@
 export type NativeDiscoveryKind = 'listing' | 'business' | 'event' | 'bender' | 'volunteer'
+export type NativeMediaFit = 'cover' | 'contain'
 export type NativeExploreType = 'all' | 'listings' | 'businesses' | 'events' | 'bender' | 'volunteer'
 export type NativeSectionStatus = 'loading' | 'success' | 'empty' | 'error'
 
@@ -28,6 +29,7 @@ export interface NativeDiscoveryCardModel {
   title: string
   supportingText: string
   thumbnailUrl: string | null
+  mediaFit: NativeMediaFit
   targetPath: string
   coordinates: { latitude: number; longitude: number } | null
   urgent: boolean

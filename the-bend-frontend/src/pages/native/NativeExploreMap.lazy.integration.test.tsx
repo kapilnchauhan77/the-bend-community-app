@@ -28,7 +28,7 @@ describe('NativeExplorePage lazy map boundary', () => {
     expect(harness.evaluated).toBe(false)
     expect(screen.queryByTestId('lazy-map-sentinel')).not.toBeInTheDocument()
 
-    const mapBusiness = { id: 'map-1', kind: 'business', label: 'Farm', title: 'Map Farm', supportingText: 'Main Street', thumbnailUrl: null, targetPath: '/business/map-1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: null }
+    const mapBusiness = { id: 'map-1', kind: 'business', label: 'Farm', title: 'Map Farm', supportingText: 'Main Street', thumbnailUrl: null, mediaFit: 'contain', targetPath: '/business/map-1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: null }
     harness.fixture.groups[0].state.status = 'success'
     harness.fixture.groups[0].state.data = [mapBusiness]
     harness.fixture.mapBusinesses = [mapBusiness]

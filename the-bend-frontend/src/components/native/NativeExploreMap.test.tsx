@@ -14,7 +14,7 @@ vi.mock('react-leaflet', () => ({
   useMap: () => mapHarness,
 }))
 
-const business = { id: 'b1', kind: 'business' as const, label: 'Farm', title: 'Westmoreland Farm', supportingText: 'Main Street', thumbnailUrl: null, targetPath: '/business/b1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: 2.4 }
+const business = { id: 'b1', kind: 'business' as const, label: 'Farm', title: 'Westmoreland Farm', supportingText: 'Main Street', thumbnailUrl: null, mediaFit: 'contain' as const, targetPath: '/business/b1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: 2.4 }
 const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 afterEach(() => cleanup())
 

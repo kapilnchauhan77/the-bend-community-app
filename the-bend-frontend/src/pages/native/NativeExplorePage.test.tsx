@@ -6,11 +6,11 @@ import NativeExplorePage from './NativeExplorePage'
 import type { NativeExploreGroup, NativeTypedResults } from '@/hooks/useNativeExplore'
 import type { NativeDiscoveryCardModel } from '@/native/discovery/types'
 
-const business = { id: '1', kind: 'business' as const, label: 'Farm', title: 'Farm', supportingText: '', thumbnailUrl: null, targetPath: '/business/1', coordinates: null, urgent: false }
-const listing = { ...business, id: 'listing', kind: 'listing' as const, label: 'staff', title: 'Listing', targetPath: '/listing/1' }
-const event = { ...business, id: 'event', kind: 'event' as const, label: 'community', title: 'Event', targetPath: '/event/1' }
-const bender = { ...business, id: '00000000-0000-0000-0000-000000000001', kind: 'bender' as never, label: 'Bender', title: 'Community update', supportingText: 'Pat Owner', targetPath: '/bender/00000000-0000-0000-0000-000000000001' }
-const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, label: 'Volunteer', title: 'Volunteer', targetPath: '/volunteer/1' }
+const business = { id: '1', kind: 'business' as const, label: 'Farm', title: 'Farm', supportingText: '', thumbnailUrl: null, mediaFit: 'contain' as const, targetPath: '/business/1', coordinates: null, urgent: false }
+const listing = { ...business, id: 'listing', kind: 'listing' as const, label: 'staff', title: 'Listing', mediaFit: 'cover' as const, targetPath: '/listing/1' }
+const event = { ...business, id: 'event', kind: 'event' as const, label: 'community', title: 'Event', mediaFit: 'cover' as const, targetPath: '/event/1' }
+const bender = { ...business, id: '00000000-0000-0000-0000-000000000001', kind: 'bender' as never, label: 'Bender', title: 'Community update', supportingText: 'Pat Owner', mediaFit: 'cover' as const, targetPath: '/bender/00000000-0000-0000-0000-000000000001' }
+const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, label: 'Volunteer', title: 'Volunteer', mediaFit: 'cover' as const, targetPath: '/volunteer/1' }
 const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn>; mapBusinesses?: unknown[]; userCoordinates?: unknown; online?: boolean; location?: { status: string }; requestLocation?: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn(), mapBusinesses: [], userCoordinates: null, online: true, location: { status: 'idle' }, requestLocation: vi.fn() }
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixture) }))
 
