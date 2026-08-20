@@ -89,7 +89,7 @@ describe('NativePartnerCarousel', () => {
     const { rerender } = render(<NativePartnerCarousel partners={[partners[0]!]} />)
     const linkedCard = screen.getByRole('heading', { name: 'Colonial Beach Brewing' }).closest('a')
 
-    expect(linkedCard).toHaveAttribute('href', 'https://colonialbeachbrewing.com')
+    expect(linkedCard).toHaveAttribute('href', 'https://colonialbeachbrewing.com/')
     expect(linkedCard).toHaveAttribute('target', '_blank')
     expect(linkedCard).toHaveAttribute('rel', 'noopener noreferrer')
 
@@ -102,6 +102,12 @@ describe('NativePartnerCarousel', () => {
 
     rerender(<NativePartnerCarousel partners={[partner('www', 'WWW Partner', { website_url: ' www.example.com/path ' })]} />)
     expect(screen.getByRole('heading', { name: 'WWW Partner' }).closest('a')).toHaveAttribute('href', 'https://www.example.com/path')
+
+    rerender(<NativePartnerCarousel partners={[partner('bare', 'Bare Host Partner', { website_url: 'example.com/path' })]} />)
+    expect(screen.getByRole('heading', { name: 'Bare Host Partner' }).closest('a')).toHaveAttribute('href', 'https://example.com/path')
+
+    rerender(<NativePartnerCarousel partners={[partner('credentials', 'Credentials Partner', { website_url: 'https://user:password@example.com/path' })]} />)
+    expect(screen.queryByRole('link', { name: /Credentials Partner/i })).toBeNull()
   })
 
   it('updates the active slide and visual position dots from a manual horizontal swipe', async () => {

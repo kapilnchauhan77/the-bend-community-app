@@ -15,10 +15,12 @@ const initialsFor = (name: string) => {
 const websiteFor = (partner: Sponsor) => {
   const raw = partner.website_url?.trim()
   if (!raw) return null
-  const candidate = /^www\./i.test(raw) ? `https://${raw}` : raw
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
   try {
     const url = new URL(candidate)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? candidate : null
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    if (url.username || url.password) return null
+    return url.href
   } catch {
     return null
   }
