@@ -36,7 +36,6 @@ export function NativePartnerCarousel({ partners }: NativePartnerCarouselProps) 
   const safeActiveIndex = position.partnerOrder === partnerOrder ? Math.min(position.index, Math.max(0, partners.length - 1)) : 0
 
   useEffect(() => {
-    setPosition({ partnerOrder, index: 0 })
     if (trackRef.current) trackRef.current.scrollLeft = 0
   }, [partnerOrder])
 
