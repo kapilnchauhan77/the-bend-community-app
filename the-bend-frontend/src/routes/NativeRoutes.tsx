@@ -25,7 +25,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { Send } from 'lucide-react';
 
-function NativeUnavailablePage() { return <section role="status" className="native-unavailable-page"><h1>Page unavailable</h1><p>This page isn't available in the mobile app.</p></section>; }
+function NativeUnavailablePage() { return <section role="status" className="native-unavailable-page"><h1>Page unavailable</h1><p>This page isn't available in the mobile app.</p><p>Admin tools are available on the website.</p></section>; }
 
 function BenderMessagesAction() {
   const navigate = useNavigate();

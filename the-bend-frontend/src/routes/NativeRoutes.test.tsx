@@ -18,6 +18,9 @@ vi.mock('@/pages/EventsPage', () => ({ default: () => <h1>events-sentinel</h1> }
 vi.mock('@/pages/BenderPage', () => ({ default: () => <h1>bender-sentinel</h1> }));
 vi.mock('@/pages/VolunteerPage', () => ({ default: () => <h1>volunteer-sentinel</h1> }));
 vi.mock('@/pages/TalentPage', () => ({ default: () => <h1>talent-sentinel</h1> }));
+vi.mock('@/pages/NotificationsPage', () => ({ default: () => <h1>notifications-sentinel</h1> }));
+vi.mock('@/pages/SettingsPage', () => ({ default: () => <h1>settings-sentinel</h1> }));
+vi.mock('@/pages/CreateListingPage', () => ({ default: () => <h1>create-sentinel</h1> }));
 vi.mock('@/pages/MessagesPage', () => ({ default: () => <div>native-messages-sentinel</div> }));
 vi.mock('@/pages/GuidelinesViewPage', () => ({ default: ({ embeddedNative }: { embeddedNative?: boolean }) => <div>native-guidelines-public-sentinel:{String(embeddedNative)}</div> }));
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
@@ -102,6 +105,37 @@ describe('NativeRoutes', () => {
     renderNativeAt('/admin/unknown');
     expect(screen.getByTestId('native-route-title')).toHaveTextContent('Page unavailable');
     expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('preserves the unavailable placeholder copy for the ruled event-detail route', () => {
+    renderNativeAt('/events/event-1');
+    expect(screen.getByRole('status')).toHaveTextContent("This page isn't available in the mobile app");
+    expect(screen.getByRole('status')).toHaveTextContent('Admin tools are available on the website.');
+  });
+
+  it.each([
+    ['/bender/post-1', 'Bender post'],
+    ['/events/event-1', 'Event'],
+    ['/volunteers', 'Volunteer'],
+    ['/talent', 'Talent'],
+    ['/messages', 'Messages'],
+    ['/messages/thread-1', 'Conversation'],
+    ['/notifications', 'Notifications'],
+    ['/settings', 'Settings'],
+    ['/create', 'Create listing'],
+  ])('covers focused route %s with one Back control', (path, title) => {
+    const protectedPath = ['/messages', '/messages/thread-1', '/notifications', '/settings', '/create'].includes(path);
+    authState.isAuthenticated = protectedPath;
+    renderNativeAt(path);
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent(title);
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
+  });
+
+  it('keeps the member root unframed and renders its page heading', () => {
+    authState.isAuthenticated = true;
+    renderNativeAt('/you');
+    expect(screen.getByRole('heading', { name: 'You' })).toBeInTheDocument();
+    expect(screen.queryByTestId('native-route-title')).not.toBeInTheDocument();
   });
 
   it('shows the authenticated Messages action on a focused Bender post', () => {
