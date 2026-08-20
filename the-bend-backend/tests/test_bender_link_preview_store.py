@@ -79,6 +79,69 @@ class _FailingRedis:
         raise RuntimeError("redis unavailable")
 
 
+class _FailureRedis(_FakeRedis):
+    def __init__(self, failure):
+        super().__init__()
+        self.failure = failure
+
+    async def setex(self, key, ttl, value):
+        if self.failure == "setex":
+            raise RuntimeError("setex failed")
+        return await super().setex(key, ttl, value)
+
+    async def delete(self, key):
+        if self.failure == "delete":
+            raise RuntimeError("delete failed")
+        return await super().delete(key)
+
+    async def scan_iter(self, match=None):
+        if self.failure == "scan":
+            raise RuntimeError("scan failed")
+        async for key in super().scan_iter(match):
+            yield key
+
+    def pipeline(self, transaction=True):
+        if self.failure == "pipeline":
+            raise RuntimeError("pipeline failed")
+        return _FailingPipeline(self, self.failure)
+
+
+class _FailingPipeline(_FakePipeline):
+    def __init__(self, redis, failure):
+        super().__init__(redis)
+        self.failure = failure
+
+    async def execute(self):
+        if self.failure == "execute":
+            raise RuntimeError("execute failed")
+        return await super().execute()
+
+
+class _NoPipelineFailureRedis(_FakeRedis):
+    def __init__(self, failure):
+        super().__init__()
+        self.failure = failure
+
+    def pipeline(self, transaction=True):
+        return None
+
+    async def incr(self, key):
+        if self.failure == "incr":
+            raise RuntimeError("incr failed")
+        return await super().incr(key)
+
+    async def expire(self, key, seconds):
+        if self.failure == "expire":
+            raise RuntimeError("expire failed")
+        return await super().expire(key, seconds)
+
+
+class _DisappearingRedis(_FakeRedis):
+    async def get(self, key):
+        self.calls.append(("get", key))
+        return None
+
+
 def _metadata(image_url="/uploads/link-previews/" + "a" * 64 + ".webp"):
     return LinkPreviewMetadata(
         url="https://example.org/final",
@@ -189,6 +252,40 @@ async def test_resolve_invalid_draft_deletes_corrupt_value_and_returns_none():
 
 
 @pytest.mark.asyncio
+async def test_missing_or_expired_draft_is_a_miss_without_delete():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    assert await store.resolve_draft("expired", user_id=uuid4(), tenant_id=None, caption="https://example.org/start") is None
+    assert not any(call[0] == "delete" for call in redis.calls)
+
+
+@pytest.mark.asyncio
+async def test_non_utf8_tokens_return_none_before_redis_work():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    assert await store.resolve_draft("\ud800", user_id=uuid4(), tenant_id=None, caption="https://example.org/start") is None
+    assert redis.calls == []
+
+
+@pytest.mark.asyncio
+async def test_source_url_mismatch_inside_strict_draft_is_deleted():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    token = "source-mismatch"
+    key = store.DRAFT_PREFIX + hashlib.sha256(token.encode()).hexdigest()
+    snapshot = _snapshot("https://example.org/start")
+    redis.data[key] = json.dumps({
+        "user_id": str(UUID(int=1)),
+        "tenant_id": None,
+        "source_url": "https://example.org/other",
+        "created_at": datetime.now(UTC).isoformat(),
+        "preview": snapshot.model_dump(),
+    })
+    assert await store.resolve_draft(token, user_id=UUID(int=1), tenant_id=None, caption="https://example.org/start") is None
+    assert ("delete", key) in redis.calls
+
+
+@pytest.mark.asyncio
 async def test_live_image_urls_scans_both_prefixes_and_returns_only_strict_paths():
     redis = _FakeRedis()
     store = BenderLinkPreviewStore(redis)
@@ -197,6 +294,21 @@ async def test_live_image_urls_scans_both_prefixes_and_returns_only_strict_paths
     token = await store.issue_draft(_snapshot(), user_id=uuid4(), tenant_id=None)
     assert await store.live_image_urls() == {_metadata().image_url, _snapshot().image_url}
     assert token not in (await store.live_image_urls())
+
+
+@pytest.mark.asyncio
+async def test_live_image_urls_ignores_oversized_invalid_utf8_and_lone_surrogate_records():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    redis.data[store.CACHE_PREFIX + "oversized"] = b"{" + b"x" * (store.MAX_RAW_JSON_BYTES + 1)
+    redis.data[store.CACHE_PREFIX + "bytes"] = b"\xff\xfe"
+    redis.data[store.DRAFT_PREFIX + "surrogate"] = '{"metadata":"\ud800"}'
+    assert await store.live_image_urls() == set()
+
+
+@pytest.mark.asyncio
+async def test_live_image_urls_tolerates_key_disappearing_between_scan_and_get():
+    assert await BenderLinkPreviewStore(_DisappearingRedis()).live_image_urls() == set()
 
 
 @pytest.mark.asyncio
@@ -216,3 +328,43 @@ async def test_record_outcome_allowlist_and_eight_day_ttl():
 async def test_redis_failures_escape_unchanged():
     with pytest.raises(RuntimeError, match="redis unavailable"):
         await BenderLinkPreviewStore(_FailingRedis()).get_cached_metadata("https://example.org")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["setex"])
+async def test_cache_and_draft_write_failures_escape(failure):
+    redis = _FailureRedis(failure)
+    store = BenderLinkPreviewStore(redis)
+    with pytest.raises(RuntimeError, match=failure):
+        await store.cache_metadata("https://example.org", _metadata())
+
+
+@pytest.mark.asyncio
+async def test_corrupt_record_delete_failure_escapes():
+    redis = _FailureRedis("delete")
+    store = BenderLinkPreviewStore(redis)
+    key = store.CACHE_PREFIX + hashlib.sha256(b"https://example.org").hexdigest()
+    redis.data[key] = b"\xff"
+    with pytest.raises(RuntimeError, match="delete failed"):
+        await store.get_cached_metadata("https://example.org")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["scan"])
+async def test_scan_failure_escapes(failure):
+    with pytest.raises(RuntimeError, match=failure):
+        await BenderLinkPreviewStore(_FailureRedis(failure)).live_image_urls()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["pipeline", "execute"])
+async def test_pipeline_failures_escape(failure):
+    with pytest.raises(RuntimeError, match=failure):
+        await BenderLinkPreviewStore(_FailureRedis(failure)).record_outcome("success")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["incr", "expire"])
+async def test_counter_command_failures_escape(failure):
+    with pytest.raises(RuntimeError, match=failure):
+        await BenderLinkPreviewStore(_NoPipelineFailureRedis(failure)).record_outcome("success")

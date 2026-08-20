@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from app.schemas.bender import (
     BenderLinkPreviewSnapshot,
     LinkPreviewCacheRecord,
@@ -49,13 +51,13 @@ class BenderLinkPreviewStore:
 
     @classmethod
     def _bounded_json(cls, raw: Any) -> dict[str, Any] | None:
-        if isinstance(raw, bytes):
-            if len(raw) > cls.MAX_RAW_JSON_BYTES:
-                return None
-            raw = raw.decode("utf-8", errors="strict")
-        if not isinstance(raw, str) or len(raw.encode("utf-8")) > cls.MAX_RAW_JSON_BYTES:
-            return None
         try:
+            if isinstance(raw, bytes):
+                if len(raw) > cls.MAX_RAW_JSON_BYTES:
+                    return None
+                raw = raw.decode("utf-8", errors="strict")
+            if not isinstance(raw, str) or len(raw.encode("utf-8")) > cls.MAX_RAW_JSON_BYTES:
+                return None
             value = json.loads(raw)
         except (UnicodeError, ValueError, TypeError):
             return None
@@ -68,7 +70,7 @@ class BenderLinkPreviewStore:
         try:
             payload = self._bounded_json(raw)
             record = LinkPreviewCacheRecord.model_validate(payload)
-        except Exception:
+        except (ValidationError, TypeError, ValueError):
             await self.redis.delete(key)
             return None
         return record.metadata
@@ -106,6 +108,10 @@ class BenderLinkPreviewStore:
             created_at=datetime.now(UTC),
             preview=snapshot,
         )
+        try:
+            token.encode("utf-8")
+        except UnicodeEncodeError:
+            return None
         key = self.DRAFT_PREFIX + self._hash(token)
         await self.redis.setex(key, self.ttl_seconds, record.model_dump_json())
         return token
@@ -120,6 +126,10 @@ class BenderLinkPreviewStore:
     ) -> BenderLinkPreviewSnapshot | None:
         if not isinstance(token, str) or not token or len(token) > self.MAX_DRAFT_TOKEN_LENGTH:
             return None
+        try:
+            token.encode("utf-8")
+        except UnicodeEncodeError:
+            return None
         key = self.DRAFT_PREFIX + self._hash(token)
         raw = await self.redis.get(key)
         if raw is None:
@@ -127,7 +137,10 @@ class BenderLinkPreviewStore:
         try:
             payload = self._bounded_json(raw)
             record = LinkPreviewDraftRecord.model_validate(payload)
-        except Exception:
+        except (ValidationError, TypeError, ValueError):
+            await self.redis.delete(key)
+            return None
+        if record.source_url != record.preview.source_url:
             await self.redis.delete(key)
             return None
         if record.user_id != user_id or record.tenant_id != tenant_id:
@@ -143,10 +156,11 @@ class BenderLinkPreviewStore:
         pipeline_factory = getattr(self.redis, "pipeline", None)
         if pipeline_factory is not None:
             pipeline = pipeline_factory(transaction=True)
-            pipeline.incr(key)
-            pipeline.expire(key, self.METRIC_TTL_SECONDS)
-            await pipeline.execute()
-            return
+            if pipeline is not None:
+                pipeline.incr(key)
+                pipeline.expire(key, self.METRIC_TTL_SECONDS)
+                await pipeline.execute()
+                return
         await self.redis.incr(key)
         await self.redis.expire(key, self.METRIC_TTL_SECONDS)
 
