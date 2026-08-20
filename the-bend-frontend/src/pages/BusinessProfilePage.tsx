@@ -28,6 +28,7 @@ import { useOnlineMutation } from '@/hooks/useOnlineMutation';
 import { OfflineBanner } from '@/components/native/OfflineBanner';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 import { useBusinessProfilePublicData } from '@/hooks/useBusinessProfilePublicData';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 
 const EndorsementMap = lazy(() => import('@/components/shared/EndorsementMap'));
 
@@ -48,6 +49,7 @@ export default function BusinessProfilePage() {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, shop: myShop, user } = useAuthStore();
+  const native = useNativePresentation();
   const { online, run: runOnline } = useOnlineMutation();
   const publicData = useBusinessProfilePublicData(shopId);
   const { cached, shopData, listings, endorsements, setEndorsements, endorsementCount, setEndorsementCount, discountCodes } = publicData;
@@ -165,7 +167,7 @@ export default function BusinessProfilePage() {
           </div>
           <h2 className="text-xl font-bold font-serif text-[hsl(30,15%,18%)] mb-2">Business Not Found</h2>
           <p className="text-[hsl(30,10%,48%)] mb-6">{error || 'This business profile does not exist.'}</p>
-          <Button onClick={() => navigate('/directory')} style={{ backgroundColor: PRIMARY }} className="text-white">
+          <Button onClick={() => navigate(native ? '/explore?type=businesses' : '/directory')} style={{ backgroundColor: PRIMARY }} className="text-white">
             Browse Directory
           </Button>
         </div>
