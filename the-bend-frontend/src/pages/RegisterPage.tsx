@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
@@ -19,6 +19,8 @@ import { registerSchema, type RegisterFormData } from '@/lib/validators';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
 import { useNativePresentation } from '@/components/layout/NativePresentationContext';
+import { usePlatformServices } from '@/platform/createPlatformServices';
+import { publicWestmorelandUrl } from '@/lib/publicUrl';
 import {
   REGISTRATION_STEPS,
   nextRegistrationStep,
@@ -40,6 +42,7 @@ function FieldError({ message, id }: { message?: string; id: string }) {
 
 export default function RegisterPage() {
   const native = useNativePresentation();
+  const { browser } = usePlatformServices();
   const [step, setStep] = useState<RegistrationStep>('account-type');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -112,6 +115,12 @@ export default function RegisterPage() {
     if (valid) setStep(nextRegistrationStep(step));
   };
   const previous = () => setStep(previousRegistrationStep(step));
+  const openGuidelines = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!native) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void browser.open(publicWestmorelandUrl('/guidelines')).catch(() => undefined);
+  };
 
   // Success state
   if (submitted) {
@@ -533,7 +542,8 @@ export default function RegisterPage() {
                   <p className="text-xs text-[hsl(30,10%,48%)] mt-0.5">Rules for respectful resource sharing</p>
                 </div>
                 <a
-                  href="/guidelines"
+                  href={native ? publicWestmorelandUrl('/guidelines') : '/guidelines'}
+                  onClick={openGuidelines}
                   className="native-auth-guideline-action flex-shrink-0 text-xs font-semibold hover:underline"
                   style={{ color: BRONZE }}
                 >
@@ -556,7 +566,7 @@ export default function RegisterPage() {
                     />
                     <label htmlFor="guidelines_accepted" className="text-sm leading-relaxed cursor-pointer select-none text-[hsl(30,15%,25%)]">
                       I have read and agree to the{' '}
-                      <a href="/guidelines" className="native-auth-guideline-action font-semibold hover:underline" style={{ color: BRONZE }}>
+                      <a href={native ? publicWestmorelandUrl('/guidelines') : '/guidelines'} onClick={openGuidelines} className="native-auth-guideline-action font-semibold hover:underline" style={{ color: BRONZE }}>
                         community guidelines
                       </a>
                     </label>

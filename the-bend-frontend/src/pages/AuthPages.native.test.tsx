@@ -10,6 +10,10 @@ import { NativePresentationProvider } from '@/components/layout/NativePresentati
 
 vi.mock('@/services/authApi', () => ({ authApi: { login: vi.fn(), register: vi.fn(), forgotPassword: vi.fn(), resetPassword: vi.fn() } }))
 vi.mock('@/stores/authStore', () => ({ useAuthStore: () => ({ setAuth: vi.fn() }) }))
+vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()),
+  usePlatformServices: () => ({ browser: { open: vi.fn(() => Promise.resolve()) } }),
+}))
 
 const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 const cssRule = (selector: string) => {

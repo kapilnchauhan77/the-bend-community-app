@@ -4,8 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import RegisterPage from './RegisterPage'
 import { NativePresentationProvider } from '@/components/layout/NativePresentationContext'
 import { nextRegistrationStep, previousRegistrationStep, registrationFieldsForStep, resetBusinessRegistrationFields } from '@/auth/registrationFlow'
+import { publicWestmorelandUrl } from '@/lib/publicUrl'
 
 vi.mock('@/services/authApi', () => ({ authApi: { register: vi.fn() } }))
+const browserOpen = vi.hoisted(() => vi.fn(() => Promise.resolve()))
+vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()),
+  usePlatformServices: () => ({ browser: { open: browserOpen } }),
+}))
 
 import { authApi } from '@/services/authApi'
 
@@ -124,6 +130,9 @@ describe('RegisterPage native steps', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Register business' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute('href', '/guidelines')
+    expect(screen.getByRole('link', { name: 'community guidelines' })).toHaveAttribute('href', '/guidelines')
+    expect(browserOpen).not.toHaveBeenCalled()
   })
 
   it('connects rendered validation controls to stable error ids', async () => {
@@ -168,6 +177,36 @@ describe('RegisterPage native steps', () => {
     expect(registerButton).toBeDisabled()
     fireEvent.click(screen.getByRole('checkbox', { name: /agree to the community guidelines/i }))
     expect(registerButton).toBeEnabled()
+  })
+
+  it('opens Guidelines outside the native app without losing security-step values', async () => {
+    renderNative()
+    await fillNativeBusinessForm()
+    fireEvent.click(screen.getByRole('checkbox', { name: /agree to the community guidelines/i }))
+
+    fireEvent.click(screen.getByRole('link', { name: 'View' }))
+
+    await waitFor(() => expect(browserOpen).toHaveBeenCalledWith(publicWestmorelandUrl('/guidelines')))
+    expect(screen.getByRole('heading', { name: 'Security and guidelines' })).toBeInTheDocument()
+    expect(document.getElementById('password')).toHaveValue('safe-password1')
+    expect(document.getElementById('confirm_password')).toHaveValue('safe-password1')
+    expect(screen.getByRole('checkbox', { name: /agree to the community guidelines/i })).toBeChecked()
+  })
+
+  it('uses the same native browser boundary for the inline Guidelines link', async () => {
+    renderNative()
+    await fillNativeBusinessForm()
+    const link = screen.getByRole('link', { name: 'community guidelines' })
+    const consent = screen.getByRole('checkbox', { name: /agree to the community guidelines/i })
+    fireEvent.click(consent)
+    expect(consent).toBeChecked()
+    expect(link).toHaveAttribute('href', publicWestmorelandUrl('/guidelines'))
+
+    fireEvent.click(link)
+
+    await waitFor(() => expect(browserOpen).toHaveBeenCalledWith(publicWestmorelandUrl('/guidelines')))
+    expect(screen.getByRole('heading', { name: 'Security and guidelines' })).toBeInTheDocument()
+    expect(consent).toBeChecked()
   })
 
   it('sends the exact hand-written payload and stays disabled while pending', async () => {
