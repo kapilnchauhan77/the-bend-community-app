@@ -89,14 +89,12 @@ export default function ListingDetailPage() {
   const cached = useCachedPublicContent<ListingDetail>(`listing:${id ?? ''}`, useCallback(async () => (await listingApi.getDetail(id!)).data, [id]));
 
   const [listing, setListing] = useState<ListingDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
   const [interestLoading, setInterestLoading] = useState(false);
   const [hasInterest, setHasInterest] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [interestSuccess, setInterestSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('inappropriate');
@@ -112,7 +110,7 @@ export default function ListingDetailPage() {
   // Shop-owned listings surface codes on the business profile page instead.
   useEffect(() => {
     if (!cached.data) return;
-    setListing(cached.data); setHasInterest(cached.data.viewer_has_interest); setHasSaved(cached.data.viewer_has_saved); setLoading(false);
+    setListing(cached.data); setHasInterest(cached.data.viewer_has_interest); setHasSaved(cached.data.viewer_has_saved);
   }, [cached.data]);
 
   useEffect(() => {
@@ -127,10 +125,6 @@ export default function ListingDetailPage() {
       .then((res) => setPosterDiscountCodes(Array.isArray(res.data) ? res.data : []))
       .catch(() => setPosterDiscountCodes([]));
   }, [listing]);
-
-  useEffect(() => {
-    if (!cached.data && cached.source === 'cache') setError('Could not load this listing. It may have been removed.');
-  }, [cached.data, cached.source]);
 
   async function handleInterest() {
     if (!isAuthenticated) {
@@ -192,7 +186,7 @@ export default function ListingDetailPage() {
     }
   }
 
-  if (loading) {
+  if (!listing && cached.status === 'loading') {
     return (
       <PageLayout>
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-8">
@@ -208,7 +202,24 @@ export default function ListingDetailPage() {
     );
   }
 
-  if (error || !listing) {
+  if (!listing && cached.status === 'error') {
+    return (
+      <PageLayout>
+        <div className="max-w-3xl mx-auto px-4 md:px-8 py-16 text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Package className="w-8 h-8 text-gray-400" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Unable to load listing</h2>
+          <p className="text-muted-foreground mb-6">We couldn't load this listing right now.</p>
+          <Button onClick={() => void cached.refresh()} style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}>
+            Retry listing
+          </Button>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!listing) {
     return (
       <PageLayout>
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-16 text-center">
@@ -216,7 +227,7 @@ export default function ListingDetailPage() {
             <Package className="w-8 h-8 text-gray-400" />
           </div>
           <h2 className="text-xl font-semibold mb-2">Listing not found</h2>
-          <p className="text-muted-foreground mb-6">{error || 'This listing does not exist.'}</p>
+          <p className="text-muted-foreground mb-6">This listing does not exist.</p>
           <Button onClick={() => navigate('/browse')} style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}>
             Back to Browse
           </Button>
