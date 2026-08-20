@@ -164,6 +164,14 @@ describe('native UI primitives', () => {
     expect(cssRule('.native-app .native-bender-discovery-card > span > strong')).toMatch(/-webkit-line-clamp:\s*3/)
     expect(cssRule('.native-app .native-bender-discovery-card > span > strong')).toMatch(/overflow:\s*hidden/)
   })
+  it('keeps compact Bender post cards readable and touch-safe', () => {
+    expect(cssRule('.native-app .native-bender-post-card')).toMatch(/width:\s*100%/)
+    expect(cssRule('.native-app .native-bender-post-card')).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(cssRule('.native-app .native-bender-post-card .native-bender-caption')).toMatch(/white-space:\s*pre-wrap/)
+    expect(cssRule('.native-app .native-bender-post-card .native-bender-actions')).toMatch(/flex-wrap:\s*wrap/)
+    expect(cssRule('.native-app .native-bender-post-card .native-bender-post-action')).toMatch(/min-width:\s*44px/)
+    expect(cssRule('.native-app .native-bender-post-card .native-bender-post-action')).toMatch(/min-height:\s*44px/)
+  })
   it('renders Partners as one bounded manual swipe carousel', () => {
     expect(cssRule('.native-app .native-partner-track')).toMatch(/display:\s*grid/)
     expect(cssRule('.native-app .native-partner-track')).toMatch(/grid-auto-flow:\s*column/)

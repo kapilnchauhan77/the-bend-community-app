@@ -20,7 +20,8 @@ vi.mock('@/components/layout/Footer', () => ({ Footer: () => <div data-testid="w
 vi.mock('@/components/shared/InstallBanner', () => ({ InstallBanner: () => <div data-testid="web-install-banner" /> }))
 vi.mock('@/components/shared/SponsorBanner', () => ({ SponsorBanner: () => <div data-testid="web-sponsor-banner" /> }))
 vi.mock('@/components/shared/CameraCapture', () => ({ CameraCapture: () => null }))
-vi.mock('@/components/features/messages/ShareToMessageButton', () => ({ ShareToMessageButton: () => null }))
+vi.mock('@/components/features/messages/ShareToMessageButton', () => ({ ShareToMessageButton: ({ label }: { label?: string }) => <button type="button" aria-label={label}>Message</button> }))
+vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => ({ browser: { open: vi.fn() } }) }))
 
 const post: BenderPost = { id: '123e4567-e89b-12d3-a456-426614174000', caption: 'focused', media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 0, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z', author: { id: 'user-1', name: 'Author' } }
 function Location() { return <output data-testid="location"><span>{useLocation().pathname}</span></output> }
@@ -35,6 +36,25 @@ describe('BenderPage focused phase 2', () => {
   it('suppresses native focused sticky header and owns hidden heading', async () => { renderAt(`/bender/${post.id}`, true); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(screen.getByRole('heading', { name: 'Bender post' })).toHaveClass('sr-only'); expect(document.querySelector('.native-bender-header')).not.toBeInTheDocument() })
   it('keeps web focused chrome', async () => { renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(screen.getByTestId('web-navbar')).toBeInTheDocument() })
   it('returns to feed after deletion', async () => { window.confirm = vi.fn(() => true); renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: 'More' })); fireEvent.click(screen.getByRole('button', { name: 'Delete' })); await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/bender')) })
+})
+
+describe('BenderPage compact native cards', () => {
+  afterEach(() => { cleanup(); feed.posts = [] })
+  it('keeps text, safe media, captions, and post-specific action labels in native order', () => {
+    const longAuthor = 'Alex Neighbor ' + 'Z'.repeat(80)
+    const boundedAuthor = longAuthor.slice(0, 60)
+    feed.posts = [{ ...post, caption: `A long caption ${'word '.repeat(80)}https://example.com`, media_url: 'https://cdn.example/video.mp4', media_type: 'video', author: { id: 'user-1', name: longAuthor } }]
+    renderAt('/bender', true)
+    const article = document.querySelector('article')!
+    expect(article.querySelector('img')).toBeNull()
+    expect(article.querySelector('video')).toBeInTheDocument()
+    expect(article.querySelector('.native-bender-caption')).toBeInTheDocument()
+    expect(article.querySelector('.native-bender-caption')!.compareDocumentPosition(article.querySelector('.native-bender-actions')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: `Like ${boundedAuthor}'s post` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `View comments on ${boundedAuthor}'s post` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `Share ${boundedAuthor}'s post` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `More actions for ${boundedAuthor}'s post` })).toBeInTheDocument()
+  })
 })
 
 describe('BenderPage first-page recovery', () => {

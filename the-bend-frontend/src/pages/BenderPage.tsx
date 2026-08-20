@@ -36,6 +36,8 @@ import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 import { benderPostPath, getLegacyBenderPostId } from '@/routes/benderRoutes';
 import { publicWestmorelandUrl } from '@/lib/publicUrl';
 import { parseCanonicalUuid } from '@/deep-links/deepLinkRoutes';
+import { getSafeBenderPreview } from '@/native/discovery/benderPresentation';
+import { BenderCaptionLinkCard } from '@/components/features/bender/BenderCaptionLinkCard';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -81,9 +83,11 @@ function AuthorAvatar({
 function KebabMenu({
   items,
   iconSize = 16,
+  ariaLabel = 'More',
 }: {
   items: { label: string; onClick: () => void; destructive?: boolean }[];
   iconSize?: number;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -101,7 +105,7 @@ function KebabMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="native-bender-secondary p-1 text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] transition-colors cursor-pointer"
-        aria-label="More"
+        aria-label={ariaLabel}
       >
         <MoreHorizontal size={iconSize} />
       </button>
@@ -340,6 +344,7 @@ function BenderPostCard({
   isHighlighted,
   onDelete,
   onPatch,
+  nativeCompact = false,
 }: {
   post: BenderPost;
   currentUserId: string | null;
@@ -348,6 +353,7 @@ function BenderPostCard({
   isHighlighted?: boolean;
   onDelete: (id: string) => void;
   onPatch: (id: string, patch: Partial<BenderPost>) => void;
+  nativeCompact?: boolean;
 }) {
   const navigate = useNavigate();
   const { run: runOnline } = useOnlineMutation();
@@ -425,6 +431,9 @@ function BenderPostCard({
   }, [post.id, onDelete, runOnline]);
 
   const captionTooLong = (post.caption?.length ?? 0) > 140;
+  const nativePreview = nativeCompact ? getSafeBenderPreview(post) : null;
+  const authorLabel = display.trim().slice(0, 60) || 'Community member';
+  const postLabel = `${authorLabel}'s post`;
 
   return (
     <article
@@ -449,6 +458,7 @@ function BenderPostCard({
         </span>
         {canDelete && (
           <KebabMenu
+            ariaLabel={nativeCompact ? `More actions for ${postLabel}` : 'More'}
             items={[
               {
                 label: 'Delete',
@@ -461,20 +471,20 @@ function BenderPostCard({
       </div>
 
       {/* Media (1:1) */}
-      {post.media_url && (
+      {(nativeCompact ? nativePreview?.previewUrl || nativePreview?.isVideo : post.media_url) && (
         <div className="relative w-full bg-black aspect-square overflow-hidden">
-          {isVideo ? (
+          {(nativeCompact ? nativePreview?.isVideo : isVideo) ? (
             <video
               controls
               preload="metadata"
-              poster={resolveAssetUrl(post.media_thumbnail_url)}
+              poster={resolveAssetUrl(nativeCompact ? nativePreview?.previewUrl : post.media_thumbnail_url)}
               src={resolveAssetUrl(post.media_url)}
               className="w-full h-full object-cover"
               playsInline
             />
           ) : (
             <img
-              src={resolveAssetUrl(post.media_url)}
+              src={resolveAssetUrl(nativeCompact ? nativePreview?.previewUrl : post.media_url)}
               alt={post.caption || 'Post'}
               className="w-full h-full object-cover"
               loading="lazy"
@@ -483,12 +493,20 @@ function BenderPostCard({
         </div>
       )}
 
+      {nativeCompact && post.caption && (
+        <div className="native-bender-caption px-3 pt-2 pb-1 text-[13px] leading-snug">
+          <span className="native-bender-primary font-semibold text-[hsl(30,15%,18%)] mr-1">{display}</span>
+          <span className="native-bender-primary whitespace-pre-wrap break-words text-[hsl(30,10%,28%)]">{post.caption}</span>
+          <BenderCaptionLinkCard caption={post.caption} />
+        </div>
+      )}
+
       {/* Action row */}
-      <div className="flex items-center gap-3 px-3 pt-2 pb-1">
+      <div className={`flex items-center gap-3 px-3 pt-2 pb-1 ${nativeCompact ? 'native-bender-actions' : ''}`}>
         <button
           onClick={handleLikeToggle}
-          className="flex items-center gap-1 cursor-pointer transition-transform active:scale-90"
-          aria-label={post.viewer_has_liked ? 'Unlike' : 'Like'}
+          className={`${nativeCompact ? 'native-bender-post-action ' : ''}flex items-center gap-1 cursor-pointer transition-transform active:scale-90`}
+          aria-label={nativeCompact ? `${post.viewer_has_liked ? 'Unlike' : 'Like'} ${postLabel}` : post.viewer_has_liked ? 'Unlike' : 'Like'}
         >
           <Heart
             size={22}
@@ -506,8 +524,8 @@ function BenderPostCard({
         </button>
         <button
           onClick={() => setCommentsOpen((v) => !v)}
-          className="flex items-center gap-1 cursor-pointer"
-          aria-label="Comments"
+          className={`${nativeCompact ? 'native-bender-post-action ' : ''}flex items-center gap-1 cursor-pointer`}
+          aria-label={nativeCompact ? `View comments on ${postLabel}` : 'Comments'}
         >
           <MessageCircle size={22} className="native-bender-primary text-[hsl(30,15%,18%)]" />
           {post.comment_count > 0 && (
@@ -523,21 +541,21 @@ function BenderPostCard({
             iconOnly
             iconSize={20}
             variant="ghost"
-            className="native-bender-primary ml-auto h-auto w-auto p-0 text-[hsl(30,15%,18%)] hover:bg-transparent hover:text-[hsl(160,25%,24%)]"
-            label="Send in a message"
+            className={`${nativeCompact ? 'native-bender-post-action ' : ''}native-bender-primary ml-auto h-auto w-auto p-0 text-[hsl(30,15%,18%)] hover:bg-transparent hover:text-[hsl(160,25%,24%)]`}
+            label={nativeCompact ? `Send ${postLabel} in a message` : 'Send in a message'}
           />
         )}
         <button
           onClick={handleShare}
-          className={isAuthenticated ? 'cursor-pointer' : 'ml-auto cursor-pointer'}
-          aria-label="Share"
+          className={`${nativeCompact ? 'native-bender-post-action ' : ''}${isAuthenticated ? 'cursor-pointer' : 'ml-auto cursor-pointer'}`}
+          aria-label={nativeCompact ? `Share ${postLabel}` : 'Share'}
         >
           <Share2 size={20} className="native-bender-primary text-[hsl(30,15%,18%)]" />
         </button>
       </div>
 
       {/* Caption */}
-      {post.caption && (
+      {!nativeCompact && post.caption && (
         <div className="px-3 pt-1 pb-1 text-[13px] leading-snug">
           <span className="native-bender-primary font-semibold text-[hsl(30,15%,18%)] mr-1">
             {display}
@@ -988,7 +1006,7 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
             ) : focusedPost.status === 'error' ? (
               <div role="alert" className="py-8 text-center"><p className="text-sm text-[hsl(0,55%,45%)]">Retry loading this post</p><button type="button" className="mt-2 text-sm underline" onClick={focusedPost.retry}>Retry loading this post</button></div>
             ) : focusedPost.post ? (
-              <BenderPostCard post={focusedPost.post} currentUserId={user?.id ?? null} isCommunityAdmin={isCommunityAdmin} isAuthenticated={isAuthenticated} onDelete={handleDelete} onPatch={(id, values) => focusedPost.patch(values)} />
+              <BenderPostCard post={focusedPost.post} currentUserId={user?.id ?? null} isCommunityAdmin={isCommunityAdmin} isAuthenticated={isAuthenticated} nativeCompact={nativeEmbedded} onDelete={handleDelete} onPatch={(id, values) => focusedPost.patch(values)} />
             ) : null
           ) : loading ? (
             <div className="space-y-3 px-0 md:px-0">
@@ -1047,6 +1065,7 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
                   currentUserId={user?.id ?? null}
                   isCommunityAdmin={isCommunityAdmin}
                   isAuthenticated={isAuthenticated}
+                  nativeCompact={nativeEmbedded}
                   isHighlighted={post.id === highlightedPostId}
                   onDelete={handleDelete}
                   onPatch={handlePatch}

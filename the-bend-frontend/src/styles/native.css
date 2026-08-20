@@ -207,6 +207,11 @@
 .native-app .native-bender-meta strong { min-width: 0; overflow-wrap: anywhere; color: var(--native-text); font-size: 13px; line-height: 1.25; white-space: normal; }
 .native-app .native-bender-meta time { flex: 0 0 auto; color: var(--native-muted); font-size: 10px; }
 .native-app .native-bender-caption { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; color: var(--native-muted); font-size: 11px; line-height: 1.35; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.native-app .native-bender-post-card { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.native-app .native-bender-post-card .native-bender-caption { display: block; overflow: visible; white-space: pre-wrap; }
+.native-app .native-bender-post-card .native-bender-actions { display: flex; flex-wrap: wrap; min-width: 0; }
+.native-app .native-bender-post-card .native-bender-post-action { min-width: 44px; min-height: 44px; }
+.native-app .native-bender-post-card .aspect-square { aspect-ratio: 1; }
 .native-app .native-bender-counts { display: flex; flex-wrap: wrap; gap: var(--native-space-3); color: var(--native-muted); font-size: 10px; }
 .native-app .native-bender-counts > span { display: inline-flex; align-items: center; gap: var(--native-space-1); }
 .native-app .native-urgent-card { display: block; padding: 12px; text-align: left; }
