@@ -152,7 +152,8 @@ def test_preview_token_has_no_pydantic_maximum_and_metadata_is_not_client_input(
 
 
 def test_public_preview_block_omits_storage_version_and_rejects_legacy_invalid_data():
-    public = BenderService._preview_block(_snapshot().model_dump(mode="json"))
+    stored = _snapshot().model_dump(mode="json")
+    public = BenderService._preview_block(stored)
     assert public is not None
     assert public.model_dump() == {
         "source_url": "https://example.org/event",
@@ -165,3 +166,13 @@ def test_public_preview_block_omits_storage_version_and_rejects_legacy_invalid_d
     assert "version" not in public.model_dump()
     assert BenderService._preview_block(None) is None
     assert BenderService._preview_block({"version": 2}) is None
+
+
+@pytest.mark.parametrize("version", [None, True])
+def test_public_preview_block_rejects_missing_or_non_strict_storage_version(version):
+    stored = _snapshot().model_dump(mode="json")
+    if version is None:
+        stored.pop("version")
+    else:
+        stored["version"] = version
+    assert BenderService._preview_block(stored) is None

@@ -83,6 +83,9 @@ class BenderService:
     def _preview_block(value: dict[str, object] | None) -> BenderLinkPreview | None:
         if value is None:
             return None
+        version = value.get("version")
+        if isinstance(version, bool) or not isinstance(version, int) or version != 1:
+            return None
         try:
             snapshot = BenderLinkPreviewSnapshot.model_validate(value)
             return BenderLinkPreview.model_validate(
