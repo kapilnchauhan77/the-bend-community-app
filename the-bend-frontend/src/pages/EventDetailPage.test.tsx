@@ -16,6 +16,7 @@ vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePrese
 
 const eventId = '00000000-0000-0000-0000-000000000003';
 const secondEventId = '00000000-0000-0000-0000-000000000004';
+const mixedCaseEventId = 'a0000000-b000-c000-d000-e00000000005';
 const event: CommunityEvent = { id: eventId, title: 'Harvest Festival', description: 'A day in the park', start_date: '2026-09-12T14:00:00Z', end_date: '2026-09-12T16:00:00Z', location: 'Market Square', category: 'community', image_url: 'https://cdn.example.test/event.jpg', source: 'Calendar', source_url: 'https://events.example.test/harvest', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
 const cardEvent = (source_url?: string): CommunityEvent => ({ ...event, source_url });
 
@@ -37,6 +38,15 @@ describe('EventDetailPage', () => {
     expect(screen.getByText('A day in the park')).toBeInTheDocument();
     expect(screen.getByTestId('share-url')).toHaveTextContent(`https://westmoreland.bend.community/events/${eventId}`);
     expect(screen.getByRole('link', { name: 'View source' })).toHaveAttribute('href', event.source_url);
+  });
+
+  it('accepts a lowercase response for the same uppercase route UUID', async () => {
+    const caseInsensitiveEvent = { ...event, id: mixedCaseEventId, title: 'Case-insensitive event' };
+    vi.mocked(eventApi.getDetail).mockResolvedValue({ data: caseInsensitiveEvent } as never);
+
+    renderAt(mixedCaseEventId.toUpperCase());
+
+    expect(await screen.findByRole('heading', { name: caseInsensitiveEvent.title })).toBeInTheDocument();
   });
 
   it('maps unavailable statuses without retry', async () => {
