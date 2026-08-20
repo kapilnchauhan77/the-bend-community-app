@@ -146,6 +146,17 @@ async def test_dns_failure_maps_to_typed_generic_error_without_hostname():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    ["https://127.0.0.1/", "ftp://example.org/", "https://example.org:444/"],
+)
+async def test_validate_destination_preserves_url_policy_rejection(url):
+    fetcher = SafeExternalFetcher(resolver=_Resolver("93.184.216.34"))
+    with pytest.raises(LinkPreviewURLRejected):
+        await fetcher.validate_destination(url, deadline=time.monotonic() + 1)
+
+
+@pytest.mark.asyncio
 async def test_redirect_destination_is_resolved_and_validated_again():
     resolver = _ResolverForHosts({"example.org": (PUBLIC,), "internal.test": ("10.0.0.2",)})
     factory = _SessionFactory([_FakeResponse(status=302, location="http://internal.test/private")])

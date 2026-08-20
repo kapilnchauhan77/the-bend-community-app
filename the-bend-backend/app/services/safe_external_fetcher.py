@@ -141,6 +141,8 @@ class SafeExternalFetcher:
                 return target
         except asyncio.TimeoutError as exc:
             raise LinkPreviewDeadlineExceeded("deadline_exceeded") from exc
+        except LinkPreviewURLRejected:
+            raise
         except (aiohttp.ClientError, OSError, ValueError) as exc:
             raise LinkPreviewUpstreamFailure("upstream_failure") from exc
 
