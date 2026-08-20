@@ -5,9 +5,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
+from redis.exceptions import ConnectionError as RedisConnectionError
+from unittest.mock import patch
 
 from app.api.deps import get_db
-from app.api.v1.bender import get_link_preview_service, router
+from app.api.v1.bender import get_link_preview_service, get_redis, router
 from app.core.exceptions import AppException, RateLimitError
 from app.core.permissions import get_current_user
 from app.services.bender_link_preview_service import BenderLinkPreviewService
@@ -35,7 +37,7 @@ def _user():
     return types.SimpleNamespace(id=uuid4(), tenant_id=uuid4())
 
 
-def _app(user=None, service=None, limiter=None):
+def _app(user=None, service=None, limiter=None, redis=None):
     app = FastAPI()
 
     @app.exception_handler(AppException)
@@ -56,10 +58,15 @@ def _app(user=None, service=None, limiter=None):
     if service is not None:
         app.dependency_overrides[get_link_preview_service] = lambda: service
     from app.api.v1.bender import enforce_link_preview_rate_limit
-    if limiter is None:
+    if redis is not None:
+        async def feature_redis():
+            return redis
+        app.dependency_overrides[get_redis] = feature_redis
+    if limiter is None and redis is None:
         async def limiter():
             return None
-    app.dependency_overrides[enforce_link_preview_rate_limit] = limiter
+    if limiter is not None:
+        app.dependency_overrides[enforce_link_preview_rate_limit] = limiter
     app.include_router(router, prefix="/api/v1")
     return app
 
@@ -76,6 +83,16 @@ def test_preview_requires_authentication_before_service():
         response = client.post("/api/v1/bender/link-preview", json={"url": "https://secret.example/path"})
     assert response.status_code == 401
     assert service.calls == []
+
+
+def test_unauthenticated_preview_never_calls_real_rate_limit_redis():
+    from tests.test_bender_link_preview_rate_limit import StatefulRedis
+
+    redis = StatefulRedis()
+    with TestClient(_app(service=FakeService(result=_result()), redis=redis)) as client:
+        response = client.post("/api/v1/bender/link-preview", json={"url": "https://secret.example/path"})
+    assert response.status_code == 401
+    assert redis.pipelines == []
 
 
 @pytest.mark.parametrize(
@@ -109,6 +126,30 @@ def test_preview_returns_public_shape_and_passes_authenticated_binding():
     assert set(response.json()) == {"preview_token", "preview"}
     assert "version" not in response.json()["preview"]
     assert service.calls == [("https://example.org/event", user.id, user.tenant_id)]
+
+
+def test_real_preview_limiter_returns_existing_429_and_retry_after_on_request_11():
+    from tests.test_bender_link_preview_rate_limit import StatefulRedis
+
+    user = _user()
+    redis = StatefulRedis()
+    service = FakeService(result=_result())
+    with patch("app.core.rate_limit.get_redis", return_value=redis), TestClient(_app(user=user, service=service, redis=redis)) as client:
+        responses = [client.post("/api/v1/bender/link-preview", json={"url": "https://example.org/event"}) for _ in range(11)]
+    assert [response.status_code for response in responses[:10]] == [200] * 10
+    assert responses[10].status_code == 429
+    assert responses[10].headers["Retry-After"] == "60"
+
+
+def test_real_preview_limiter_maps_redis_failure_to_generic_503():
+    user = _user()
+    redis = types.SimpleNamespace(pipeline=lambda: (_ for _ in ()).throw(RedisConnectionError("raw redis detail")))
+    with patch("app.core.rate_limit.get_redis", return_value=redis), TestClient(_app(user=user, service=FakeService(result=_result()), redis=redis), raise_server_exceptions=False) as client:
+        response = client.post("/api/v1/bender/link-preview", json={"url": "https://secret.example/path?token=hide"})
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "LINK_PREVIEW_UNAVAILABLE"
+    assert "raw redis detail" not in response.text
+    assert "secret.example" not in response.text
 
 
 @pytest.mark.parametrize("url", ["", "x" * 2049])
