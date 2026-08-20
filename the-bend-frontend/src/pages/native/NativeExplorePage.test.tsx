@@ -60,11 +60,9 @@ describe('NativeExplorePage', () => {
     configureTyped([business]); fixture.online = false; fixture.mapBusinesses = []
     render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument()
-    expect(screen.getByText(/Map is unavailable offline/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Business map' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'List' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'List' }))
     expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+    expect(screen.queryByRole('heading', { name: 'Business map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
   })
 
   it.each(['listings', 'events', 'bender', 'volunteer'] as const)('never exposes Map or Near controls for %s', (type) => {
@@ -191,7 +189,7 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/explore')
     expect(screen.getByRole('searchbox')).toHaveValue('')
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('button', { name: 'Map' })).toBeDisabled()
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Remove .* filter/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Map', { selector: 'span' })).not.toBeInTheDocument()
