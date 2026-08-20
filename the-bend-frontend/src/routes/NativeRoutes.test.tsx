@@ -12,7 +12,8 @@ vi.mock('@/stores/authStore', () => ({
 vi.mock('@/pages/HomePage', () => ({ default: () => <div>web-home-sentinel</div> }));
 vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-home-sentinel</div> }));
 vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
-vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <div>native-listing-detail-sentinel</div> }));
+vi.mock('@/pages/BrowsePage', () => ({ default: () => <h1>browse-sentinel</h1> }));
+vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <h1>native-listing-detail-sentinel</h1> }));
 vi.mock('@/pages/BusinessProfilePage', () => ({ default: () => <h1>business-sentinel</h1> }));
 vi.mock('@/pages/EventsPage', () => ({ default: () => <h1>events-sentinel</h1> }));
 vi.mock('@/pages/BenderPage', () => ({ default: () => <h1>bender-sentinel</h1> }));
@@ -31,9 +32,14 @@ function renderNativeAt(path: string) {
   const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' };
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <PlatformServicesProvider config={config}><NativeRoutes /></PlatformServicesProvider>
+      <PlatformServicesProvider config={config}><NativeRoutes /><LocationProbe /></PlatformServicesProvider>
     </MemoryRouter>,
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location-probe">{location.pathname}{location.search}</output>;
 }
 
 describe('NativeRoutes', () => {
@@ -104,13 +110,13 @@ describe('NativeRoutes', () => {
   it('renders the unavailable focused frame for an unmatched native route', () => {
     renderNativeAt('/admin/unknown');
     expect(screen.getByTestId('native-route-title')).toHaveTextContent('Page unavailable');
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getAllByRole('status')[0]).toBeInTheDocument();
   });
 
   it('preserves the unavailable placeholder copy for the ruled event-detail route', () => {
     renderNativeAt('/events/event-1');
-    expect(screen.getByRole('status')).toHaveTextContent("This page isn't available in the mobile app");
-    expect(screen.getByRole('status')).toHaveTextContent('Admin tools are available on the website.');
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent("This page isn't available in the mobile app");
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('Admin tools are available on the website.');
   });
 
   it.each([
@@ -135,6 +141,58 @@ describe('NativeRoutes', () => {
     authState.isAuthenticated = true;
     renderNativeAt('/you');
     expect(screen.getByRole('heading', { name: 'You' })).toBeInTheDocument();
+    expect(screen.queryByTestId('native-route-title')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/browse', 'Browse', 'browse-sentinel', '/explore'],
+    ['/listing/listing-1', 'Listing', 'native-listing-detail-sentinel', '/explore?type=listings'],
+    ['/business/shop-1', 'Business', 'business-sentinel', '/explore?type=businesses'],
+    ['/events', 'Events', 'events-sentinel', '/explore?type=events'],
+    ['/events/event-1', 'Event', "This page isn't available in the mobile app", '/events'],
+    ['/volunteers', 'Volunteer', 'volunteer-sentinel', '/explore?type=volunteer'],
+    ['/talent', 'Talent', 'talent-sentinel', '/explore'],
+    ['/bender/123e4567-e89b-12d3-a456-426614174000', 'Bender post', 'bender-sentinel', '/bender'],
+    ['/admin/unknown', 'Page unavailable', "This page isn't available in the mobile app", '/'],
+  ])('executes public matrix row %s', (path, title, marker, fallback) => {
+    authState.isAuthenticated = false;
+    renderNativeAt(path);
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent(title);
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
+    if (marker.includes('available')) expect(screen.getAllByRole('status')[0]).toHaveTextContent(marker);
+    else expect(screen.getByText(marker)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(fallback);
+  });
+
+  it.each([
+    ['/messages', 'Messages', 'native-messages-sentinel', '/bender'],
+    ['/messages/thread-1', 'Conversation', 'native-messages-sentinel', '/messages'],
+    ['/notifications', 'Notifications', 'notifications-sentinel', '/'],
+    ['/settings', 'Settings', 'settings-sentinel', '/you'],
+    ['/create', 'Create listing', 'create-sentinel', '/'],
+  ])('executes authenticated protected matrix row %s', (path, title, marker, fallback) => {
+    authState.isAuthenticated = true;
+    renderNativeAt(path);
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent(title);
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
+    expect(screen.getByText(marker)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(fallback);
+  });
+
+  it.each(['/messages', '/messages/thread-1', '/notifications', '/settings', '/create'])('redirects guest %s without a stale focused frame', (path) => {
+    authState.isAuthenticated = false;
+    renderNativeAt(path);
+    expect(screen.getByText(`Login page: ${path}`)).toBeInTheDocument();
+    expect(screen.queryByTestId('native-route-title')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+  });
+
+  it('redirects a guest /you root without stale focused chrome', () => {
+    authState.isAuthenticated = false;
+    renderNativeAt('/you');
+    expect(screen.getByText('Login page: /you')).toBeInTheDocument();
     expect(screen.queryByTestId('native-route-title')).not.toBeInTheDocument();
   });
 
