@@ -127,6 +127,7 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('mode=map')
     expect(screen.getByRole('group', { name: 'Explore view' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Business map' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Remove Map filter/i })).not.toBeInTheDocument()
   })
 
   it.each(['success', 'empty', 'error'] as const)('replaces All map mode after business group %s with no coordinates', (status) => {
