@@ -7,7 +7,7 @@ import BenderPage from './BenderPage'
 
 const mocks = vi.hoisted(() => ({ getPost: vi.fn() }))
 const getPost = mocks.getPost
-const feed = { posts: [], cursor: null, hasMore: false, loading: false, loadingMore: false, loadMoreError: null, cachedAt: null, loadNext: vi.fn(), prepend: vi.fn(), remove: vi.fn(), patch: vi.fn() }
+const feed = { posts: [], cursor: null, hasMore: false, loading: false, firstPageError: null, retryFirstPage: vi.fn(), loadingMore: false, loadMoreError: null, cachedAt: null, loadNext: vi.fn(), prepend: vi.fn(), remove: vi.fn(), patch: vi.fn() }
 const auth = { isAuthenticated: true, user: { id: 'user-1', role: 'individual' } }
 vi.mock('@/services/benderApi', () => ({ benderApi: { getPost: mocks.getPost, listPosts: vi.fn(), deletePost: vi.fn(), like: vi.fn(), unlike: vi.fn(), listComments: vi.fn(), createComment: vi.fn(), deleteComment: vi.fn(), createPost: vi.fn() } }))
 vi.mock('@/hooks/useBenderFeed', () => ({ useBenderFeed: vi.fn(() => feed) }))
@@ -35,4 +35,22 @@ describe('BenderPage focused phase 2', () => {
   it('suppresses native focused sticky header and owns hidden heading', async () => { renderAt(`/bender/${post.id}`, true); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(screen.getByRole('heading', { name: 'Bender post' })).toHaveClass('sr-only'); expect(document.querySelector('.native-bender-header')).not.toBeInTheDocument() })
   it('keeps web focused chrome', async () => { renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(screen.getByTestId('web-navbar')).toBeInTheDocument() })
   it('returns to feed after deletion', async () => { window.confirm = vi.fn(() => true); renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: 'More' })); fireEvent.click(screen.getByRole('button', { name: 'Delete' })); await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/bender')) })
+})
+
+describe('BenderPage first-page recovery', () => {
+  afterEach(() => cleanup())
+  it('shows a retry state instead of the empty feed when the first page fails', () => {
+    feed.firstPageError = new Error('network unavailable')
+    renderAt('/bender')
+    expect(screen.getByRole('alert')).toHaveTextContent('Unable to load posts. Try again.')
+    expect(screen.queryByText('No posts yet')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveStyle({ minHeight: '44px' })
+  })
+
+  it('retries the first page once', () => {
+    feed.firstPageError = new Error('network unavailable')
+    renderAt('/bender')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(feed.retryFirstPage).toHaveBeenCalledTimes(1)
+  })
 })

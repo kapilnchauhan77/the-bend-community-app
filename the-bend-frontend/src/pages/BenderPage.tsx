@@ -866,7 +866,7 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
     if (!postId && legacyPostId) navigate(benderPostPath(legacyPostId), { replace: true });
   }, [legacyPostId, navigate, postId]);
 
-  const { posts, cursor, hasMore, loading, loadingMore, loadMoreError, loadNext, prepend, remove, patch: patchPost } = feed;
+  const { posts, cursor, hasMore, loading, firstPageError, retryFirstPage, loadingMore, loadMoreError, loadNext, prepend, remove, patch: patchPost } = feed;
 
   // IntersectionObserver — load next page when sentinel scrolls into view.
   useEffect(() => {
@@ -1008,6 +1008,18 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
                   </div>
                 </div>
               ))}
+            </div>
+          ) : firstPageError ? (
+            <div role="alert" className="py-8 text-center">
+              <p className="text-sm text-[hsl(0,55%,45%)]">Unable to load posts. Try again.</p>
+              <button
+                type="button"
+                onClick={() => { void retryFirstPage(); }}
+                className="mt-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-3 text-sm font-medium underline underline-offset-2"
+                style={{ color: BRONZE, minHeight: 44, minWidth: 44 }}
+              >
+                Retry
+              </button>
             </div>
           ) : posts.length === 0 ? (
             <EmptyState

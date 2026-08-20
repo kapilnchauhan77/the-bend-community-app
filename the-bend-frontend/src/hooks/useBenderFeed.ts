@@ -66,7 +66,11 @@ export function useBenderFeed(options: UseBenderFeedOptions = {}) {
     posts,
     cursor,
     hasMore,
-    loading: cached.data === null,
+    loading: cached.data === null && cached.status === 'loading',
+    firstPageError: cached.data === null && cached.status === 'error'
+      ? cached.error ?? new Error('Unable to load Bender')
+      : null,
+    retryFirstPage: cached.refresh,
     loadingMore,
     loadMoreError,
     cachedAt: cached.cachedAt,
