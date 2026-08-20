@@ -39,4 +39,11 @@ describe('NativeExplorePage lazy map boundary', () => {
     fireEvent.click(screen.getByRole('button', { name: 'List' }))
     expect(screen.queryByTestId('lazy-map-sentinel')).not.toBeInTheDocument()
   })
+
+  it('keeps the map module unevaluated while map availability is pending', () => {
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /></MemoryRouter>)
+    expect(harness.evaluated).toBe(false)
+    expect(screen.queryByTestId('lazy-map-sentinel')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
+  })
 })
