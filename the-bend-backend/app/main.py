@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
     import os
     os.makedirs("uploads/images", exist_ok=True)
     os.makedirs("uploads/guidelines", exist_ok=True)
+    os.makedirs("uploads/link-previews", exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     # WebSocket chat
