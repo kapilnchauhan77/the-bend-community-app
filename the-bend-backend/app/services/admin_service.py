@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from app.models.shop import Shop
 from app.models.listing import Listing
 from app.models.user import User
-from app.models.enums import ShopStatus, ListingStatus, UrgencyLevel, ListingCategory, NotificationType, UserRole
+from app.models.enums import ShopStatus, ListingStatus, NotificationType, UserRole
 from app.core.exceptions import NotFoundError
 from app.services.notification_service import NotificationService
 
@@ -15,15 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class AdminService:
-    def __init__(self, db: AsyncSession, tenant_id=None):
+    def __init__(self, db: AsyncSession, tenant_id: UUID | None = None):
         self.db = db
         self.tenant_id = tenant_id
 
     def _tenant_filter(self, model):
         """Return a tenant filter clause for models with tenant_id."""
-        if self.tenant_id and hasattr(model, 'tenant_id'):
-            return model.tenant_id == self.tenant_id
-        return True  # no-op filter
+        if self.tenant_id is None:
+            raise NotFoundError("Tenant")
+        return model.tenant_id == self.tenant_id
 
     async def get_dashboard(self) -> dict:
         pending = await self.db.execute(
@@ -60,7 +60,7 @@ class AdminService:
         recent_list = await self.db.execute(
             select(Listing).where(self._tenant_filter(Listing)).order_by(Listing.created_at.desc()).limit(5)
         )
-        listings = [{"id": str(l.id), "title": l.title, "urgency": l.urgency.value, "status": l.status.value, "created_at": str(l.created_at)} for l in recent_list.scalars().all()]
+        listings = [{"id": str(listing.id), "title": listing.title, "urgency": listing.urgency.value, "status": listing.status.value, "created_at": str(listing.created_at)} for listing in recent_list.scalars().all()]
 
         return {
             "pending_registrations": pending.scalar_one(),
@@ -87,7 +87,12 @@ class AdminService:
         shops = result.scalars().all()
         items = []
         for s in shops:
-            admin_result = await self.db.execute(select(User).where(User.id == s.admin_user_id))
+            admin_result = await self.db.execute(
+                select(User).where(
+                    User.id == s.admin_user_id,
+                    User.tenant_id == self.tenant_id,
+                )
+            )
             admin = admin_result.scalar_one_or_none()
             # Map backend status to frontend-friendly status
             display_status = s.status.value
@@ -145,7 +150,12 @@ class AdminService:
         )
         try:
             from app.services.email_service import email_service
-            admin_result = await self.db.execute(select(User).where(User.id == shop.admin_user_id))
+            admin_result = await self.db.execute(
+                select(User).where(
+                    User.id == shop.admin_user_id,
+                    User.tenant_id == self.tenant_id,
+                )
+            )
             admin = admin_result.scalar_one_or_none()
             if admin:
                 email_service.send_registration_approved_email(admin.email, admin.name, shop.name)
@@ -172,7 +182,12 @@ class AdminService:
         )
         try:
             from app.services.email_service import email_service
-            admin_result = await self.db.execute(select(User).where(User.id == shop.admin_user_id))
+            admin_result = await self.db.execute(
+                select(User).where(
+                    User.id == shop.admin_user_id,
+                    User.tenant_id == self.tenant_id,
+                )
+            )
             admin = admin_result.scalar_one_or_none()
             if admin:
                 email_service.send_registration_rejected_email(admin.email, admin.name, shop.name, reason)
@@ -193,11 +208,17 @@ class AdminService:
             admin = None
             if s.admin_user_id:
                 admin_result = await self.db.execute(
-                    select(User).where(User.id == s.admin_user_id)
+                    select(User).where(
+                        User.id == s.admin_user_id,
+                        User.tenant_id == self.tenant_id,
+                    )
                 )
                 admin = admin_result.scalar_one_or_none()
             count_result = await self.db.execute(
-                select(func.count()).select_from(Listing).where(Listing.shop_id == s.id)
+                select(func.count()).select_from(Listing).where(
+                    Listing.shop_id == s.id,
+                    Listing.tenant_id == self.tenant_id,
+                )
             )
             shops.append({
                 "id": str(s.id), "name": s.name, "business_type": s.business_type,
@@ -211,7 +232,12 @@ class AdminService:
         return {"items": shops, "next_cursor": None, "has_more": False}
 
     async def suspend_shop(self, shop_id: UUID, reason: str):
-        result = await self.db.execute(select(Shop).where(Shop.id == shop_id))
+        result = await self.db.execute(
+            select(Shop).where(
+                Shop.id == shop_id,
+                self._tenant_filter(Shop),
+            )
+        )
         shop = result.scalar_one_or_none()
         if not shop:
             raise NotFoundError("Shop")
@@ -220,7 +246,9 @@ class AdminService:
         from sqlalchemy import update
         await self.db.execute(
             update(Listing).where(
-                Listing.shop_id == shop_id, Listing.status == ListingStatus.ACTIVE
+                Listing.shop_id == shop_id,
+                Listing.tenant_id == self.tenant_id,
+                Listing.status == ListingStatus.ACTIVE,
             ).values(status=ListingStatus.DELETED)
         )
         await self.db.flush()
@@ -232,13 +260,19 @@ class AdminService:
                 title="Business Suspended",
                 body=f"Your business '{shop.name}' has been suspended. Reason: {reason}",
                 data={"shop_id": str(shop.id)},
+                tenant_id=self.tenant_id,
             )
         except Exception:
             pass
         return shop
 
     async def reactivate_shop(self, shop_id: UUID):
-        result = await self.db.execute(select(Shop).where(Shop.id == shop_id))
+        result = await self.db.execute(
+            select(Shop).where(
+                Shop.id == shop_id,
+                self._tenant_filter(Shop),
+            )
+        )
         shop = result.scalar_one_or_none()
         if not shop:
             raise NotFoundError("Shop")
@@ -268,7 +302,10 @@ class AdminService:
             count_result = await self.db.execute(
                 select(func.count())
                 .select_from(Listing)
-                .where(Listing.posted_by_user_id == u.id)
+                .where(
+                    Listing.posted_by_user_id == u.id,
+                    Listing.tenant_id == self.tenant_id,
+                )
             )
             items.append({
                 "id": str(u.id), "name": u.name, "email": u.email,
@@ -307,18 +344,28 @@ class AdminService:
 
     async def get_all_listings(self, status=None, category=None, urgency=None, shop_id=None, search=None, cursor=None, limit=20):
         query = select(Listing).where(self._tenant_filter(Listing)).order_by(Listing.created_at.desc())
-        if status: query = query.where(Listing.status == status)
-        if category: query = query.where(Listing.category == category)
-        if urgency: query = query.where(Listing.urgency == urgency)
-        if shop_id: query = query.where(Listing.shop_id == shop_id)
-        if search: query = query.where(Listing.title.ilike(f"%{search}%"))
+        if status:
+            query = query.where(Listing.status == status)
+        if category:
+            query = query.where(Listing.category == category)
+        if urgency:
+            query = query.where(Listing.urgency == urgency)
+        if shop_id:
+            query = query.where(Listing.shop_id == shop_id)
+        if search:
+            query = query.where(Listing.title.ilike(f"%{search}%"))
         query = query.limit(limit)
         result = await self.db.execute(query)
-        listings = [{"id": str(l.id), "title": l.title, "category": l.category.value, "urgency": l.urgency.value, "status": l.status.value, "created_at": str(l.created_at)} for l in result.scalars().all()]
+        listings = [{"id": str(listing.id), "title": listing.title, "category": listing.category.value, "urgency": listing.urgency.value, "status": listing.status.value, "created_at": str(listing.created_at)} for listing in result.scalars().all()]
         return {"items": listings, "next_cursor": None, "has_more": False}
 
     async def remove_listing(self, listing_id: UUID, reason: str):
-        result = await self.db.execute(select(Listing).where(Listing.id == listing_id))
+        result = await self.db.execute(
+            select(Listing).where(
+                Listing.id == listing_id,
+                self._tenant_filter(Listing),
+            )
+        )
         listing = result.scalar_one_or_none()
         if not listing:
             raise NotFoundError("Listing")

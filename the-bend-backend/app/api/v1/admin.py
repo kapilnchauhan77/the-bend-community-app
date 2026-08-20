@@ -1,5 +1,5 @@
 from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,8 +8,13 @@ from app.core.permissions import Permission, get_current_tenant
 from app.core.exceptions import NotFoundError
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.ad_pricing import AdPricing
 from app.models.enums import UserRole
+from app.models.sponsor import Sponsor
+from app.models.success_story import SuccessStory
+from app.schemas.sponsor import SponsorCreate, SponsorUpdate
 from app.services.admin_service import AdminService
+from app.services.report_service import ReportService
 from app.schemas.admin import RejectRequest, SuspendRequest, AdminListingDeleteRequest
 from app.services.event_service import EventService
 from app.schemas.event import EventCreate, EventUpdate, ConnectorCreate, ConnectorUpdate
@@ -23,12 +28,27 @@ def get_admin_service(db: AsyncSession = Depends(get_db)):
     return AdminService(db)
 
 
+async def get_matching_admin_tenant(
+    tenant: Tenant | None = Depends(get_current_tenant),
+    current_user: User = Depends(Permission.require_community_admin()),
+) -> Tenant:
+    """Resolve an admin tenant without revealing cross-tenant state."""
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    if (
+        current_user.role == UserRole.COMMUNITY_ADMIN
+        and current_user.tenant_id != tenant.id
+    ):
+        raise NotFoundError("Tenant")
+    return tenant
+
+
 @router.get("/dashboard")
 async def dashboard(
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     return await service.get_dashboard()
 
 
@@ -38,9 +58,9 @@ async def get_registrations(
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     result = await service.get_registrations(status, cursor, limit)
     counts = await service.get_registration_counts()
     result["counts"] = counts
@@ -51,8 +71,9 @@ async def get_registrations(
 async def approve_registration(
     shop_id: UUID,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    service.tenant_id = tenant.id
     shop = await service.approve_registration(shop_id)
     return {"id": str(shop.id), "status": "active"}
 
@@ -61,8 +82,9 @@ async def approve_registration(
 async def reject_registration(
     shop_id: UUID, data: RejectRequest,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    service.tenant_id = tenant.id
     shop = await service.reject_registration(shop_id, data.reason)
     return {"id": str(shop.id), "status": "rejected"}
 
@@ -74,9 +96,9 @@ async def get_shops(
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     return await service.get_shops(status, search, cursor, limit)
 
 
@@ -84,8 +106,9 @@ async def get_shops(
 async def suspend_shop(
     shop_id: UUID, data: SuspendRequest,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    service.tenant_id = tenant.id
     shop = await service.suspend_shop(shop_id, data.reason)
     return {"id": str(shop.id), "status": "suspended"}
 
@@ -94,8 +117,9 @@ async def suspend_shop(
 async def reactivate_shop(
     shop_id: UUID,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    service.tenant_id = tenant.id
     shop = await service.reactivate_shop(shop_id)
     return {"id": str(shop.id), "status": "active"}
 
@@ -107,9 +131,9 @@ async def get_individuals(
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     return await service.get_individuals(status, search, cursor, limit)
 
 
@@ -117,9 +141,9 @@ async def get_individuals(
 async def suspend_individual(
     user_id: UUID, data: SuspendRequest,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     user = await service.suspend_individual(user_id, data.reason)
     return {"id": str(user.id), "is_active": user.is_active}
 
@@ -128,9 +152,9 @@ async def suspend_individual(
 async def reactivate_individual(
     user_id: UUID,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     user = await service.reactivate_individual(user_id)
     return {"id": str(user.id), "is_active": user.is_active}
 
@@ -145,9 +169,9 @@ async def get_all_listings(
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     return await service.get_all_listings(status, category, urgency, shop_id, search, cursor, limit)
 
 
@@ -155,8 +179,9 @@ async def get_all_listings(
 async def remove_listing(
     listing_id: UUID, data: AdminListingDeleteRequest,
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
+    service.tenant_id = tenant.id
     await service.remove_listing(listing_id, data.reason)
     return {"status": "deleted"}
 
@@ -165,24 +190,14 @@ async def remove_listing(
 async def get_reports(
     period: str = Query("week"),
     service: AdminService = Depends(get_admin_service),
-    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    service.tenant_id = current_user.tenant_id
+    service.tenant_id = tenant.id
     return await service.get_reports(period)
 
 
 def get_event_service(db: AsyncSession = Depends(get_db)):
     return EventService(db)
-
-
-async def get_matching_admin_tenant(
-    tenant: Tenant | None = Depends(get_current_tenant),
-    current_user: User = Depends(Permission.require_community_admin()),
-) -> Tenant:
-    """Resolve an admin tenant without revealing cross-tenant state."""
-    if tenant is None or current_user.tenant_id != tenant.id:
-        raise NotFoundError("Tenant")
-    return tenant
 
 
 # --- Event Admin Routes ---
@@ -340,18 +355,17 @@ async def admin_sync_all(
 
 # --- Sponsor Admin Routes ---
 
-from app.models.sponsor import Sponsor
-from app.schemas.sponsor import SponsorCreate, SponsorUpdate
-
 
 @router.get("/sponsors")
 async def admin_list_sponsors(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    query = select(Sponsor).order_by(Sponsor.sort_order, Sponsor.name)
-    if _.tenant_id:
-        query = query.where(Sponsor.tenant_id == _.tenant_id)
+    query = (
+        select(Sponsor)
+        .where(Sponsor.tenant_id == tenant.id)
+        .order_by(Sponsor.sort_order, Sponsor.name)
+    )
     result = await db.execute(query)
     sponsors = result.scalars().all()
     return {"items": [{
@@ -372,7 +386,7 @@ async def admin_list_sponsors(
 async def admin_create_sponsor(
     data: SponsorCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
     # Admin-created sponsors skip the paid/approval pipeline — they're
     # comp slots the community admin chooses to grant, so they go live
@@ -380,7 +394,7 @@ async def admin_create_sponsor(
     sponsor = Sponsor(
         id=uuid4(),
         **data.model_dump(),
-        tenant_id=_.tenant_id,
+        tenant_id=tenant.id,
         paid=True,
         approved=True,
     )
@@ -394,13 +408,17 @@ async def admin_update_sponsor(
     sponsor_id: UUID,
     data: SponsorUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    result = await db.execute(
+        select(Sponsor).where(
+            Sponsor.id == sponsor_id,
+            Sponsor.tenant_id == tenant.id,
+        )
+    )
     sponsor = result.scalar_one_or_none()
     if not sponsor:
-        from app.core.exceptions import NotFoundError
-        raise NotFoundError("Sponsor not found")
+        raise NotFoundError("Sponsor")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(sponsor, k, v)
     await db.flush()
@@ -411,13 +429,17 @@ async def admin_update_sponsor(
 async def admin_delete_sponsor(
     sponsor_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    result = await db.execute(
+        select(Sponsor).where(
+            Sponsor.id == sponsor_id,
+            Sponsor.tenant_id == tenant.id,
+        )
+    )
     sponsor = result.scalar_one_or_none()
     if not sponsor:
-        from app.core.exceptions import NotFoundError
-        raise NotFoundError("Sponsor not found")
+        raise NotFoundError("Sponsor")
     await db.delete(sponsor)
     await db.flush()
     return {"status": "deleted"}
@@ -427,13 +449,17 @@ async def admin_delete_sponsor(
 async def admin_approve_sponsor(
     sponsor_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))
+    result = await db.execute(
+        select(Sponsor).where(
+            Sponsor.id == sponsor_id,
+            Sponsor.tenant_id == tenant.id,
+        )
+    )
     sponsor = result.scalar_one_or_none()
     if not sponsor:
-        from app.core.exceptions import NotFoundError
-        raise NotFoundError("Sponsor not found")
+        raise NotFoundError("Sponsor")
     sponsor.approved = True
     sponsor.is_active = True
     await db.flush()
@@ -442,17 +468,17 @@ async def admin_approve_sponsor(
 
 # --- Ad Pricing Admin Routes ---
 
-from app.models.ad_pricing import AdPricing
-
 
 @router.get("/pricing")
 async def admin_list_pricing(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    query = select(AdPricing).order_by(AdPricing.sort_order)
-    if _.tenant_id:
-        query = query.where(AdPricing.tenant_id == _.tenant_id)
+    query = (
+        select(AdPricing)
+        .where(AdPricing.tenant_id == tenant.id)
+        .order_by(AdPricing.sort_order)
+    )
     result = await db.execute(query)
     items = result.scalars().all()
     return {"items": [{
@@ -467,9 +493,9 @@ async def admin_list_pricing(
 async def admin_create_pricing(
     data: dict,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    pricing = AdPricing(id=uuid4(), tenant_id=_.tenant_id, **{k: v for k, v in data.items() if hasattr(AdPricing, k) and k != 'tenant_id'})
+    pricing = AdPricing(id=uuid4(), tenant_id=tenant.id, **{k: v for k, v in data.items() if hasattr(AdPricing, k) and k != 'tenant_id'})
     db.add(pricing)
     await db.flush()
     return {"id": str(pricing.id)}
@@ -480,15 +506,19 @@ async def admin_update_pricing(
     pricing_id: UUID,
     data: dict,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_id))
+    result = await db.execute(
+        select(AdPricing).where(
+            AdPricing.id == pricing_id,
+            AdPricing.tenant_id == tenant.id,
+        )
+    )
     pricing = result.scalar_one_or_none()
     if not pricing:
-        from app.core.exceptions import NotFoundError
-        raise NotFoundError("Pricing not found")
+        raise NotFoundError("Pricing")
     for k, v in data.items():
-        if hasattr(pricing, k) and k != 'id':
+        if hasattr(pricing, k) and k not in {"id", "tenant_id"}:
             setattr(pricing, k, v)
     await db.flush()
     return {"id": str(pricing.id), "status": "updated"}
@@ -498,13 +528,17 @@ async def admin_update_pricing(
 async def admin_delete_pricing(
     pricing_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    result = await db.execute(select(AdPricing).where(AdPricing.id == pricing_id))
+    result = await db.execute(
+        select(AdPricing).where(
+            AdPricing.id == pricing_id,
+            AdPricing.tenant_id == tenant.id,
+        )
+    )
     pricing = result.scalar_one_or_none()
     if not pricing:
-        from app.core.exceptions import NotFoundError
-        raise NotFoundError("Pricing not found")
+        raise NotFoundError("Pricing")
     await db.delete(pricing)
     await db.flush()
     return {"status": "deleted"}
@@ -512,19 +546,22 @@ async def admin_delete_pricing(
 
 # --- Success Story Admin Routes ---
 
-from app.models.success_story import SuccessStory
-
 
 @router.post("/stories/{story_id}/feature")
 async def admin_toggle_story_featured(
     story_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    result = await db.execute(select(SuccessStory).where(SuccessStory.id == story_id))
+    result = await db.execute(
+        select(SuccessStory).where(
+            SuccessStory.id == story_id,
+            SuccessStory.tenant_id == tenant.id,
+        )
+    )
     story = result.scalar_one_or_none()
     if not story:
-        raise HTTPException(status_code=404, detail="Story not found")
+        raise NotFoundError("Story")
     story.is_featured = not story.is_featured
     await db.flush()
     return {"id": str(story.id), "is_featured": story.is_featured}
@@ -532,26 +569,24 @@ async def admin_toggle_story_featured(
 
 # --- Report Flags Admin Routes ---
 
-from app.models.report import Report
-from app.services.report_service import ReportService
-
 
 @router.get("/reports/flags")
 async def admin_list_reports(
     resolved: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    return await ReportService(db).list_admin(_.tenant_id, resolved)
+    return await ReportService(db).list_admin(tenant.id, resolved)
 
 
 @router.post("/reports/flags/{report_id}/resolve")
 async def admin_resolve_report(
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(Permission.require_community_admin()),
+    current_user: User = Depends(Permission.require_community_admin()),
+    tenant: Tenant = Depends(get_matching_admin_tenant),
 ):
-    await ReportService(db).resolve(report_id, _.id, _.tenant_id)
+    await ReportService(db).resolve(report_id, current_user.id, tenant.id)
     return {"status": "resolved"}
 
 
