@@ -17,6 +17,7 @@ import {
 import { authApi } from '@/services/authApi';
 import { registerSchema, type RegisterFormData } from '@/lib/validators';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
+import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -168,6 +169,7 @@ export default function RegisterPage() {
       {/* Right — Registration form */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto px-6 py-10">
+          <NativeAuthBack fallbackPath="/login" />
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <Link to="/" className="flex items-center gap-3">
@@ -422,7 +424,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(30,10%,55%)] hover:text-[hsl(30,15%,25%)] transition-colors cursor-pointer"
+                      className="native-auth-password-toggle absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(30,10%,55%)] hover:text-[hsl(30,15%,25%)] transition-colors cursor-pointer"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -447,7 +449,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirm((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(30,10%,55%)] hover:text-[hsl(30,15%,25%)] transition-colors cursor-pointer"
+                      className="native-auth-password-toggle absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(30,10%,55%)] hover:text-[hsl(30,15%,25%)] transition-colors cursor-pointer"
                       aria-label={showConfirm ? 'Hide password' : 'Show password'}
                     >
                       {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -481,7 +483,7 @@ export default function RegisterPage() {
                 </div>
                 <a
                   href="/guidelines"
-                  className="flex-shrink-0 text-xs font-semibold hover:underline"
+                  className="native-auth-guideline-action flex-shrink-0 text-xs font-semibold hover:underline"
                   style={{ color: BRONZE }}
                 >
                   View
@@ -497,11 +499,11 @@ export default function RegisterPage() {
                       id="guidelines_accepted"
                       checked={field.value}
                       onCheckedChange={field.onChange}
-                      className="mt-0.5"
+                      className="native-auth-consent-control mt-0.5"
                     />
                     <label htmlFor="guidelines_accepted" className="text-sm leading-relaxed cursor-pointer select-none text-[hsl(30,15%,25%)]">
                       I have read and agree to the{' '}
-                      <a href="/guidelines" className="font-semibold hover:underline" style={{ color: BRONZE }}>
+                      <a href="/guidelines" className="native-auth-guideline-action font-semibold hover:underline" style={{ color: BRONZE }}>
                         community guidelines
                       </a>
                     </label>

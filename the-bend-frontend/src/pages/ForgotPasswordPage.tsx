@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authApi } from '@/services/authApi';
+import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -38,6 +39,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
       <div className="w-full max-w-sm">
+        <NativeAuthBack fallbackPath="/login" />
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <Link to="/" className="flex items-center gap-3">

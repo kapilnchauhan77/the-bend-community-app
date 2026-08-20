@@ -33,6 +33,17 @@
 .event-detail-message h1 { margin: 0 0 10px; }
 @media (min-width: 640px) { .event-detail-content { padding: 32px 40px; } }
 .native-app .native-auth-page { min-height: calc(100dvh - 88px - var(--native-safe-bottom)); }
+.native-app .native-auth-password-toggle,
+.native-app .native-auth-inline-action,
+.native-app .native-auth-guideline-action,
+.native-app .native-auth-consent-control { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+.native-app .native-auth-password-toggle:focus-visible,
+.native-app .native-auth-inline-action:focus-visible,
+.native-app .native-auth-guideline-action:focus-visible,
+.native-app .native-auth-consent-control:focus-visible { outline: 3px solid var(--native-focus); outline-offset: 2px; }
+.native-app .native-auth-page input[type='password'],
+.native-app .native-auth-page input[autocomplete='new-password'],
+.native-app .native-auth-page input[autocomplete='current-password'] { padding-right: 52px; }
 .native-app h1,
 .native-app h2,
 .native-app h3 { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

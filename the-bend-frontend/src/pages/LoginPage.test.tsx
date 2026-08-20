@@ -37,6 +37,12 @@ describe('LoginPage', () => {
     expect(container.firstElementChild).toHaveClass('native-auth-page')
   })
 
+  it('uses account-neutral login copy', () => {
+    render(<MemoryRouter initialEntries={['/login']}><LoginPage /></MemoryRouter>)
+    expect(screen.getByText('Sign in to your account')).toBeInTheDocument()
+    expect(screen.queryByText('Sign in to your business account')).not.toBeInTheDocument()
+  })
+
   it('clears a typed Create continuation exactly once after successful login', async () => {
     const getItem = vi.fn((key: string) => key === 'native_pending_post_path' ? '/create?type=offer' : 'offer-listing')
     const removeItem = vi.fn()

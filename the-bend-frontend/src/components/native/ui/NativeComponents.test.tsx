@@ -20,6 +20,14 @@ const cssRule = (selector: string) => cssRules.filter((rule) => rule.selectors.i
 
 describe('native UI primitives', () => {
   afterEach(cleanup)
+  it('keeps native auth control geometry scoped and keyboard-visible', () => {
+    for (const selector of ['.native-auth-password-toggle', '.native-auth-inline-action', '.native-auth-guideline-action', '.native-auth-consent-control']) {
+      const rule = cssRule(`.native-app ${selector}`)
+      expect(rule).toMatch(/min-width:\s*44px/)
+      expect(rule).toMatch(/min-height:\s*44px/)
+      expect(nativeCss).toContain(`.native-app ${selector}:focus-visible`)
+    }
+  })
   it('controls search submit and clear through presentation callbacks', () => {
     const onChange = vi.fn(); const onSubmit = vi.fn(); const onClear = vi.fn()
     render(<NativeSearchBar value="books" label="Search" placeholder="Search listings" onChange={onChange} onSubmit={onSubmit} onClear={onClear} />)

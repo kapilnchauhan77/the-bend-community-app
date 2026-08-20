@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/authApi';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
 import { clearPendingDestination, getPendingDestination, isAllowedPendingDestination } from '@/auth/pendingDestination';
+import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -94,6 +95,7 @@ export default function LoginPage() {
       {/* Right — Login form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
         <div className="w-full max-w-sm">
+          <NativeAuthBack fallbackPath="/" />
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <Link to="/" className="flex items-center gap-3">
@@ -110,7 +112,7 @@ export default function LoginPage() {
           {/* Heading */}
           <div className="mb-8">
             <h1 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-1">Welcome back</h1>
-            <p className="text-sm text-[hsl(30,10%,48%)]">Sign in to your business account</p>
+            <p className="text-sm text-[hsl(30,10%,48%)]">Sign in to your account</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
@@ -155,7 +157,7 @@ export default function LoginPage() {
                 </Label>
                 <button
                   type="button"
-                  className="text-xs font-medium transition-colors hover:underline cursor-pointer"
+                  className="native-auth-inline-action text-xs font-medium transition-colors hover:underline cursor-pointer"
                   style={{ color: BRONZE }}
                   onClick={() => navigate('/forgot-password')}
                 >
@@ -174,7 +176,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(30,10%,55%)] hover:text-[hsl(30,15%,25%)] transition-colors cursor-pointer"
+                  className="native-auth-password-toggle absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(30,10%,55%)] hover:text-[hsl(30,15%,25%)] transition-colors cursor-pointer"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
