@@ -242,14 +242,15 @@ async def test_symlink_is_skipped_and_mtime_is_reread_after_lock(tmp_path):
 @pytest.mark.asyncio
 async def test_file_disappearing_during_delete_is_counted_as_skipped(tmp_path, monkeypatch):
     path = write_file(tmp_path, "6" * 64)
-    original_unlink = Path.unlink
+    original_unlink = os.unlink
 
-    def disappear(self, missing_ok=False):
-        if self == path:
-            raise FileNotFoundError(self)
-        return original_unlink(self, missing_ok=missing_ok)
+    def disappear(raw_path, *args, **kwargs):
+        if os.fspath(raw_path) == os.fspath(path):
+            original_unlink(raw_path)
+            raise FileNotFoundError(raw_path)
+        return original_unlink(raw_path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "unlink", disappear)
+    monkeypatch.setattr(os, "unlink", disappear)
     stats = await cleanup_link_preview_image_files(
         FakeDB(), FakeRedisStore(), upload_dir=tmp_path
     )

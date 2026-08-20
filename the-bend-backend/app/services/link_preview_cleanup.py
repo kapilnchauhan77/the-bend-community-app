@@ -90,7 +90,7 @@ def _delete_unreferenced(
                     redis_referenced += 1
                     continue
                 try:
-                    path.unlink(missing_ok=True)
+                    path.unlink()
                     deleted += 1
                 except (FileNotFoundError, NotADirectoryError, OSError):
                     skipped += 1
