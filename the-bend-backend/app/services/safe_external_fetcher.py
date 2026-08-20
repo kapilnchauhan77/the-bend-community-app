@@ -1,5 +1,6 @@
 import asyncio
 import ipaddress
+import re
 import socket
 import time
 from contextlib import asynccontextmanager
@@ -140,6 +141,8 @@ class SafeExternalFetcher:
                 return target
         except asyncio.TimeoutError as exc:
             raise LinkPreviewDeadlineExceeded("deadline_exceeded") from exc
+        except (aiohttp.ClientError, OSError, ValueError) as exc:
+            raise LinkPreviewUpstreamFailure("upstream_failure") from exc
 
     async def fetch_html(self, raw_url: str, *, deadline: float) -> SafeFetchResponse:
         return await self._fetch(raw_url, deadline=deadline, kind="html")
@@ -215,10 +218,9 @@ class SafeExternalFetcher:
     def _check_content_length(value: str | None, limit: int) -> None:
         if value is None:
             return
-        try:
-            length = int(value)
-        except (TypeError, ValueError) as exc:
-            raise LinkPreviewResponseTooLarge("invalid_content_length") from exc
+        if not isinstance(value, str) or re.fullmatch(r"[0-9]+", value) is None:
+            raise LinkPreviewResponseTooLarge("invalid_content_length")
+        length = int(value, 10)
         if length < 0 or length > limit:
             raise LinkPreviewResponseTooLarge("response_too_large")
 

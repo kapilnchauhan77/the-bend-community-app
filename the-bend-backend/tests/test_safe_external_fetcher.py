@@ -12,7 +12,8 @@ from app.services.link_preview_errors import (
     LinkPreviewResponseTooLarge,
     LinkPreviewUpstreamFailure,
 )
-from app.services.safe_external_fetcher import SafeExternalFetcher
+from app.services.safe_external_fetcher import SafeExternalFetcher, aiohttp_session_factory
+from app.services.bender_link_urls import prepare_external_url
 
 
 PUBLIC = "93.184.216.34"
@@ -132,6 +133,19 @@ async def test_mixed_public_and_private_dns_answers_are_rejected():
 
 
 @pytest.mark.asyncio
+async def test_dns_failure_maps_to_typed_generic_error_without_hostname():
+    async def failing_resolver(_hostname, _port):
+        raise OSError("resolver failed for example.org")
+
+    fetcher = SafeExternalFetcher(resolver=failing_resolver)
+    with pytest.raises(LinkPreviewUpstreamFailure) as error:
+        await fetcher.validate_destination("https://example.org/private?token=secret", deadline=time.monotonic() + 1)
+    assert error.value.reason == "upstream_failure"
+    assert "example.org" not in str(error.value)
+    assert "secret" not in str(error.value)
+
+
+@pytest.mark.asyncio
 async def test_redirect_destination_is_resolved_and_validated_again():
     resolver = _ResolverForHosts({"example.org": (PUBLIC,), "internal.test": ("10.0.0.2",)})
     factory = _SessionFactory([_FakeResponse(status=302, location="http://internal.test/private")])
@@ -212,11 +226,44 @@ async def test_image_limit_and_mime_allowlist():
 
 @pytest.mark.asyncio
 async def test_content_length_is_rejected_before_streaming():
-    for content_length in ("not-a-number", "524289"):
+    for content_length in ("not-a-number", "524289", "+1", " 1", "1 ", "1_0", "１２３"):
         response = _FakeResponse(content_length=content_length)
         fetcher, _ = _fetcher_for(response)
         with pytest.raises(LinkPreviewResponseTooLarge):
             await fetcher.fetch_html("https://example.org/", deadline=time.monotonic() + 1)
+
+
+@pytest.mark.asyncio
+async def test_production_session_factory_builds_isolated_pinned_session(monkeypatch):
+    created = {}
+
+    class FakeConnector:
+        def __init__(self, **kwargs):
+            created["connector"] = kwargs
+
+    class FakeSession:
+        def __init__(self, **kwargs):
+            created["session"] = kwargs
+            created["session_object"] = self
+
+        async def close(self):
+            created["closed"] = True
+
+    import app.services.safe_external_fetcher as fetcher_module
+
+    monkeypatch.setattr(fetcher_module.aiohttp, "TCPConnector", FakeConnector)
+    monkeypatch.setattr(fetcher_module.aiohttp, "ClientSession", FakeSession)
+    target = prepare_external_url("https://example.org/")
+    addresses = (ipaddress.ip_address(PUBLIC),)
+    async with aiohttp_session_factory(target, addresses) as session:
+        assert session.session is created["session_object"]
+    assert created["connector"]["use_dns_cache"] is False
+    assert created["connector"]["limit"] == 1
+    assert isinstance(created["connector"]["resolver"], fetcher_module.PinnedResolver)
+    assert created["session"]["trust_env"] is False
+    assert created["session"]["auto_decompress"] is True
+    assert isinstance(created["session"]["cookie_jar"], fetcher_module.aiohttp.DummyCookieJar)
+    assert created["closed"] is True
 
 
 @pytest.mark.asyncio
