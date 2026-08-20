@@ -55,6 +55,7 @@ describe('native UI primitives', () => {
     const { rerender } = render(<NativeDiscoveryCard item={{ ...item, kind: 'business', mediaFit: 'contain', thumbnailUrl: '/logo.png', urgent: false }} onOpen={vi.fn()} />)
     expect(screen.getByRole('img')).toHaveAttribute('data-media-fit', 'contain')
     expect(screen.getByRole('img')).toHaveClass('native-discovery-media--contain')
+    expect(cssRule('.native-app .native-discovery-card img.native-discovery-media--contain')).toMatch(/object-fit:\s*contain/)
     fireEvent.error(screen.getByRole('img'))
     const fallback = document.querySelector('.native-thumbnail-fallback')
     expect(fallback).toHaveAttribute('data-media-fit', 'contain')
@@ -62,6 +63,8 @@ describe('native UI primitives', () => {
     expect(fallback).toHaveClass('native-thumbnail')
     rerender(<NativeDiscoveryCard item={{ ...item, mediaFit: 'cover', thumbnailUrl: '/listing.jpg', urgent: false }} onOpen={vi.fn()} />)
     expect(screen.getByRole('img')).toHaveAttribute('data-media-fit', 'cover')
+    expect(screen.getByRole('img')).toHaveClass('native-discovery-media--cover')
+    expect(cssRule('.native-app .native-discovery-card img.native-discovery-media--cover')).toMatch(/object-fit:\s*cover/)
   })
   it('resolves backend upload paths before rendering discovery images', () => {
     render(<NativeDiscoveryCard item={{ ...item, urgent: false, thumbnailUrl: '/uploads/images/listing.jpg' }} onOpen={vi.fn()} />)

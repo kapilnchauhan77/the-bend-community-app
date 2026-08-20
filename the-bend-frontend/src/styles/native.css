@@ -275,6 +275,8 @@
 }
 .native-app .native-discovery-media--contain { object-fit: contain; }
 .native-app .native-discovery-media--cover { object-fit: cover; }
+.native-app .native-discovery-card img.native-discovery-media--contain { object-fit: contain; }
+.native-app .native-discovery-card img.native-discovery-media--cover { object-fit: cover; }
 .native-app .native-thumbnail { display: block; }
 .native-app .native-thumbnail-fallback { display: grid; place-items: center; border-radius: 12px; color: var(--native-primary); background: color-mix(in srgb, var(--native-primary) 12%, var(--native-card)); }
 .native-app .native-search-bar {
