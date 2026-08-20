@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class BenderAuthor(BaseModel):
@@ -19,6 +20,42 @@ class BenderAuthor(BaseModel):
     @classmethod
     def stringify(cls, v):
         return str(v) if v is not None else None
+
+
+class LinkPreviewMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(..., min_length=1, max_length=2048)
+    title: str = Field(..., min_length=1, max_length=180)
+    description: str | None = Field(None, max_length=300)
+    site_name: str | None = Field(None, max_length=80)
+    image_url: str | None = Field(None, max_length=500)
+
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_url(cls, value):
+        if value is None:
+            return value
+        if not re.fullmatch(r"/uploads/link-previews/[0-9a-f]{64}\.webp", value):
+            raise ValueError("image_url must be a local link-preview asset")
+        return value
+
+
+class BenderLinkPreview(LinkPreviewMetadata):
+    source_url: str = Field(..., min_length=1, max_length=2048)
+
+
+class BenderLinkPreviewSnapshot(BenderLinkPreview):
+    version: Literal[1] = 1
+
+
+class BenderLinkPreviewRequest(BaseModel):
+    url: str
+
+
+class BenderLinkPreviewResponse(BaseModel):
+    preview_token: str
+    preview: BenderLinkPreview
 
 
 class BenderPostCreate(BaseModel):
@@ -50,6 +87,7 @@ class BenderPostResponse(BaseModel):
     comment_count: int
     viewer_has_liked: bool
     created_at: datetime
+    link_preview: BenderLinkPreview | None = None
 
     @field_validator("id", mode="before")
     @classmethod

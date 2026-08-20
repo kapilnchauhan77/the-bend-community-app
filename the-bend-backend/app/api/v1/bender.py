@@ -83,6 +83,7 @@ async def create_post(
         comment_count=post.comment_count,
         viewer_has_liked=False,
         created_at=post.created_at,
+        link_preview=service._preview_block(post.link_preview),
     )
 
 

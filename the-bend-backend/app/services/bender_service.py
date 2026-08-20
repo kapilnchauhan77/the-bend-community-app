@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,8 @@ from app.schemas.bender import (
     BenderAuthor,
     BenderCommentCreate,
     BenderCommentResponse,
+    BenderLinkPreview,
+    BenderLinkPreviewSnapshot,
     BenderPostCreate,
     BenderPostResponse,
 )
@@ -68,6 +71,18 @@ class BenderService:
 
     def _is_community_admin(self, user: User) -> bool:
         return user.role in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN)
+
+    @staticmethod
+    def _preview_block(value: dict[str, object] | None) -> BenderLinkPreview | None:
+        if value is None:
+            return None
+        try:
+            snapshot = BenderLinkPreviewSnapshot.model_validate(value)
+            return BenderLinkPreview.model_validate(
+                snapshot.model_dump(exclude={"version"})
+            )
+        except PydanticValidationError:
+            return None
 
     # ------------------------------------------------------------------
     # posts
@@ -183,6 +198,7 @@ class BenderService:
                 comment_count=r.comment_count,
                 viewer_has_liked=r.id in liked_ids,
                 created_at=r.created_at,
+                link_preview=self._preview_block(r.link_preview),
             )
             for r in rows
         ]

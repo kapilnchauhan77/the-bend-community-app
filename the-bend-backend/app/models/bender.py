@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -46,6 +46,7 @@ class BenderPost(Base):
     media_url: Mapped[str | None] = mapped_column(String(500))
     media_thumbnail_url: Mapped[str | None] = mapped_column(String(500))
     media_type: Mapped[str | None] = mapped_column(String(16))  # 'image' | 'video'
+    link_preview: Mapped[dict[str, object] | None] = mapped_column(JSONB)
 
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
