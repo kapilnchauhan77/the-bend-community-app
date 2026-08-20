@@ -51,6 +51,7 @@ import { useOnlineMutation } from '@/hooks/useOnlineMutation';
 import { OfflineBanner } from '@/components/native/OfflineBanner';
 import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 
 const urgencyStyles = {
   normal: { badge: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400', label: 'Normal' },
@@ -83,6 +84,7 @@ export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, shop, user } = useAuthStore();
+  const native = useNativePresentation();
   const { online, run: runOnline } = useOnlineMutation();
   const cached = useCachedPublicContent<ListingDetail>(`listing:${id ?? ''}`, useCallback(async () => (await listingApi.getDetail(id!)).data, [id]));
 
@@ -234,13 +236,13 @@ export default function ListingDetailPage() {
         <CachedContentNotice cachedAt={cached.cachedAt} />
         {actionError && <p role="alert" className="mb-4 text-sm text-red-700">{actionError}</p>}
         {/* Back button */}
-        <button
+        {!native && <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gray-900 mb-5 transition-colors"
         >
           <ArrowLeft size={16} />
           Back
-        </button>
+        </button>}
 
         {/* Photo / video carousel — mixed media, single nav model */}
         <div className="relative mb-6 rounded-xl overflow-hidden bg-gray-100 aspect-[16/9]">

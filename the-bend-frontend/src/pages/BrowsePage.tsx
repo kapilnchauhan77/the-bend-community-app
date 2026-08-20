@@ -11,6 +11,7 @@ import { ListingCard } from '@/components/shared/ListingCard';
 import { ListingGridSkeleton } from '@/components/shared/LoadingSkeletons';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { SponsorBanner } from '@/components/shared/SponsorBanner';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 
 const categories = [
   { value: '', label: 'All' },
@@ -20,6 +21,7 @@ const categories = [
 ];
 
 export default function BrowsePage() {
+  const native = useNativePresentation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +150,7 @@ export default function BrowsePage() {
           </>
         )}
       </div>
-      <SponsorBanner placement="browse" />
+      {!native && <SponsorBanner placement="browse" />}
     </PageLayout>
   );
 }

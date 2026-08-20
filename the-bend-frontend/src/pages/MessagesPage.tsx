@@ -24,6 +24,7 @@ import { ReferencePickerModal } from '@/components/features/messages/ReferencePi
 import type { MessageThread, Message, ReferenceCard } from '@/types';
 import { usePlatformServices } from '@/platform/createPlatformServices';
 import { notificationApi } from '@/services/notificationApi';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 
 // Local payload type for a media attachment held in composer state before send.
 // 'audio' covers in-app voice notes recorded via VoiceNoteRecorder.
@@ -286,6 +287,7 @@ function ChatView({
   initialPendingReference,
   initialPendingMessage,
   onInitialReferenceConsumed,
+  showBackButton = true,
 }: {
   thread: MessageThread;
   messages: Message[];
@@ -304,6 +306,7 @@ function ChatView({
   initialPendingReference?: ReferenceCard | null;
   initialPendingMessage?: string;
   onInitialReferenceConsumed?: () => void;
+  showBackButton?: boolean;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -462,12 +465,12 @@ function ChatView({
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-white border-b shadow-sm flex-shrink-0">
-        <button
+        {showBackButton && <button
           onClick={onBack}
           className="md:hidden p-1.5 -ml-1 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
         >
           <ArrowLeft size={20} />
-        </button>
+        </button>}
 
         <Avatar className="w-9 h-9 flex-shrink-0">
           <AvatarFallback
@@ -819,6 +822,7 @@ function ThreadListPanel({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MessagesPage() {
+  const native = useNativePresentation();
   const { threadId: urlThreadId } = useParams<{ threadId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1049,6 +1053,7 @@ export default function MessagesPage() {
                 messages={messages}
                 currentUserId={currentUserId}
                 onBack={handleBack}
+                showBackButton={!native}
                 onSend={handleSend}
                 loading={messagesLoading}
                 initialPendingReference={navPendingReference}
@@ -1091,6 +1096,7 @@ export default function MessagesPage() {
               messages={messages}
               currentUserId={currentUserId}
               onBack={handleBack}
+              showBackButton={!native}
               onSend={handleSend}
               loading={messagesLoading}
               initialPendingReference={navPendingReference}

@@ -13,6 +13,11 @@ vi.mock('@/pages/HomePage', () => ({ default: () => <div>web-home-sentinel</div>
 vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-home-sentinel</div> }));
 vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
 vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <div>native-listing-detail-sentinel</div> }));
+vi.mock('@/pages/BusinessProfilePage', () => ({ default: () => <h1>business-sentinel</h1> }));
+vi.mock('@/pages/EventsPage', () => ({ default: () => <h1>events-sentinel</h1> }));
+vi.mock('@/pages/BenderPage', () => ({ default: () => <h1>bender-sentinel</h1> }));
+vi.mock('@/pages/VolunteerPage', () => ({ default: () => <h1>volunteer-sentinel</h1> }));
+vi.mock('@/pages/TalentPage', () => ({ default: () => <h1>talent-sentinel</h1> }));
 vi.mock('@/pages/MessagesPage', () => ({ default: () => <div>native-messages-sentinel</div> }));
 vi.mock('@/pages/GuidelinesViewPage', () => ({ default: ({ embeddedNative }: { embeddedNative?: boolean }) => <div>native-guidelines-public-sentinel:{String(embeddedNative)}</div> }));
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
@@ -75,6 +80,35 @@ describe('NativeRoutes', () => {
     renderNativeAt('/listing/abc');
     expect(screen.getByText('native-listing-detail-sentinel')).toBeInTheDocument();
     expect(screen.queryByText('native-home-sentinel')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/listing/00000000-0000-0000-0000-000000000001', 'Listing'],
+    ['/business/00000000-0000-0000-0000-000000000001', 'Business'],
+    ['/events', 'Events'],
+  ])('renders one focused header for %s', (path, title) => {
+    renderNativeAt(path);
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent(title);
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
+  });
+
+  it('redirects a protected focused route before rendering its frame', () => {
+    renderNativeAt('/messages/thread-1');
+    expect(screen.getByText('Login page: /messages/thread-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('native-route-title')).not.toBeInTheDocument();
+  });
+
+  it('renders the unavailable focused frame for an unmatched native route', () => {
+    renderNativeAt('/admin/unknown');
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent('Page unavailable');
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('shows the authenticated Messages action on a focused Bender post', () => {
+    authState.isAuthenticated = true;
+    renderNativeAt('/bender/post-1');
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent('Bender post');
+    expect(screen.getByRole('button', { name: 'Messages' })).toBeInTheDocument();
   });
 
   it('renders an authenticated protected messages route without Login', () => {

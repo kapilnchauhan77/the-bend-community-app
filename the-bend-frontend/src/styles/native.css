@@ -9,6 +9,10 @@
 .native-app .native-main[data-bottom-navigation="hidden"] { padding-bottom: var(--native-safe-bottom); }
 .native-route-header { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; border-bottom: 1px solid var(--native-border); }
 .native-route-header > [data-testid="native-route-title"] { flex: 1; color: var(--native-text); font-size: 17px; font-weight: 700; }
+.native-route-action { display: grid; place-items: center; min-width: 44px; min-height: 44px; color: var(--native-primary); background: transparent; border: 0; border-radius: 10px; }
+.native-unavailable-page { max-width: 32rem; margin: 0 auto; padding: 4rem 1.25rem; text-align: center; }
+.native-unavailable-page h1 { color: var(--native-text); font-size: 1.5rem; font-weight: 700; }
+.native-unavailable-page p { margin-top: .5rem; color: var(--native-muted); }
 .native-route-back { display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--native-primary); background: transparent; }
 .native-route-actions { display: flex; align-items: center; gap: 4px; }
 .native-app .native-auth-page { min-height: calc(100dvh - 88px - var(--native-safe-bottom)); }

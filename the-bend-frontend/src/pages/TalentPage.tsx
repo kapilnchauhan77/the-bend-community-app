@@ -30,6 +30,7 @@ import { ShareButton } from '@/components/shared/ShareButton';
 import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { resolveAssetUrl } from '@/lib/constants';
 import type { Talent } from '@/types/index';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -53,6 +54,7 @@ interface BookingForm {
 }
 
 export default function TalentPage() {
+  const native = useNativePresentation();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
 
@@ -304,9 +306,9 @@ export default function TalentPage() {
       <section className="bg-[hsl(160,25%,24%)] py-8">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="flex items-center gap-2 text-white/90 text-sm mb-1">
-            <button onClick={() => navigate(-1)} className="hover:text-white transition-colors cursor-pointer" aria-label="Go back">
+            {!native && <button onClick={() => navigate(-1)} className="hover:text-white transition-colors cursor-pointer" aria-label="Go back">
               <ArrowLeft size={14} />
-            </button>
+            </button>}
             <span>Home</span>
             <span>/</span>
             <span className="text-white">Talent Marketplace</span>

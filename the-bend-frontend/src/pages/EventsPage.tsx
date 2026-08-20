@@ -16,6 +16,7 @@ import { useOnlineMutation } from '@/hooks/useOnlineMutation';
 import { OfflineBanner } from '@/components/native/OfflineBanner';
 import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -376,6 +377,7 @@ function CalendarView({ events }: { events: CommunityEvent[] }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EventsPage() {
+  const native = useNativePresentation();
   const { online, run: runOnline } = useOnlineMutation();
   const cached = useCachedPublicContent<CommunityEvent[]>('event:feed', useCallback(async () => (await eventApi.list({ limit: '300' })).data.items ?? [], []));
   const navigate = useNavigate();
@@ -468,18 +470,18 @@ export default function EventsPage() {
     <PageLayout>
       {!online && <OfflineBanner />}
       <div className="max-w-7xl mx-auto px-4 md:px-8 pt-3"><CachedContentNotice cachedAt={cached.cachedAt} /></div>
-      <SponsorBanner placement="events" />
+      {!native && <SponsorBanner placement="events" />}
       {/* ── Page Header ── */}
       <section className="py-8" style={{ backgroundColor: PRIMARY }}>
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="flex items-center gap-2 text-white/90 text-sm mb-1">
-            <button
+            {!native && <button
               onClick={() => navigate('/')}
               className="hover:text-white transition-colors cursor-pointer"
               aria-label="Go home"
             >
               <ArrowLeft size={14} />
-            </button>
+            </button>}
             <span>Home</span>
             <span>/</span>
             <span className="text-white">Events</span>
