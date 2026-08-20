@@ -589,6 +589,8 @@ function BenderComposer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const [sessionId, setSessionId] = useState(0);
+  const sessionRef = useRef(0);
   const composerOpenRef = useRef(open);
   composerOpenRef.current = open;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -604,45 +606,74 @@ function BenderComposer({
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [caption, open]);
 
-  // Reset on close so the next open is clean.
+  const advanceSession = useCallback(() => {
+    const nextSession = sessionRef.current + 1;
+    sessionRef.current = nextSession;
+    setSessionId(nextSession);
+    return nextSession;
+  }, []);
+
+  const isCurrentSession = useCallback((session: number) => (
+    sessionRef.current === session && composerOpenRef.current && !submittingRef.current
+  ), []);
+  const cameraSession = sessionId;
+
+  const closeComposer = useCallback(() => {
+    composerOpenRef.current = false;
+    advanceSession();
+    setCameraOpen(false);
+    onClose();
+  }, [advanceSession, onClose]);
+
+  // Reset on close so the next open is clean and cannot inherit async work.
   useEffect(() => {
+    composerOpenRef.current = open;
+    advanceSession();
     if (!open) {
       resetLinkPreview();
       setCaption('');
       setPending(null);
       setError(null);
       setSubmitting(false);
+      setCameraOpen(false);
       submittingRef.current = false;
     }
-  }, [open, resetLinkPreview]);
+  }, [advanceSession, open, resetLinkPreview]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
-    if (submittingRef.current || !composerOpenRef.current) return;
+    if (!isCurrentSession(cameraSession)) return;
     setPending({
       url: result.url,
       thumbnail_url: result.thumbnail_url,
       type: result.type,
     });
     setCameraOpen(false);
-  }, []);
+  }, [cameraSession, isCurrentSession]);
+
+  const handleCameraClose = useCallback(() => {
+    if (!isCurrentSession(cameraSession)) return;
+    setCameraOpen(false);
+  }, [cameraSession, isCurrentSession]);
 
   const handleFilePicked = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (submittingRef.current || !composerOpenRef.current) return;
+      const operationSession = sessionRef.current;
+      if (!isCurrentSession(operationSession)) return;
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
       // Reuse /upload/media via the existing CameraCapture upload path. Since
       // the composer file picker accepts both images + videos and the camera
       // modal handles both modes, we just submit to /upload/media directly.
-      const { default: api } = await import('@/services/api');
       const fd = new FormData();
       fd.append('file', file, file.name);
       try {
+        const { default: api } = await import('@/services/api');
+        if (!isCurrentSession(operationSession)) return;
         const res = await api.post('/upload/media', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        if (submittingRef.current || !composerOpenRef.current) return;
+        if (!isCurrentSession(operationSession)) return;
         const data = res.data as Record<string, unknown>;
         setPending({
           url: String(data.url || ''),
@@ -650,23 +681,26 @@ function BenderComposer({
           type: (data.type as 'image' | 'video' | undefined) ?? (file.type.startsWith('video/') ? 'video' : 'image'),
         });
       } catch {
+        if (!isCurrentSession(operationSession)) return;
         setError('Could not upload that file. Try a smaller one.');
       }
     },
-    []
+    [isCurrentSession]
   );
 
   const canSubmit = (caption.trim().length > 0 || pending !== null) && !submitting;
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit || submittingRef.current) return;
+    if (!canSubmit || submittingRef.current || !composerOpenRef.current) return;
     submittingRef.current = true;
+    const submissionSession = advanceSession();
     setSubmitting(true);
     setError(null);
     try {
       const submittedCaption = caption.trim();
       const submittedSourceUrl = extractFirstHttpUrl(submittedCaption);
       const previewToken = await waitForPreviewToken(submittedSourceUrl, 5000);
+      if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
       const payload: CreatePostPayload = {};
       if (submittedCaption) payload.caption = submittedCaption;
       if (previewToken) payload.preview_token = previewToken;
@@ -677,15 +711,17 @@ function BenderComposer({
       }
       const res = await benderApi.createPost(payload);
       onCreated(res.data);
+      if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
       submittingRef.current = false;
       resetLinkPreview();
-      onClose();
+      closeComposer();
     } catch {
+      if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
       setError('Could not post. Please try again.');
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [canSubmit, caption, onCreated, onClose, pending, resetLinkPreview, waitForPreviewToken]);
+  }, [advanceSession, canSubmit, caption, closeComposer, onCreated, pending, resetLinkPreview, waitForPreviewToken]);
 
   if (!open) return null;
 
@@ -695,7 +731,7 @@ function BenderComposer({
         className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center"
         role="dialog"
         aria-modal="true"
-        onClick={() => { if (!submitting) onClose(); }}
+        onClick={() => { if (!submitting) closeComposer(); }}
       >
         <div
           className="bg-white w-full md:max-w-md md:rounded-lg shadow-2xl flex flex-col max-h-[90vh] md:max-h-[80vh]"
@@ -704,7 +740,7 @@ function BenderComposer({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(35,18%,88%)]">
             <button
-              onClick={() => { if (!submitting) onClose(); }}
+              onClick={() => { if (!submitting) closeComposer(); }}
               disabled={submitting}
               className="text-[hsl(30,10%,40%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
               aria-label="Cancel"
@@ -834,8 +870,9 @@ function BenderComposer({
       </div>
 
       <CameraCapture
-        open={cameraOpen && !submitting}
-        onClose={() => { if (!submitting) setCameraOpen(false); }}
+        key={`bender-camera-${cameraSession}`}
+        open={open && cameraOpen && !submitting && sessionRef.current === cameraSession}
+        onClose={handleCameraClose}
         onCaptured={handleCameraResult}
         mode="both"
       />

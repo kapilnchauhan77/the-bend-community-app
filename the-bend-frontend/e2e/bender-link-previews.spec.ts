@@ -422,6 +422,87 @@ test('late media upload cannot mutate a closed composer', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Remove media' })).toHaveCount(0);
 });
 
+test('upload from a closed composer cannot attach media to a reopened session', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  let releaseUpload!: () => void;
+  await page.route('**/api/v1/upload/media', async (route) => {
+    await new Promise<void>((resolve) => { releaseUpload = resolve; });
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ url: '/uploads/session-a.jpg', thumbnail_url: null, type: 'image' }),
+    });
+  });
+  await openComposer(page);
+  const uploadRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/upload/media'));
+  await page.locator('input[type="file"]').setInputFiles({ name: 'session-a.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
+  await uploadRequest;
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('button', { name: 'New post' })).toBeVisible();
+  await page.getByRole('button', { name: 'New post' }).click();
+  const uploadResponse = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/v1/upload/media'));
+  releaseUpload();
+  await uploadResponse;
+  await expect(page.getByRole('button', { name: 'Remove media' })).toHaveCount(0);
+});
+
+test('rejected upload from a closed composer cannot show an error in a reopened session', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  let rejectUpload!: () => void;
+  await page.route('**/api/v1/upload/media', async (route) => {
+    await new Promise<void>((resolve) => { rejectUpload = resolve; });
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await openComposer(page);
+  const uploadRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/upload/media'));
+  await page.locator('input[type="file"]').setInputFiles({ name: 'session-a.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
+  await uploadRequest;
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'New post' }).click();
+  const uploadResponse = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/v1/upload/media'));
+  rejectUpload();
+  await uploadResponse;
+  await expect(page.getByText('Could not upload that file. Try a smaller one.')).toHaveCount(0);
+});
+
+test('pre-submit upload rejection cannot mutate a draft after create failure unlocks it', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  let rejectUpload!: () => void;
+  await page.route('**/api/v1/upload/media', async (route) => {
+    await new Promise<void>((resolve) => { rejectUpload = resolve; });
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await page.route('**/api/v1/bender/posts', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await openComposer(page);
+  const uploadRequest = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/api/v1/upload/media'));
+  await page.locator('input[type="file"]').setInputFiles({ name: 'pre-submit.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake-image') });
+  await uploadRequest;
+  const caption = page.getByPlaceholder('Write a caption…');
+  await caption.fill('Keep this draft');
+  await page.getByRole('button', { name: 'Post', exact: true }).click();
+  await expect(page.getByText('Could not post. Please try again.')).toBeVisible();
+  await expect(caption).toBeEnabled();
+  const uploadResponse = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/v1/upload/media'));
+  rejectUpload();
+  await uploadResponse;
+  await expect(caption).toHaveValue('Keep this draft');
+  await expect(page.getByRole('button', { name: 'Remove media' })).toHaveCount(0);
+  await expect(page.getByText('Could not upload that file. Try a smaller one.')).toHaveCount(0);
+});
+
+test('closing and reopening the composer resets the camera session', async ({ page }) => {
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await openComposer(page);
+  await page.getByRole('button', { name: 'Camera' }).click();
+  await expect(page.getByRole('button', { name: 'Close camera' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).evaluate((button) => (button as HTMLButtonElement).click());
+  await page.getByRole('button', { name: 'New post' }).evaluate((button) => (button as HTMLButtonElement).click());
+  await expect(page.getByRole('button', { name: 'Close camera' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Camera' })).toBeVisible();
+});
+
 test('Post continues after the five-second preview wait expires', async ({ page }) => {
   await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
