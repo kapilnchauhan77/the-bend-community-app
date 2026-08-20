@@ -234,6 +234,17 @@ def test_svg_and_data_candidates_are_rejected_from_every_source_with_fragments()
     )
 
 
+def test_image_src_scans_later_links_after_invalid_first_value():
+    parsed = PARSER.parse(
+        b"""
+        <link rel="image_src" href="/invalid.svg">
+        <link rel="image_src" href="/usable.jpg">
+        """,
+        final_url=FINAL_URL,
+    )
+    assert parsed.image_candidates == ("https://example.org/usable.jpg",)
+
+
 def test_generic_images_are_omitted_and_icon_inside_article_is_last():
     parsed = PARSER.parse(
         b"""
@@ -259,6 +270,19 @@ def test_deep_and_broad_json_ld_are_bounded_and_never_crash():
     )
     assert parsed.image_candidates[0] == "https://example.org/first.jpg"
     assert len(parsed.image_candidates) == 4
+
+
+def test_valid_deep_json_ld_respects_depth_limit_without_crashing():
+    data = {"image": "/too-deep.jpg"}
+    for _ in range(40):
+        data = {"nested": data}
+    import json
+
+    parsed = PARSER.parse(
+        f'<script type="application/ld+json">{json.dumps(data)}</script>'.encode(),
+        final_url=FINAL_URL,
+    )
+    assert parsed.image_candidates == ()
 
 
 @pytest.mark.parametrize(

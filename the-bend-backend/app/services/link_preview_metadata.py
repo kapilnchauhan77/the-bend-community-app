@@ -103,7 +103,6 @@ def _metadata_urls(soup: BeautifulSoup, final_url: str) -> list[str]:
             candidate = _absolute_url(link.get("href"), final_url)
             if candidate and _candidate_is_image(candidate):
                 values.append(candidate)
-            break
     return values
 
 
