@@ -75,6 +75,14 @@ describe('NativeRoutes', () => {
     expect(screen.queryByText(/upload and manage the community guidelines document/i)).not.toBeInTheDocument();
   });
 
+  it('gives direct community guidelines links the shared Back fallback to Home', () => {
+    renderNativeAt('/guidelines');
+    expect(screen.getByTestId('native-route-title')).toHaveTextContent('Community Guidelines');
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/');
+  });
+
   it('shows the five approved native destinations', () => {
     renderNativeAt('/');
 

@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 
@@ -6,13 +7,44 @@ interface GuidelinesViewPageProps {
   embeddedNative?: boolean;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const GUIDELINE_SECTIONS = [
+  { id: 'purpose-mission', label: '1. Purpose & Mission' },
+  { id: 'membership-eligibility', label: '2. Membership & Eligibility' },
+  { id: 'acceptable-use', label: '3. Acceptable Use' },
+  { id: 'listings-transactions', label: '4. Listings & Transactions' },
+  { id: 'events-community-features', label: '5. Events & Community Features' },
+  { id: 'advertising-sponsored-content', label: '6. Advertising & Sponsored Content' },
+  { id: 'limitation-liability', label: '7. Limitation of Liability' },
+  { id: 'privacy-data', label: '8. Privacy & Data' },
+  { id: 'content-moderation-enforcement', label: '9. Content Moderation & Enforcement' },
+  { id: 'modifications', label: '10. Modifications' },
+  { id: 'contact', label: '11. Contact' },
+] as const;
+
 export default function GuidelinesViewPage({ embeddedNative = false }: GuidelinesViewPageProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!embeddedNative || !location.hash) return;
+    const heading = document.getElementById(location.hash.slice(1));
+    if (!heading) return;
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView({
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [embeddedNative, location.hash]);
+
+  const selectSection = (id: string) => {
+    navigate({ pathname: location.pathname, search: location.search, hash: `#${id}` }, { replace: true });
+  };
 
   return (
     <PageLayout embeddedNative={embeddedNative} embeddedClassName={embeddedNative ? 'native-guidelines-page' : undefined}>
       {/* Page Header */}
-      <section className="bg-[hsl(160,25%,24%)] py-8">
+      {!embeddedNative && <section className="bg-[hsl(160,25%,24%)] py-8">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="flex items-center gap-2 text-white/90 text-sm mb-1">
             <button onClick={() => navigate(-1)} className="hover:text-white transition-colors cursor-pointer" aria-label="Go back">
@@ -25,14 +57,23 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
           <h1 className="font-serif text-2xl md:text-3xl font-bold text-white">Community Guidelines</h1>
           <p className="text-sm text-white/85 mt-1">Rules and terms governing the Community Platform</p>
         </div>
-      </section>
+      </section>}
 
       <article className="max-w-3xl mx-auto px-4 md:px-8 py-10">
+        {embeddedNative && <h1 className="sr-only">Community Guidelines</h1>}
         <p className="text-xs text-[hsl(30,10%,55%)] mb-8 uppercase tracking-wider">Last updated: April 2026</p>
+        {embeddedNative && <details className="native-guidelines-contents mb-8">
+          <summary>On this page</summary>
+          <nav aria-label="Community Guidelines sections">
+            <ul>
+              {GUIDELINE_SECTIONS.map(({ id, label }) => <li key={id}><a href={`#${id}`} onClick={(event) => { event.preventDefault(); selectSection(id); }}>{label}</a></li>)}
+            </ul>
+          </nav>
+        </details>}
 
         {/* Section 1 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">1. Purpose & Mission</h2>
+          <h2 id="purpose-mission" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">1. Purpose & Mission</h2>
           <p className="text-sm text-[hsl(30,10%,35%)] leading-relaxed mb-3">
             The Community Platform ("the Platform") is operated by ProLine Online Group ("the Operator") and serves as a resource-sharing hub connecting local businesses, volunteers, and talent in the community. Our mission is to reduce waste, strengthen local commerce, and foster neighborly cooperation through gig postings, materials, equipment, and services.
           </p>
@@ -40,7 +81,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 2 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">2. Membership & Eligibility</h2>
+          <h2 id="membership-eligibility" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">2. Membership & Eligibility</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>All business registrations are subject to review and approval by the community administrator.</li>
             <li>Applicants must provide accurate and truthful business information during registration.</li>
@@ -53,7 +94,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 3 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">3. Acceptable Use</h2>
+          <h2 id="acceptable-use" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">3. Acceptable Use</h2>
           <p className="text-sm text-[hsl(30,10%,35%)] leading-relaxed mb-3">All members agree to:</p>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>Be honest and accurate in all listings — describe condition, quantity, and availability clearly.</li>
@@ -67,7 +108,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 4 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">4. Listings & Transactions</h2>
+          <h2 id="listings-transactions" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">4. Listings & Transactions</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>All listings must be for legitimate goods, services, gig postings, or equipment lending.</li>
             <li>Items listed as "free" must be provided at no cost. Items with a price must be honored at the listed price.</li>
@@ -79,7 +120,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 5 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">5. Events & Community Features</h2>
+          <h2 id="events-community-features" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">5. Events & Community Features</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>Community events listed on the Platform are sourced from public feeds, manual submissions, and third-party connectors. The Operator does not verify or guarantee the accuracy of event information.</li>
             <li>Volunteer and talent profiles are self-reported. The Platform does not verify credentials, skills, or availability.</li>
@@ -89,7 +130,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 6 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">6. Advertising & Sponsored Content</h2>
+          <h2 id="advertising-sponsored-content" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">6. Advertising & Sponsored Content</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>Paid advertisements and sponsored placements are clearly labeled as "Community Partner" content.</li>
             <li>Advertisement pricing is set by the community administrator and is subject to change.</li>
@@ -101,7 +142,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 7 — Liability */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">7. Limitation of Liability</h2>
+          <h2 id="limitation-liability" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">7. Limitation of Liability</h2>
           <div className="border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] p-5 rounded text-sm text-[hsl(30,10%,35%)] leading-relaxed space-y-3">
             <p>
               <strong>THE PLATFORM IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND.</strong> ProLine Online Group, its officers, directors, employees, agents, and affiliates ("the Operator") shall not be held liable for:
@@ -131,7 +172,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 8 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">8. Privacy & Data</h2>
+          <h2 id="privacy-data" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">8. Privacy & Data</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>The Platform collects and stores only the information necessary to provide its services.</li>
             <li>Contact information shared in profiles, listings, and messages is visible to other authenticated members.</li>
@@ -143,7 +184,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 9 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">9. Content Moderation & Enforcement</h2>
+          <h2 id="content-moderation-enforcement" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">9. Content Moderation & Enforcement</h2>
           <ul className="space-y-2 text-sm text-[hsl(30,10%,35%)] leading-relaxed list-disc list-inside">
             <li>The community administrator may remove any content that violates these guidelines without prior notice.</li>
             <li>Accounts that repeatedly violate guidelines may be suspended or permanently banned.</li>
@@ -154,7 +195,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 10 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">10. Modifications</h2>
+          <h2 id="modifications" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">10. Modifications</h2>
           <p className="text-sm text-[hsl(30,10%,35%)] leading-relaxed">
             The Operator reserves the right to modify these Community Guidelines at any time. Continued use of the Platform following any changes constitutes acceptance of the revised guidelines. Members will be notified of significant changes through the Platform.
           </p>
@@ -162,7 +203,7 @@ export default function GuidelinesViewPage({ embeddedNative = false }: Guideline
 
         {/* Section 11 */}
         <section className="mb-10">
-          <h2 className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">11. Contact</h2>
+          <h2 id="contact" tabIndex={-1} className="font-serif text-xl font-bold text-[hsl(30,15%,18%)] mb-3">11. Contact</h2>
           <p className="text-sm text-[hsl(30,10%,35%)] leading-relaxed">
             For questions, concerns, or reports regarding these guidelines or the Platform, please contact the community administrator through the Platform's messaging system or email the Operator at <a href="mailto:support@proline-online.com" className="font-semibold hover:underline" style={{ color: 'hsl(35, 45%, 42%)' }}>support@proline-online.com</a>.
           </p>

@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import GuidelinesViewPage from './GuidelinesViewPage';
@@ -25,8 +25,13 @@ function renderPage(embeddedNative = false) {
   );
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="guidelines-location">{location.pathname}{location.search}{location.hash}</output>;
+}
+
 describe('GuidelinesViewPage native shell', () => {
-  afterEach(() => document.documentElement.classList.remove('dark'));
+  afterEach(() => { document.documentElement.classList.remove('dark'); cleanup(); });
 
   it('renders the public guidelines as native content without website chrome', () => {
     const { container } = renderPage(true);
@@ -38,6 +43,66 @@ describe('GuidelinesViewPage native shell', () => {
     expect(screen.queryByTestId('web-footer')).not.toBeInTheDocument();
     expect(screen.queryByTestId('web-sponsor-banner')).not.toBeInTheDocument();
     expect(screen.queryByTestId('web-install-banner')).not.toBeInTheDocument();
+  });
+
+  it('renders all guideline sections in document order with a compact native contents disclosure', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/guidelines']}>
+        <GuidelinesViewPage embeddedNative />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('On this page')).toBeInTheDocument();
+    expect(container.querySelector('details')).toBeInTheDocument();
+    expect([...container.querySelectorAll('article h2')].map((heading) => heading.id)).toEqual([
+      'purpose-mission', 'membership-eligibility', 'acceptable-use', 'listings-transactions',
+      'events-community-features', 'advertising-sponsored-content', 'limitation-liability',
+      'privacy-data', 'content-moderation-enforcement', 'modifications', 'contact',
+    ]);
+    expect([...container.querySelectorAll('article h2')].every((heading) => heading.tabIndex === -1)).toBe(true);
+  });
+
+  it('replaces the hash and focuses and scrolls a selected section', async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <MemoryRouter initialEntries={['/guidelines?from=member'] }>
+        <GuidelinesViewPage embeddedNative />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: '4. Listings & Transactions' }));
+    await waitFor(() => expect(screen.getByTestId('guidelines-location')).toHaveTextContent('/guidelines?from=member#listings-transactions'));
+    expect(document.activeElement).toBe(document.getElementById('listings-transactions'));
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+  });
+
+  it('focuses a known direct hash after render, ignores unknown hashes, and honors reduced motion', async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true } as MediaQueryList);
+    render(
+      <MemoryRouter initialEntries={['/guidelines#privacy-data']}>
+        <GuidelinesViewPage embeddedNative />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('privacy-data')));
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
+
+    cleanup();
+    scrollIntoView.mockClear();
+    render(
+      <MemoryRouter initialEntries={['/guidelines#unknown-section']}>
+        <GuidelinesViewPage embeddedNative />
+      </MemoryRouter>,
+    );
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('keeps the web header and hides it in the native presentation', () => {
+    const { container } = renderPage(true);
+    expect(container.querySelector('.native-guidelines-page > section')).not.toBeInTheDocument();
   });
 
   it('preserves the existing website presentation by default', () => {
