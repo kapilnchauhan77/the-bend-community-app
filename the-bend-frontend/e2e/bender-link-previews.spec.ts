@@ -414,42 +414,12 @@ test('hook waitForPreviewToken covers debounce, readiness, timeout, failure, res
   });
 
   await page.evaluate(async () => {
-    const hookSource = await fetch('/src/hooks/useBenderLinkPreview.ts').then((response) => response.text());
-    const reactUrl = hookSource.match(/from "([^"]+\/react\.js\?v=[^"]+)"/)?.[1];
-    if (!reactUrl) throw new Error('Could not resolve the Vite React module URL');
-    const ReactModule = await import(reactUrl);
-    const React = ReactModule.default ?? ReactModule;
-    const ReactDOMModule = await import('/node_modules/.vite/deps/react-dom_client.js');
-    const ReactDOM = ReactDOMModule.default ?? ReactDOMModule;
-    const { useBenderLinkPreview } = await import('/src/hooks/useBenderLinkPreview.ts');
+    const { mountBenderLinkPreviewHookHarness } = await import('/e2e/fixtures/bender-link-preview-hook-harness.tsx');
     const host = document.createElement('div');
     host.dataset.testid = 'hook-harness';
     document.body.append(host);
-    function Harness() {
-      const [caption, setCaption] = React.useState('');
-      const [source, setSource] = React.useState('');
-      const [timeout, setTimeoutValue] = React.useState('5000');
-      const [waitResult, setWaitResult] = React.useState('');
-      const [enabled, setEnabled] = React.useState(true);
-      const result = useBenderLinkPreview(caption, enabled);
-      return React.createElement(
-        'div',
-        null,
-        React.createElement('input', { 'data-testid': 'hook-caption', value: caption, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setCaption(event.target.value) }),
-        React.createElement('input', { 'data-testid': 'hook-source', value: source, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSource(event.target.value) }),
-        React.createElement('input', { 'data-testid': 'hook-timeout', value: timeout, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setTimeoutValue(event.target.value) }),
-        React.createElement('button', { 'data-testid': 'hook-wait', onClick: () => void result.waitForPreviewToken(source || null, Number(timeout)).then((value) => setWaitResult(value ?? 'null')) }, 'Wait'),
-        React.createElement('button', { 'data-testid': 'hook-reset', onClick: result.reset }, 'Reset'),
-        React.createElement('button', { 'data-testid': 'hook-close', onClick: () => setEnabled(false) }, 'Close'),
-        React.createElement('output', { 'data-testid': 'hook-state' }, JSON.stringify({ detectedUrl: result.detectedUrl, status: result.status, token: result.previewToken, waitResult })),
-      );
-    }
-    const root = ReactDOM.createRoot(host);
-    root.render(React.createElement(Harness));
-    (window as unknown as { __cleanupHookHarness?: () => void }).__cleanupHookHarness = () => {
-      root.unmount();
-      host.remove();
-    };
+    const controller = mountBenderLinkPreviewHookHarness(host);
+    (window as unknown as { __hookHarness?: typeof controller }).__hookHarness = controller;
   });
 
   const caption = page.getByTestId('hook-caption');
@@ -541,5 +511,56 @@ test('hook waitForPreviewToken covers debounce, readiness, timeout, failure, res
   await expect(state).toContainText('"status":"idle"');
   await expect(state).toContainText('"waitResult":"null"');
   releases.get(closeUrl)?.();
-  await page.evaluate(() => (window as unknown as { __cleanupHookHarness?: () => void }).__cleanupHookHarness?.());
+  await page.evaluate(() => {
+    const state = window as unknown as { __hookHarness?: { cleanup: () => void } };
+    state.__hookHarness?.cleanup();
+    delete state.__hookHarness;
+  });
+});
+
+test('hook stale response guard survives an abort-ignoring A request', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.evaluate(async () => {
+    const { mountBenderLinkPreviewHookHarness } = await import('/e2e/fixtures/bender-link-preview-hook-harness.tsx');
+    const host = document.createElement('div');
+    document.body.append(host);
+    const controller = mountBenderLinkPreviewHookHarness(host, { ignoreAbort: true });
+    (window as unknown as { __hookHarness?: typeof controller }).__hookHarness = controller;
+  });
+
+  const caption = page.getByTestId('hook-caption');
+  const state = page.getByTestId('hook-state');
+  const requests = () =>
+    page.evaluate(() => {
+      const harness = (window as unknown as { __hookHarness?: { requests: () => string[] } }).__hookHarness;
+      return harness?.requests() ?? [];
+    });
+  const resolve = (sourceUrl: string) =>
+    page.evaluate((url) => {
+      const harness = (window as unknown as { __hookHarness?: { resolve: (source: string) => void } }).__hookHarness;
+      harness?.resolve(url);
+    }, sourceUrl);
+  const cleanup = () =>
+    page.evaluate(() => {
+      const state = window as unknown as { __hookHarness?: { cleanup: () => void } };
+      state.__hookHarness?.cleanup();
+      delete state.__hookHarness;
+    });
+
+  const urlA = 'https://example.org/a';
+  const urlB = 'https://example.org/b';
+  await caption.fill(urlA);
+  await page.clock.runFor(400);
+  await expect.poll(requests).toEqual([urlA]);
+  await caption.fill(urlB);
+  await page.clock.runFor(400);
+  await expect.poll(requests).toEqual([urlA, urlB]);
+  await resolve(urlB);
+  await expect(state).toContainText('"previewTitle":"B"');
+  await expect(state).toContainText('"detectedUrl":"https://example.org/b"');
+  await resolve(urlA);
+  await expect(state).toContainText('"previewTitle":"B"');
+  await expect(state).toContainText('"detectedUrl":"https://example.org/b"');
+  await cleanup();
 });
