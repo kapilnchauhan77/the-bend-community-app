@@ -14,7 +14,7 @@ const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, la
 const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn>; mapBusinesses?: unknown[]; userCoordinates?: unknown; online?: boolean; location?: { status: string }; requestLocation?: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn(), mapBusinesses: [], userCoordinates: null, online: true, location: { status: 'idle' }, requestLocation: vi.fn() }
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixture) }))
 
-function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | 'error' = 'success', cachedAt: string | null = null) { return { status, data, source: cachedAt ? 'cache' as const : 'network' as const, cachedAt, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
+function state(data: NativeDiscoveryCardModel[], status: 'loading' | 'success' | 'empty' | 'error' = 'success', cachedAt: string | null = null) { return { status, data, source: cachedAt ? 'cache' as const : 'network' as const, cachedAt, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
 function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'bender' as never, heading: 'Bender', state: state([bender]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null; fixture.mapBusinesses = [] }
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
@@ -104,6 +104,66 @@ describe('NativeExplorePage', () => {
     expect(screen.getByRole('button', { name: 'Map' })).toBeEnabled()
   })
 
+  it.each(['listings', 'events', 'bender', 'volunteer'] as const)('replaces unsupported raw map mode for %s', (type) => {
+    configureTyped([type === 'listings' ? listing : type === 'events' ? event : type === 'bender' ? bender : volunteer])
+    render(<MemoryRouter initialEntries={[`/explore?type=${type}&mode=map`]}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByTestId('location')).toHaveTextContent(`/explore?type=${type}`)
+    expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
+  })
+
+  it('keeps All map mode pending until the business group resolves, then renders the available map', () => {
+    fixture.groups = [{ kind: 'business', heading: 'Businesses', state: state([], 'loading') }]
+    fixture.mapBusinesses = []
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByTestId('location')).toHaveTextContent('mode=map')
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Business map' })).not.toBeInTheDocument()
+
+    fixture.groups = [{ kind: 'business', heading: 'Businesses', state: state([business]) }]
+    fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    cleanup()
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByTestId('location')).toHaveTextContent('mode=map')
+    expect(screen.getByRole('group', { name: 'Explore view' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Business map' })).toBeInTheDocument()
+  })
+
+  it.each(['success', 'empty', 'error'] as const)('replaces All map mode after business group %s with no coordinates', (status) => {
+    fixture.groups = [{ kind: 'business', heading: 'Businesses', state: state([], status) }]
+    fixture.mapBusinesses = []
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Business map' })).not.toBeInTheDocument()
+  })
+
+  it('derives Businesses map availability from typed state and keeps map mode pending, then available', () => {
+    configureTyped([])
+    fixture.typed!.state = state([], 'loading')
+    render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByTestId('location')).toHaveTextContent('mode=map')
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
+    cleanup()
+    configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }])
+    fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    expect(screen.getByTestId('location')).toHaveTextContent('mode=map')
+    expect(screen.getByRole('group', { name: 'Explore view' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Business map' })).toBeInTheDocument()
+  })
+
+  it.each(['listings', 'events', 'bender', 'volunteer'] as const)('canonicalizes map mode to List when selecting %s', (type) => {
+    configureAll()
+    fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('tab', { name: type === 'listings' ? 'Listings' : type === 'events' ? 'Events' : type === 'bender' ? 'Bender' : 'Volunteer' }))
+    expect(screen.getByTestId('location')).toHaveTextContent(`/explore?type=${type}`)
+    expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+    expect(screen.queryByRole('group', { name: 'Explore view' })).not.toBeInTheDocument()
+    cleanup()
+  })
+
   it.each(['denied', 'unavailable'] as const)('shows Retry and Continue across Westmoreland after %s', async (status) => {
     configureTyped([business]); fixture.location = { status }; fixture.requestLocation = vi.fn().mockResolvedValue({ status })
     render(<MemoryRouter initialEntries={['/explore?type=businesses&near=true']}><NativeExplorePage /><Probe /></MemoryRouter>)
@@ -157,14 +217,14 @@ describe('NativeExplorePage', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'draft' } })
     fireEvent.click(screen.getByRole('button', { name: 'Back', exact: true }))
     await act(async () => { vi.advanceTimersByTime(1) })
-    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=same&type=events&category=music&mode=map&near=true')
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=same&type=events&category=music')
     expect(screen.getByRole('searchbox')).toHaveValue('same')
     expect(screen.getByRole('tab', { name: 'Events' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('button', { name: 'List' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remove music filter' })).toBeInTheDocument()
     await act(async () => { vi.advanceTimersByTime(500) })
-    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=same&type=events&category=music&mode=map&near=true')
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=same&type=events&category=music')
     expect(screen.getByRole('searchbox')).toHaveValue('same')
     expect(screen.getByRole('tab', { name: 'Listings' })).toHaveAttribute('aria-selected', 'false')
   })

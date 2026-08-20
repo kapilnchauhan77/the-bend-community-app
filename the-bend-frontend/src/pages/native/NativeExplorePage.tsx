@@ -19,7 +19,7 @@ const NativeExploreMap = lazy(() => import('@/components/native/NativeExploreMap
 const listingCategories = ['staff', 'materials', 'equipment']; const eventCategories = ['community', 'music', 'art', 'food', 'market', 'historic', 'outdoor', 'education']; const sorts = ['urgency_desc', 'created_desc', 'expiry_asc']
 
 export function NativeExplorePage() {
-  const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const queryRef = useRef(query); const canonicalKey = serializeNativeExploreQuery(query).toString(); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const [selectedMapId, setSelectedMapId] = useState<string | null>(null); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
+  const [params, setParams] = useSearchParams(); const query = parseNativeExploreQuery(params); const requestedMapMode = params.get('mode') === 'map'; const queryRef = useRef(query); const canonicalKey = serializeNativeExploreQuery(query).toString(); const [text, setText] = useState(query.q); const [sheet, setSheet] = useState(false); const [selectedMapId, setSelectedMapId] = useState<string | null>(null); const trigger = useRef<HTMLButtonElement>(null); const timer = useRef<number | null>(null); const navigate = useNavigate(); const model = useNativeExplore(query)
   useEffect(() => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current)
@@ -45,9 +45,9 @@ export function NativeExplorePage() {
     if (query.type === 'businesses' && query.near && model.location.status !== 'granted') change({ near: false }, true)
   }, [change, model.location.status, query.near, query.type])
   useEffect(() => {
-    if (query.mode !== 'map') return
+    if (!requestedMapMode) return
     if (mapAvailability.status === 'unsupported' || mapAvailability.status === 'empty') change({ mode: 'list' }, true)
-  }, [change, mapAvailability.status, query.mode])
+  }, [change, mapAvailability.status, requestedMapMode])
   return <div className="native-explore-scroll" role="region" aria-label="Explore content">
     <h1 className="native-explore-title native-safe-area">Explore</h1>
     <NativeSearchBar value={text} label="Search Westmoreland" placeholder="Search Westmoreland" onChange={(value) => { setText(value); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { timer.current = null; change({ q: value }, true) }, 300) }} onSubmit={submit} onClear={() => { setText(''); if (timer.current !== null) window.clearTimeout(timer.current); timer.current = null; change({ q: '' }) }} />

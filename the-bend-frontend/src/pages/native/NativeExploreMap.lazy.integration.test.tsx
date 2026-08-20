@@ -1,11 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import NativeExplorePage from './NativeExplorePage'
 
 const harness = vi.hoisted(() => ({
   evaluated: false,
-  fixture: { groups: [], typed: null, mapBusinesses: [], userCoordinates: null, online: false, location: { status: 'idle' }, requestLocation: vi.fn() },
+  fixture: { groups: [{ kind: 'business', heading: 'Businesses', state: { status: 'loading', data: [], source: 'network', cachedAt: null, error: null, retry: vi.fn() } }], typed: null, mapBusinesses: [], userCoordinates: null, online: false, location: { status: 'idle' }, requestLocation: vi.fn() },
 }))
 
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: () => harness.fixture }))
@@ -28,8 +28,12 @@ describe('NativeExplorePage lazy map boundary', () => {
     expect(harness.evaluated).toBe(false)
     expect(screen.queryByTestId('lazy-map-sentinel')).not.toBeInTheDocument()
 
-    harness.fixture.mapBusinesses = [{ id: 'map-1', kind: 'business', label: 'Farm', title: 'Map Farm', supportingText: 'Main Street', thumbnailUrl: null, targetPath: '/business/map-1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: null }]
+    const mapBusiness = { id: 'map-1', kind: 'business', label: 'Farm', title: 'Map Farm', supportingText: 'Main Street', thumbnailUrl: null, targetPath: '/business/map-1', coordinates: { latitude: 40, longitude: -79 }, urgent: false, distanceMiles: null }
+    harness.fixture.groups[0].state.status = 'success'
+    harness.fixture.groups[0].state.data = [mapBusiness]
+    harness.fixture.mapBusinesses = [mapBusiness]
     rerender(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /></MemoryRouter>)
+    await act(async () => { await vi.dynamicImportSettled() })
     expect(await screen.findByTestId('lazy-map-sentinel')).toBeInTheDocument()
     expect(harness.evaluated).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'List' }))
