@@ -17,6 +17,8 @@ import { OfflineBanner } from '@/components/native/OfflineBanner';
 import { useCachedPublicContent } from '@/hooks/useCachedPublicContent';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 import { useNativePresentation } from '@/components/layout/NativePresentationContext';
+import { usePlatformServices } from '@/platform/createPlatformServices';
+import { parseSafeExternalUrl } from '@/lib/safeExternalUrl';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -105,19 +107,21 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-function EventCard({ event }: { event: CommunityEvent }) {
+export function EventCard({ event }: { event: CommunityEvent }) {
   const navigate = useNavigate();
   const native = useNativePresentation();
+  const services = usePlatformServices();
   const cat = getCategoryConfig(event.category);
-  const openSource = () => {
+  const safeSource = parseSafeExternalUrl(event.source_url);
+  const openCard = () => {
     if (native) { navigate(`/events/${event.id}`); return; }
     if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
   };
   return (
     <Card
       id={`event-${event.id}`}
-      onClick={event.source_url ? openSource : undefined}
-      className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${event.source_url ? 'cursor-pointer' : ''}`}
+      onClick={native || event.source_url ? openCard : undefined}
+      className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${native || event.source_url ? 'cursor-pointer' : ''}`}
     >
       <div className="relative">
         <EventThumb event={event} className="h-40 rounded-t-2xl" />
@@ -172,7 +176,7 @@ function EventCard({ event }: { event: CommunityEvent }) {
                 description={`${event.title} - ${formatEventDate(event.start_date, event.end_date)}${event.location ? ' at ' + event.location : ''}`}
               />
             </span>
-            {event.source_url && (
+            {(!native && event.source_url) && (
               <a
                 href={event.source_url}
                 target="_blank"
@@ -182,6 +186,18 @@ function EventCard({ event }: { event: CommunityEvent }) {
                 style={{ color: PRIMARY }}
               >
                 Details →
+              </a>
+            )}
+            {native && safeSource && (
+              <a
+                href={safeSource.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); void services.browser.open(safeSource.href); }}
+                className="text-[10px] font-medium hover:underline"
+                style={{ color: PRIMARY }}
+              >
+                View source
               </a>
             )}
           </div>

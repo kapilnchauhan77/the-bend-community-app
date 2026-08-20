@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { PlatformServicesProvider } from '@/platform/createPlatformServices';
 import type { RuntimeConfig } from '@/platform/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NativeRoutes } from './NativeRoutes';
+import { eventApi } from '@/services/eventApi';
 
 const authState = vi.hoisted(() => ({ isAuthenticated: false, isLoading: false, user: null }));
 vi.mock('@/stores/authStore', () => ({
@@ -16,7 +17,7 @@ vi.mock('@/pages/BrowsePage', () => ({ default: () => <h1>browse-sentinel</h1> }
 vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <h1>native-listing-detail-sentinel</h1> }));
 vi.mock('@/pages/BusinessProfilePage', () => ({ default: () => <h1>business-sentinel</h1> }));
 vi.mock('@/pages/EventsPage', () => ({ default: () => <h1>events-sentinel</h1> }));
-vi.mock('@/pages/EventDetailPage', () => ({ default: () => <h1>event-detail-sentinel</h1> }));
+vi.mock('@/services/eventApi', () => ({ eventApi: { getDetail: vi.fn() } }));
 vi.mock('@/pages/BenderPage', () => ({ default: () => <h1>bender-sentinel</h1> }));
 vi.mock('@/pages/VolunteerPage', () => ({ default: () => <h1>volunteer-sentinel</h1> }));
 vi.mock('@/pages/TalentPage', () => ({ default: () => <h1>talent-sentinel</h1> }));
@@ -28,6 +29,8 @@ vi.mock('@/pages/GuidelinesViewPage', () => ({ default: ({ embeddedNative }: { e
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
 
 afterEach(() => { authState.isAuthenticated = false; cleanup(); });
+
+const nativeEvent = { id: 'event-1', title: 'Native event', description: 'Native description', start_date: '2026-09-12T14:00:00Z', category: 'community', location: 'Market Square', source: 'manual', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
 
 function renderNativeAt(path: string) {
   const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' };
@@ -114,10 +117,13 @@ describe('NativeRoutes', () => {
     expect(screen.getAllByRole('status')[0]).toBeInTheDocument();
   });
 
-  it('renders the real event detail page for the native event-detail route', () => {
+  it('renders the real event detail page for the native event-detail route', async () => {
+    vi.mocked(eventApi.getDetail).mockResolvedValue({ data: nativeEvent } as never);
     renderNativeAt('/events/event-1');
-    expect(screen.getByText('event-detail-sentinel')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Native event' })).toBeInTheDocument());
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.queryByText("This page isn't available in the mobile app")).not.toBeInTheDocument();
+    expect(screen.queryByText('Navbar')).not.toBeInTheDocument();
   });
 
   it.each([
@@ -150,18 +156,18 @@ describe('NativeRoutes', () => {
     ['/listing/listing-1', 'Listing', 'native-listing-detail-sentinel', '/explore?type=listings'],
     ['/business/shop-1', 'Business', 'business-sentinel', '/explore?type=businesses'],
     ['/events', 'Events', 'events-sentinel', '/explore?type=events'],
-    ['/events/event-1', 'Event', 'event-detail-sentinel', '/events'],
+    ['/events/event-1', 'Event', 'Native event', '/events'],
     ['/volunteers', 'Volunteer', 'volunteer-sentinel', '/explore?type=volunteer'],
     ['/talent', 'Talent', 'talent-sentinel', '/explore'],
     ['/bender/123e4567-e89b-12d3-a456-426614174000', 'Bender post', 'bender-sentinel', '/bender'],
     ['/admin/unknown', 'Page unavailable', "This page isn't available in the mobile app", '/'],
-  ])('executes public matrix row %s', (path, title, marker, fallback) => {
+  ])('executes public matrix row %s', async (path, title, marker, fallback) => {
     authState.isAuthenticated = false;
     renderNativeAt(path);
     expect(screen.getByTestId('native-route-title')).toHaveTextContent(title);
     expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
     if (marker.includes('available')) expect(screen.getAllByRole('status')[0]).toHaveTextContent(marker);
-    else expect(screen.getByText(marker)).toBeInTheDocument();
+    else await waitFor(() => expect(screen.getByText(marker)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByTestId('location-probe')).toHaveTextContent(fallback);
   });
