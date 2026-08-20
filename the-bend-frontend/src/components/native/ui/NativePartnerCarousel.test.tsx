@@ -114,10 +114,24 @@ describe('NativePartnerCarousel', () => {
     'javascript://alert.example/path',
     'ftp://files.example/path',
     'data://payload.example/path',
+    'javascript:123/path',
+    'ftp:21/files',
+    'data:443/payload',
   ])('keeps a scheme-like non-http website noninteractive: %s', (websiteUrl) => {
     render(<NativePartnerCarousel partners={[partner('unsafe-scheme', 'Unsafe Scheme Partner', { website_url: websiteUrl })]} />)
 
     expect(screen.queryByRole('link', { name: /Unsafe Scheme Partner/i })).toBeNull()
+  })
+
+  it.each([
+    'http:80',
+    'https:443/path',
+    'http:/example.com',
+    'https:\\\\example.com',
+  ])('keeps http(s) input without an authority delimiter noninteractive: %s', (websiteUrl) => {
+    render(<NativePartnerCarousel partners={[partner('malformed-http', 'Malformed HTTP Partner', { website_url: websiteUrl })]} />)
+
+    expect(screen.queryByRole('link', { name: /Malformed HTTP Partner/i })).toBeNull()
   })
 
   it.each([
@@ -137,6 +151,15 @@ describe('NativePartnerCarousel', () => {
     render(<NativePartnerCarousel partners={[partner('port', 'Port Partner', { website_url: 'example.com:8443/path' })]} />)
 
     expect(screen.getByRole('heading', { name: 'Port Partner' }).closest('a')).toHaveAttribute('href', 'https://example.com:8443/path')
+  })
+
+  it.each([
+    ['192.0.2.10:8443/path', 'https://192.0.2.10:8443/path'],
+    ['[2001:db8::1]:8443/path', 'https://[2001:db8::1]:8443/path'],
+  ])('normalizes an unambiguous IP host with a numeric port: %s', (websiteUrl, expectedUrl) => {
+    render(<NativePartnerCarousel partners={[partner('ip-port', 'IP Port Partner', { website_url: websiteUrl })]} />)
+
+    expect(screen.getByRole('heading', { name: 'IP Port Partner' }).closest('a')).toHaveAttribute('href', expectedUrl)
   })
 
   it('updates the active slide and visual position dots from a manual horizontal swipe', async () => {

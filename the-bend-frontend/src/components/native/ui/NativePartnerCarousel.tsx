@@ -17,8 +17,11 @@ const websiteFor = (partner: Sponsor) => {
   if (!raw) return null
   if (/^(?:[\\/?#]|\.\.?[\\/])/.test(raw)) return null
   const scheme = raw.match(/^([a-z][a-z\d+.-]*):/i)?.[1]?.toLowerCase()
-  const hasBareHostPort = /^[^/?#:\\\s]+:\d+(?:[/?#]|$)/.test(raw)
-  if (scheme && !hasBareHostPort && scheme !== 'http' && scheme !== 'https') return null
+  const hostWithPort = raw.match(/^(\[[^\]]+\]|[^/?#:\\\s]+):\d+(?:[/?#]|$)/)?.[1]
+  const hasBareHostPort = Boolean(hostWithPort && (hostWithPort.startsWith('[') || hostWithPort.includes('.')))
+  const hasHttpScheme = scheme === 'http' || scheme === 'https'
+  if (hasHttpScheme && !/^https?:\/\//i.test(raw)) return null
+  if (scheme && !hasBareHostPort && !hasHttpScheme) return null
   const candidate = scheme && !hasBareHostPort ? raw : `https://${raw}`
   try {
     const url = new URL(candidate)
