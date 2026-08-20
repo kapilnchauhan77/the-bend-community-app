@@ -53,6 +53,13 @@ def test_extracts_exact_caption_tokens(case):
         "https://127.1/",
         "https://１２７。０。０。１/",
         "https://１２７.０.０.１/",
+        "https://0x7f.0.0.1/",
+        "https://0x7f.0x0.0x0.0x1/",
+        "https://example.org/%zz",
+        "https://example.org/%1",
+        "https://example.org/%gg",
+        "https://example.org:8080/path",
+        "https://[2606:2800:220:1:248:1893:25C8:1946]/",
     ],
 )
 def test_rejects_unsafe_external_urls(url):
@@ -68,10 +75,15 @@ def test_canonicalizes_idna_default_port_fragment_and_path():
     assert result.scheme == "https"
 
 
-def test_preserves_non_default_port():
-    result = prepare_external_url("http://Example.org:8080/path")
-    assert result.normalized_url == "http://example.org:8080/path"
-    assert result.port == 8080
+def test_accepts_only_scheme_default_ports():
+    assert prepare_external_url("http://Example.org:80/path").normalized_url == "http://example.org/path"
+    assert prepare_external_url("https://Example.org:443/path").normalized_url == "https://example.org/path"
+
+
+def test_accepts_canonical_global_ipv6_literal():
+    result = prepare_external_url("https://[2606:2800:220:1:248:1893:25c8:1946]/")
+    assert result.hostname == "2606:2800:220:1:248:1893:25c8:1946"
+    assert result.normalized_url == "https://[2606:2800:220:1:248:1893:25c8:1946]/"
 
 
 @pytest.mark.asyncio

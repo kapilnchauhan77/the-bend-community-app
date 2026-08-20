@@ -80,7 +80,7 @@ def _canonical_hostname(raw_hostname: str) -> tuple[str, ipaddress.IPv4Address |
         _reject("invalid_hostname", raw_hostname)
     if not mapped or "." not in mapped or mapped == "localhost" or mapped.endswith(".localhost"):
         _reject("destination_not_public", mapped or raw_hostname)
-    if re.fullmatch(r"[0-9.]+", mapped):
+    if re.fullmatch(r"(?:[0-9]+|0[xX][0-9a-fA-F]+)(?:\.(?:[0-9]+|0[xX][0-9a-fA-F]+))*", mapped):
         _reject("numeric_hostname", mapped)
     return mapped, None
 
@@ -89,6 +89,8 @@ def prepare_external_url(raw_url: str) -> PreparedExternalUrl:
     """Canonicalize one outbound URL without performing DNS or I/O."""
     if not isinstance(raw_url, str) or not raw_url or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in raw_url) or "\\" in raw_url:
         _reject("invalid_url")
+    if re.search(r"%(?![0-9A-Fa-f]{2})", raw_url):
+        _reject("invalid_escape")
     try:
         parsed = urlsplit(raw_url)
     except ValueError:
@@ -96,8 +98,14 @@ def prepare_external_url(raw_url: str) -> PreparedExternalUrl:
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"} or parsed.username is not None or parsed.password is not None:
         _reject("invalid_url")
+    raw_netloc = parsed.netloc.rsplit("@", 1)[-1]
+    if raw_netloc.startswith("["):
+        if "]" not in raw_netloc:
+            _reject("invalid_url")
+        raw_hostname = raw_netloc[1 : raw_netloc.index("]")]
+    else:
+        raw_hostname = raw_netloc.split(":", 1)[0]
     try:
-        raw_hostname = parsed.hostname
         input_port = parsed.port
     except ValueError:
         _reject("invalid_port")
@@ -106,7 +114,7 @@ def prepare_external_url(raw_url: str) -> PreparedExternalUrl:
     hostname, literal = _canonical_hostname(raw_hostname)
     default_port = 80 if scheme == "http" else 443
     port = default_port if input_port is None else input_port
-    if not 1 <= port <= 65535:
+    if port not in {80, 443}:
         _reject("invalid_port", hostname)
     if literal is not None:
         netloc_host = f"[{hostname}]" if literal.version == 6 else hostname
