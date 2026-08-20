@@ -61,12 +61,6 @@ class BenderService:
             shop_name=shop.name if shop else None,
         )
 
-    async def _get_post_or_404(self, post_id: UUID) -> BenderPost:
-        row = await self.db.get(BenderPost, post_id)
-        if row is None:
-            raise NotFoundError("Post")
-        return row
-
     def _tenant_integrity(self, tenant_id: UUID):
         author_in_tenant = (
             select(1)
@@ -144,15 +138,39 @@ class BenderService:
     # ------------------------------------------------------------------
 
     async def create_post(
-        self, data: BenderPostCreate, current_user: User
+        self,
+        data: BenderPostCreate,
+        current_user: User,
+        *,
+        tenant_id: UUID,
     ) -> BenderPost:
+        author_id = await self.db.scalar(
+            select(User.id).where(
+                User.id == current_user.id,
+                User.tenant_id == tenant_id,
+            )
+        )
+        if current_user.tenant_id != tenant_id or author_id is None:
+            raise NotFoundError("Tenant")
+
+        if current_user.shop_id is not None:
+            shop_id = await self.db.scalar(
+                select(Shop.id).where(
+                    Shop.id == current_user.shop_id,
+                    Shop.tenant_id == tenant_id,
+                )
+            )
+            if shop_id is None:
+                raise NotFoundError("Shop")
+            await self.db.refresh(current_user, attribute_names=["shop"])
+
         from app.services.content_moderation_service import ContentModerationService
         ContentModerationService().validate_public_text({"caption": data.caption})
         post = BenderPost(
             id=uuid4(),
             author_user_id=current_user.id,
             author_shop_id=current_user.shop_id,
-            tenant_id=current_user.tenant_id,
+            tenant_id=tenant_id,
             caption=data.caption.strip() if data.caption else None,
             media_url=data.media_url,
             media_thumbnail_url=data.media_thumbnail_url,
@@ -165,8 +183,19 @@ class BenderService:
         await self.db.refresh(post)
         return post
 
-    async def delete_post(self, post_id: UUID, current_user: User) -> None:
-        post = await self._get_post_or_404(post_id)
+    async def delete_post(
+        self,
+        post_id: UUID,
+        current_user: User,
+        *,
+        tenant_id: UUID,
+    ) -> None:
+        post = await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id,
+            current_user=current_user,
+            require_tenant_viewer=True,
+        )
         is_owner = post.author_user_id == current_user.id
         same_tenant_admin = self._is_community_admin(current_user) and (
             current_user.tenant_id is None or post.tenant_id == current_user.tenant_id
@@ -468,8 +497,28 @@ class BenderService:
         query = (
             select(BenderComment)
             .options(selectinload(BenderComment.user))
-            .where(BenderComment.post_id == post_id)
+            .where(
+                BenderComment.post_id == post_id,
+                select(1)
+                .where(
+                    User.id == BenderComment.user_id,
+                    User.tenant_id == tenant_id,
+                )
+                .exists(),
+            )
         )
+
+        if current_user is not None and current_user.tenant_id == tenant_id:
+            from app.models.user_block import UserBlock
+
+            query = query.where(
+                ~BenderComment.user_id.in_(
+                    select(UserBlock.blocked_id).where(
+                        UserBlock.tenant_id == tenant_id,
+                        UserBlock.blocker_id == current_user.id,
+                    )
+                )
+            )
 
         if cursor:
             cursor_data = decode_cursor(cursor)

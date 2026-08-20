@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.core.exceptions import NotFoundError
 from app.core.permissions import get_current_user, get_current_tenant
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -116,8 +117,16 @@ async def reference_search(
     current_user: User = Depends(get_current_user),
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
+    if tenant is None or current_user.tenant_id != tenant.id:
+        raise NotFoundError("References")
     from app.services.reference_service import search_references
-    items = await search_references(db, tenant.id if tenant else None, q, type, viewer_id=current_user.id)
+    items = await search_references(
+        db,
+        tenant.id,
+        q,
+        type,
+        viewer_id=current_user.id,
+    )
     return {"items": items}
 
 

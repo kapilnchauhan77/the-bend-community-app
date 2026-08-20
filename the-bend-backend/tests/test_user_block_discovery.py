@@ -438,6 +438,147 @@ async def bender_delete_rows(discovery_rows):
 
 
 @pytest_asyncio.fixture
+async def bender_comment_visibility_rows(discovery_rows):
+    ids = discovery_rows
+    post_id = uuid4()
+    eligible_old_id = uuid4()
+    eligible_new_id = uuid4()
+    reverse_visible_id = uuid4()
+    cross_tenant_id = uuid4()
+    blocked_ids = [uuid4() for _ in range(9)]
+    ordered = datetime.utcnow() + timedelta(hours=3)
+    async with async_session() as db:
+        db.add(
+            BenderPost(
+                id=post_id,
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                caption="Comment visibility pagination target",
+                like_count=0,
+                comment_count=13,
+                created_at=ordered,
+            )
+        )
+        await db.flush()
+        comments = [
+            BenderComment(
+                id=eligible_old_id,
+                post_id=post_id,
+                user_id=ids["other"],
+                content="Eligible oldest comment",
+                created_at=ordered,
+            )
+        ]
+        comments.extend(
+            BenderComment(
+                id=comment_id,
+                post_id=post_id,
+                user_id=ids["blocked"],
+                content=f"Hidden blocked comment {index}",
+                created_at=ordered + timedelta(minutes=index + 1),
+            )
+            for index, comment_id in enumerate(blocked_ids)
+        )
+        comments.extend([
+            BenderComment(
+                id=cross_tenant_id,
+                post_id=post_id,
+                user_id=ids["cross_other"],
+                content="Malformed cross-tenant author comment",
+                created_at=ordered + timedelta(minutes=10),
+            ),
+            BenderComment(
+                id=reverse_visible_id,
+                post_id=post_id,
+                user_id=ids["blocker"],
+                content="Reverse-direction visible comment author",
+                created_at=ordered + timedelta(minutes=11),
+            ),
+            BenderComment(
+                id=eligible_new_id,
+                post_id=post_id,
+                user_id=ids["other"],
+                content="Eligible newest comment",
+                created_at=ordered + timedelta(minutes=12),
+            ),
+        ])
+        db.add_all(comments)
+        await db.commit()
+    try:
+        yield ids, {
+            "post": post_id,
+            "eligible_old": eligible_old_id,
+            "eligible_new": eligible_new_id,
+            "reverse_visible": reverse_visible_id,
+            "cross_tenant": cross_tenant_id,
+            "blocked": blocked_ids,
+        }
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(BenderPost).where(BenderPost.id == post_id))
+            await db.commit()
+
+
+@pytest_asyncio.fixture
+async def bender_post_write_rows(discovery_rows):
+    ids = discovery_rows
+    post_ids = {
+        "owner": uuid4(),
+        "admin": uuid4(),
+        "reverse": uuid4(),
+    }
+    async with async_session() as db:
+        db.add_all([
+            BenderPost(
+                id=post_ids["owner"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                caption="Owner deletion target",
+                media_url="/uploads/images/owner.jpg",
+                media_thumbnail_url="/uploads/images/owner-thumb.jpg",
+                media_type="image",
+                like_count=0,
+                comment_count=0,
+            ),
+            BenderPost(
+                id=post_ids["admin"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                caption="Admin deletion target",
+                media_url="/uploads/images/admin.jpg",
+                media_thumbnail_url="/uploads/images/admin-thumb.jpg",
+                media_type="image",
+                like_count=0,
+                comment_count=0,
+            ),
+            BenderPost(
+                id=post_ids["reverse"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["blocker"],
+                caption="Reverse block deletion target",
+                media_url="/uploads/images/reverse.jpg",
+                media_thumbnail_url="/uploads/images/reverse-thumb.jpg",
+                media_type="image",
+                like_count=0,
+                comment_count=0,
+            ),
+        ])
+        blocked_post = await db.get(BenderPost, ids["bender"])
+        blocked_post.media_url = "/uploads/images/blocked.jpg"
+        blocked_post.media_thumbnail_url = "/uploads/images/blocked-thumb.jpg"
+        blocked_post.media_type = "image"
+        await db.commit()
+    try:
+        yield ids, post_ids
+    finally:
+        async with async_session() as db:
+            await db.execute(
+                delete(BenderPost).where(BenderPost.id.in_(post_ids.values()))
+            )
+            await db.commit()
+
+
+@pytest_asyncio.fixture
 async def malformed_bender_reference_rows(discovery_rows):
     ids = discovery_rows
     malformed_ids = [uuid4() for _ in range(9)]
@@ -537,6 +678,55 @@ async def request_bender(db, tenant, viewer, method, path, **kwargs):
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         return await client.request(method, f"/api/v1/bender{path}", **kwargs)
+
+
+async def request_reference_search(db, tenant, viewer, q, ref_type):
+    from app.api.deps import get_db
+    from app.api.v1.messages import router as messages_router
+    from app.core.permissions import get_current_tenant, get_current_user
+
+    app = FastAPI()
+    app.include_router(messages_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_tenant] = lambda: tenant
+    app.dependency_overrides[get_current_user] = lambda: viewer
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.get(
+            "/api/v1/messages/reference-search",
+            params={"q": q, "type": ref_type},
+        )
+
+
+@pytest.mark.asyncio
+async def test_reference_search_rejects_tenant_mismatch_before_calling_search(
+    monkeypatch,
+):
+    from app.api.deps import get_db
+    from app.api.v1.messages import router as messages_router
+    from app.core.permissions import get_current_tenant, get_current_user
+
+    search = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.reference_service.search_references", search)
+    tenant = SimpleNamespace(id=uuid4())
+    viewer = SimpleNamespace(id=uuid4(), tenant_id=uuid4())
+    app = FastAPI()
+    app.include_router(messages_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: object()
+    app.dependency_overrides[get_current_tenant] = lambda: tenant
+    app.dependency_overrides[get_current_user] = lambda: viewer
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            "/api/v1/messages/reference-search",
+            params={"q": "tenant secret", "type": "listing"},
+        )
+
+    assert response.status_code == 404
+    search.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -678,6 +868,90 @@ async def test_anonymous_comment_reads_are_tenant_scoped_and_keep_same_tenant_pa
     assert visible.json()["next_cursor"] is None
     assert cross_tenant.status_code == 404
     assert "Other tenant secret comment" not in cross_tenant.text
+
+
+@pytest.mark.asyncio
+async def test_bender_comment_listing_filters_hidden_authors_before_cursor_and_limit(
+    bender_comment_visibility_rows,
+):
+    ids, comment_ids = bender_comment_visibility_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        blocker = await db.get(User, ids["blocker"])
+        path = f"/posts/{comment_ids['post']}/comments"
+        first = await request_bender(
+            db,
+            tenant,
+            blocker,
+            "GET",
+            path,
+            params={"limit": 2},
+        )
+        first_body = first.json()
+        second = await request_bender(
+            db,
+            tenant,
+            blocker,
+            "GET",
+            path,
+            params={"limit": 2, "cursor": first_body["next_cursor"]},
+        )
+
+    assert first.status_code == second.status_code == 200
+    assert [item["id"] for item in first_body["items"]] == [
+        str(comment_ids["eligible_old"]),
+        str(comment_ids["reverse_visible"]),
+    ]
+    assert first_body["has_more"] is True
+    assert first_body["next_cursor"] is not None
+    assert [item["id"] for item in second.json()["items"]] == [
+        str(comment_ids["eligible_new"])
+    ]
+    assert second.json()["has_more"] is False
+    assert second.json()["next_cursor"] is None
+
+
+@pytest.mark.asyncio
+async def test_bender_comment_listing_preserves_anonymous_and_reverse_block_visibility(
+    bender_comment_visibility_rows,
+):
+    ids, comment_ids = bender_comment_visibility_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        blocked = await db.get(User, ids["blocked"])
+        path = f"/posts/{comment_ids['post']}/comments"
+        anonymous = await request_bender(
+            db,
+            tenant,
+            None,
+            "GET",
+            path,
+            params={"limit": 50},
+        )
+        reverse = await request_bender(
+            db,
+            tenant,
+            blocked,
+            "GET",
+            path,
+            params={"limit": 50},
+        )
+
+    assert anonymous.status_code == reverse.status_code == 200
+    anonymous_ids = {item["id"] for item in anonymous.json()["items"]}
+    reverse_ids = {item["id"] for item in reverse.json()["items"]}
+    expected_ids = {
+        str(comment_ids["eligible_old"]),
+        str(comment_ids["eligible_new"]),
+        str(comment_ids["reverse_visible"]),
+        *(str(comment_id) for comment_id in comment_ids["blocked"]),
+    }
+    assert anonymous_ids == expected_ids
+    assert reverse_ids == expected_ids
+    assert str(comment_ids["cross_tenant"]) not in anonymous_ids
+    assert str(comment_ids["cross_tenant"]) not in reverse_ids
+    assert anonymous.json()["has_more"] is False
+    assert reverse.json()["has_more"] is False
 
 
 @pytest.mark.asyncio
@@ -852,6 +1126,311 @@ async def test_bender_interactions_hide_malformed_author_and_shop_relationships(
             )
 
     assert [response.status_code for response in responses] == [404] * len(responses)
+
+
+@pytest.mark.asyncio
+async def test_bender_post_creation_rejects_an_unresolved_tenant_without_persistence(
+    discovery_rows,
+):
+    ids = discovery_rows
+    caption = f"Unresolved tenant create {uuid4().hex}"
+    async with async_session() as db:
+        viewer = await db.get(User, ids["other"])
+        response = await request_bender(
+            db,
+            None,
+            viewer,
+            "POST",
+            "/posts",
+            json={
+                "caption": caption,
+                "media_url": "/uploads/images/unresolved.jpg",
+                "media_thumbnail_url": "/uploads/images/unresolved-thumb.jpg",
+                "media_type": "image",
+            },
+        )
+        created = await db.scalar(
+            select(BenderPost).where(BenderPost.caption == caption)
+        )
+
+    assert response.status_code == 404
+    assert created is None
+
+
+@pytest.mark.asyncio
+async def test_bender_post_creation_rejects_a_selected_tenant_mismatch_without_persistence(
+    discovery_rows,
+):
+    ids = discovery_rows
+    caption = f"Mismatched tenant create {uuid4().hex}"
+    async with async_session() as db:
+        selected_tenant = await db.get(Tenant, ids["other_tenant"])
+        viewer = await db.get(User, ids["other"])
+        response = await request_bender(
+            db,
+            selected_tenant,
+            viewer,
+            "POST",
+            "/posts",
+            json={
+                "caption": caption,
+                "media_url": "/uploads/images/mismatched.jpg",
+                "media_thumbnail_url": "/uploads/images/mismatched-thumb.jpg",
+                "media_type": "image",
+            },
+        )
+        created = await db.scalar(
+            select(BenderPost).where(BenderPost.caption == caption)
+        )
+
+    assert response.status_code == 404
+    assert created is None
+
+
+@pytest.mark.asyncio
+async def test_bender_post_creation_rejects_a_cross_tenant_affiliated_shop(
+    discovery_rows,
+):
+    ids = discovery_rows
+    caption = f"Malformed shop create {uuid4().hex}"
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["other"])
+        viewer.shop_id = ids["cross_shop"]
+        await db.commit()
+        await db.refresh(viewer, attribute_names=["shop"])
+        response = await request_bender(
+            db,
+            tenant,
+            viewer,
+            "POST",
+            "/posts",
+            json={
+                "caption": caption,
+                "media_url": "/uploads/images/cross-shop.jpg",
+                "media_thumbnail_url": "/uploads/images/cross-shop-thumb.jpg",
+                "media_type": "image",
+            },
+        )
+        created = await db.scalar(
+            select(BenderPost).where(BenderPost.caption == caption)
+        )
+
+    assert response.status_code == 404
+    assert created is None
+
+
+@pytest.mark.asyncio
+async def test_bender_post_creation_binds_a_legitimate_affiliated_viewer_to_the_request_tenant(
+    discovery_rows,
+):
+    ids = discovery_rows
+    caption = f"Legitimate tenant create {uuid4().hex}"
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["other"])
+        viewer.shop_id = ids["other_shop"]
+        await db.commit()
+        response = await request_bender(
+            db,
+            tenant,
+            viewer,
+            "POST",
+            "/posts",
+            json={
+                "caption": caption,
+                "media_url": "/uploads/images/legitimate.jpg",
+                "media_thumbnail_url": "/uploads/images/legitimate-thumb.jpg",
+                "media_type": "image",
+            },
+        )
+        created = await db.scalar(
+            select(BenderPost).where(BenderPost.caption == caption)
+        )
+
+    assert response.status_code == 201
+    assert created is not None
+    assert created.tenant_id == ids["tenant"]
+    assert created.author_user_id == ids["other"]
+    assert created.author_shop_id == ids["other_shop"]
+    assert response.json()["author"]["shop_id"] == str(ids["other_shop"])
+
+
+@pytest.mark.asyncio
+async def test_bender_post_deletion_rejects_an_unresolved_tenant_without_mutation(
+    bender_post_write_rows,
+):
+    ids, post_ids = bender_post_write_rows
+    async with async_session() as db:
+        owner = await db.get(User, ids["other"])
+        response = await request_bender(
+            db,
+            None,
+            owner,
+            "DELETE",
+            f"/posts/{post_ids['owner']}",
+        )
+        preserved = await db.get(BenderPost, post_ids["owner"])
+
+    assert response.status_code == 404
+    assert preserved is not None
+    assert (
+        preserved.media_url,
+        preserved.media_thumbnail_url,
+        preserved.media_type,
+    ) == (
+        "/uploads/images/owner.jpg",
+        "/uploads/images/owner-thumb.jpg",
+        "image",
+    )
+
+
+@pytest.mark.asyncio
+async def test_bender_post_deletion_rejects_a_selected_tenant_mismatch_without_mutation(
+    bender_post_write_rows,
+):
+    ids, post_ids = bender_post_write_rows
+    async with async_session() as db:
+        selected_tenant = await db.get(Tenant, ids["other_tenant"])
+        owner = await db.get(User, ids["other"])
+        response = await request_bender(
+            db,
+            selected_tenant,
+            owner,
+            "DELETE",
+            f"/posts/{post_ids['owner']}",
+        )
+        preserved = await db.get(BenderPost, post_ids["owner"])
+
+    assert response.status_code == 404
+    assert preserved is not None
+    assert (
+        preserved.media_url,
+        preserved.media_thumbnail_url,
+        preserved.media_type,
+    ) == (
+        "/uploads/images/owner.jpg",
+        "/uploads/images/owner-thumb.jpg",
+        "image",
+    )
+
+
+@pytest.mark.asyncio
+async def test_bender_post_deletion_applies_directional_block_visibility_without_mutation(
+    bender_post_write_rows,
+):
+    ids, post_ids = bender_post_write_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        blocker = await db.get(User, ids["blocker"])
+        blocked = await db.get(User, ids["blocked"])
+        hidden = await request_bender(
+            db,
+            tenant,
+            blocker,
+            "DELETE",
+            f"/posts/{ids['bender']}",
+        )
+        reverse = await request_bender(
+            db,
+            tenant,
+            blocked,
+            "DELETE",
+            f"/posts/{post_ids['reverse']}",
+        )
+        hidden_post = await db.get(BenderPost, ids["bender"])
+        reverse_post = await db.get(BenderPost, post_ids["reverse"])
+
+    assert hidden.status_code == 404
+    assert reverse.status_code == 403
+    assert hidden_post is not None
+    assert reverse_post is not None
+    assert (
+        hidden_post.media_url,
+        hidden_post.media_thumbnail_url,
+        reverse_post.media_url,
+        reverse_post.media_thumbnail_url,
+    ) == (
+        "/uploads/images/blocked.jpg",
+        "/uploads/images/blocked-thumb.jpg",
+        "/uploads/images/reverse.jpg",
+        "/uploads/images/reverse-thumb.jpg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_bender_post_deletion_hides_malformed_author_and_shop_relationships(
+    bender_search_rows,
+):
+    ids, search_ids, _, _, _ = bender_search_rows
+    malformed_author_id = search_ids["cross_tenant_author_match"]
+    malformed_shop_id = search_ids["cross_tenant_shop_match"]
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        admin = await db.get(User, ids["blocker"])
+        owner = await db.get(User, ids["other"])
+        admin.role = UserRole.COMMUNITY_ADMIN
+        malformed_author = await db.get(BenderPost, malformed_author_id)
+        malformed_shop = await db.get(BenderPost, malformed_shop_id)
+        malformed_author.media_url = "/uploads/images/malformed-author.jpg"
+        malformed_shop.media_url = "/uploads/images/malformed-shop.jpg"
+        await db.commit()
+
+        author_response = await request_bender(
+            db,
+            tenant,
+            admin,
+            "DELETE",
+            f"/posts/{malformed_author_id}",
+        )
+        shop_response = await request_bender(
+            db,
+            tenant,
+            owner,
+            "DELETE",
+            f"/posts/{malformed_shop_id}",
+        )
+        preserved_author = await db.get(BenderPost, malformed_author_id)
+        preserved_shop = await db.get(BenderPost, malformed_shop_id)
+
+    assert author_response.status_code == shop_response.status_code == 404
+    assert preserved_author is not None
+    assert preserved_shop is not None
+    assert preserved_author.media_url == "/uploads/images/malformed-author.jpg"
+    assert preserved_shop.media_url == "/uploads/images/malformed-shop.jpg"
+
+
+@pytest.mark.asyncio
+async def test_bender_post_deletion_allows_a_visible_owner_and_same_tenant_admin(
+    bender_post_write_rows,
+):
+    ids, post_ids = bender_post_write_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        owner = await db.get(User, ids["other"])
+        admin = await db.get(User, ids["blocker"])
+        admin.role = UserRole.COMMUNITY_ADMIN
+        await db.commit()
+        owner_response = await request_bender(
+            db,
+            tenant,
+            owner,
+            "DELETE",
+            f"/posts/{post_ids['owner']}",
+        )
+        admin_response = await request_bender(
+            db,
+            tenant,
+            admin,
+            "DELETE",
+            f"/posts/{post_ids['admin']}",
+        )
+        owner_post = await db.get(BenderPost, post_ids["owner"])
+        admin_post = await db.get(BenderPost, post_ids["admin"])
+
+    assert owner_response.status_code == admin_response.status_code == 204
+    assert owner_post is None
+    assert admin_post is None
 
 
 @pytest.mark.asyncio
@@ -1077,6 +1656,99 @@ async def test_delete_comment_hides_malformed_post_relationships(
     assert [response.status_code for response in responses] == [404, 404]
     assert all(comment is not None for comment in preserved)
     assert [post.comment_count for post in posts] == [1, 1]
+
+
+@pytest.mark.parametrize(
+    ("ref_type", "query"),
+    [
+        ("listing", "Task5 Eligible Late Listing"),
+        ("shop", "Task5 Eligible Shop"),
+        ("user", "Other viewer"),
+        ("bender", "Task5 Eligible Bender"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_reference_search_rejects_cross_tenant_authenticated_context(
+    discovery_rows,
+    ref_type,
+    query,
+):
+    ids = discovery_rows
+    async with async_session() as db:
+        selected_tenant = await db.get(Tenant, ids["tenant"])
+        cross_tenant_viewer = await db.get(User, ids["cross_other"])
+        response = await request_reference_search(
+            db,
+            selected_tenant,
+            cross_tenant_viewer,
+            query,
+            ref_type,
+        )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("ref_type", "query"),
+    [
+        ("listing", "Task5 Eligible Late Listing"),
+        ("shop", "Task5 Eligible Shop"),
+        ("user", "Other viewer"),
+        ("bender", "Task5 Eligible Bender"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_reference_search_rejects_an_unresolved_request_tenant(
+    discovery_rows,
+    ref_type,
+    query,
+):
+    ids = discovery_rows
+    async with async_session() as db:
+        viewer = await db.get(User, ids["other"])
+        response = await request_reference_search(
+            db,
+            None,
+            viewer,
+            query,
+            ref_type,
+        )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("ref_type", "query", "expected_id_key"),
+    [
+        ("listing", "Task5 Eligible Late Listing", "late_listing"),
+        ("shop", "Task5 Eligible Shop", "other_shop"),
+        ("user", "Other viewer", "other"),
+        ("bender", "Task5 Eligible Bender", "late_bender"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_reference_search_preserves_same_tenant_reference_types(
+    discovery_rows,
+    ref_type,
+    query,
+    expected_id_key,
+):
+    ids = discovery_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["other"])
+        response = await request_reference_search(
+            db,
+            tenant,
+            viewer,
+            query,
+            ref_type,
+        )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["items"]] == [
+        str(ids[expected_id_key])
+    ]
 
 
 @pytest.mark.asyncio

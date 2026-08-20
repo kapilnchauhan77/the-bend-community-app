@@ -48,8 +48,9 @@ async def test_reference_search_route_passes_authenticated_viewer(monkeypatch):
         captured.update(tenant_id=tenant_id, q=q, type_filter=type_filter, viewer_id=viewer_id)
         return []
     monkeypatch.setattr("app.services.reference_service.search_references", fake_search)
-    viewer = type("Viewer", (), {"id": uuid4()})()
-    tenant = type("Tenant", (), {"id": uuid4()})()
+    tenant_id = uuid4()
+    viewer = type("Viewer", (), {"id": uuid4(), "tenant_id": tenant_id})()
+    tenant = type("Tenant", (), {"id": tenant_id})()
     result = await reference_search("needle", "listing", db=object(), current_user=viewer, tenant=tenant)
     assert result == {"items": []}
     assert captured["viewer_id"] == viewer.id

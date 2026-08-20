@@ -69,8 +69,15 @@ async def create_post(
     data: BenderPostCreate,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    post = await service.create_post(data, current_user)
+    if tenant is None or current_user.tenant_id != tenant.id:
+        raise NotFoundError("Tenant")
+    post = await service.create_post(
+        data,
+        current_user,
+        tenant_id=tenant.id,
+    )
     # Build response with the same author block the feed uses.
     return BenderPostResponse(
         id=str(post.id),
@@ -114,8 +121,15 @@ async def delete_post(
     post_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    await service.delete_post(post_id, current_user)
+    if tenant is None or current_user.tenant_id != tenant.id:
+        raise NotFoundError("Tenant")
+    await service.delete_post(
+        post_id,
+        current_user,
+        tenant_id=tenant.id,
+    )
     return None
 
 
