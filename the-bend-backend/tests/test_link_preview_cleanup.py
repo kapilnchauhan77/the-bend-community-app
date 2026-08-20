@@ -79,11 +79,12 @@ def local_url(digest):
     return f"/uploads/link-previews/{digest}.webp"
 
 
-def write_file(root: Path, digest: str, *, age_days=31):
+def write_file(root: Path, digest: str, *, age_days=31, age_minutes=None):
     path = root / "link-previews" / f"{digest}.webp"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"image")
-    stamp = (datetime.now(UTC) - timedelta(days=age_days)).timestamp()
+    age = timedelta(minutes=age_minutes) if age_minutes is not None else timedelta(days=age_days)
+    stamp = (datetime.now(UTC) - age).timestamp()
     path.touch()
     os.utime(path, (stamp, stamp))
     return path
@@ -96,7 +97,7 @@ async def test_deletes_old_unreferenced_and_preserves_recent_and_referenced(tmp_
     database = "c" * 64
     live = "d" * 64
     old_path = write_file(tmp_path, old)
-    recent_path = write_file(tmp_path, recent, age_days=2)
+    recent_path = write_file(tmp_path, recent, age_minutes=10)
     database_path = write_file(tmp_path, database)
     live_path = write_file(tmp_path, live)
 
@@ -124,7 +125,8 @@ async def test_deletes_old_unreferenced_and_preserves_recent_and_referenced(tmp_
 async def test_stats_keep_database_and_redis_reference_counts_separate(tmp_path):
     now = datetime(2026, 8, 21, tzinfo=UTC)
     old = write_file(tmp_path, "0" * 64)
-    recent = write_file(tmp_path, "1" * 64, age_days=2)
+    recent = write_file(tmp_path, "1" * 64, age_minutes=10)
+    os.utime(recent, ((now - timedelta(minutes=10)).timestamp(),) * 2)
     database = write_file(tmp_path, "2" * 64)
     redis = write_file(tmp_path, "3" * 64)
     draft = write_file(tmp_path, "4" * 64)
@@ -157,10 +159,10 @@ async def test_stats_keep_database_and_redis_reference_counts_separate(tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_exactly_thirty_days_old_is_preserved(tmp_path):
+async def test_exactly_twenty_five_minutes_old_is_preserved(tmp_path):
     now = datetime(2026, 8, 21, tzinfo=UTC)
     path = write_file(tmp_path, "5" * 64)
-    boundary = (now - timedelta(days=30)).timestamp()
+    boundary = (now - timedelta(minutes=25)).timestamp()
     os.utime(path, (boundary, boundary))
 
     stats = await cleanup_link_preview_image_files(

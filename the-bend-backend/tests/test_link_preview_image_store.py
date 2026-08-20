@@ -36,6 +36,12 @@ def test_store_accepts_jpeg_png_and_webp_and_returns_strict_public_path(tmp_path
         assert _saved_path(tmp_path, url).is_file()
 
 
+def test_store_enforces_global_file_and_byte_caps(tmp_path):
+    store = LinkPreviewImageStore(tmp_path, max_files=1, max_bytes=1)
+    with pytest.raises(LinkPreviewImageProcessingError, match="storage_cap"):
+        store.store(_image_bytes())
+
+
 def test_store_rejects_malformed_and_unsupported_decoded_formats(tmp_path):
     store = LinkPreviewImageStore(tmp_path)
     with pytest.raises(LinkPreviewImageProcessingError):

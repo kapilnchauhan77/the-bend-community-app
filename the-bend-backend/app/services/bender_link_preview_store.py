@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -29,6 +30,9 @@ class BenderLinkPreviewStore:
     MAX_RAW_JSON_BYTES = 64 * 1024
     MAX_DRAFT_TOKEN_LENGTH = 128
     METRIC_TTL_SECONDS = 8 * 24 * 60 * 60
+    GENERATION_LIMIT = 30
+    GENERATION_WINDOW_SECONDS = 3600
+    IO_TIMEOUT_SECONDS = 1.5
     _OUTCOMES = frozenset(
         {
             "success",
@@ -64,7 +68,7 @@ class BenderLinkPreviewStore:
         return value if isinstance(value, dict) else None
 
     async def _validated_cache(self, key: str) -> LinkPreviewMetadata | None:
-        raw = await self.redis.get(key)
+        raw = await asyncio.wait_for(self.redis.get(key), timeout=self.IO_TIMEOUT_SECONDS)
         if raw is None:
             return None
         try:
@@ -127,7 +131,7 @@ class BenderLinkPreviewStore:
         except UnicodeEncodeError:
             return None
         key = self.DRAFT_PREFIX + self._hash(token)
-        raw = await self.redis.get(key)
+        raw = await asyncio.wait_for(self.redis.get(key), timeout=self.IO_TIMEOUT_SECONDS)
         if raw is None:
             return None
         try:
@@ -144,6 +148,12 @@ class BenderLinkPreviewStore:
         if first_http_url(caption) != record.source_url:
             return None
         return record.preview
+
+    async def reserve_generation(self, *, user_id: UUID) -> bool:
+        key = self.METRIC_PREFIX + "generation:" + str(user_id)
+        count = await asyncio.wait_for(self.redis.incr(key), timeout=self.IO_TIMEOUT_SECONDS)
+        await asyncio.wait_for(self.redis.expire(key, self.GENERATION_WINDOW_SECONDS), timeout=self.IO_TIMEOUT_SECONDS)
+        return int(count) <= self.GENERATION_LIMIT
 
     async def record_outcome(self, outcome: LinkPreviewOutcome) -> None:
         if outcome not in self._OUTCOMES:

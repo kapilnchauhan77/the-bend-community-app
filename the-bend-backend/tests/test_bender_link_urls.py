@@ -27,6 +27,12 @@ def test_extracts_exact_caption_tokens(case):
 @pytest.mark.parametrize(
     "url",
     [
+        "https://224.0.0.1/",
+        "https://[ff02::1]/",
+        "https://[2002:7f00:1::1]/",
+        "https://[2001:0000:4136:e378:8000:63bf:3fff:fdd2]/",
+        "https://[64:ff9b::7f00:1]/",
+        "https://[64:ff9b:1::a9fe:a9fe]/",
         "https://user:pass@example.org/",
         "https://example.org:bad/",
         "https://example.org:0/",
@@ -95,6 +101,16 @@ async def test_resolve_public_addresses_rejects_mixed_results():
 
     with pytest.raises(LinkPreviewURLRejected, match="destination_not_public"):
         await resolve_public_addresses(target, resolver)
+
+
+@pytest.mark.asyncio
+async def test_resolve_public_addresses_rejects_multicast_and_nat64_results():
+    target = prepare_external_url("https://example.org")
+    for value in ("224.0.0.1", "64:ff9b::7f00:1", "2002:7f00:1::1"):
+        async def resolver(_hostname, _port, value=value):
+            return (value,)
+        with pytest.raises(LinkPreviewURLRejected, match="destination_not_public"):
+            await resolve_public_addresses(target, resolver)
 
 
 @pytest.mark.asyncio

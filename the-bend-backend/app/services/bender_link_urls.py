@@ -26,12 +26,25 @@ class LinkPreviewURLRejected(ValueError):
         self.hostname = hostname
 
 
-_URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_URL_RE = re.compile(r"https?://[^\s<>\"'“”‘’]+", re.IGNORECASE)
 _TRAILING_PUNCTUATION = ".,!?;:"
+_NAT64_PREFIXES = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+
+def is_public_unicast(address):
+    if not address.is_global or address.is_multicast or address.is_private or address.is_reserved:
+        return False
+    if getattr(address, "is_link_local", False) or getattr(address, "is_loopback", False):
+        return False
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.scope_id or address.ipv4_mapped or any(address in network for network in _NAT64_PREFIXES):
+            return False
+        if address in ipaddress.ip_network("2002::/16") or address in ipaddress.ip_network("2001::/32"):
+            return False
+    return True
 
 
 def _clean_token(token: str) -> str:
-    token = token.rstrip(_TRAILING_PUNCTUATION + "’‘\"'")
+    token = token.rstrip(_TRAILING_PUNCTUATION + "’‘\"'“”")
     while token.endswith("]") and token.count("]") > token.count("["):
         token = token[:-1]
     while token.endswith("}") and token.count("}") > token.count("{"):
@@ -45,7 +58,7 @@ def extract_http_urls(text: str | None) -> list[str]:
     """Return exact HTTP(S) caption tokens after sentence punctuation cleanup."""
     if not text:
         return []
-    return [cleaned for match in _URL_RE.finditer(text) if (cleaned := _clean_token(match.group(0)))]
+    return [cleaned for match in _URL_RE.finditer(text) if (cleaned := _clean_token(match.group(0))) and not re.search(r"%(?![0-9A-Fa-f]{2})", cleaned)]
 
 
 def first_http_url(text: str | None) -> str | None:
@@ -69,7 +82,7 @@ def _canonical_hostname(raw_hostname: str) -> tuple[str, ipaddress.IPv4Address |
     except ValueError:
         literal = None
     if literal is not None:
-        if str(literal) != raw_hostname or not literal.is_global:
+        if str(literal) != raw_hostname or not is_public_unicast(literal):
             _reject("destination_not_public", raw_hostname)
         return str(literal), literal
     if "%" in raw_hostname:
@@ -143,6 +156,6 @@ async def resolve_public_addresses(
         addresses = tuple(ipaddress.ip_address(item) for item in raw_addresses)
     except ValueError:
         _reject("invalid_destination", target.hostname)
-    if not addresses or any(not address.is_global for address in addresses):
+    if not addresses or any(not is_public_unicast(address) for address in addresses):
         _reject("destination_not_public", target.hostname)
     return addresses

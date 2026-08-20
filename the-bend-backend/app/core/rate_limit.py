@@ -1,6 +1,7 @@
 """Redis-based sliding window rate limiter."""
 import time
 import secrets
+import asyncio
 from typing import Callable
 
 from fastapi import Request, Depends
@@ -19,7 +20,7 @@ async def get_redis() -> Redis:
     """Get or create Redis connection."""
     global _redis_client
     if _redis_client is None:
-        _redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+        _redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=1.0)
     return _redis_client
 
 
@@ -57,7 +58,7 @@ async def check_rate_limit(
     pipe.zcard(key)
     # Set expiry on the key
     pipe.expire(key, window_seconds)
-    results = await pipe.execute()
+    results = await asyncio.wait_for(pipe.execute(), timeout=1.5)
 
     request_count = results[2]
     if request_count > max_requests:

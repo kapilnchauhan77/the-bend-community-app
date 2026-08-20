@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _DIGEST_FILE = re.compile(r"^[0-9a-f]{64}\.webp$")
 _LOCAL_IMAGE = re.compile(r"^/uploads/link-previews/([0-9a-f]{64})\.webp$")
-_RETENTION = timedelta(days=30)
+_RETENTION = timedelta(minutes=25)
 
 
 @dataclass(frozen=True)

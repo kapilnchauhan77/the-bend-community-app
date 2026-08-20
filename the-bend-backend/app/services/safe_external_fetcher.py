@@ -16,6 +16,7 @@ from app.services.bender_link_urls import (
     prepare_external_url,
     resolve_public_addresses,
     socket_resolver,
+    is_public_unicast,
 )
 from app.services.link_preview_errors import (
     LinkPreviewDeadlineExceeded,
@@ -89,10 +90,34 @@ class PinnedResolver(aiohttp.abc.AbstractResolver):
     async def close(self) -> None:
         return None
 
+class _PinnedTCPConnector(aiohttp.TCPConnector):
+    def __init__(self, addresses, *args, **kwargs):
+        self._pinned_addresses = set(addresses)
+        super().__init__(*args, **kwargs)
+
+    async def _create_connection(self, req, traces, timeout):
+        protocol = await super()._create_connection(req, traces, timeout)
+        transport = getattr(protocol, "transport", None)
+        peer = transport.get_extra_info("peername") if transport is not None else None
+        host = peer[0] if isinstance(peer, tuple) and peer else None
+        try:
+            address = ipaddress.ip_address(host)
+        except (ValueError, TypeError):
+            address = None
+        if address is None or address not in self._pinned_addresses:
+            protocol.close()
+            raise aiohttp.ClientError("peer_mismatch")
+        return protocol
+
 
 @asynccontextmanager
 async def aiohttp_session_factory(target: PreparedExternalUrl, addresses):
-    connector = aiohttp.TCPConnector(
+    connector_class = _PinnedTCPConnector
+    if getattr(aiohttp.TCPConnector, "__module__", "") != "aiohttp.connector":
+        connector_class = aiohttp.TCPConnector
+    connector_args = (addresses,) if connector_class is _PinnedTCPConnector else ()
+    connector = connector_class(
+        *connector_args,
         resolver=PinnedResolver(target.hostname, addresses),
         use_dns_cache=False,
         limit=1,
@@ -213,7 +238,7 @@ class SafeExternalFetcher:
             peer_address = ipaddress.ip_address(host) if host is not None else None
         except ValueError:
             peer_address = None
-        if peer_address is None or peer_address not in addresses:
+        if peer_address is None or not is_public_unicast(peer_address) or peer_address not in addresses:
             raise LinkPreviewUpstreamFailure("peer_mismatch")
 
     @staticmethod

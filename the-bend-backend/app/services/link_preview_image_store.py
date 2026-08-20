@@ -19,6 +19,8 @@ from PIL import Image, ImageOps
 _MAX_PIXELS = 20_000_000
 _PUBLIC_PATH = re.compile(r"^/uploads/link-previews/([0-9a-f]{64})\.webp$")
 _IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
+DEFAULT_MAX_FILES = 10_000
+DEFAULT_MAX_BYTES = 512 * 1024 * 1024
 
 
 class LinkPreviewImageProcessingError(ValueError):
@@ -51,9 +53,11 @@ def link_preview_directory_lock(
 
 
 class LinkPreviewImageStore:
-    def __init__(self, upload_dir: Path | str = Path("uploads")):
+    def __init__(self, upload_dir: Path | str = Path("uploads"), *, max_files: int = DEFAULT_MAX_FILES, max_bytes: int = DEFAULT_MAX_BYTES):
         self.upload_dir = Path(upload_dir)
         self.image_dir = _image_directory(self.upload_dir)
+        self.max_files = max_files
+        self.max_bytes = max_bytes
 
     @staticmethod
     def _encode(image_bytes: bytes) -> bytes:
@@ -99,9 +103,13 @@ class LinkPreviewImageStore:
         self.image_dir.mkdir(parents=True, exist_ok=True)
         final_path = self.image_dir / f"{digest}.webp"
         public_url = f"/uploads/link-previews/{digest}.webp"
-        with link_preview_directory_lock(self.image_dir, shared=True):
+        with link_preview_directory_lock(self.image_dir, shared=False):
             if self._touch_path(final_path):
                 return public_url
+            files = list(self.image_dir.glob("[0-9a-f]" * 64 + ".webp"))
+            total_bytes = sum(path.stat().st_size for path in files if path.is_file())
+            if len(files) >= self.max_files or total_bytes + len(encoded) > self.max_bytes:
+                raise LinkPreviewImageProcessingError("storage_cap")
 
             for _ in range(8):
                 temporary = self.image_dir / f".{digest}.{secrets.token_hex(8)}.tmp"

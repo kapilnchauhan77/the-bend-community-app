@@ -239,6 +239,7 @@ async def test_resolve_draft_binds_user_nullable_tenant_and_exact_first_caption_
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=None, caption="See https://example.org/start") is None
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption="See https://example.org/other") is None
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption="See https://example.org/start.") == _snapshot()
+    assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption='See https://example.org/start” and https://other.example') == _snapshot()
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption=None) is None
 
 

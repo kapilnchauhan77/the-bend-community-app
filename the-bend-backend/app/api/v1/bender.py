@@ -1,4 +1,5 @@
 from uuid import UUID
+import asyncio
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from redis.exceptions import RedisError
@@ -52,7 +53,7 @@ async def enforce_link_preview_rate_limit(
 ) -> None:
     try:
         await check_rate_limit(request, str(current_user.id), max_requests=10, window_seconds=60)
-    except RedisError as exc:
+    except (RedisError, asyncio.TimeoutError) as exc:
         raise AppException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "LINK_PREVIEW_UNAVAILABLE",
@@ -116,7 +117,7 @@ async def create_link_preview(
         raise AppException(status.HTTP_504_GATEWAY_TIMEOUT, "LINK_PREVIEW_TIMEOUT", "Preview request timed out") from exc
     except RateLimitError:
         raise
-    except RedisError as exc:
+    except (RedisError, asyncio.TimeoutError) as exc:
         raise AppException(status.HTTP_503_SERVICE_UNAVAILABLE, "LINK_PREVIEW_UNAVAILABLE", "Link preview is temporarily unavailable") from exc
 
 

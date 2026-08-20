@@ -44,6 +44,9 @@ class BenderLinkPreviewService:
                     metadata = None
 
             if metadata is None:
+                reserve = getattr(self.store, "reserve_generation", None)
+                if reserve is not None and not await reserve(user_id=user_id):
+                    raise LinkPreviewUpstreamFailure("generation_limit")
                 generated = await self.generator.generate(exact_source)
                 metadata = generated.metadata
                 await self.store.cache_metadata(

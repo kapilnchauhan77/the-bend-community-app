@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 from redis.exceptions import RedisError
+import asyncio
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,13 +110,13 @@ class BenderService:
             and len(data.preview_token) <= 128
         ):
             try:
-                snapshot = await self.link_preview_store.resolve_draft(
+                snapshot = await asyncio.wait_for(self.link_preview_store.resolve_draft(
                     data.preview_token,
                     user_id=current_user.id,
                     tenant_id=current_user.tenant_id,
                     caption=caption,
-                )
-            except RedisError:
+                ), timeout=1.5)
+            except (RedisError, asyncio.TimeoutError):
                 snapshot = None
             if snapshot is not None:
                 link_preview = snapshot.model_dump(mode="json")
