@@ -2,7 +2,6 @@ import asyncio
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -36,7 +35,7 @@ class FakeDB:
 
 
 class FakeRedisStore:
-    def __init__(self, urls=(), error=None):
+    def __init__(self, urls=(), draft_urls=(), error=None):
         import json
 
         self.records = {}
@@ -47,6 +46,20 @@ class FakeRedisStore:
                 "title": "Example",
                 "image_url": url,
             }})
+        for index, url in enumerate(draft_urls):
+            key = f"bender:link-preview:draft:{index}"
+            self.records[key] = json.dumps({"user_id": "00000000-0000-0000-0000-000000000001",
+                "tenant_id": None,
+                "source_url": "https://example.org",
+                "created_at": "2026-08-21T00:00:00Z",
+                "preview": {
+                    "version": 1,
+                    "source_url": "https://example.org",
+                    "url": "https://example.org",
+                    "title": "Example",
+                    "image_url": url,
+                },
+            })
         self.error = error
 
     async def scan_iter(self, match):
@@ -72,8 +85,6 @@ def write_file(root: Path, digest: str, *, age_days=31):
     path.write_bytes(b"image")
     stamp = (datetime.now(UTC) - timedelta(days=age_days)).timestamp()
     path.touch()
-    import os
-
     os.utime(path, (stamp, stamp))
     return path
 
@@ -107,6 +118,58 @@ async def test_deletes_old_unreferenced_and_preserves_recent_and_referenced(tmp_
     assert stats.deleted == 1
     assert not old_path.exists()
     assert recent_path.exists() and database_path.exists() and live_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_stats_keep_database_and_redis_reference_counts_separate(tmp_path):
+    now = datetime(2026, 8, 21, tzinfo=UTC)
+    old = write_file(tmp_path, "0" * 64)
+    recent = write_file(tmp_path, "1" * 64, age_days=2)
+    database = write_file(tmp_path, "2" * 64)
+    redis = write_file(tmp_path, "3" * 64)
+    draft = write_file(tmp_path, "4" * 64)
+    snapshot = {
+        "version": 1,
+        "source_url": "https://example.org/source",
+        "url": "https://example.org/source",
+        "title": "Example",
+        "image_url": local_url("2" * 64),
+    }
+
+    stats = await cleanup_link_preview_image_files(
+        FakeDB([snapshot]),
+        FakeRedisStore([local_url("3" * 64)], [local_url("4" * 64)]),
+        upload_dir=tmp_path,
+        now=now,
+    )
+
+    assert tuple(stats.__dataclass_fields__) == (
+        "scanned", "deleted", "recent", "database_referenced", "redis_referenced", "skipped"
+    )
+    assert stats.scanned == 5
+    assert stats.deleted == 1
+    assert stats.recent == 1
+    assert stats.database_referenced == 1
+    assert stats.redis_referenced == 2
+    assert stats.skipped == 0
+    assert not old.exists()
+    assert recent.exists() and database.exists() and redis.exists() and draft.exists()
+
+
+@pytest.mark.asyncio
+async def test_exactly_thirty_days_old_is_preserved(tmp_path):
+    now = datetime(2026, 8, 21, tzinfo=UTC)
+    path = write_file(tmp_path, "5" * 64)
+    boundary = (now - timedelta(days=30)).timestamp()
+    os.utime(path, (boundary, boundary))
+
+    stats = await cleanup_link_preview_image_files(
+        FakeDB(), FakeRedisStore(), upload_dir=tmp_path, now=now
+    )
+
+    assert stats.deleted == 0
+    assert stats.recent == 1
+    assert path.exists()
 
 
 @pytest.mark.asyncio
@@ -174,6 +237,75 @@ async def test_symlink_is_skipped_and_mtime_is_reread_after_lock(tmp_path):
     stats = await pending
     assert stats.deleted == 0
     assert raced.exists() and target.exists() and symlink.is_symlink()
+
+
+@pytest.mark.asyncio
+async def test_file_disappearing_during_delete_is_counted_as_skipped(tmp_path, monkeypatch):
+    path = write_file(tmp_path, "6" * 64)
+    original_unlink = Path.unlink
+
+    def disappear(self, missing_ok=False):
+        if self == path:
+            raise FileNotFoundError(self)
+        return original_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", disappear)
+    stats = await cleanup_link_preview_image_files(
+        FakeDB(), FakeRedisStore(), upload_dir=tmp_path
+    )
+    assert stats.scanned == 1
+    assert stats.deleted == 0
+    assert stats.skipped == 1
+
+
+@pytest.mark.asyncio
+async def test_celery_task_forces_configured_import_and_registers_exact_task():
+    from app.workers import celery_app
+
+    celery_app.celery_app.loader.import_default_modules()
+    assert "app.workers.scheduled_tasks" in celery_app.celery_app.conf.imports
+    registered = celery_app.celery_app.tasks["app.workers.scheduled_tasks.cleanup_link_preview_images"]
+    assert registered.name == "app.workers.scheduled_tasks.cleanup_link_preview_images"
+
+
+def test_two_sync_cleanup_runs_create_and_close_task_local_redis_clients(monkeypatch):
+    from app.workers import scheduled_tasks
+
+    class FakeClient:
+        def __init__(self, number):
+            self.number = number
+            self.closed = False
+
+        async def aclose(self):
+            self.closed = True
+
+    clients = []
+
+    def from_url(*_args, **_kwargs):
+        client = FakeClient(len(clients) + 1)
+        clients.append(client)
+        return client
+
+    class SessionContext:
+        async def __aenter__(self):
+            return object()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    async def fake_cleanup(_db, redis):
+        assert redis is clients[-1]
+        return LinkPreviewCleanupStats()
+
+    monkeypatch.setattr(scheduled_tasks, "Redis", type("RedisFactory", (), {"from_url": staticmethod(from_url)}))
+    monkeypatch.setattr(scheduled_tasks, "async_session", lambda: SessionContext())
+    monkeypatch.setattr(scheduled_tasks, "cleanup_link_preview_image_files", fake_cleanup)
+
+    scheduled_tasks.cleanup_link_preview_images.run()
+    scheduled_tasks.cleanup_link_preview_images.run()
+
+    assert [client.number for client in clients] == [1, 2]
+    assert all(client.closed for client in clients)
 
 
 class _held_shared_lock:

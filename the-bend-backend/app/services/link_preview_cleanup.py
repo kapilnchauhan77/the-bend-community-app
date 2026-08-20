@@ -29,8 +29,9 @@ _RETENTION = timedelta(days=30)
 class LinkPreviewCleanupStats:
     scanned: int = 0
     deleted: int = 0
-    preserved_recent: int = 0
-    preserved_referenced: int = 0
+    recent: int = 0
+    database_referenced: int = 0
+    redis_referenced: int = 0
     skipped: int = 0
 
 
@@ -62,7 +63,7 @@ def _delete_unreferenced(
     now: datetime,
 ) -> LinkPreviewCleanupStats:
     cutoff = now.timestamp() - _RETENTION.total_seconds()
-    scanned = deleted = recent = referenced = skipped = 0
+    scanned = deleted = recent = database_referenced = redis_referenced = skipped = 0
     try:
         entries = list(image_dir.iterdir())
     except (FileNotFoundError, NotADirectoryError, OSError):
@@ -79,11 +80,14 @@ def _delete_unreferenced(
                 # Re-read after taking the exclusive lock. A store touch that won
                 # the race makes this file recent and therefore undeletable.
                 stat = path.stat(follow_symlinks=False)
-                if stat.st_mtime > cutoff:
+                if stat.st_mtime >= cutoff:
                     recent += 1
                     continue
-                if path.name in references:
-                    referenced += 1
+                if path.name in references.database:
+                    database_referenced += 1
+                    continue
+                if path.name in references.redis:
+                    redis_referenced += 1
                     continue
                 try:
                     path.unlink(missing_ok=True)
@@ -92,7 +96,20 @@ def _delete_unreferenced(
                     skipped += 1
             except (FileNotFoundError, NotADirectoryError, OSError):
                 skipped += 1
-    return LinkPreviewCleanupStats(scanned, deleted, recent, referenced, skipped)
+    return LinkPreviewCleanupStats(
+        scanned,
+        deleted,
+        recent,
+        database_referenced,
+        redis_referenced,
+        skipped,
+    )
+
+
+@dataclass(frozen=True)
+class _ReferenceSets:
+    database: frozenset[str]
+    redis: frozenset[str]
 
 
 async def cleanup_link_preview_image_files(
@@ -122,14 +139,17 @@ async def cleanup_link_preview_image_files(
     except Exception:
         return LinkPreviewCleanupStats()
 
-    reference_names = database_references | live_references
+    references = _ReferenceSets(
+        database=frozenset(database_references),
+        redis=frozenset(live_references),
+    )
     cleanup_now = now or datetime.now(UTC)
     if cleanup_now.tzinfo is None:
         cleanup_now = cleanup_now.replace(tzinfo=UTC)
     return await asyncio.to_thread(
         _delete_unreferenced,
         _image_dir(upload_dir),
-        reference_names,
+        references,
         now=cleanup_now,
     )
 
