@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Share2, Link2, Mail, MessageCircle, Check, Globe } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { usePlatformServices } from '@/platform/createPlatformServices';
+import { publicWestmorelandUrl } from '@/lib/publicUrl';
 
 interface ShareButtonProps {
   url: string;
@@ -25,7 +26,11 @@ export function ShareButton({ url, title, description, className = '' }: ShareBu
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const fullUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+  const fullUrl = url.startsWith('http')
+    ? url
+    : Capacitor.isNativePlatform()
+      ? publicWestmorelandUrl(url)
+      : `${window.location.origin}${url}`;
   const encodedUrl = encodeURIComponent(fullUrl);
   const encodedTitle = encodeURIComponent(title);
   const encodedDesc = encodeURIComponent(description || title);
