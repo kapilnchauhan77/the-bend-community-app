@@ -5,11 +5,13 @@ import { useCachedPublicContent } from './useCachedPublicContent'
 
 type CachedFeed = PaginatedResponse<BenderPost> | BenderPost[]
 
-export function useBenderFeed() {
+export interface UseBenderFeedOptions { enabled?: boolean }
+
+export function useBenderFeed(options: UseBenderFeedOptions = {}) {
   const cached = useCachedPublicContent<CachedFeed>(
     'bender:feed',
     useCallback(async () => (await benderApi.listPosts()).data, []),
-    { cachePolicy: 'none' },
+    options.enabled === false ? { cachePolicy: 'none', enabled: false } : { cachePolicy: 'none' },
   )
   const [posts, setPosts] = useState<BenderPost[]>([])
   const [cursor, setCursor] = useState<string | null>(null)

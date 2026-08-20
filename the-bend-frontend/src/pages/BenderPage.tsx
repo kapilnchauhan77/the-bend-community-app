@@ -30,6 +30,7 @@ import { useOnlineMutation } from '@/hooks/useOnlineMutation';
 import { OfflineBanner } from '@/components/native/OfflineBanner';
 import { CachedContentNotice } from '@/components/native/CachedContentNotice';
 import { useBenderFeed } from '@/hooks/useBenderFeed';
+import { useBenderPost } from '@/hooks/useBenderPost';
 import { useBenderDraft } from '@/hooks/useBenderDraft';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 import { benderPostPath, getLegacyBenderPostId } from '@/routes/benderRoutes';
@@ -838,7 +839,6 @@ interface BenderPageProps {
 }
 
 export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) {
-  const feed = useBenderFeed();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { hash } = useLocation();
@@ -854,6 +854,17 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
   const focusedPostRef = useRef<string | null>(null);
 
   const isCommunityAdmin = user?.role === 'community_admin';
+
+  const canonicalParamId = parseCanonicalUuid(postId ?? '');
+  const legacyPostId = getLegacyBenderPostId(searchParams.toString(), hash);
+  const focusedId = canonicalParamId ?? legacyPostId;
+  const focused = Boolean(focusedId);
+  const feed = useBenderFeed({ enabled: !focused });
+  const focusedPost = useBenderPost(focusedId);
+
+  useEffect(() => {
+    if (!postId && legacyPostId) navigate(benderPostPath(legacyPostId), { replace: true });
+  }, [legacyPostId, navigate, postId]);
 
   const { posts, cursor, hasMore, loading, loadingMore, loadMoreError, loadNext, prepend, remove, patch: patchPost } = feed;
 
@@ -878,14 +889,14 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
   // actually in the DOM, scroll it into view and briefly ring-highlight it.
   // If the id isn't in the loaded set (later page, or deleted), no-op — we
   // don't force-paginate to find it.
-  const focusPostId = parseCanonicalUuid(postId ?? '') ?? getLegacyBenderPostId(searchParams.toString(), hash);
+  const focusPostId = canonicalParamId;
   useEffect(() => {
     if (!focusPostId || loading) return;
     if (focusedPostRef.current === focusPostId) return;
     const el = document.getElementById(`post-${focusPostId}`);
     if (!el) return;
     focusedPostRef.current = focusPostId;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
     queueMicrotask(() => setHighlightedPostId(focusPostId));
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
     highlightTimeoutRef.current = setTimeout(() => {
@@ -918,8 +929,9 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
   }, [prepend]);
 
   const handleDelete = useCallback((id: string) => {
-    remove(id);
-  }, [remove]);
+    if (focused) navigate('/bender');
+    else remove(id);
+  }, [focused, navigate, remove]);
 
   const handlePatch = useCallback((id: string, values: Partial<BenderPost>) => {
     patchPost(id, values);
@@ -931,17 +943,18 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
       embeddedNative={nativeEmbedded}
       embeddedClassName={nativeEmbedded ? 'native-bender-page' : undefined}
     >
-      <CachedContentNotice cachedAt={feed.cachedAt} />
+      {focused && <h1 className="sr-only">Bender post</h1>}
+      {!focused && <CachedContentNotice cachedAt={feed.cachedAt} />}
       <div ref={feedTopRef} />
       <div className="w-full max-w-md mx-auto md:py-4">
         {/* Sticky page header */}
-        <div className={`sticky z-30 bg-[hsl(40,20%,98%)] border-b border-[hsl(35,18%,88%)] md:rounded-t-lg md:border md:border-b-[hsl(35,18%,88%)] ${nativeEmbedded ? 'native-bender-header top-0' : 'top-14'}`}>
+        {!focused || !nativeEmbedded ? <div className={`sticky z-30 bg-[hsl(40,20%,98%)] border-b border-[hsl(35,18%,88%)] md:rounded-t-lg md:border md:border-b-[hsl(35,18%,88%)] ${nativeEmbedded ? 'native-bender-header top-0' : 'top-14'}`}>
           <div className="flex items-center justify-between px-4 py-3">
             <h1 aria-label="Bender" style={{ color: BRONZE }}>
               <BenderLogo className="h-7 w-auto" />
             </h1>
             <div className="flex items-center gap-1">
-              {isAuthenticated && (
+              {!focused && isAuthenticated && (
                 <button
                   onClick={handleComposerClick}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
@@ -963,11 +976,21 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
               )}
             </div>
           </div>
-        </div>
+        </div> : null}
 
         {/* Feed */}
         <div className="md:p-0 pt-2">
-          {loading ? (
+          {focused ? (
+            focusedPost.status === 'loading' ? (
+              <div className="native-bender-surface native-bender-border bg-white border border-[hsl(35,18%,88%)] overflow-hidden"><div className="flex items-center gap-2 px-3 py-2"><Skeleton className="h-7 w-7 rounded-full" /><Skeleton className="h-3 w-32" /></div><Skeleton className="w-full aspect-square rounded-none" /><div className="px-3 py-2 space-y-2"><Skeleton className="h-3 w-1/2" /><Skeleton className="h-3 w-3/4" /></div></div>
+            ) : focusedPost.status === 'unavailable' ? (
+              <EmptyState icon={<MessageCircle size={32} />} title="Post unavailable" description="This post may have been deleted or is not available." />
+            ) : focusedPost.status === 'error' ? (
+              <div role="alert" className="py-8 text-center"><p className="text-sm text-[hsl(0,55%,45%)]">Retry loading this post</p><button type="button" className="mt-2 text-sm underline" onClick={focusedPost.retry}>Retry loading this post</button></div>
+            ) : focusedPost.post ? (
+              <BenderPostCard post={focusedPost.post} currentUserId={user?.id ?? null} isCommunityAdmin={isCommunityAdmin} isAuthenticated={isAuthenticated} onDelete={handleDelete} onPatch={(id, values) => focusedPost.patch(values)} />
+            ) : null
+          ) : loading ? (
             <div className="space-y-3 px-0 md:px-0">
               {[0, 1, 2].map((i) => (
                 <div
@@ -1050,7 +1073,7 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
       </div>
 
       {/* Floating composer button — bottom-right, above the BottomNav. */}
-      {isAuthenticated && (
+      {!focused && isAuthenticated && (
         <button
           onClick={handleComposerClick}
           className="md:hidden fixed bottom-24 right-4 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-xl z-40 cursor-pointer hover:opacity-90 transition-opacity"
@@ -1061,11 +1084,11 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
         </button>
       )}
 
-      <BenderComposer
+      {!focused && <BenderComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         onCreated={handleCreated}
-      />
+      />}
     </PageLayout>
   );
 }

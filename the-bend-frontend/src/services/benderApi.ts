@@ -13,6 +13,11 @@ export type ListBenderPostsOptions = {
   signal?: AbortSignal;
 };
 
+export interface BenderRequestOptions {
+  signal?: AbortSignal;
+}
+
+
 /**
  * Bender (Instagram-style community feed) API wrapper.
  * - Lists are cursor-paginated; pass `next_cursor` from the previous page to
@@ -27,6 +32,10 @@ export const benderApi = {
       params: { cursor, limit, ...(options.search === undefined ? {} : { search: options.search }) },
       ...(options.signal ? { signal: options.signal } : {}),
     }),
+
+  getPost: (id: string, options?: BenderRequestOptions) =>
+    api.get<BenderPost>(`/bender/posts/${encodeURIComponent(id)}`, options?.signal ? { signal: options.signal } : {}),
+
 
   createPost: (payload: CreatePostPayload) =>
     api.post<BenderPost>('/bender/posts', payload),
