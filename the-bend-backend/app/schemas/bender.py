@@ -85,6 +85,7 @@ class BenderLinkPreviewResponse(BaseModel):
 
 class BenderPostCreate(BaseModel):
     caption: str | None = Field(None, max_length=2000)
+    preview_token: str | None = None
     media_url: str | None = Field(None, max_length=500)
     media_thumbnail_url: str | None = Field(None, max_length=500)
     media_type: Literal["image", "video"] | None = None

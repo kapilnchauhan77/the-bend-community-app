@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError as PydanticValidationError
+from redis.exceptions import RedisError
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,7 @@ from app.schemas.bender import (
     BenderPostCreate,
     BenderPostResponse,
 )
+from app.services.bender_link_preview_store import BenderLinkPreviewStore
 
 
 class BenderService:
@@ -46,8 +48,13 @@ class BenderService:
       under concurrency.
     """
 
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+        link_preview_store: BenderLinkPreviewStore | None = None,
+    ):
         self.db = db
+        self.link_preview_store = link_preview_store
 
     # ------------------------------------------------------------------
     # helpers
@@ -91,15 +98,34 @@ class BenderService:
     async def create_post(
         self, data: BenderPostCreate, current_user: User
     ) -> BenderPost:
+        caption = data.caption.strip() if data.caption else None
+        link_preview = None
+        if (
+            self.link_preview_store is not None
+            and data.preview_token
+            and len(data.preview_token) <= 128
+        ):
+            try:
+                snapshot = await self.link_preview_store.resolve_draft(
+                    data.preview_token,
+                    user_id=current_user.id,
+                    tenant_id=current_user.tenant_id,
+                    caption=caption,
+                )
+            except RedisError:
+                snapshot = None
+            if snapshot is not None:
+                link_preview = snapshot.model_dump(mode="json")
         post = BenderPost(
             id=uuid4(),
             author_user_id=current_user.id,
             author_shop_id=current_user.shop_id,
             tenant_id=current_user.tenant_id,
-            caption=data.caption.strip() if data.caption else None,
+            caption=caption,
             media_url=data.media_url,
             media_thumbnail_url=data.media_thumbnail_url,
             media_type=data.media_type,
+            link_preview=link_preview,
             like_count=0,
             comment_count=0,
         )

@@ -64,6 +64,13 @@ async def get_link_preview_store(redis=Depends(get_redis)) -> BenderLinkPreviewS
     return BenderLinkPreviewStore(redis)
 
 
+def get_create_post_service(
+    db: AsyncSession = Depends(get_db),
+    store: BenderLinkPreviewStore = Depends(get_link_preview_store),
+) -> BenderService:
+    return BenderService(db, link_preview_store=store)
+
+
 def get_link_preview_generator() -> BenderLinkPreviewGenerator:
     return BenderLinkPreviewGenerator(
         fetcher=SafeExternalFetcher(),
@@ -146,7 +153,7 @@ async def list_posts(
 )
 async def create_post(
     data: BenderPostCreate,
-    service: BenderService = Depends(get_service),
+    service: BenderService = Depends(get_create_post_service),
     current_user: User = Depends(get_current_user),
 ):
     post = await service.create_post(data, current_user)
