@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 import re
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -47,6 +48,30 @@ class BenderLinkPreview(LinkPreviewMetadata):
 
 class BenderLinkPreviewSnapshot(BenderLinkPreview):
     version: Literal[1] = 1
+
+
+class LinkPreviewCacheRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal[1] = 1
+    metadata: LinkPreviewMetadata
+
+
+class LinkPreviewDraftRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: UUID
+    tenant_id: UUID | None
+    source_url: str = Field(..., max_length=2048)
+    created_at: datetime
+    preview: BenderLinkPreviewSnapshot
+
+    @field_validator("created_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("created_at must be timezone-aware")
+        return value.astimezone(UTC)
 
 
 class BenderLinkPreviewRequest(BaseModel):
