@@ -110,6 +110,16 @@ describe('NativePartnerCarousel', () => {
     expect(screen.queryByRole('link', { name: /Credentials Partner/i })).toBeNull()
   })
 
+  it.each([
+    'javascript://alert.example/path',
+    'ftp://files.example/path',
+    'data://payload.example/path',
+  ])('keeps a scheme-like non-http website noninteractive: %s', (websiteUrl) => {
+    render(<NativePartnerCarousel partners={[partner('unsafe-scheme', 'Unsafe Scheme Partner', { website_url: websiteUrl })]} />)
+
+    expect(screen.queryByRole('link', { name: /Unsafe Scheme Partner/i })).toBeNull()
+  })
+
   it('updates the active slide and visual position dots from a manual horizontal swipe', async () => {
     const { container } = render(<NativePartnerCarousel partners={partners} />)
     const track = screen.getByRole('list', { name: 'Community partners' })
