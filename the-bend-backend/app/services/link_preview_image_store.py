@@ -100,22 +100,34 @@ class LinkPreviewImageStore:
         final_path = self.image_dir / f"{digest}.webp"
         public_url = f"/uploads/link-previews/{digest}.webp"
         with link_preview_directory_lock(self.image_dir, shared=True):
-            try:
-                target_stat = final_path.lstat()
-            except FileNotFoundError:
-                target_stat = None
-            if target_stat is not None and not _is_regular_non_symlink(target_stat):
-                target_stat = None
-            if target_stat is not None:
-                final_path.touch()
+            if self._touch_path(final_path):
                 return public_url
 
-            temporary = self.image_dir / f".{digest}.{secrets.token_hex(8)}.tmp"
-            try:
-                temporary.write_bytes(encoded)
-                os.replace(temporary, final_path)
-            finally:
-                temporary.unlink(missing_ok=True)
+            for _ in range(8):
+                temporary = self.image_dir / f".{digest}.{secrets.token_hex(8)}.tmp"
+                try:
+                    descriptor = os.open(
+                        temporary,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                        0o600,
+                    )
+                except FileExistsError:
+                    continue
+                try:
+                    offset = 0
+                    while offset < len(encoded):
+                        written = os.write(descriptor, encoded[offset:])
+                        if written <= 0:
+                            raise OSError("short preview image write")
+                        offset += written
+                    os.replace(temporary, final_path)
+                    break
+                finally:
+                    if descriptor >= 0:
+                        os.close(descriptor)
+                    temporary.unlink(missing_ok=True)
+            else:
+                raise FileExistsError("unable to allocate preview image temporary file")
         return public_url
 
     def _open_no_follow(self, path: Path):
@@ -125,6 +137,23 @@ class LinkPreviewImageStore:
         descriptor = os.open(path, flags)
         return os.fdopen(descriptor, "rb")
 
+    def _touch_path(self, path: Path) -> bool:
+        try:
+            with self._open_no_follow(path) as image_file:
+                locked_stat = path.stat(follow_symlinks=False)
+                if not _is_regular_non_symlink(locked_stat):
+                    return False
+                opened_stat = os.fstat(image_file.fileno())
+                if (
+                    locked_stat.st_dev != opened_stat.st_dev
+                    or locked_stat.st_ino != opened_stat.st_ino
+                ):
+                    return False
+                os.utime(image_file.fileno(), None)
+                return True
+        except (FileNotFoundError, NotADirectoryError, OSError):
+            return False
+
     def touch(self, public_url: str) -> bool:
         match = _PUBLIC_PATH.fullmatch(public_url)
         if not match:
@@ -132,21 +161,7 @@ class LinkPreviewImageStore:
         digest = match.group(1)
         path = self.image_dir / f"{digest}.webp"
         with link_preview_directory_lock(self.image_dir, shared=True):
-            try:
-                with self._open_no_follow(path) as image_file:
-                    locked_stat = path.stat(follow_symlinks=False)
-                    if not _is_regular_non_symlink(locked_stat):
-                        return False
-                    opened_stat = os.fstat(image_file.fileno())
-                    if (
-                        locked_stat.st_dev != opened_stat.st_dev
-                        or locked_stat.st_ino != opened_stat.st_ino
-                    ):
-                        return False
-                    os.utime(image_file.fileno(), None)
-                return True
-            except (FileNotFoundError, NotADirectoryError, OSError):
-                return False
+            return self._touch_path(path)
 
 
 def _is_regular_non_symlink(stat_result: os.stat_result) -> bool:

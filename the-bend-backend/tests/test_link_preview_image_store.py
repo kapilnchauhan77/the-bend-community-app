@@ -117,18 +117,37 @@ def test_encoding_is_deterministic_and_reuses_existing_digest(tmp_path, monkeypa
     assert target.read_bytes() == _saved_path(tmp_path, first).read_bytes()
 
 
+def test_store_reuse_race_never_touches_outside_symlink_target(tmp_path, monkeypatch):
+    store = LinkPreviewImageStore(tmp_path)
+    payload = _image_bytes()
+    url = store.store(payload)
+    target = _saved_path(tmp_path, url)
+    outside = tmp_path / "outside.webp"
+    outside.write_bytes(b"outside")
+    old_mtime = outside.stat().st_mtime_ns
+    original_lstat = Path.lstat
+    swapped = False
+
+    def swap_after_lstat(path):
+        nonlocal swapped
+        result = original_lstat(path)
+        if path == target and not swapped:
+            swapped = True
+            target.unlink()
+            target.symlink_to(outside)
+        return result
+
+    monkeypatch.setattr(Path, "lstat", swap_after_lstat)
+    assert store.store(payload) == url
+    assert outside.stat().st_mtime_ns == old_mtime
+    assert outside.read_bytes() == b"outside"
+
+
 @pytest.mark.parametrize("failure", ["write", "replace"])
 def test_temporary_files_are_removed_after_storage_failure(tmp_path, monkeypatch, failure):
     store = LinkPreviewImageStore(tmp_path)
     if failure == "write":
-        real_write = Path.write_bytes
-
-        def fail_write(path, data):
-            if path.name.endswith(".tmp"):
-                raise OSError("write failed")
-            return real_write(path, data)
-
-        monkeypatch.setattr(Path, "write_bytes", fail_write)
+        monkeypatch.setattr("app.services.link_preview_image_store.os.write", lambda fd, data: (_ for _ in ()).throw(OSError("write failed")))
     else:
         real_replace = os.replace
 
@@ -141,6 +160,23 @@ def test_temporary_files_are_removed_after_storage_failure(tmp_path, monkeypatch
     with pytest.raises(OSError):
         store.store(_image_bytes())
     assert not list((tmp_path / "link-previews").glob(".*.tmp"))
+
+
+def test_temp_name_collision_does_not_follow_symlink_and_retries(tmp_path, monkeypatch):
+    store = LinkPreviewImageStore(tmp_path)
+    outside = tmp_path / "outside.tmp"
+    outside.write_bytes(b"outside")
+    tokens = iter(("collision", "fresh"))
+    monkeypatch.setattr("app.services.link_preview_image_store.secrets.token_hex", lambda n: next(tokens))
+    store.image_dir.mkdir(parents=True)
+    digest = store._encode(_image_bytes())
+    import hashlib
+
+    name = hashlib.sha256(digest).hexdigest()
+    (store.image_dir / f".{name}.collision.tmp").symlink_to(outside)
+    store.store(_image_bytes())
+    assert outside.read_bytes() == b"outside"
+    assert (store.image_dir / f".{name}.collision.tmp").is_symlink()
 
 
 def test_touch_only_accepts_regular_exact_public_paths_and_missing_is_false(tmp_path):
@@ -198,19 +234,35 @@ def test_shared_lock_coordinates_with_exclusive_lock_across_processes(tmp_path):
     release = tmp_path / "release"
     process = Process(target=_hold_lock, args=(tmp_path, ready, release))
     process.start()
-    for _ in range(100):
-        if ready.exists():
-            break
-        time.sleep(0.01)
-    assert ready.exists()
-    started = time.monotonic()
-    contender = subprocess.Popen(
-        [sys.executable, "-c", "from pathlib import Path; from app.services.link_preview_image_store import link_preview_directory_lock; import sys; p=Path(sys.argv[1]);\nwith link_preview_directory_lock(p, shared=True): pass" , str(tmp_path)],
-        cwd=Path(__file__).parents[1],
-    )
-    time.sleep(0.1)
-    assert contender.poll() is None
-    release.write_text("release")
-    process.join(timeout=2)
-    contender.wait(timeout=2)
-    assert time.monotonic() - started >= 0.1
+    contender = None
+    try:
+        for _ in range(100):
+            if ready.exists():
+                break
+            time.sleep(0.01)
+        assert ready.exists()
+        started = time.monotonic()
+        contender = subprocess.Popen(
+            [sys.executable, "-c", "from pathlib import Path; from app.services.link_preview_image_store import link_preview_directory_lock; import sys; p=Path(sys.argv[1]);\nwith link_preview_directory_lock(p, shared=True): pass" , str(tmp_path)],
+            cwd=Path(__file__).parents[1],
+        )
+        time.sleep(0.1)
+        assert contender.poll() is None
+        release.write_text("release")
+        contender.wait(timeout=2)
+        process.join(timeout=2)
+        assert contender.returncode == 0
+        assert process.exitcode == 0
+        assert time.monotonic() - started >= 0.1
+    finally:
+        release.touch()
+        if contender is not None and contender.poll() is None:
+            contender.terminate()
+            try:
+                contender.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                contender.kill()
+                contender.wait(timeout=1)
+        if process.is_alive():
+            process.terminate()
+        process.join(timeout=2)
