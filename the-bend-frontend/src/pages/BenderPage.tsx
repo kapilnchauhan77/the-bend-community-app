@@ -24,7 +24,10 @@ import { BenderLogo } from '@/components/shared/BenderLogo';
 import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
+import { isSafeHttpUrl } from '@/lib/benderLinks';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
+import { BenderCaption } from '@/components/features/bender/BenderCaption';
+import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPreviewCard';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 
@@ -337,7 +340,6 @@ function BenderPostCard({
 }) {
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [captionExpanded, setCaptionExpanded] = useState(false);
 
   const display = post.author.shop_name || post.author.name;
   const canDelete =
@@ -407,7 +409,13 @@ function BenderPostCard({
     }
   }, [post.id, onDelete]);
 
-  const captionTooLong = (post.caption?.length ?? 0) > 140;
+  const visiblePreview = post.link_preview && isSafeHttpUrl(post.link_preview.url) ? post.link_preview : null;
+  const captionBlock = post.caption ? (
+    <div className="px-3 pt-1 pb-1 text-[13px] leading-snug min-w-0">
+      <span className="font-semibold text-[hsl(30,15%,18%)] mr-1">{display}</span>
+      <BenderCaption caption={post.caption} sourceUrl={visiblePreview?.source_url} />
+    </div>
+  ) : null;
 
   return (
     <article
@@ -441,6 +449,9 @@ function BenderPostCard({
           />
         )}
       </div>
+
+      {visiblePreview && captionBlock}
+      {visiblePreview && <div className="px-3 pb-1 min-w-0"><BenderLinkPreviewCard preview={visiblePreview} /></div>}
 
       {/* Media (1:1) */}
       {post.media_url && (
@@ -518,29 +529,7 @@ function BenderPostCard({
         </button>
       </div>
 
-      {/* Caption */}
-      {post.caption && (
-        <div className="px-3 pt-1 pb-1 text-[13px] leading-snug">
-          <span className="font-semibold text-[hsl(30,15%,18%)] mr-1">
-            {display}
-          </span>
-          <span
-            className={`text-[hsl(30,10%,28%)] whitespace-pre-wrap ${
-              !captionExpanded && captionTooLong ? 'line-clamp-2' : ''
-            }`}
-          >
-            {post.caption}
-          </span>
-          {captionTooLong && !captionExpanded && (
-            <button
-              onClick={() => setCaptionExpanded(true)}
-              className="text-[hsl(30,10%,55%)] text-[12px] ml-1 cursor-pointer hover:underline"
-            >
-              more
-            </button>
-          )}
-        </div>
-      )}
+      {!visiblePreview && captionBlock}
 
       {/* View comments link */}
       {post.comment_count > 0 && !commentsOpen && (

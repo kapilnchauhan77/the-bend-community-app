@@ -333,6 +333,16 @@ export interface BenderPost {
   comment_count: number;
   viewer_has_liked: boolean;
   created_at: string;
+  link_preview: BenderLinkPreview | null;
+}
+
+export interface BenderLinkPreview {
+  source_url: string;
+  url: string;
+  title: string;
+  description?: string | null;
+  site_name?: string | null;
+  image_url?: string | null;
 }
 
 export interface BenderComment {
