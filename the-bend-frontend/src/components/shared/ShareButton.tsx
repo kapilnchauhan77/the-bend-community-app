@@ -11,6 +11,15 @@ interface ShareButtonProps {
   className?: string;
 }
 
+function isAbsoluteHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function ShareButton({ url, title, description, className = '' }: ShareButtonProps) {
   const services = usePlatformServices();
   const [open, setOpen] = useState(false);
@@ -26,7 +35,7 @@ export function ShareButton({ url, title, description, className = '' }: ShareBu
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const fullUrl = url.startsWith('http')
+  const fullUrl = isAbsoluteHttpUrl(url)
     ? url
     : Capacitor.isNativePlatform()
       ? publicWestmorelandUrl(url)

@@ -6,7 +6,15 @@ export function publicWestmorelandUrl(path: string): string {
   if (/%(?:2f|5c)/i.test(path)) throw new TypeError('Path contains an encoded delimiter')
 
   const pathname = path.split(/[?#]/, 1)[0]
-  if (pathname.split('/').some((segment) => segment === '.' || segment === '..')) throw new TypeError('Path contains dot-segment traversal')
+  try {
+    if (pathname.split('/').some((segment) => {
+      const decoded = decodeURIComponent(segment)
+      return decoded === '.' || decoded === '..'
+    })) throw new TypeError('Path contains dot-segment traversal')
+  } catch (error) {
+    if (error instanceof TypeError && error.message === 'Path contains dot-segment traversal') throw error
+    throw new TypeError('Path contains malformed encoding')
+  }
   if (/^[a-z][a-z\d+.-]*:/i.test(path)) throw new TypeError('Expected a relative path')
 
   return `${WESTMORELAND_PUBLIC_ORIGIN}${path}`

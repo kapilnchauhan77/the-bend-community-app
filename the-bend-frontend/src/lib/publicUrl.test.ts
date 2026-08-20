@@ -20,6 +20,10 @@ describe('publicWestmorelandUrl', () => {
     '/./secret',
     '/foo%2fbar',
     '/foo%5Cbar',
+    '/%2e%2e/secret',
+    '/%2E%2E/secret',
+    '/safe/%2e%2fsecret',
+    '/safe/%2e%5csecret',
     '/foo bar',
     '/foo\nbar',
   ])('rejects unsafe path %s', (path) => {

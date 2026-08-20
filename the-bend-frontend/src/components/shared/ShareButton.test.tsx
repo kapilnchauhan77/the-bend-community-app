@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ShareButton } from './ShareButton'
 
 const share = vi.fn().mockResolvedValue('shared')
+const originalUserAgent = navigator.userAgent
+const originalNavigatorShare = navigator.share
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: vi.fn(() => false) } }))
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => ({ share: { share } }) }))
 
@@ -14,6 +16,9 @@ describe('ShareButton URL resolution', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
     share.mockClear()
     Object.defineProperty(window, 'location', { configurable: true, value: { origin: 'http://localhost' } })
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: originalUserAgent })
+    if (originalNavigatorShare === undefined) delete (navigator as { share?: unknown }).share
+    else Object.defineProperty(navigator, 'share', { configurable: true, value: originalNavigatorShare })
   })
 
   it('uses the fixed public origin for native relative URLs', async () => {
@@ -34,11 +39,16 @@ describe('ShareButton URL resolution', () => {
     await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://web.example/business/1' })))
   })
 
-  it('keeps absolute HTTP and HTTPS URLs unchanged', async () => {
+  it.each(['https://other.example/event/1', 'HTTP://other.example/event/1', 'HTTPS://other.example/event/1'])('keeps absolute HTTP and HTTPS URL %s unchanged', async (url) => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone' })
-    render(<ShareButton url="https://other.example/event/1" title="Event" />)
+    render(<ShareButton url={url} title="Event" />)
     fireEvent.click(screen.getByRole('button', { name: 'Share' }))
-    await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://other.example/event/1' })))
+    await waitFor(() => expect(share).toHaveBeenCalledWith(expect.objectContaining({ url })))
+  })
+
+  it('rejects lookalike schemes instead of treating them as absolute URLs', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
+    expect(() => render(<ShareButton url="httpx://evil.example/post" title="Unsafe" />)).toThrow(TypeError)
   })
 })
