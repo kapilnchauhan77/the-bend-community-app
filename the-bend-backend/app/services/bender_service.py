@@ -561,11 +561,19 @@ class BenderService:
         self,
         comment_id: UUID,
         current_user: User,
+        *,
+        post_id: UUID,
+        tenant_id: UUID,
     ) -> None:
+        post = await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id,
+            current_user=current_user,
+            require_tenant_viewer=True,
+        )
         comment = await self.db.get(BenderComment, comment_id)
-        if comment is None:
+        if comment is None or comment.post_id != post.id:
             raise NotFoundError("Comment")
-        post = await self._get_post_or_404(comment.post_id)
 
         is_comment_owner = comment.user_id == current_user.id
         is_post_owner = post.author_user_id == current_user.id

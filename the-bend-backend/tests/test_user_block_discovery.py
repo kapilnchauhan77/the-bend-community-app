@@ -345,6 +345,99 @@ async def bender_interaction_rows(discovery_rows):
 
 
 @pytest_asyncio.fixture
+async def bender_delete_rows(discovery_rows):
+    ids = discovery_rows
+    delete_ids = {
+        key: uuid4()
+        for key in (
+            "visible_post",
+            "reverse_post",
+            "tenant_b_post",
+            "visible_owner_comment",
+            "blocked_comment",
+            "cross_owned_tenant_a_comment",
+            "reverse_owned_comment",
+            "post_owner_target_comment",
+        )
+    }
+    async with async_session() as db:
+        visible_post = BenderPost(
+            id=delete_ids["visible_post"],
+            tenant_id=ids["tenant"],
+            author_user_id=ids["other"],
+            caption="Comment deletion visibility target",
+            like_count=0,
+            comment_count=3,
+        )
+        reverse_post = BenderPost(
+            id=delete_ids["reverse_post"],
+            tenant_id=ids["tenant"],
+            author_user_id=ids["blocker"],
+            caption="Reverse-direction deletion target",
+            like_count=0,
+            comment_count=1,
+        )
+        tenant_b_post = BenderPost(
+            id=delete_ids["tenant_b_post"],
+            tenant_id=ids["other_tenant"],
+            author_user_id=ids["cross_blocked"],
+            caption="Tenant-B deletion URL target",
+            like_count=0,
+            comment_count=0,
+        )
+        db.add_all([visible_post, reverse_post, tenant_b_post])
+        await db.flush()
+        db.add_all([
+            BenderComment(
+                id=delete_ids["visible_owner_comment"],
+                post_id=visible_post.id,
+                user_id=ids["other"],
+                content="Visible comment-owner mismatch target",
+            ),
+            BenderComment(
+                id=delete_ids["blocked_comment"],
+                post_id=ids["bender"],
+                user_id=ids["blocked"],
+                content="Blocked post deletion target",
+            ),
+            BenderComment(
+                id=delete_ids["cross_owned_tenant_a_comment"],
+                post_id=visible_post.id,
+                user_id=ids["cross_blocked"],
+                content="Malformed tenant-B owner on tenant-A post",
+            ),
+            BenderComment(
+                id=delete_ids["reverse_owned_comment"],
+                post_id=reverse_post.id,
+                user_id=ids["blocked"],
+                content="Reverse-direction comment-owner target",
+            ),
+            BenderComment(
+                id=delete_ids["post_owner_target_comment"],
+                post_id=visible_post.id,
+                user_id=ids["blocker"],
+                content="Visible post-owner deletion target",
+            ),
+        ])
+        (await db.get(BenderPost, ids["bender"])).comment_count = 1
+        await db.commit()
+    try:
+        yield ids, delete_ids
+    finally:
+        async with async_session() as db:
+            await db.execute(
+                delete(BenderPost).where(
+                    BenderPost.id.in_([
+                        delete_ids["visible_post"],
+                        delete_ids["reverse_post"],
+                        delete_ids["tenant_b_post"],
+                    ])
+                )
+            )
+            await db.commit()
+
+
+@pytest_asyncio.fixture
 async def malformed_bender_reference_rows(discovery_rows):
     ids = discovery_rows
     malformed_ids = [uuid4() for _ in range(9)]
@@ -759,6 +852,231 @@ async def test_bender_interactions_hide_malformed_author_and_shop_relationships(
             )
 
     assert [response.status_code for response in responses] == [404] * len(responses)
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_binds_request_tenant_url_post_and_stored_comment_post(
+    bender_delete_rows,
+):
+    ids, delete_ids = bender_delete_rows
+    async with async_session() as db:
+        tenant_b = await db.get(Tenant, ids["other_tenant"])
+        tenant_b_author = await db.get(User, ids["cross_blocked"])
+        tenant_a_post = await db.get(BenderPost, delete_ids["visible_post"])
+        tenant_b_post = await db.get(BenderPost, delete_ids["tenant_b_post"])
+        before = (tenant_a_post.comment_count, tenant_b_post.comment_count)
+        comment_id = delete_ids["cross_owned_tenant_a_comment"]
+
+        response = await request_bender(
+            db,
+            tenant_b,
+            tenant_b_author,
+            "DELETE",
+            f"/posts/{tenant_b_post.id}/comments/{comment_id}",
+        )
+        await db.refresh(tenant_a_post)
+        await db.refresh(tenant_b_post)
+        preserved = await db.get(BenderComment, comment_id)
+
+    assert response.status_code == 404
+    assert preserved is not None
+    assert (tenant_a_post.comment_count, tenant_b_post.comment_count) == before
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_applies_directional_block_visibility(
+    bender_delete_rows,
+):
+    ids, delete_ids = bender_delete_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        blocker = await db.get(User, ids["blocker"])
+        blocked = await db.get(User, ids["blocked"])
+        hidden_post = await db.get(BenderPost, ids["bender"])
+        reverse_post = await db.get(BenderPost, delete_ids["reverse_post"])
+        hidden_before = hidden_post.comment_count
+        reverse_before = reverse_post.comment_count
+
+        hidden = await request_bender(
+            db,
+            tenant,
+            blocker,
+            "DELETE",
+            f"/posts/{hidden_post.id}/comments/{delete_ids['blocked_comment']}",
+        )
+        reverse = await request_bender(
+            db,
+            tenant,
+            blocked,
+            "DELETE",
+            f"/posts/{reverse_post.id}/comments/{delete_ids['reverse_owned_comment']}",
+        )
+        await db.refresh(hidden_post)
+        await db.refresh(reverse_post)
+        hidden_comment = await db.get(
+            BenderComment, delete_ids["blocked_comment"]
+        )
+        reverse_comment = await db.get(
+            BenderComment, delete_ids["reverse_owned_comment"]
+        )
+
+    assert hidden.status_code == 404
+    assert hidden_comment is not None
+    assert hidden_post.comment_count == hidden_before
+    assert reverse.status_code == 204
+    assert reverse_comment is None
+    assert reverse_post.comment_count == reverse_before - 1
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_rejects_a_visible_post_comment_mismatch_without_mutation(
+    bender_delete_rows,
+):
+    ids, delete_ids = bender_delete_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        comment_owner = await db.get(User, ids["other"])
+        url_post = await db.get(BenderPost, delete_ids["reverse_post"])
+        stored_post = await db.get(BenderPost, delete_ids["visible_post"])
+        before = (url_post.comment_count, stored_post.comment_count)
+        comment_id = delete_ids["visible_owner_comment"]
+
+        response = await request_bender(
+            db,
+            tenant,
+            comment_owner,
+            "DELETE",
+            f"/posts/{url_post.id}/comments/{comment_id}",
+        )
+        await db.refresh(url_post)
+        await db.refresh(stored_post)
+        preserved = await db.get(BenderComment, comment_id)
+
+    assert response.status_code == 404
+    assert preserved is not None
+    assert (url_post.comment_count, stored_post.comment_count) == before
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_denied_authorization_preserves_row_and_counter(
+    bender_delete_rows,
+):
+    ids, delete_ids = bender_delete_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        unrelated_viewer = await db.get(User, ids["blocked"])
+        post = await db.get(BenderPost, delete_ids["visible_post"])
+        before = post.comment_count
+        comment_id = delete_ids["post_owner_target_comment"]
+
+        response = await request_bender(
+            db,
+            tenant,
+            unrelated_viewer,
+            "DELETE",
+            f"/posts/{post.id}/comments/{comment_id}",
+        )
+        await db.refresh(post)
+        preserved = await db.get(BenderComment, comment_id)
+
+    assert response.status_code == 403
+    assert preserved is not None
+    assert post.comment_count == before
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_allows_visible_post_owner_and_keeps_missing_error_contract(
+    bender_delete_rows,
+):
+    ids, delete_ids = bender_delete_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        post_owner = await db.get(User, ids["other"])
+        post = await db.get(BenderPost, delete_ids["visible_post"])
+        before = post.comment_count
+        comment_id = delete_ids["post_owner_target_comment"]
+        path = f"/posts/{post.id}/comments/{comment_id}"
+
+        deleted = await request_bender(db, tenant, post_owner, "DELETE", path)
+        missing = await request_bender(db, tenant, post_owner, "DELETE", path)
+        await db.refresh(post)
+        removed = await db.get(BenderComment, comment_id)
+
+    assert deleted.status_code == 204
+    assert missing.status_code == 404
+    assert removed is None
+    assert post.comment_count == before - 1
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_rejects_unresolved_tenant_without_mutation(
+    bender_delete_rows,
+):
+    ids, delete_ids = bender_delete_rows
+    async with async_session() as db:
+        comment_owner = await db.get(User, ids["other"])
+        post = await db.get(BenderPost, delete_ids["visible_post"])
+        before = post.comment_count
+        comment_id = delete_ids["visible_owner_comment"]
+
+        response = await request_bender(
+            db,
+            None,
+            comment_owner,
+            "DELETE",
+            f"/posts/{post.id}/comments/{comment_id}",
+        )
+        await db.refresh(post)
+        preserved = await db.get(BenderComment, comment_id)
+
+    assert response.status_code == 404
+    assert preserved is not None
+    assert post.comment_count == before
+
+
+@pytest.mark.asyncio
+async def test_delete_comment_hides_malformed_post_relationships(
+    bender_search_rows,
+):
+    ids, search_ids, _, _, _ = bender_search_rows
+    comment_ids = [uuid4(), uuid4()]
+    post_ids = [
+        search_ids["cross_tenant_author_match"],
+        search_ids["cross_tenant_shop_match"],
+    ]
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        comment_owner = await db.get(User, ids["other"])
+        posts = [await db.get(BenderPost, post_id) for post_id in post_ids]
+        for post, comment_id in zip(posts, comment_ids, strict=True):
+            post.comment_count = 1
+            db.add(
+                BenderComment(
+                    id=comment_id,
+                    post_id=post.id,
+                    user_id=comment_owner.id,
+                    content="Malformed relationship deletion target",
+                )
+            )
+        await db.commit()
+
+        responses = [
+            await request_bender(
+                db,
+                tenant,
+                comment_owner,
+                "DELETE",
+                f"/posts/{post_id}/comments/{comment_id}",
+            )
+            for post_id, comment_id in zip(post_ids, comment_ids, strict=True)
+        ]
+        for post in posts:
+            await db.refresh(post)
+        preserved = [await db.get(BenderComment, value) for value in comment_ids]
+
+    assert [response.status_code for response in responses] == [404, 404]
+    assert all(comment is not None for comment in preserved)
+    assert [post.comment_count for post in posts] == [1, 1]
 
 
 @pytest.mark.asyncio

@@ -235,9 +235,14 @@ async def delete_comment(
     comment_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    # `post_id` is a path parameter for REST shape; the service looks up the
-    # comment directly and resolves its post for the auth check, so we don't
-    # need to thread it through.
-    await service.delete_comment(comment_id, current_user)
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    await service.delete_comment(
+        comment_id,
+        current_user,
+        post_id=post_id,
+        tenant_id=tenant.id,
+    )
     return None
