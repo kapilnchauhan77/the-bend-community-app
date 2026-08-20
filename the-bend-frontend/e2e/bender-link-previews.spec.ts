@@ -43,6 +43,11 @@ async function stubFeed(page: Page, post: Record<string, unknown>) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [comment], next_cursor: null, has_more: false }) });
       return;
     }
+    if (request.method() === 'POST' && url.pathname === '/api/v1/bender/link-preview') {
+      const sourceUrl = (request.postDataJSON() as { url: string }).url;
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: sourceUrl })) });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], next_cursor: null, has_more: false }) });
   });
   await page.goto('/bender');
@@ -238,4 +243,128 @@ test('composer loading and ready modes expose the approved markup and controls',
   expect(result.loading).toEqual({ role: 'status', text: 'Loading link preview' });
   expect(result.ready).toEqual({ anchorCount: 0, removeLabel: 'Remove link preview' });
   expect(result.removed).toBe(true);
+});
+
+async function openComposer(page: Page) {
+  await page.getByRole('button', { name: 'New post' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+}
+
+function previewResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    preview_token: 'preview-token',
+    preview: preview(overrides),
+  };
+}
+
+test('composer debounces a link and replaces loading with a preview', async ({ page }) => {
+  await page.clock.install();
+  const paths = await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await openComposer(page);
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/bender/link-preview')) requests.push(request.postData() ?? '');
+  });
+  await page.getByPlaceholder('Write a caption…').fill('Read https://example.org/article');
+  await expect(page.getByTestId('bender-link-preview-loading')).toHaveText('Loading link preview');
+  expect(requests).toEqual([]);
+  await page.clock.runFor(399);
+  expect(requests).toEqual([]);
+  await page.clock.runFor(1);
+  await expect.poll(() => requests).toEqual(['{"url":"https://example.org/article"}']);
+  await expect(page.getByTestId('bender-link-preview')).toContainText('Title');
+  expect(paths).toContain('POST /api/v1/bender/link-preview');
+});
+
+test('composer shows a text-only preview', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await openComposer(page);
+  await page.getByPlaceholder('Write a caption…').fill('https://example.org/text');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await expect(page.getByTestId('bender-link-preview').locator('img')).toHaveCount(0);
+});
+
+test('removing a preview keeps it dismissed until the first URL changes', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await openComposer(page);
+  const caption = page.getByPlaceholder('Write a caption…');
+  await caption.fill('https://example.org/one');
+  await page.clock.runFor(400);
+  const card = page.getByTestId('bender-link-preview');
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'Remove link preview' }).click();
+  await caption.fill('Caption changed https://example.org/one');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
+  await caption.fill('https://example.org/two');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+});
+
+test('failed preview leaves Post usable', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.route('**/api/v1/bender/link-preview', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await openComposer(page);
+  await page.getByPlaceholder('Write a caption…').fill('https://example.org/fails');
+  await page.clock.runFor(400);
+  await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeEnabled();
+  await expect(page.getByPlaceholder('Write a caption…')).toHaveValue('https://example.org/fails');
+  await expect(page.getByText('Could not load link preview')).toHaveCount(0);
+});
+
+test('stale response cannot replace the current URL preview', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await page.unroute('**/api/v1/**');
+  let resolveA: (() => void) | undefined;
+  let resolveB: (() => void) | undefined;
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/v1/tenant/current') {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend' }) });
+      return;
+    }
+    if (url.pathname === '/api/v1/bender/posts') {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [base], next_cursor: null, has_more: false }) });
+      return;
+    }
+    if (url.pathname === '/api/v1/bender/link-preview') {
+      const source = (route.request().postDataJSON() as { url: string }).url;
+      await new Promise<void>((resolve) => source.endsWith('/a') ? (resolveA = resolve) : (resolveB = resolve));
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: source, title: source.endsWith('/a') ? 'A' : 'B' })) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], next_cursor: null, has_more: false }) });
+  });
+  await openComposer(page);
+  const caption = page.getByPlaceholder('Write a caption…');
+  await caption.fill('https://example.org/a');
+  await page.clock.runFor(400);
+  await caption.fill('https://example.org/b');
+  await page.clock.runFor(400);
+  resolveA?.();
+  await page.waitForTimeout(10);
+  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
+  resolveB?.();
+  await expect(page.getByTestId('bender-link-preview')).toContainText('B');
+});
+
+test('closing the composer cancels and resets preview state', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  await openComposer(page);
+  const caption = page.getByPlaceholder('Write a caption…');
+  await caption.fill('https://example.org/reopen');
+  await page.clock.runFor(200);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await openComposer(page);
+  await expect(caption).toHaveValue('');
+  await caption.fill('https://example.org/reopen');
+  await page.clock.runFor(400);
+  await expect(page.getByTestId('bender-link-preview')).toBeVisible();
 });

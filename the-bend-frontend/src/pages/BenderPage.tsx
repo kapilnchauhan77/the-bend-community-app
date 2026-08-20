@@ -29,6 +29,7 @@ import { isVideoUrl, timeAgo } from '@/lib/utils';
 import { BenderCaption } from '@/components/features/bender/BenderCaption';
 import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPreviewCard';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
+import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -589,6 +590,8 @@ function BenderComposer({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const linkPreview = useBenderLinkPreview(caption, open);
+  const { reset: resetLinkPreview } = linkPreview;
 
   // Autosize textarea — grows up to ~12 lines then scrolls.
   useEffect(() => {
@@ -601,12 +604,13 @@ function BenderComposer({
   // Reset on close so the next open is clean.
   useEffect(() => {
     if (!open) {
+      resetLinkPreview();
       setCaption('');
       setPending(null);
       setError(null);
       setSubmitting(false);
     }
-  }, [open]);
+  }, [open, resetLinkPreview]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
     setPending({
@@ -661,12 +665,13 @@ function BenderComposer({
       }
       const res = await benderApi.createPost(payload);
       onCreated(res.data);
+      resetLinkPreview();
       onClose();
     } catch {
       setError('Could not post. Please try again.');
       setSubmitting(false);
     }
-  }, [canSubmit, caption, pending, onCreated, onClose]);
+  }, [canSubmit, caption, onCreated, onClose, pending, resetLinkPreview]);
 
   if (!open) return null;
 
@@ -716,6 +721,18 @@ function BenderComposer({
               className="resize-none border-0 shadow-none focus-visible:ring-0 text-[14px] px-0 min-h-[80px]"
               maxLength={MAX_CAPTION}
             />
+
+            {linkPreview.status === 'loading' && (
+              <BenderLinkPreviewCard mode="composer" state="loading" />
+            )}
+            {linkPreview.status === 'success' && linkPreview.preview && (
+              <BenderLinkPreviewCard
+                mode="composer"
+                state="ready"
+                preview={linkPreview.preview}
+                onRemove={linkPreview.dismiss}
+              />
+            )}
 
             {pending && (
               <div className="relative w-full max-w-[240px] aspect-square bg-black rounded overflow-hidden">

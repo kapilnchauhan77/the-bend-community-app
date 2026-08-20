@@ -1,5 +1,10 @@
 import api from './api';
-import type { BenderPost, BenderComment, PaginatedResponse } from '@/types';
+import type { BenderPost, BenderComment, BenderLinkPreview, PaginatedResponse } from '@/types';
+
+export interface BenderLinkPreviewResponse {
+  preview_token: string;
+  preview: BenderLinkPreview;
+}
 
 export type CreatePostPayload = {
   caption?: string;
@@ -24,6 +29,9 @@ export const benderApi = {
 
   createPost: (payload: CreatePostPayload) =>
     api.post<BenderPost>('/bender/posts', payload),
+
+  generateLinkPreview: (url: string, signal?: AbortSignal) =>
+    api.post<BenderLinkPreviewResponse>('/bender/link-preview', { url }, { signal }),
 
   deletePost: (id: string) => api.delete(`/bender/posts/${id}`),
 
