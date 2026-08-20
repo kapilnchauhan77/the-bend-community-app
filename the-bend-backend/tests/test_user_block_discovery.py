@@ -17,7 +17,7 @@ from app.models.user import User
 from app.models.shop import Shop
 from app.models.listing import Listing
 from app.models.event import Event
-from app.models.bender import BenderPost
+from app.models.bender import BenderLike, BenderPost
 from app.models.volunteer import Volunteer
 from app.models.talent import Talent
 from app.models.user_block import UserBlock
@@ -288,6 +288,20 @@ async def get_public_bender_feed(db, tenant, viewer, **params):
         return await client.get("/api/v1/bender/posts", params=params)
 
 
+async def get_public_bender_post(db, tenant, viewer, post_id):
+    from app.api.deps import get_db
+    from app.api.v1.bender import router as bender_router
+    from app.core.permissions import get_current_tenant, get_current_user_optional
+
+    app = FastAPI()
+    app.include_router(bender_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_tenant] = lambda: tenant
+    app.dependency_overrides[get_current_user_optional] = lambda: viewer
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        return await client.get(f"/api/v1/bender/posts/{post_id}")
+
+
 @pytest.mark.asyncio
 async def test_bender_feed_rejects_an_unresolved_tenant():
     from app.api.v1.bender import get_service, router as bender_router
@@ -332,6 +346,68 @@ async def test_bender_feed_treats_a_cross_tenant_viewer_as_anonymous():
         current_user=None,
         search=None,
     )
+
+
+@pytest.mark.asyncio
+async def test_bender_single_post_returns_visible_post_with_viewer_projection(discovery_rows):
+    ids = discovery_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["blocker"])
+        db.add(BenderLike(post_id=ids["late_bender"], user_id=viewer.id))
+        await db.commit()
+        response = await get_public_bender_post(db, tenant, viewer, ids["late_bender"])
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(ids["late_bender"])
+    assert body["author"]["id"] == str(ids["other"])
+    assert body["viewer_has_liked"] is True
+
+
+@pytest.mark.asyncio
+async def test_bender_single_post_treats_cross_tenant_viewer_as_anonymous(discovery_rows):
+    ids = discovery_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["cross_other"])
+        response = await get_public_bender_post(db, tenant, viewer, ids["late_bender"])
+
+    assert response.status_code == 200
+    assert response.json()["viewer_has_liked"] is False
+
+
+@pytest.mark.asyncio
+async def test_bender_single_post_hides_blocked_cross_tenant_and_malformed_relationship_posts(bender_search_rows):
+    ids, search_ids, _, _, _ = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["blocker"])
+        hidden_ids = (
+            ids["bender"],
+            search_ids["cross_tenant_match"],
+            search_ids["cross_tenant_author_match"],
+            search_ids["cross_tenant_shop_match"],
+        )
+        responses = [await get_public_bender_post(db, tenant, viewer, post_id) for post_id in hidden_ids]
+
+    assert [response.status_code for response in responses] == [404] * len(hidden_ids)
+    assert all(response.json() == responses[0].json() for response in responses)
+
+
+@pytest.mark.asyncio
+async def test_bender_single_post_uses_one_not_found_contract_for_hidden_deleted_and_missing_posts(discovery_rows):
+    ids = discovery_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        viewer = await db.get(User, ids["blocker"])
+        await db.delete(await db.get(BenderPost, ids["late_bender"]))
+        await db.commit()
+        post_ids = (ids["bender"], ids["late_bender"], uuid4())
+        responses = [await get_public_bender_post(db, tenant, viewer, post_id) for post_id in post_ids]
+
+    assert [response.status_code for response in responses] == [404, 404, 404]
+    assert all(response.json() == responses[0].json() for response in responses)
 
 
 @pytest.mark.asyncio

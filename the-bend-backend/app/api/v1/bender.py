@@ -92,6 +92,23 @@ async def create_post(
     )
 
 
+@router.get("/posts/{post_id}", response_model=BenderPostResponse)
+async def get_post(
+    post_id: UUID,
+    service: BenderService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+    viewer: User | None = Depends(get_current_user_optional),
+) -> BenderPostResponse:
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    tenant_viewer = viewer if viewer is not None and viewer.tenant_id == tenant.id else None
+    return await service.get_post(
+        post_id=post_id,
+        tenant_id=tenant.id,
+        current_user=tenant_viewer,
+    )
+
+
 @router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_post(
     post_id: UUID,

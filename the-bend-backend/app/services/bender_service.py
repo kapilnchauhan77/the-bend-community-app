@@ -255,6 +255,88 @@ class BenderService:
 
         return items, next_cursor, has_more
 
+    async def get_post(
+        self,
+        *,
+        post_id: UUID,
+        tenant_id: UUID,
+        current_user: User | None,
+    ) -> BenderPostResponse:
+        """Return one post using the feed's tenant and visibility rules."""
+        query = (
+            select(BenderPost)
+            .options(
+                selectinload(BenderPost.author),
+                selectinload(BenderPost.shop),
+            )
+            .where(BenderPost.id == post_id, BenderPost.tenant_id == tenant_id)
+        )
+        author_in_tenant = (
+            select(1)
+            .where(
+                User.id == BenderPost.author_user_id,
+                User.tenant_id == tenant_id,
+            )
+            .exists()
+        )
+        shop_in_tenant = (
+            select(1)
+            .where(
+                Shop.id == BenderPost.author_shop_id,
+                Shop.tenant_id == tenant_id,
+            )
+            .exists()
+        )
+        query = query.where(
+            author_in_tenant,
+            or_(BenderPost.author_shop_id.is_(None), shop_in_tenant),
+        )
+
+        tenant_viewer = (
+            current_user
+            if current_user is not None and current_user.tenant_id == tenant_id
+            else None
+        )
+        if tenant_viewer is not None:
+            from app.models.user_block import UserBlock
+
+            query = query.where(
+                ~BenderPost.author_user_id.in_(
+                    select(UserBlock.blocked_id).where(
+                        UserBlock.tenant_id == tenant_id,
+                        UserBlock.blocker_id == tenant_viewer.id,
+                    )
+                )
+            )
+
+        row = (await self.db.execute(query)).scalars().unique().one_or_none()
+        if row is None:
+            raise NotFoundError("Post")
+
+        liked = False
+        if tenant_viewer is not None:
+            liked = (
+                await self.db.scalar(
+                    select(BenderLike.post_id).where(
+                        BenderLike.post_id == row.id,
+                        BenderLike.user_id == tenant_viewer.id,
+                    )
+                )
+            ) is not None
+
+        return BenderPostResponse(
+            id=str(row.id),
+            author=self._author_block(row.author, row.shop),
+            caption=row.caption,
+            media_url=row.media_url,
+            media_thumbnail_url=row.media_thumbnail_url,
+            media_type=row.media_type,
+            like_count=row.like_count,
+            comment_count=row.comment_count,
+            viewer_has_liked=liked,
+            created_at=row.created_at,
+        )
+
     # ------------------------------------------------------------------
     # likes
     # ------------------------------------------------------------------
