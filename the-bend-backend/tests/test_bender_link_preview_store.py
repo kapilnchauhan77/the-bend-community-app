@@ -60,6 +60,7 @@ class _FakeRedis:
         self.expires_at = {}
         self.now = 0
         self.calls = []
+        self.zsets = {}
 
     async def get(self, key):
         self.calls.append(("get", key))
@@ -96,6 +97,15 @@ class _FakeRedis:
     def pipeline(self, transaction=True):
         self.calls.append(("pipeline", transaction))
         return _FakePipeline(self)
+
+    async def eval(self, _script, _numkeys, key, cutoff, now, limit, member, expiry):
+        self.calls.append(("eval", key, cutoff, now, limit, member, expiry))
+        values = {member_name: score for member_name, score in self.zsets.get(key, {}).items() if score > float(cutoff)}
+        self.zsets[key] = values
+        if len(values) >= int(limit):
+            return 0
+        values[member] = float(now)
+        return 1
 
     def values(self):
         return tuple(self.data.values())
@@ -268,8 +278,22 @@ async def test_generation_budget_uses_one_atomic_sliding_window_pipeline():
     redis = _FakeRedis()
     store = BenderLinkPreviewStore(redis)
     assert await store.reserve_generation(user_id=uuid4()) is True
-    pipeline_calls = [call for call in redis.calls if call[0] == "pipeline"]
-    assert pipeline_calls == [("pipeline", True)]
+    assert any(call[0] == "eval" for call in redis.calls)
+
+
+@pytest.mark.asyncio
+async def test_generation_budget_allows_thirty_rejects_retries_and_releases_old_entries(monkeypatch):
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    user_id = uuid4()
+    for _ in range(30):
+        assert await store.reserve_generation(user_id=user_id)
+    assert not await store.reserve_generation(user_id=user_id)
+    assert not await store.reserve_generation(user_id=user_id)
+    key = next(key for key in redis.zsets if "generation:" in key)
+    for member in list(redis.zsets[key])[:1]:
+        redis.zsets[key][member] -= store.GENERATION_WINDOW_SECONDS + 1
+    assert await store.reserve_generation(user_id=user_id)
 
 
 @pytest.mark.asyncio

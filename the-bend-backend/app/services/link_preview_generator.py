@@ -74,20 +74,27 @@ class BenderLinkPreviewGenerator:
         if not parsed.title:
             hostname = urlsplit(page.final_url).hostname
             raise LinkPreviewTitleMissing("title_missing", hostname)
-        if getattr(parsed, "invalid_destination", False):
-            raise LinkPreviewUpstreamFailure("invalid_metadata_url")
 
-        destination = page.final_url
+        try:
+            destination = prepare_external_url(page.final_url).normalized_url
+        except LinkPreviewURLRejected as exc:
+            raise LinkPreviewUpstreamFailure("invalid_page_url") from exc
         if parsed.destination_candidate:
             try:
                 validated = await self.fetcher.validate_destination(parsed.destination_candidate, deadline=deadline)
-                destination = validated.normalized_url
+                destination = prepare_external_url(validated.normalized_url).normalized_url
             except (LinkPreviewURLRejected, LinkPreviewUpstreamFailure, ValueError):
                 destination = page.final_url
         try:
-            destination = prepare_external_url(destination).normalized_url
-        except LinkPreviewURLRejected as exc:
-            raise LinkPreviewUpstreamFailure("invalid_metadata_url") from exc
+            LinkPreviewMetadata(
+                url=destination,
+                title=parsed.title,
+                description=parsed.description,
+                site_name=parsed.site_name,
+                image_url=None,
+            )
+        except ValueError as exc:
+            raise LinkPreviewUpstreamFailure("invalid_metadata") from exc
 
         outcomes: set[LinkPreviewOutcome] = {"success"}
         image_path: str | None = None

@@ -41,7 +41,7 @@ def test_store_enforces_global_file_and_byte_caps(tmp_path):
     store = LinkPreviewImageStore(tmp_path, max_files=1, max_bytes=1_000_000)
     store.store(_image_bytes())
     with pytest.raises(LinkPreviewImageProcessingError, match="storage_cap"):
-        store.store(_image_bytes())
+        store.store(_image_bytes("PNG", size=(81, 40)))
 
     byte_store = LinkPreviewImageStore(tmp_path / "bytes", max_files=10, max_bytes=1)
     with pytest.raises(LinkPreviewImageProcessingError, match="storage_cap"):

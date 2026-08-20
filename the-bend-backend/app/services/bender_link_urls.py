@@ -62,7 +62,7 @@ def _caption_token_is_valid(token: str) -> bool:
         parsed = urlsplit(token)
         if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
             return False
-        if parsed.username is not None or parsed.password is not None:
+        if parsed.username is not None or parsed.password is not None or "%" in (parsed.hostname or "") or "\\" in token:
             return False
         parsed.port
     except (ValueError, UnicodeError):

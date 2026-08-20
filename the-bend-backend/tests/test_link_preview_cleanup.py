@@ -75,8 +75,22 @@ class FakeRedisStore:
         return self.records.get(key)
 
 
+class StalledRedisStore(FakeRedisStore):
+    async def scan_iter(self, match):
+        await asyncio.Event().wait()
+        yield match
+
+
 def local_url(digest):
     return f"/uploads/link-previews/{digest}.webp"
+
+
+@pytest.mark.asyncio
+async def test_stalled_redis_reference_scan_fails_closed_without_deletions(tmp_path):
+    path = write_file(tmp_path, "a" * 64)
+    stats = await cleanup_link_preview_image_files(FakeDB(), StalledRedisStore(), upload_dir=tmp_path)
+    assert stats.deleted == 0
+    assert path.exists()
 
 
 def write_file(root: Path, digest: str, *, age_days=31, age_minutes=None):

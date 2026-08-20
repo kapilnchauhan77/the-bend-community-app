@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -46,6 +47,11 @@ class _PreviewStore:
         if self.error:
             raise self.error
         return self.snapshot
+
+
+class _NeverSettlingStore(_PreviewStore):
+    async def resolve_draft(self, *args, **kwargs):
+        await asyncio.Event().wait()
 
 
 def _user(*, tenant_id=None):
@@ -140,6 +146,15 @@ async def test_redis_error_fails_open_but_other_errors_are_not_swallowed():
         await BenderService(
             db, link_preview_store=_PreviewStore(error=RuntimeError("bug"))
         ).create_post(BenderPostCreate(caption="hello", preview_token="token"), _user())
+
+
+@pytest.mark.asyncio
+async def test_never_settling_draft_resolution_fails_open_at_application_deadline():
+    db = _RecordingDB()
+    post = await BenderService(
+        db, link_preview_store=_NeverSettlingStore(), preview_draft_timeout_seconds=0.01
+    ).create_post(BenderPostCreate(caption="hello", preview_token="token"), _user())
+    assert post.link_preview is None
 
 
 def test_preview_token_has_no_pydantic_maximum_and_metadata_is_not_client_input():

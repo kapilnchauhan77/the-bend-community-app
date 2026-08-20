@@ -6,5 +6,7 @@
   {"caption":"Not ftp://example.org/file","urls":[]},
   {"caption":"Bracket https://example.org/path]","urls":["https://example.org/path"]},
   {"caption":"Curly ‘https://example.org/news’","urls":["https://example.org/news"]},
-  {"caption":"Malformed https://example.org/%zz then https://valid.example/path”","urls":["https://valid.example/path"]}
+  {"caption":"Malformed https://example.org/%zz then https://valid.example/path”","urls":["https://valid.example/path"]},
+  {"caption":"Encoded host https://example.org%40evil.com/x then https://valid.example/path","urls":["https://valid.example/path"]},
+  {"caption":"Backslash host https://example.org\\@evil.com/x then https://valid.example/path","urls":["https://valid.example/path"]}
 ]

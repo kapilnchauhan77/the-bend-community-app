@@ -29,6 +29,7 @@ from app.services.bender_link_preview_store import BenderLinkPreviewStore
 
 
 class BenderService:
+    PREVIEW_DRAFT_TIMEOUT_SECONDS = 1.5
     """Server-side Bender (community feed) business logic.
 
     Notes on non-obvious decisions:
@@ -53,9 +54,12 @@ class BenderService:
         self,
         db: AsyncSession,
         link_preview_store: BenderLinkPreviewStore | None = None,
+        *,
+        preview_draft_timeout_seconds: float = PREVIEW_DRAFT_TIMEOUT_SECONDS,
     ):
         self.db = db
         self.link_preview_store = link_preview_store
+        self.preview_draft_timeout_seconds = preview_draft_timeout_seconds
 
     # ------------------------------------------------------------------
     # helpers
@@ -115,7 +119,7 @@ class BenderService:
                     user_id=current_user.id,
                     tenant_id=current_user.tenant_id,
                     caption=caption,
-                ), timeout=1.5)
+                ), timeout=self.preview_draft_timeout_seconds)
             except (RedisError, asyncio.TimeoutError):
                 snapshot = None
             if snapshot is not None:

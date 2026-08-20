@@ -104,7 +104,7 @@ class _PinnedTCPConnector(aiohttp.TCPConnector):
             address = ipaddress.ip_address(host)
         except (ValueError, TypeError):
             address = None
-        if address is None or address not in self._pinned_addresses:
+        if address is None or not is_public_unicast(address) or address not in self._pinned_addresses:
             protocol.close()
             raise aiohttp.ClientError("peer_mismatch")
         return protocol
@@ -112,12 +112,8 @@ class _PinnedTCPConnector(aiohttp.TCPConnector):
 
 @asynccontextmanager
 async def aiohttp_session_factory(target: PreparedExternalUrl, addresses):
-    connector_class = _PinnedTCPConnector
-    if getattr(aiohttp.TCPConnector, "__module__", "") != "aiohttp.connector":
-        connector_class = aiohttp.TCPConnector
-    connector_args = (addresses,) if connector_class is _PinnedTCPConnector else ()
-    connector = connector_class(
-        *connector_args,
+    connector = _PinnedTCPConnector(
+        addresses,
         resolver=PinnedResolver(target.hostname, addresses),
         use_dns_cache=False,
         limit=1,

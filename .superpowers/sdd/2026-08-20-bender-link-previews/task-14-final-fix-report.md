@@ -20,9 +20,9 @@ Verification:
 
 Follow-up verification:
 
-- Focused backend regressions and affected suites: 199 passed.
-- Full backend under the host interpreter: 326 passed, with six connector image tests blocked by missing local `feedparser` and `icalendar` imports. Both are declared project dependencies.
-- Frontend build and scoped ESLint: passed. Full Playwright ran all 57 tests with no failure output. Existing analytics-token and bundle-size warnings remain.
-- Backend compile, Alembic head, and `git diff --check`: passed.
+- Focused backend regressions and affected suites: 128 passed.
+- Exact project command `.venv/bin/pytest -q`: 345 passed, 12 warnings.
+- Frontend build and scoped ESLint: passed. Full Playwright: 57 passed in 28.9 seconds. Existing analytics-token and bundle-size warnings remain.
+- Backend compile, Alembic head (`bender_link_preview`), and `git diff --check`: passed.
 - Docker builds remain pending Docker Desktop storage recovery. No image-build success is claimed.
 - No push, merge, or deployment was performed.

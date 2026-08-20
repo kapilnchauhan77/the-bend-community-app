@@ -103,6 +103,32 @@ def _generator(*, fetcher=None, parsed=None, store=None, clock=None, deadline_se
     )
 
 
+@pytest.mark.asyncio
+async def test_invalid_overlong_destination_metadata_stops_before_image_fetch_or_store():
+    store = _FakeStore()
+    fetcher = _FakeFetcher(SafeFetchResponse(PAGE_URL, b"html", "text/html"))
+    parser = _FakeParser(ParsedLinkPreview("Title", None, "Example", "https://example.org/" + "x" * 2100, ()))
+    from app.services.link_preview_generator import BenderLinkPreviewGenerator
+    generator = BenderLinkPreviewGenerator(fetcher, parser, store)
+    generated = await generator.generate(PAGE_URL)
+    assert generated.metadata.url == PAGE_URL
+    assert [call[0] for call in fetcher.calls] == ["html", "validate"]
+    assert not any(call[0] == "image" for call in fetcher.calls)
+    assert store.calls == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_text_metadata_stops_before_image_fetch_or_store():
+    store = _FakeStore()
+    fetcher = _FakeFetcher(SafeFetchResponse(PAGE_URL, b"html", "text/html"))
+    parser = _FakeParser(ParsedLinkPreview("T" * 181, None, "Example", None, IMAGE_URLS))
+    from app.services.link_preview_generator import BenderLinkPreviewGenerator
+    with pytest.raises(LinkPreviewUpstreamFailure, match="invalid_metadata"):
+        await BenderLinkPreviewGenerator(fetcher, parser, store).generate(PAGE_URL)
+    assert not any(call[0] == "image" for call in fetcher.calls)
+    assert store.calls == []
+
+
 def test_normalize_request_url_uses_safe_external_url_policy():
     assert _generator().normalize_request_url("HTTPS://EXAMPLE.ORG:443/event#section") == PAGE_URL
 

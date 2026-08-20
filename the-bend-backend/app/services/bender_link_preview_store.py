@@ -154,13 +154,31 @@ class BenderLinkPreviewStore:
         key = self.METRIC_PREFIX + "generation:" + str(user_id)
         now = time.time()
         member = f"{now:.6f}:{secrets.token_hex(12)}"
-        pipeline = self.redis.pipeline(transaction=True)
-        pipeline.zremrangebyscore(key, 0, now - self.GENERATION_WINDOW_SECONDS)
-        pipeline.zadd(key, {member: now})
-        pipeline.zcard(key)
-        pipeline.expire(key, self.GENERATION_WINDOW_SECONDS)
-        results = await asyncio.wait_for(pipeline.execute(), timeout=self.IO_TIMEOUT_SECONDS)
-        return int(results[2]) <= self.GENERATION_LIMIT
+        script = """
+        local cutoff = tonumber(ARGV[1])
+        local now = tonumber(ARGV[2])
+        local limit = tonumber(ARGV[3])
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', cutoff)
+        local count = redis.call('ZCARD', KEYS[1])
+        if count >= limit then return 0 end
+        redis.call('ZADD', KEYS[1], now, ARGV[4])
+        redis.call('EXPIRE', KEYS[1], ARGV[5])
+        return 1
+        """
+        result = await asyncio.wait_for(
+            self.redis.eval(
+                script,
+                1,
+                key,
+                now - self.GENERATION_WINDOW_SECONDS,
+                now,
+                self.GENERATION_LIMIT,
+                member,
+                self.GENERATION_WINDOW_SECONDS,
+            ),
+            timeout=self.IO_TIMEOUT_SECONDS,
+        )
+        return bool(int(result))
 
     async def record_outcome(self, outcome: LinkPreviewOutcome) -> None:
         if outcome not in self._OUTCOMES:

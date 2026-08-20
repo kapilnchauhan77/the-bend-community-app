@@ -1,4 +1,5 @@
 import types
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -150,6 +151,15 @@ def test_real_preview_limiter_maps_redis_failure_to_generic_503():
     assert response.json()["error"]["code"] == "LINK_PREVIEW_UNAVAILABLE"
     assert "raw redis detail" not in response.text
     assert "secret.example" not in response.text
+
+
+def test_preview_timeout_maps_to_generic_503():
+    user = _user()
+    service = FakeService(error=asyncio.TimeoutError())
+    with TestClient(_app(user=user, service=service), raise_server_exceptions=False) as client:
+        response = client.post("/api/v1/bender/link-preview", json={"url": "https://example.org/path"})
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "LINK_PREVIEW_UNAVAILABLE"
 
 
 @pytest.mark.parametrize("url", ["", "x" * 2049])

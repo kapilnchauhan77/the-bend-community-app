@@ -31,7 +31,6 @@ class ParsedLinkPreview:
     site_name: str | None
     destination_candidate: str | None
     image_candidates: tuple[str, ...]
-    invalid_destination: bool = False
 
 
 def _first_text(*values: object, limit: int) -> str | None:
@@ -291,13 +290,11 @@ class LinkPreviewMetadataParser:
             urlsplit(final_url).hostname,
             limit=80,
         )
-        destination_values = _meta_values(soup, property_name="og:url")
-        destination = next((candidate for value in destination_values if (candidate := _absolute_url(value, final_url))), None)
+        destination = next((candidate for value in _meta_values(soup, property_name="og:url") if (candidate := _absolute_url(value, final_url))), None)
         return ParsedLinkPreview(
             title=title,
             description=description,
             site_name=site_name,
             destination_candidate=destination,
             image_candidates=tuple(_rank_image_candidates(soup, final_url)),
-            invalid_destination=bool(destination_values) and destination is None,
         )

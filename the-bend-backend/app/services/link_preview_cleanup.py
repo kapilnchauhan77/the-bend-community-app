@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _DIGEST_FILE = re.compile(r"^[0-9a-f]{64}\.webp$")
 _LOCAL_IMAGE = re.compile(r"^/uploads/link-previews/([0-9a-f]{64})\.webp$")
 _RETENTION = timedelta(minutes=25)
+_REDIS_REFERENCE_TIMEOUT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -129,7 +130,9 @@ async def cleanup_link_preview_image_files(
 
     try:
         store = BenderLinkPreviewStore(redis)
-        live_urls = await store.live_image_urls()
+        live_urls = await asyncio.wait_for(
+            store.live_image_urls(), timeout=_REDIS_REFERENCE_TIMEOUT_SECONDS
+        )
         live_references = set()
         for value in live_urls:
             if isinstance(value, str):

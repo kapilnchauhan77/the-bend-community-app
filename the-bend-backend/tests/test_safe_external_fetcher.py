@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 
 import pytest
+import aiohttp
 
 from app.services.bender_link_urls import LinkPreviewURLRejected
 from app.services.link_preview_errors import (
@@ -17,6 +18,108 @@ from app.services.bender_link_urls import prepare_external_url
 
 
 PUBLIC = "93.184.216.34"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "content_type", "body"),
+    [("/small.html", "text/html", b"<title>small</title>"), ("/small.jpg", "image/jpeg", b"jpeg")],
+)
+async def test_real_pinned_session_accepts_eager_small_responses_and_preserves_host(
+    monkeypatch, path, content_type, body
+):
+    seen = {}
+
+    async def handler(reader, writer):
+        request = await reader.read(4096)
+        seen["request"] = request
+        writer.write(
+            b"HTTP/1.1 200 OK\r\nContent-Type: "
+            + content_type.encode()
+            + b"\r\nContent-Length: "
+            + str(len(body)).encode()
+            + b"\r\nConnection: close\r\n\r\n"
+            + body
+        )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    target = prepare_external_url("http://example.org")
+    target = target.__class__(f"http://example.org:{port}/", target.hostname, port, target.scheme)
+    monkeypatch.setattr("app.services.safe_external_fetcher.prepare_external_url", lambda _url: target)
+    monkeypatch.setattr("app.services.safe_external_fetcher.resolve_public_addresses", lambda *_args: _async_value((ipaddress.ip_address("127.0.0.1"),)))
+    monkeypatch.setattr("app.services.safe_external_fetcher.is_public_unicast", lambda _address: True)
+    try:
+        fetcher = SafeExternalFetcher(session_factory=aiohttp_session_factory)
+        response = await (fetcher.fetch_html if content_type == "text/html" else fetcher.fetch_image)(
+            f"http://example.org{path}", deadline=time.monotonic() + 2
+        )
+        assert response.body == body
+        assert b"Host: example.org" in seen["request"]
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+async def _async_value(value):
+    return value
+
+
+@pytest.mark.asyncio
+async def test_real_pinned_session_accepts_empty_redirect_and_rechecks_peer(monkeypatch):
+    async def handler(reader, writer):
+        await reader.read(4096)
+        writer.write(b"HTTP/1.1 302 Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    target = prepare_external_url("http://example.org")
+    target = target.__class__(f"http://example.org:{port}/", target.hostname, port, target.scheme)
+    monkeypatch.setattr("app.services.safe_external_fetcher.prepare_external_url", lambda _url: target)
+    monkeypatch.setattr("app.services.safe_external_fetcher.resolve_public_addresses", lambda *_args: _async_value((ipaddress.ip_address("127.0.0.1"),)))
+    monkeypatch.setattr("app.services.safe_external_fetcher.is_public_unicast", lambda _address: True)
+    try:
+        fetcher = SafeExternalFetcher(session_factory=aiohttp_session_factory)
+        with pytest.raises(LinkPreviewUpstreamFailure, match="redirect_missing_location"):
+            await fetcher.fetch_html("http://example.org/", deadline=time.monotonic() + 2)
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_real_pinned_connector_rejects_mismatched_connected_peer(monkeypatch):
+    async def handler(reader, writer):
+        await reader.read(4096)
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 15\r\n\r\n<title>small</title>")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    target = prepare_external_url("http://example.org")
+    target = target.__class__(f"http://example.org:{port}/", target.hostname, port, target.scheme)
+    monkeypatch.setattr("app.services.safe_external_fetcher.prepare_external_url", lambda _url: target)
+    monkeypatch.setattr("app.services.safe_external_fetcher.resolve_public_addresses", lambda *_args: _async_value((ipaddress.ip_address("127.0.0.1"),)))
+    monkeypatch.setattr("app.services.safe_external_fetcher.is_public_unicast", lambda _address: True)
+    from app.services import safe_external_fetcher as module
+    original_init = module._PinnedTCPConnector.__init__
+    def wrong_pin(self, addresses, *args, **kwargs):
+        original_init(self, (ipaddress.ip_address("127.0.0.2"),), *args, **kwargs)
+    monkeypatch.setattr(module._PinnedTCPConnector, "__init__", wrong_pin)
+    try:
+        with pytest.raises(LinkPreviewUpstreamFailure, match="upstream_failure"):
+            await SafeExternalFetcher(session_factory=aiohttp_session_factory).fetch_html(
+                "http://example.org/", deadline=time.monotonic() + 2
+            )
+    finally:
+        server.close()
+        await server.wait_closed()
 
 
 class _Resolver:
@@ -201,7 +304,7 @@ async def test_redirect_loop_and_fourth_redirect_are_rejected():
 
 @pytest.mark.asyncio
 async def test_peer_must_match_validated_address_and_missing_peer_fails_closed():
-    for peer in ("93.184.216.35", None):
+    for peer in ("93.184.216.35", "127.0.0.1", None):
         fetcher, _ = _fetcher_for(_FakeResponse(peer=peer))
         with pytest.raises(LinkPreviewUpstreamFailure):
             await fetcher.fetch_html("https://example.org/", deadline=time.monotonic() + 1)
@@ -249,7 +352,7 @@ async def test_production_session_factory_builds_isolated_pinned_session(monkeyp
     created = {}
 
     class FakeConnector:
-        def __init__(self, **kwargs):
+        def __init__(self, *args, **kwargs):
             created["connector"] = kwargs
 
     class FakeSession:
@@ -262,7 +365,7 @@ async def test_production_session_factory_builds_isolated_pinned_session(monkeyp
 
     import app.services.safe_external_fetcher as fetcher_module
 
-    monkeypatch.setattr(fetcher_module.aiohttp, "TCPConnector", FakeConnector)
+    monkeypatch.setattr(fetcher_module, "_PinnedTCPConnector", FakeConnector)
     monkeypatch.setattr(fetcher_module.aiohttp, "ClientSession", FakeSession)
     target = prepare_external_url("https://example.org/")
     addresses = (ipaddress.ip_address(PUBLIC),)
