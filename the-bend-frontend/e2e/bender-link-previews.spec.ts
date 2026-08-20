@@ -273,6 +273,9 @@ test('composer debounces a link and replaces loading with a preview', async ({ p
   await page.clock.runFor(1);
   await expect.poll(() => requests).toEqual(['{"url":"https://example.org/article"}']);
   await expect(page.getByTestId('bender-link-preview')).toContainText('Title');
+  await page.getByPlaceholder('Write a caption…').fill('Updated around https://example.org/article');
+  await expect(page.getByTestId('bender-link-preview')).toContainText('Title');
+  expect(requests).toHaveLength(1);
   expect(paths).toContain('POST /api/v1/bender/link-preview');
 });
 
@@ -320,8 +323,8 @@ test('stale response cannot replace the current URL preview', async ({ page }) =
   await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
   await page.unroute('**/api/v1/**');
-  let resolveA: (() => void) | undefined;
-  let resolveB: (() => void) | undefined;
+  const requests: string[] = [];
+  const releases = new Map<string, () => void>();
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/v1/tenant/current') {
@@ -334,7 +337,8 @@ test('stale response cannot replace the current URL preview', async ({ page }) =
     }
     if (url.pathname === '/api/v1/bender/link-preview') {
       const source = (route.request().postDataJSON() as { url: string }).url;
-      await new Promise<void>((resolve) => source.endsWith('/a') ? (resolveA = resolve) : (resolveB = resolve));
+      requests.push(source);
+      await new Promise<void>((resolve) => releases.set(source, resolve));
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: source, title: source.endsWith('/a') ? 'A' : 'B' })) });
       return;
     }
@@ -346,25 +350,196 @@ test('stale response cannot replace the current URL preview', async ({ page }) =
   await page.clock.runFor(400);
   await caption.fill('https://example.org/b');
   await page.clock.runFor(400);
-  resolveA?.();
-  await page.waitForTimeout(10);
-  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
-  resolveB?.();
+  await expect.poll(() => requests).toEqual(['https://example.org/a', 'https://example.org/b']);
+  releases.get('https://example.org/b')?.();
   await expect(page.getByTestId('bender-link-preview')).toContainText('B');
+  releases.get('https://example.org/a')?.();
+  await expect(page.getByTestId('bender-link-preview')).toContainText('B');
+  expect(await page.getByTestId('bender-link-preview').textContent()).not.toContain('A');
 });
 
 test('closing the composer cancels and resets preview state', async ({ page }) => {
   await page.clock.install();
   await stubFeed(page, { ...base, caption: null, link_preview: null });
+  const requests: string[] = [];
+  const releases: Array<() => void> = [];
+  let failed = false;
+  page.on('requestfailed', (request) => {
+    if (request.url().endsWith('/api/v1/bender/link-preview')) failed = true;
+  });
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    requests.push(route.request().url());
+    await new Promise<void>((resolve) => releases.push(resolve));
+    try {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ title: 'Old response' })) });
+    } catch {
+      failed = true;
+    }
+  });
   await openComposer(page);
   const caption = page.getByPlaceholder('Write a caption…');
   await caption.fill('https://example.org/reopen');
-  await page.clock.runFor(200);
+  await page.clock.runFor(400);
+  await expect.poll(() => requests).toHaveLength(1);
+  const waiter = page.getByTestId('bender-link-preview-loading');
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(() => failed).toBe(true);
+  releases.shift()?.();
+  await expect(page.getByTestId('bender-link-preview')).toHaveCount(0);
   await openComposer(page);
   await expect(caption).toHaveValue('');
   await caption.fill('https://example.org/reopen');
   await page.clock.runFor(400);
+  await expect.poll(() => requests).toHaveLength(2);
+  releases.shift()?.();
   await expect(page.getByTestId('bender-link-preview')).toBeVisible();
+  await expect(waiter).toHaveCount(0);
+});
+
+test('hook waitForPreviewToken covers debounce, readiness, timeout, failure, reset, and URL changes', async ({ page }) => {
+  await page.clock.install();
+  await stubFeed(page, { ...base, caption: null, link_preview: null });
+  const requests: string[] = [];
+  const releases = new Map<string, () => void>();
+  await page.route('**/api/v1/bender/link-preview', async (route) => {
+    const source = (route.request().postDataJSON() as { url: string }).url;
+    requests.push(source);
+    if (source.endsWith('/failure')) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await new Promise<void>((resolve) => releases.set(source, resolve));
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse({ source_url: source, title: source })) });
+  });
+
+  await page.evaluate(async () => {
+    const hookSource = await fetch('/src/hooks/useBenderLinkPreview.ts').then((response) => response.text());
+    const reactUrl = hookSource.match(/from "([^"]+\/react\.js\?v=[^"]+)"/)?.[1];
+    if (!reactUrl) throw new Error('Could not resolve the Vite React module URL');
+    const ReactModule = await import(reactUrl);
+    const React = ReactModule.default ?? ReactModule;
+    const ReactDOMModule = await import('/node_modules/.vite/deps/react-dom_client.js');
+    const ReactDOM = ReactDOMModule.default ?? ReactDOMModule;
+    const { useBenderLinkPreview } = await import('/src/hooks/useBenderLinkPreview.ts');
+    const host = document.createElement('div');
+    host.dataset.testid = 'hook-harness';
+    document.body.append(host);
+    function Harness() {
+      const [caption, setCaption] = React.useState('');
+      const [source, setSource] = React.useState('');
+      const [timeout, setTimeoutValue] = React.useState('5000');
+      const [waitResult, setWaitResult] = React.useState('');
+      const [enabled, setEnabled] = React.useState(true);
+      const result = useBenderLinkPreview(caption, enabled);
+      return React.createElement(
+        'div',
+        null,
+        React.createElement('input', { 'data-testid': 'hook-caption', value: caption, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setCaption(event.target.value) }),
+        React.createElement('input', { 'data-testid': 'hook-source', value: source, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSource(event.target.value) }),
+        React.createElement('input', { 'data-testid': 'hook-timeout', value: timeout, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setTimeoutValue(event.target.value) }),
+        React.createElement('button', { 'data-testid': 'hook-wait', onClick: () => void result.waitForPreviewToken(source || null, Number(timeout)).then((value) => setWaitResult(value ?? 'null')) }, 'Wait'),
+        React.createElement('button', { 'data-testid': 'hook-reset', onClick: result.reset }, 'Reset'),
+        React.createElement('button', { 'data-testid': 'hook-close', onClick: () => setEnabled(false) }, 'Close'),
+        React.createElement('output', { 'data-testid': 'hook-state' }, JSON.stringify({ detectedUrl: result.detectedUrl, status: result.status, token: result.previewToken, waitResult })),
+      );
+    }
+    const root = ReactDOM.createRoot(host);
+    root.render(React.createElement(Harness));
+    (window as unknown as { __cleanupHookHarness?: () => void }).__cleanupHookHarness = () => {
+      root.unmount();
+      host.remove();
+    };
+  });
+
+  const caption = page.getByTestId('hook-caption');
+  const source = page.getByTestId('hook-source');
+  const timeout = page.getByTestId('hook-timeout');
+  const state = page.getByTestId('hook-state');
+  const wait = page.getByTestId('hook-wait');
+  const reset = page.getByTestId('hook-reset');
+  const close = page.getByTestId('hook-close');
+  const url = 'https://example.org/debounce';
+  await caption.fill(url);
+  await source.fill(url);
+  await expect(state).toContainText('"status":"loading"');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":""');
+  await page.clock.runFor(350);
+  await page.clock.runFor(50);
+  await expect.poll(() => requests).toEqual([url]);
+  releases.get(url)?.();
+  await expect(state).toContainText('"waitResult":"preview-token"');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":"preview-token"');
+
+  await source.fill('https://example.org/mismatch');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":"null"');
+  await caption.fill('');
+  await source.fill('');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":"null"');
+
+  const timeoutUrl = 'https://example.org/timeout';
+  await caption.fill(timeoutUrl);
+  await source.fill(timeoutUrl);
+  await timeout.fill('0');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":"null"');
+  await timeout.fill('20');
+  await wait.click();
+  await page.clock.runFor(20);
+  await expect(state).toContainText('"waitResult":"null"');
+  await expect.poll(() => requests).toContain(timeoutUrl);
+  releases.get(timeoutUrl)?.();
+  await expect(state).toContainText('"status":"success"');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":"preview-token"');
+
+  const failureUrl = 'https://example.org/failure';
+  await caption.fill(failureUrl);
+  await source.fill(failureUrl);
+  await page.clock.runFor(400);
+  await expect(state).toContainText('"status":"unavailable"');
+  await wait.click();
+  await expect(state).toContainText('"waitResult":"null"');
+
+  const resetUrl = 'https://example.org/reset';
+  await caption.fill(resetUrl);
+  await source.fill(resetUrl);
+  await page.clock.runFor(400);
+  await expect.poll(() => requests).toContain(resetUrl);
+  await wait.click();
+  await reset.click();
+  await expect(state).toContainText('"status":"idle"');
+  await expect(state).toContainText('"waitResult":"null"');
+  releases.get(resetUrl)?.();
+
+  const firstUrl = 'https://example.org/first';
+  const secondUrl = 'https://example.org/second';
+  await caption.fill(firstUrl);
+  await source.fill(firstUrl);
+  await page.clock.runFor(400);
+  await expect.poll(() => requests).toContain(firstUrl);
+  await wait.click();
+  await caption.fill(secondUrl);
+  await source.fill(secondUrl);
+  await page.clock.runFor(400);
+  await expect.poll(() => requests).toContain(secondUrl);
+  await expect(state).toContainText('"waitResult":"null"');
+  releases.get(firstUrl)?.();
+  releases.get(secondUrl)?.();
+  await expect(state).toContainText('"status":"success"');
+  const closeUrl = 'https://example.org/close';
+  await caption.fill(closeUrl);
+  await source.fill(closeUrl);
+  await page.clock.runFor(400);
+  await expect.poll(() => requests).toContain(closeUrl);
+  await wait.click();
+  await close.click();
+  await expect(state).toContainText('"status":"idle"');
+  await expect(state).toContainText('"waitResult":"null"');
+  releases.get(closeUrl)?.();
+  await page.evaluate(() => (window as unknown as { __cleanupHookHarness?: () => void }).__cleanupHookHarness?.());
 });

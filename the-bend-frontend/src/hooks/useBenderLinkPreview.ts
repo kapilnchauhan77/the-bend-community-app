@@ -70,22 +70,26 @@ export function useBenderLinkPreview(caption: string, enabled: boolean): UseBend
 
     const generation = generationRef.current;
     setStatus('loading');
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    let settlePromise!: (token: string | null) => void;
+    const promise = new Promise<string | null>((resolve) => {
+      settlePromise = resolve;
+    });
+    const request: ActiveRequest = {
+      generation,
+      sourceUrl: detectedUrl,
+      controller,
+      promise,
+      settle: settlePromise,
+    };
+    activeRequestRef.current = request;
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      let settlePromise!: (token: string | null) => void;
-      const promise = new Promise<string | null>((resolve) => {
-        settlePromise = resolve;
-      });
-      const request: ActiveRequest = {
-        generation,
-        sourceUrl: detectedUrl,
-        controller,
-        promise,
-        settle: settlePromise,
-      };
-      activeRequestRef.current = request;
+      if (activeRequestRef.current !== request || generationRef.current !== generation) {
+        request.settle(null);
+        return;
+      }
       void benderApi.generateLinkPreview(detectedUrl, controller.signal)
         .then((response) => {
           if (activeRequestRef.current !== request || generationRef.current !== generation || controller.signal.aborted) return;
