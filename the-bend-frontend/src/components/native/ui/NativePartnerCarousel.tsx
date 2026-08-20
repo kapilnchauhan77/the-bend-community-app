@@ -24,6 +24,10 @@ const websiteFor = (partner: Sponsor) => {
   }
 }
 
+function partnerSlideOffset(track: HTMLUListElement, index: number): number {
+  return track.querySelectorAll<HTMLElement>('[data-partner-slide]')[index]?.offsetLeft ?? 0
+}
+
 export function NativePartnerCarousel({ partners }: NativePartnerCarouselProps) {
   const partnerOrder = partners.map((partner) => partner.id).join('\u0000')
   const trackRef = useRef<HTMLUListElement>(null)
@@ -32,12 +36,22 @@ export function NativePartnerCarousel({ partners }: NativePartnerCarouselProps) 
   const safeActiveIndex = position.partnerOrder === partnerOrder ? Math.min(position.index, Math.max(0, partners.length - 1)) : 0
 
   useEffect(() => {
+    setPosition({ partnerOrder, index: 0 })
     if (trackRef.current) trackRef.current.scrollLeft = 0
   }, [partnerOrder])
 
   if (!partners.length) return null
 
   const activePartner = partners[safeActiveIndex]!
+  const moveToPartner = (requestedIndex: number) => {
+    const index = Math.max(0, Math.min(partners.length - 1, requestedIndex))
+    const track = trackRef.current
+    if (track) {
+      const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      track.scrollTo({ left: partnerSlideOffset(track, index), behavior: reducedMotion ? 'auto' : 'smooth' })
+    }
+    setPosition({ partnerOrder, index })
+  }
   const updateActivePartner = (event: UIEvent<HTMLUListElement>) => {
     const track = event.currentTarget
     const slides = [...track.querySelectorAll<HTMLElement>('[data-partner-slide]')]
@@ -67,6 +81,14 @@ export function NativePartnerCarousel({ partners }: NativePartnerCarouselProps) 
     <ul ref={trackRef} className="native-partner-track" role="list" aria-label="Community partners" onScroll={updateActivePartner}>
       {partners.map((partner, index) => <li className="native-partner-slide" key={partner.id} data-partner-slide data-active={index === safeActiveIndex} aria-label={`Partner ${index + 1} of ${partners.length}`}>{cardFor(partner)}</li>)}
     </ul>
+    {partners.length > 1 ? <div className="native-partner-controls" aria-label="Partner carousel controls">
+      <button type="button" className="native-partner-step native-control" aria-label="Previous partner" disabled={safeActiveIndex === 0} onClick={() => moveToPartner(safeActiveIndex - 1)}>
+        <span aria-hidden="true">‹</span><span className="sr-only">Previous partner</span>
+      </button>
+      <button type="button" className="native-partner-step native-control" aria-label="Next partner" disabled={safeActiveIndex === partners.length - 1} onClick={() => moveToPartner(safeActiveIndex + 1)}>
+        <span aria-hidden="true">›</span><span className="sr-only">Next partner</span>
+      </button>
+    </div> : null}
     <p className="sr-only" role="status" aria-live="polite">Partner {safeActiveIndex + 1} of {partners.length}: {activePartner.name}</p>
     {partners.length > 1 ? <div className="native-partner-pagination" aria-hidden="true">{partners.map((partner, index) => <span className="native-partner-dot" key={partner.id} data-active={index === safeActiveIndex} />)}</div> : null}
   </div>

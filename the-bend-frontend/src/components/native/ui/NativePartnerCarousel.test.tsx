@@ -112,7 +112,8 @@ describe('NativePartnerCarousel', () => {
 
     expect(dots).toHaveLength(3)
     expect(dots[0]).toHaveAttribute('data-active', 'true')
-    expect(within(screen.getByRole('region', { name: 'Community partners carousel' })).queryByRole('button')).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Community partners carousel' })).getByRole('button', { name: 'Previous partner' })).toBeDisabled()
+    expect(within(screen.getByRole('region', { name: 'Community partners carousel' })).getByRole('button', { name: 'Next partner' })).toBeEnabled()
 
     Object.defineProperty(track, 'clientWidth', { configurable: true, value: 320 })
     Object.defineProperty(track, 'scrollLeft', { configurable: true, value: 320, writable: true })
@@ -122,6 +123,69 @@ describe('NativePartnerCarousel', () => {
     expect(dots[0]).toHaveAttribute('data-active', 'false')
     expect(dots[1]).toHaveAttribute('data-active', 'true')
     expect(screen.getByRole('status')).toHaveTextContent("Partner 2 of 3: Erica's Place")
+    expect(screen.getByRole('button', { name: 'Previous partner' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Next partner' })).toBeEnabled()
+  })
+
+  it('renders controls only when there are at least two partners', () => {
+    const { rerender } = render(<NativePartnerCarousel partners={[]} />)
+    expect(screen.queryByRole('button', { name: 'Previous partner' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next partner' })).toBeNull()
+
+    rerender(<NativePartnerCarousel partners={[partners[0]!]} />)
+    expect(screen.queryByRole('button', { name: 'Previous partner' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next partner' })).toBeNull()
+
+    rerender(<NativePartnerCarousel partners={partners} />)
+    expect(screen.getByRole('button', { name: 'Previous partner' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next partner' })).toBeEnabled()
+  })
+
+  it('moves the physical track and announcement with Next and Previous', () => {
+    const { container } = render(<NativePartnerCarousel partners={partners} />)
+    const track = screen.getByRole('list', { name: 'Community partners' })
+    const slides = [...container.querySelectorAll<HTMLElement>('[data-partner-slide]')]
+    Object.defineProperty(slides[1], 'offsetLeft', { configurable: true, value: 320 })
+    Object.defineProperty(slides[0], 'offsetLeft', { configurable: true, value: 0 })
+    const scrollTo = vi.fn()
+    Object.defineProperty(track, 'scrollTo', { configurable: true, value: scrollTo })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next partner' }))
+    expect(scrollTo).toHaveBeenCalledWith({ left: 320, behavior: 'smooth' })
+    expect(screen.getByRole('status')).toHaveTextContent("Partner 2 of 3: Erica's Place")
+    expect(screen.getByRole('button', { name: 'Previous partner' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous partner' }))
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: 'smooth' })
+    expect(screen.getByRole('status')).toHaveTextContent('Partner 1 of 3: Colonial Beach Brewing')
+  })
+
+  it('disables Next at the final partner', () => {
+    const { container } = render(<NativePartnerCarousel partners={partners} />)
+    const track = screen.getByRole('list', { name: 'Community partners' })
+    const slides = [...container.querySelectorAll<HTMLElement>('[data-partner-slide]')]
+    Object.defineProperty(slides[1], 'offsetLeft', { configurable: true, value: 320 })
+    Object.defineProperty(slides[2], 'offsetLeft', { configurable: true, value: 640 })
+    Object.defineProperty(track, 'scrollTo', { configurable: true, value: vi.fn() })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next partner' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next partner' }))
+    expect(screen.getByRole('button', { name: 'Next partner' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Previous partner' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Partner 3 of 3: Housecall Pro')
+  })
+
+  it('uses auto scrolling when reduced motion is preferred', () => {
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn(() => ({ matches: true })) })
+    const { container } = render(<NativePartnerCarousel partners={partners} />)
+    const track = screen.getByRole('list', { name: 'Community partners' })
+    const slides = [...container.querySelectorAll<HTMLElement>('[data-partner-slide]')]
+    Object.defineProperty(slides[1], 'offsetLeft', { configurable: true, value: 320 })
+    const scrollTo = vi.fn()
+    Object.defineProperty(track, 'scrollTo', { configurable: true, value: scrollTo })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next partner' }))
+    expect(scrollTo).toHaveBeenCalledWith({ left: 320, behavior: 'auto' })
   })
 
   it('does not create an autoplay timer', () => {
@@ -150,6 +214,8 @@ describe('NativePartnerCarousel', () => {
     await waitFor(() => expect(track.scrollLeft).toBe(0))
     expect(container.querySelector('[data-partner-slide][data-active="true"]')).toHaveTextContent('Housecall Pro')
     expect(screen.getByRole('status')).toHaveTextContent('Partner 1 of 2: Housecall Pro')
+    expect(screen.getByRole('button', { name: 'Previous partner' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next partner' })).toBeEnabled()
   })
 
   it('omits pagination for one partner and the complete carousel for zero partners', () => {
