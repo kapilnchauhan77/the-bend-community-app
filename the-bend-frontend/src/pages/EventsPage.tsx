@@ -106,8 +106,11 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
 function EventCard({ event }: { event: CommunityEvent }) {
+  const navigate = useNavigate();
+  const native = useNativePresentation();
   const cat = getCategoryConfig(event.category);
   const openSource = () => {
+    if (native) { navigate(`/events/${event.id}`); return; }
     if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
   };
   return (

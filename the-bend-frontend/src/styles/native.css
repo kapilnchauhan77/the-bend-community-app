@@ -15,6 +15,23 @@
 .native-unavailable-page p { margin-top: .5rem; color: var(--native-muted); }
 .native-route-back { display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--native-primary); background: transparent; }
 .native-route-actions { display: flex; align-items: center; gap: 4px; }
+.native-embedded-page .event-detail-page { color: var(--native-text); }
+.event-detail-page { max-width: 900px; margin: 0 auto; padding-bottom: 48px; }
+.event-detail-hero { width: 100%; }
+.event-detail-image { min-height: 220px; max-height: 420px; }
+.event-detail-content { padding: 24px 20px; }
+.event-detail-actions { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.event-detail-page h1 { margin: 12px 0 20px; font-family: Georgia, serif; font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.08; }
+.event-detail-page h2 { margin: 28px 0 8px; font-family: Georgia, serif; font-size: 1.3rem; }
+.event-detail-page p { line-height: 1.6; white-space: pre-wrap; }
+.event-detail-meta { display: grid; gap: 16px; margin: 0; }
+.event-detail-meta div { display: grid; gap: 4px; }
+.event-detail-meta dt { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.event-detail-meta dd { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--native-muted); }
+.event-detail-source { display: inline-flex; align-items: center; gap: 7px; margin-top: 28px; color: var(--native-primary); font-weight: 700; }
+.event-detail-message { max-width: 560px; margin: 48px auto; padding: 24px 20px; text-align: center; }
+.event-detail-message h1 { margin: 0 0 10px; }
+@media (min-width: 640px) { .event-detail-content { padding: 32px 40px; } }
 .native-app .native-auth-page { min-height: calc(100dvh - 88px - var(--native-safe-bottom)); }
 .native-app h1,
 .native-app h2,

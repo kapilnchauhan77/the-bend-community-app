@@ -16,6 +16,7 @@ vi.mock('@/pages/BrowsePage', () => ({ default: () => <h1>browse-sentinel</h1> }
 vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <h1>native-listing-detail-sentinel</h1> }));
 vi.mock('@/pages/BusinessProfilePage', () => ({ default: () => <h1>business-sentinel</h1> }));
 vi.mock('@/pages/EventsPage', () => ({ default: () => <h1>events-sentinel</h1> }));
+vi.mock('@/pages/EventDetailPage', () => ({ default: () => <h1>event-detail-sentinel</h1> }));
 vi.mock('@/pages/BenderPage', () => ({ default: () => <h1>bender-sentinel</h1> }));
 vi.mock('@/pages/VolunteerPage', () => ({ default: () => <h1>volunteer-sentinel</h1> }));
 vi.mock('@/pages/TalentPage', () => ({ default: () => <h1>talent-sentinel</h1> }));
@@ -113,10 +114,10 @@ describe('NativeRoutes', () => {
     expect(screen.getAllByRole('status')[0]).toBeInTheDocument();
   });
 
-  it('preserves the unavailable placeholder copy for the ruled event-detail route', () => {
+  it('renders the real event detail page for the native event-detail route', () => {
     renderNativeAt('/events/event-1');
-    expect(screen.getAllByRole('status')[0]).toHaveTextContent("This page isn't available in the mobile app");
-    expect(screen.getAllByRole('status')[0]).toHaveTextContent('Admin tools are available on the website.');
+    expect(screen.getByText('event-detail-sentinel')).toBeInTheDocument();
+    expect(screen.queryByText("This page isn't available in the mobile app")).not.toBeInTheDocument();
   });
 
   it.each([
@@ -149,7 +150,7 @@ describe('NativeRoutes', () => {
     ['/listing/listing-1', 'Listing', 'native-listing-detail-sentinel', '/explore?type=listings'],
     ['/business/shop-1', 'Business', 'business-sentinel', '/explore?type=businesses'],
     ['/events', 'Events', 'events-sentinel', '/explore?type=events'],
-    ['/events/event-1', 'Event', "This page isn't available in the mobile app", '/events'],
+    ['/events/event-1', 'Event', 'event-detail-sentinel', '/events'],
     ['/volunteers', 'Volunteer', 'volunteer-sentinel', '/explore?type=volunteer'],
     ['/talent', 'Talent', 'talent-sentinel', '/explore'],
     ['/bender/123e4567-e89b-12d3-a456-426614174000', 'Bender post', 'bender-sentinel', '/bender'],

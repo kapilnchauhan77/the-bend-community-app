@@ -9,8 +9,8 @@ export const eventApi = {
     api.get<PaginatedResponse<CommunityEvent>>('/events', { params, signal: options?.signal }),
   getUpcoming: (limit = 5): Promise<AxiosResponse<ItemsResponse<CommunityEvent>>> =>
     api.get<ItemsResponse<CommunityEvent>>('/events/upcoming', { params: { limit: String(limit) } }),
-  getDetail: (id: string) =>
-    api.get(`/events/${id}`),
+  getDetail: (id: string, options?: PublicRequestOptions): Promise<AxiosResponse<CommunityEvent>> =>
+    api.get<CommunityEvent>(`/events/${id}`, { signal: options?.signal }),
 
   // Event submission (paid)
   getPricing: () =>
