@@ -135,6 +135,8 @@ async def aiohttp_session_factory(target: PreparedExternalUrl, addresses):
 
 
 class _AiohttpSession:
+    peer_validated_during_connect = True
+
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
 
@@ -198,7 +200,8 @@ class SafeExternalFetcher:
                             allow_redirects=False,
                             proxy=None,
                         ) as response:
-                            self._verify_peer(response, addresses)
+                            if not getattr(session, "peer_validated_during_connect", False):
+                                self._verify_peer(response, addresses)
                             if response.status in {301, 302, 303, 307, 308}:
                                 if redirects >= MAX_REDIRECTS:
                                     raise LinkPreviewUpstreamFailure("redirect_limit")

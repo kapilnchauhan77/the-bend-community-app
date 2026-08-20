@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Process
 from pathlib import Path
 
@@ -37,9 +38,30 @@ def test_store_accepts_jpeg_png_and_webp_and_returns_strict_public_path(tmp_path
 
 
 def test_store_enforces_global_file_and_byte_caps(tmp_path):
-    store = LinkPreviewImageStore(tmp_path, max_files=1, max_bytes=1)
+    store = LinkPreviewImageStore(tmp_path, max_files=1, max_bytes=1_000_000)
+    store.store(_image_bytes())
     with pytest.raises(LinkPreviewImageProcessingError, match="storage_cap"):
         store.store(_image_bytes())
+
+    byte_store = LinkPreviewImageStore(tmp_path / "bytes", max_files=10, max_bytes=1)
+    with pytest.raises(LinkPreviewImageProcessingError, match="storage_cap"):
+        byte_store.store(_image_bytes())
+
+
+def test_concurrent_different_images_cannot_cross_global_file_cap(tmp_path):
+    store = LinkPreviewImageStore(tmp_path, max_files=1, max_bytes=10_000_000)
+    payloads = [_image_bytes("PNG", size=(80 + index, 40)) for index in range(2)]
+    def attempt(payload):
+        try:
+            return store.store(payload)
+        except Exception as exc:
+            return exc
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, payloads))
+    successes = [value for value in results if isinstance(value, str)]
+    failures = [value for value in results if isinstance(value, Exception)]
+    assert len(successes) == 1
+    assert len(failures) == 1
 
 
 def test_store_rejects_malformed_and_unsupported_decoded_formats(tmp_path):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from uuid import UUID
+from app.core.exceptions import RateLimitError
 
 from app.schemas.bender import (
     BenderLinkPreview,
@@ -46,7 +47,7 @@ class BenderLinkPreviewService:
             if metadata is None:
                 reserve = getattr(self.store, "reserve_generation", None)
                 if reserve is not None and not await reserve(user_id=user_id):
-                    raise LinkPreviewUpstreamFailure("generation_limit")
+                    raise RateLimitError(retry_after=3600)
                 generated = await self.generator.generate(exact_source)
                 metadata = generated.metadata
                 await self.store.cache_metadata(

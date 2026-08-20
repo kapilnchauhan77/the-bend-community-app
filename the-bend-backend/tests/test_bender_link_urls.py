@@ -33,6 +33,7 @@ def test_extracts_exact_caption_tokens(case):
         "https://[2001:0000:4136:e378:8000:63bf:3fff:fdd2]/",
         "https://[64:ff9b::7f00:1]/",
         "https://[64:ff9b:1::a9fe:a9fe]/",
+        "https://[fec0::1]/",
         "https://user:pass@example.org/",
         "https://example.org:bad/",
         "https://example.org:0/",
@@ -90,6 +91,15 @@ def test_accepts_canonical_global_ipv6_literal():
     result = prepare_external_url("https://[2606:2800:220:1:248:1893:25c8:1946]/")
     assert result.hostname == "2606:2800:220:1:248:1893:25c8:1946"
     assert result.normalized_url == "https://[2606:2800:220:1:248:1893:25c8:1946]/"
+
+
+@pytest.mark.parametrize("value", [
+    "https://user:pass@example.org/ then https://valid.example/x",
+    "https://example.org:bad/ then https://valid.example/x",
+    "https://[broken/ then https://valid.example/x",
+])
+def test_caption_skips_malformed_token_and_uses_first_valid_token(value):
+    assert first_http_url(value) == "https://valid.example/x"
 
 
 @pytest.mark.asyncio

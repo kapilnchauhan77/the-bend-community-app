@@ -6,6 +6,7 @@ import hashlib
 import json
 import secrets
 import asyncio
+import time
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -151,9 +152,15 @@ class BenderLinkPreviewStore:
 
     async def reserve_generation(self, *, user_id: UUID) -> bool:
         key = self.METRIC_PREFIX + "generation:" + str(user_id)
-        count = await asyncio.wait_for(self.redis.incr(key), timeout=self.IO_TIMEOUT_SECONDS)
-        await asyncio.wait_for(self.redis.expire(key, self.GENERATION_WINDOW_SECONDS), timeout=self.IO_TIMEOUT_SECONDS)
-        return int(count) <= self.GENERATION_LIMIT
+        now = time.time()
+        member = f"{now:.6f}:{secrets.token_hex(12)}"
+        pipeline = self.redis.pipeline(transaction=True)
+        pipeline.zremrangebyscore(key, 0, now - self.GENERATION_WINDOW_SECONDS)
+        pipeline.zadd(key, {member: now})
+        pipeline.zcard(key)
+        pipeline.expire(key, self.GENERATION_WINDOW_SECONDS)
+        results = await asyncio.wait_for(pipeline.execute(), timeout=self.IO_TIMEOUT_SECONDS)
+        return int(results[2]) <= self.GENERATION_LIMIT
 
     async def record_outcome(self, outcome: LinkPreviewOutcome) -> None:
         if outcome not in self._OUTCOMES:

@@ -6,7 +6,7 @@ Chosen limits:
 
 - Unpublished image retention: 25 minutes, five minutes beyond the 20-minute Redis cache/draft TTL.
 - Image store cap: 10,000 files and 512 MiB aggregate encoded bytes. The exclusive lock covers accounting and replacement, so concurrent writers cannot cross either limit.
-- Per-user preview generation budget: 30 cache-miss generations per rolling hour, enforced by Redis `INCR` and expiry.
+- Per-user preview generation budget: 30 cache-miss generations per rolling hour, enforced by one Redis sorted-set transaction that prunes, adds, counts, and expires.
 - Redis application wait: 1.5 seconds. Redis socket connect/read waits: 1 second.
 
 Verification:
@@ -18,4 +18,11 @@ Verification:
 - Frontend build and scoped ESLint: passed. Full Playwright run exercised 57 tests and completed green; Vite emitted only the existing analytics-token and chunk-size warnings.
 - `git diff --check`: passed.
 
-The Docker backend build with `the-bend-backend` as context and the frontend production build are run separately. No push, merge, or deployment was performed.
+Follow-up verification:
+
+- Focused backend regressions and affected suites: 199 passed.
+- Full backend under the host interpreter: 326 passed, with six connector image tests blocked by missing local `feedparser` and `icalendar` imports. Both are declared project dependencies.
+- Frontend build and scoped ESLint: passed. Full Playwright ran all 57 tests with no failure output. Existing analytics-token and bundle-size warnings remain.
+- Backend compile, Alembic head, and `git diff --check`: passed.
+- Docker builds remain pending Docker Desktop storage recovery. No image-build success is claimed.
+- No push, merge, or deployment was performed.

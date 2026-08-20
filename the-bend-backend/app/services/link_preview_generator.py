@@ -74,6 +74,8 @@ class BenderLinkPreviewGenerator:
         if not parsed.title:
             hostname = urlsplit(page.final_url).hostname
             raise LinkPreviewTitleMissing("title_missing", hostname)
+        if getattr(parsed, "invalid_destination", False):
+            raise LinkPreviewUpstreamFailure("invalid_metadata_url")
 
         destination = page.final_url
         if parsed.destination_candidate:
@@ -82,6 +84,10 @@ class BenderLinkPreviewGenerator:
                 destination = validated.normalized_url
             except (LinkPreviewURLRejected, LinkPreviewUpstreamFailure, ValueError):
                 destination = page.final_url
+        try:
+            destination = prepare_external_url(destination).normalized_url
+        except LinkPreviewURLRejected as exc:
+            raise LinkPreviewUpstreamFailure("invalid_metadata_url") from exc
 
         outcomes: set[LinkPreviewOutcome] = {"success"}
         image_path: str | None = None

@@ -29,6 +29,7 @@ class LinkPreviewURLRejected(ValueError):
 _URL_RE = re.compile(r"https?://[^\s<>\"'“”‘’]+", re.IGNORECASE)
 _TRAILING_PUNCTUATION = ".,!?;:"
 _NAT64_PREFIXES = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+MAX_EXTERNAL_URL_LENGTH = 2048
 
 def is_public_unicast(address):
     if not address.is_global or address.is_multicast or address.is_private or address.is_reserved:
@@ -36,7 +37,7 @@ def is_public_unicast(address):
     if getattr(address, "is_link_local", False) or getattr(address, "is_loopback", False):
         return False
     if isinstance(address, ipaddress.IPv6Address):
-        if address.scope_id or address.ipv4_mapped or any(address in network for network in _NAT64_PREFIXES):
+        if address.scope_id or address.is_site_local or address.ipv4_mapped or any(address in network for network in _NAT64_PREFIXES):
             return False
         if address in ipaddress.ip_network("2002::/16") or address in ipaddress.ip_network("2001::/32"):
             return False
@@ -54,11 +55,26 @@ def _clean_token(token: str) -> str:
     return token
 
 
+def _caption_token_is_valid(token: str) -> bool:
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in token) or re.search(r"%(?![0-9A-Fa-f]{2})", token):
+        return False
+    try:
+        parsed = urlsplit(token)
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            return False
+        if parsed.username is not None or parsed.password is not None:
+            return False
+        parsed.port
+    except (ValueError, UnicodeError):
+        return False
+    return True
+
+
 def extract_http_urls(text: str | None) -> list[str]:
     """Return exact HTTP(S) caption tokens after sentence punctuation cleanup."""
     if not text:
         return []
-    return [cleaned for match in _URL_RE.finditer(text) if (cleaned := _clean_token(match.group(0))) and not re.search(r"%(?![0-9A-Fa-f]{2})", cleaned)]
+    return [cleaned for match in _URL_RE.finditer(text) if (cleaned := _clean_token(match.group(0))) and _caption_token_is_valid(cleaned)]
 
 
 def first_http_url(text: str | None) -> str | None:
@@ -100,7 +116,7 @@ def _canonical_hostname(raw_hostname: str) -> tuple[str, ipaddress.IPv4Address |
 
 def prepare_external_url(raw_url: str) -> PreparedExternalUrl:
     """Canonicalize one outbound URL without performing DNS or I/O."""
-    if not isinstance(raw_url, str) or not raw_url or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in raw_url) or "\\" in raw_url:
+    if not isinstance(raw_url, str) or not raw_url or len(raw_url) > MAX_EXTERNAL_URL_LENGTH or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in raw_url) or "\\" in raw_url:
         _reject("invalid_url")
     if re.search(r"%(?![0-9A-Fa-f]{2})", raw_url):
         _reject("invalid_escape")

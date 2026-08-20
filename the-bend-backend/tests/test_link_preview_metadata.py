@@ -215,6 +215,16 @@ def test_duplicate_metadata_skips_empty_or_unusable_values_before_valid_values()
     assert parsed.destination_candidate == "https://example.org/canonical"
 
 
+def test_overlong_canonical_is_rejected_before_any_image_candidate_is_returned():
+    parser = LinkPreviewMetadataParser()
+    long_url = "https://example.org/" + "x" * 2100
+    parsed = parser.parse(
+        f'<title>Example</title><meta property="og:url" content="{long_url}"><meta property="og:image" content="/image.jpg">'.encode(),
+        final_url="https://example.org/page",
+    )
+    assert parsed.destination_candidate is None
+
+
 def test_svg_and_data_candidates_are_rejected_from_every_source_with_fragments():
     parsed = PARSER.parse(
         b"""

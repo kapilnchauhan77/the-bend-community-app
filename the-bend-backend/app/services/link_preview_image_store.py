@@ -106,8 +106,16 @@ class LinkPreviewImageStore:
         with link_preview_directory_lock(self.image_dir, shared=False):
             if self._touch_path(final_path):
                 return public_url
-            files = list(self.image_dir.glob("[0-9a-f]" * 64 + ".webp"))
-            total_bytes = sum(path.stat().st_size for path in files if path.is_file())
+            files = []
+            total_bytes = 0
+            try:
+                for entry in self.image_dir.iterdir():
+                    stat = entry.lstat()
+                    if re.fullmatch(r"[0-9a-f]{64}\.webp", entry.name) and _is_regular_non_symlink(stat):
+                        files.append(entry)
+                        total_bytes += stat.st_size
+            except OSError as exc:
+                raise LinkPreviewImageProcessingError("storage_unavailable") from exc
             if len(files) >= self.max_files or total_bytes + len(encoded) > self.max_bytes:
                 raise LinkPreviewImageProcessingError("storage_cap")
 

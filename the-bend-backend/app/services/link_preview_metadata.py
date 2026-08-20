@@ -8,6 +8,8 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
+from app.services.bender_link_urls import MAX_EXTERNAL_URL_LENGTH
+
 from bs4 import BeautifulSoup, Tag
 
 
@@ -29,6 +31,7 @@ class ParsedLinkPreview:
     site_name: str | None
     destination_candidate: str | None
     image_candidates: tuple[str, ...]
+    invalid_destination: bool = False
 
 
 def _first_text(*values: object, limit: int) -> str | None:
@@ -67,7 +70,7 @@ def _absolute_url(value: object, base_url: str) -> str | None:
     if value is None:
         return None
     raw = html_lib.unescape(str(value)).strip()
-    if not raw:
+    if not raw or len(raw) > MAX_EXTERNAL_URL_LENGTH:
         return None
     if any(ord(char) < 32 for char in raw) or "\\" in raw:
         return None
@@ -80,7 +83,12 @@ def _absolute_url(value: object, base_url: str) -> str | None:
         return None
     if parts.scheme.lower() not in {"http", "https"} or not parts.netloc:
         return None
-    if parts.username is not None or parts.password is not None:
+    if parts.username is not None or parts.password is not None or not parts.hostname:
+        return None
+    try:
+        if parts.port not in (None, 80, 443):
+            return None
+    except ValueError:
         return None
     return urlunsplit((parts.scheme.lower(), parts.netloc, parts.path, parts.query, parts.fragment))
 
@@ -283,13 +291,13 @@ class LinkPreviewMetadataParser:
             urlsplit(final_url).hostname,
             limit=80,
         )
+        destination_values = _meta_values(soup, property_name="og:url")
+        destination = next((candidate for value in destination_values if (candidate := _absolute_url(value, final_url))), None)
         return ParsedLinkPreview(
             title=title,
             description=description,
             site_name=site_name,
-            destination_candidate=next(
-                (candidate for value in _meta_values(soup, property_name="og:url") if (candidate := _absolute_url(value, final_url))),
-                None,
-            ),
+            destination_candidate=destination,
             image_candidates=tuple(_rank_image_candidates(soup, final_url)),
+            invalid_destination=bool(destination_values) and destination is None,
         )

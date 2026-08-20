@@ -25,12 +25,32 @@ class _FakePipeline:
         self.commands.append(("expire", key, seconds))
         return self
 
+    def zremrangebyscore(self, key, minimum, maximum):
+        self.commands.append(("zremrangebyscore", key, minimum, maximum))
+        return self
+
+    def zadd(self, key, values):
+        self.commands.append(("zadd", key, values))
+        return self
+
+    def zcard(self, key):
+        self.commands.append(("zcard", key))
+        return self
+
     async def execute(self):
+        results = []
         for command in self.commands:
             if command[0] == "incr":
                 await self.redis.incr(command[1])
-            else:
+                results.append(1)
+            elif command[0] == "expire":
                 await self.redis.expire(command[1], command[2])
+                results.append(True)
+            elif command[0] == "zcard":
+                results.append(1)
+            else:
+                results.append(0)
+        return results
 
 
 class _FakeRedis:
@@ -241,6 +261,15 @@ async def test_resolve_draft_binds_user_nullable_tenant_and_exact_first_caption_
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption="See https://example.org/start.") == _snapshot()
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption='See https://example.org/start” and https://other.example') == _snapshot()
     assert await store.resolve_draft(token, user_id=user_id, tenant_id=tenant_id, caption=None) is None
+
+
+@pytest.mark.asyncio
+async def test_generation_budget_uses_one_atomic_sliding_window_pipeline():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    assert await store.reserve_generation(user_id=uuid4()) is True
+    pipeline_calls = [call for call in redis.calls if call[0] == "pipeline"]
+    assert pipeline_calls == [("pipeline", True)]
 
 
 @pytest.mark.asyncio
