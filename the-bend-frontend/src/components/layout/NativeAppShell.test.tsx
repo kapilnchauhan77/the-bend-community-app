@@ -6,7 +6,7 @@ import { PlatformServicesProvider } from '@/platform/createPlatformServices'
 import type { RuntimeConfig } from '@/platform/contracts'
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => 'ios' } }))
-vi.mock('@capacitor/status-bar', () => ({ StatusBar: { setStyle: vi.fn().mockResolvedValue(undefined) }, Style: { Dark: 'DARK', Light: 'LIGHT' } }))
+vi.mock('@capacitor/status-bar', () => ({ StatusBar: { setStyle: vi.fn().mockResolvedValue(undefined), setBackgroundColor: vi.fn().mockResolvedValue(undefined) }, Style: { Dark: 'DARK', Light: 'LIGHT' } }))
 import { StatusBar, Style } from '@capacitor/status-bar'
 
 vi.mock('@/deep-links/useDeepLinks', () => ({ useDeepLinks: () => undefined }))
@@ -25,6 +25,7 @@ describe('NativeAppShell', () => {
     const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' }
     const view = render(<PlatformServicesProvider config={config}><MemoryRouter><NativeAppShell /></MemoryRouter></PlatformServicesProvider>)
     expect(document.querySelectorAll('.native-app')).toHaveLength(1)
+    expect(document.querySelector('.native-status-bar-scrim')).toHaveAttribute('aria-hidden', 'true')
     const root = document.querySelector<HTMLElement>('.native-app')!
     expect(root.style.getPropertyValue('--native-keyboard-bottom')).toBe('100px')
     viewport.height = 620; viewport.offsetTop = 20; resizeHandler?.()
@@ -89,6 +90,7 @@ describe('NativeAppShell', () => {
     document.body.style.backgroundColor = 'rgb(4, 5, 6)'
     const view = renderShell()
     expect(vi.mocked(StatusBar.setStyle)).toHaveBeenCalledWith({ style: Style.Dark })
+    expect(vi.mocked(StatusBar.setBackgroundColor)).toHaveBeenCalledWith({ color: '#121915' })
     expect(document.documentElement.style.backgroundColor).toBe('rgb(18, 25, 21)')
     expect(document.body.style.backgroundColor).toBe('rgb(18, 25, 21)')
     view.unmount()
@@ -100,6 +102,7 @@ describe('NativeAppShell', () => {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: () => 'light' } })
     const view = renderShell()
     expect(vi.mocked(StatusBar.setStyle)).toHaveBeenCalledWith({ style: Style.Light })
+    expect(vi.mocked(StatusBar.setBackgroundColor)).toHaveBeenCalledWith({ color: '#f7f3ea' })
     expect(document.documentElement.style.backgroundColor).toBe('rgb(247, 243, 234)')
     view.unmount()
   })

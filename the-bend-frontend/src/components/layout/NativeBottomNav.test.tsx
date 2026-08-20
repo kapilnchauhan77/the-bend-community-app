@@ -15,6 +15,7 @@ describe('NativeBottomNav', () => {
   afterEach(() => document.body.innerHTML = '')
   it('renders exactly the five approved labels', () => {
     renderNavAt('/')
+    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Home', 'Explore', 'Create', 'Bender', 'You'])
     expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button')).toHaveLength(5)
@@ -30,7 +31,16 @@ describe('NativeBottomNav', () => {
     expect(scrollRootToTop).toHaveBeenCalledWith('home'); expect(navigate).not.toHaveBeenCalled()
   })
   it('marks the active root tab with aria-current', () => {
-    renderNavAt('/messages/thread-1')
-    expect(screen.getByRole('button', { name: 'Inbox' })).toHaveAttribute('aria-current', 'page')
+    renderNavAt('/bender/thread-1')
+    expect(screen.getByRole('button', { name: 'Bender' })).toHaveAttribute('aria-current', 'page')
+  })
+  it.each(['/bender', '/bender/post-1', '/bender?post=post-1'])('marks Bender active for %s', (path) => {
+    renderNavAt(path)
+    expect(screen.getByRole('button', { name: 'Bender' })).toHaveAttribute('aria-current', 'page')
+  })
+  it('navigates to Bender when selected', () => {
+    renderNavAt('/')
+    fireEvent.click(screen.getByRole('button', { name: 'Bender' }))
+    expect(navigate).toHaveBeenCalledWith('/bender')
   })
 })

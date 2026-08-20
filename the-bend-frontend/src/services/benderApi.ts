@@ -8,6 +8,11 @@ export type CreatePostPayload = {
   media_type?: 'image' | 'video';
 };
 
+export type ListBenderPostsOptions = {
+  search?: string;
+  signal?: AbortSignal;
+};
+
 /**
  * Bender (Instagram-style community feed) API wrapper.
  * - Lists are cursor-paginated; pass `next_cursor` from the previous page to
@@ -17,9 +22,10 @@ export type CreatePostPayload = {
  * - Comments are ASC (oldest first) to match Instagram-style chronological reads.
  */
 export const benderApi = {
-  listPosts: (cursor?: string, limit = 15) =>
+  listPosts: (cursor?: string, limit = 15, options: ListBenderPostsOptions = {}) =>
     api.get<PaginatedResponse<BenderPost>>('/bender/posts', {
-      params: { cursor, limit },
+      params: { cursor, limit, ...(options.search === undefined ? {} : { search: options.search }) },
+      ...(options.signal ? { signal: options.signal } : {}),
     }),
 
   createPost: (payload: CreatePostPayload) =>

@@ -2,6 +2,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useNativeExplore } from './useNativeExplore'
 import { shopApi } from '@/services/shopApi'
+import { benderApi } from '@/services/benderApi'
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -21,6 +22,7 @@ let removeListener: ReturnType<typeof vi.fn>
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOpportunities: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn() } }))
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 
 const shop = (id: string) => ({ id, business_type: 'Farm', name: `Farm ${id}`, address: 'Main', status: 'active', latitude: null, longitude: null })
@@ -35,6 +37,7 @@ beforeEach(() => {
   platform.cache.put.mockResolvedValue(undefined)
   vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [shop('one')] } } as never)
   vi.mocked(shopApi.getShop).mockResolvedValue({ data: shop('one') } as never)
+  vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never)
 })
 
 afterEach(() => cleanup())

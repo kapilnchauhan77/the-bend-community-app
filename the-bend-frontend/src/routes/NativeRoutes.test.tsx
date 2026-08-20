@@ -14,6 +14,7 @@ vi.mock('@/pages/native/NativeHomePage', () => ({ default: () => <div>native-hom
 vi.mock('@/pages/native/NativeExplorePage', () => ({ default: () => <div>native-explore-sentinel</div> }));
 vi.mock('@/pages/ListingDetailPage', () => ({ default: () => <div>native-listing-detail-sentinel</div> }));
 vi.mock('@/pages/MessagesPage', () => ({ default: () => <div>native-messages-sentinel</div> }));
+vi.mock('@/pages/GuidelinesViewPage', () => ({ default: ({ embeddedNative }: { embeddedNative?: boolean }) => <div>native-guidelines-public-sentinel:{String(embeddedNative)}</div> }));
 vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return <div>Login page: {useLocation().state?.from?.pathname}</div>; } }));
 
 afterEach(() => { authState.isAuthenticated = false; cleanup(); });
@@ -43,12 +44,26 @@ describe('NativeRoutes', () => {
     expect(screen.queryByText(/admin dashboard|super admin/i)).not.toBeInTheDocument();
   });
 
+  it('renders public community guidelines in the native presentation while blocking the admin editor', async () => {
+    renderNativeAt('/guidelines');
+    expect(screen.getByText('native-guidelines-public-sentinel:true')).toBeInTheDocument();
+    expect(screen.queryByText(/this page isn't available in the mobile app/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/upload and manage the community guidelines document/i)).not.toBeInTheDocument();
+
+    cleanup();
+    renderNativeAt('/admin/guidelines');
+    expect(await screen.findByText(/this page isn't available in the mobile app/i)).toBeInTheDocument();
+    expect(screen.queryByText('native-guidelines-public-sentinel:true')).not.toBeInTheDocument();
+    expect(screen.queryByText(/upload and manage the community guidelines document/i)).not.toBeInTheDocument();
+  });
+
   it('shows the five approved native destinations', () => {
     renderNativeAt('/');
 
-    for (const label of ['Home', 'Explore', 'Create', 'Inbox', 'You']) {
+    for (const label of ['Home', 'Explore', 'Create', 'Bender', 'You']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
+    expect(screen.queryByRole('button', { name: 'Inbox' })).not.toBeInTheDocument();
   });
 
   it('redirects a guest protected route to the native login surface', () => {

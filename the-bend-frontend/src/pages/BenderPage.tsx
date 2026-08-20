@@ -96,13 +96,13 @@ function KebabMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="p-1 text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] transition-colors cursor-pointer"
+        className="native-bender-secondary p-1 text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] transition-colors cursor-pointer"
         aria-label="More"
       >
         <MoreHorizontal size={iconSize} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-[hsl(35,18%,84%)] shadow-lg z-20 py-1 rounded">
+        <div className="native-bender-surface native-bender-border native-bender-menu absolute right-0 top-full mt-1 w-36 bg-white border border-[hsl(35,18%,84%)] shadow-lg z-20 py-1 rounded">
           {items.map((item) => (
             <button
               key={item.label}
@@ -113,7 +113,7 @@ function KebabMenu({
               className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left transition-colors cursor-pointer ${
                 item.destructive
                   ? 'text-[hsl(0,55%,45%)] hover:bg-[hsl(0,50%,97%)]'
-                  : 'text-[hsl(30,10%,35%)] hover:bg-[hsl(35,15%,94%)]'
+                  : 'native-bender-primary text-[hsl(30,10%,35%)] hover:bg-[hsl(35,15%,94%)]'
               }`}
             >
               {item.destructive && <Trash2 size={13} />}
@@ -228,7 +228,7 @@ function CommentsDrawer({
   );
 
   return (
-    <div className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
+    <div className="native-bender-muted-surface native-bender-border native-bender-comments border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
       <div className="max-h-80 overflow-y-auto px-3 py-2">
         {loading ? (
           <div className="space-y-2 py-2">
@@ -240,7 +240,7 @@ function CommentsDrawer({
             ))}
           </div>
         ) : comments.length === 0 ? (
-          <p className="text-center text-xs text-[hsl(30,10%,50%)] py-4">
+          <p className="native-bender-secondary text-center text-xs text-[hsl(30,10%,50%)] py-4">
             No comments yet. Be the first.
           </p>
         ) : (
@@ -255,12 +255,12 @@ function CommentsDrawer({
                   <AuthorAvatar author={c.author} size={24} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] leading-snug">
-                      <span className="font-semibold text-[hsl(30,15%,18%)]">
+                      <span className="native-bender-primary font-semibold text-[hsl(30,15%,18%)]">
                         {display}
                       </span>{' '}
-                      <span className="text-[hsl(30,10%,30%)]">{c.content}</span>
+                      <span className="native-bender-primary text-[hsl(30,10%,30%)]">{c.content}</span>
                     </div>
-                    <div className="text-[10px] text-[hsl(30,10%,55%)] mt-0.5">
+                    <div className="native-bender-secondary text-[10px] text-[hsl(30,10%,55%)] mt-0.5">
                       {timeAgo(c.created_at)}
                     </div>
                   </div>
@@ -294,12 +294,12 @@ function CommentsDrawer({
       </div>
       {actionError && <p role="alert" className="px-3 py-1 text-xs text-red-700">{actionError}</p>}
       {currentUserId && (
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-[hsl(35,18%,90%)] bg-white">
+        <div className="native-bender-surface native-bender-border flex items-center gap-2 px-3 py-2 border-t border-[hsl(35,18%,90%)] bg-white">
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value.slice(0, 1000))}
             placeholder="Add a comment…"
-            className="flex-1 h-8 text-[13px]"
+            className="native-bender-input flex-1 h-8 text-[13px]"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -425,7 +425,7 @@ function BenderPostCard({
   return (
     <article
       id={`post-${post.id}`}
-      className={`bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden mb-3 transition-shadow duration-300 ${
+      className={`native-bender-surface native-bender-border native-bender-post-card bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden mb-3 transition-shadow duration-300 ${
         isHighlighted
           ? 'ring-2 ring-offset-2 ring-[hsl(35,45%,42%)]'
           : ''
@@ -436,11 +436,11 @@ function BenderPostCard({
       <div className="flex items-center gap-2 px-3 py-2">
         <AuthorAvatar author={post.author} size={28} />
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-[hsl(30,15%,18%)] truncate">
+          <p className="native-bender-primary text-[13px] font-semibold text-[hsl(30,15%,18%)] truncate">
             {display}
           </p>
         </div>
-        <span className="text-[11px] text-[hsl(30,10%,55%)] shrink-0">
+        <span className="native-bender-secondary text-[11px] text-[hsl(30,10%,55%)] shrink-0">
           {timeAgo(post.created_at)}
         </span>
         {canDelete && (
@@ -491,11 +491,11 @@ function BenderPostCard({
             className={
               post.viewer_has_liked
                 ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]'
-                : 'text-[hsl(30,15%,18%)]'
+                : 'native-bender-primary text-[hsl(30,15%,18%)]'
             }
           />
           {post.like_count > 0 && (
-            <span className="text-[13px] font-medium text-[hsl(30,15%,18%)]">
+            <span className="native-bender-primary text-[13px] font-medium text-[hsl(30,15%,18%)]">
               {post.like_count}
             </span>
           )}
@@ -505,9 +505,9 @@ function BenderPostCard({
           className="flex items-center gap-1 cursor-pointer"
           aria-label="Comments"
         >
-          <MessageCircle size={22} className="text-[hsl(30,15%,18%)]" />
+          <MessageCircle size={22} className="native-bender-primary text-[hsl(30,15%,18%)]" />
           {post.comment_count > 0 && (
-            <span className="text-[13px] font-medium text-[hsl(30,15%,18%)]">
+            <span className="native-bender-primary text-[13px] font-medium text-[hsl(30,15%,18%)]">
               {post.comment_count}
             </span>
           )}
@@ -519,7 +519,7 @@ function BenderPostCard({
             iconOnly
             iconSize={20}
             variant="ghost"
-            className="ml-auto h-auto w-auto p-0 text-[hsl(30,15%,18%)] hover:bg-transparent hover:text-[hsl(160,25%,24%)]"
+            className="native-bender-primary ml-auto h-auto w-auto p-0 text-[hsl(30,15%,18%)] hover:bg-transparent hover:text-[hsl(160,25%,24%)]"
             label="Send in a message"
           />
         )}
@@ -528,18 +528,18 @@ function BenderPostCard({
           className={isAuthenticated ? 'cursor-pointer' : 'ml-auto cursor-pointer'}
           aria-label="Share"
         >
-          <Share2 size={20} className="text-[hsl(30,15%,18%)]" />
+          <Share2 size={20} className="native-bender-primary text-[hsl(30,15%,18%)]" />
         </button>
       </div>
 
       {/* Caption */}
       {post.caption && (
         <div className="px-3 pt-1 pb-1 text-[13px] leading-snug">
-          <span className="font-semibold text-[hsl(30,15%,18%)] mr-1">
+          <span className="native-bender-primary font-semibold text-[hsl(30,15%,18%)] mr-1">
             {display}
           </span>
           <span
-            className={`text-[hsl(30,10%,28%)] whitespace-pre-wrap ${
+            className={`native-bender-primary text-[hsl(30,10%,28%)] whitespace-pre-wrap ${
               !captionExpanded && captionTooLong ? 'line-clamp-2' : ''
             }`}
           >
@@ -548,7 +548,7 @@ function BenderPostCard({
           {captionTooLong && !captionExpanded && (
             <button
               onClick={() => setCaptionExpanded(true)}
-              className="text-[hsl(30,10%,55%)] text-[12px] ml-1 cursor-pointer hover:underline"
+              className="native-bender-secondary text-[hsl(30,10%,55%)] text-[12px] ml-1 cursor-pointer hover:underline"
             >
               more
             </button>
@@ -560,7 +560,7 @@ function BenderPostCard({
       {post.comment_count > 0 && !commentsOpen && (
         <button
           onClick={() => setCommentsOpen(true)}
-          className="block px-3 pb-2 pt-0.5 text-[12px] text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
+          className="native-bender-secondary block px-3 pb-2 pt-0.5 text-[12px] text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
         >
           View all {post.comment_count} comment{post.comment_count === 1 ? '' : 's'}
         </button>
@@ -700,19 +700,19 @@ function BenderComposer({
         onClick={handleDiscard}
       >
         <div
-          className="bg-white w-full md:max-w-md md:rounded-lg shadow-2xl flex flex-col max-h-[90vh] md:max-h-[80vh]"
+          className="native-bender-surface native-bender-composer bg-white w-full md:max-w-md md:rounded-lg shadow-2xl flex flex-col max-h-[90vh] md:max-h-[80vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(35,18%,88%)]">
+          <div className="native-bender-border flex items-center justify-between px-4 py-3 border-b border-[hsl(35,18%,88%)]">
             <button
               onClick={handleDiscard}
-              className="text-[hsl(30,10%,40%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
+              className="native-bender-secondary text-[hsl(30,10%,40%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
               aria-label="Cancel"
             >
               <X size={20} />
             </button>
-            <h2 className="font-serif text-[16px] font-semibold text-[hsl(30,15%,18%)]">
+            <h2 className="native-bender-primary font-serif text-[16px] font-semibold text-[hsl(30,15%,18%)]">
               New post
             </h2>
             <Button
@@ -734,7 +734,7 @@ function BenderComposer({
               value={caption}
               onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION))}
               placeholder="Write a caption…"
-              className="resize-none border-0 shadow-none focus-visible:ring-0 text-[14px] px-0 min-h-[80px]"
+              className="native-bender-input resize-none border-0 shadow-none focus-visible:ring-0 text-[14px] px-0 min-h-[80px]"
               maxLength={MAX_CAPTION}
             />
 
@@ -783,7 +783,7 @@ function BenderComposer({
                 <button
                   type="button"
                   onClick={() => setCameraOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
+                  className="native-bender-primary native-bender-border flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
                 >
                   <Camera size={14} />
                   Camera
@@ -791,7 +791,7 @@ function BenderComposer({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
+                  className="native-bender-primary native-bender-border flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
                 >
                   <ImageIcon size={14} />
                   Pick from library
@@ -810,7 +810,7 @@ function BenderComposer({
               <p className="text-[12px] text-[hsl(0,55%,45%)]">{error}</p>
             )}
 
-            <p className="text-[11px] text-[hsl(30,10%,55%)] text-right">
+            <p className="native-bender-secondary text-[11px] text-[hsl(30,10%,55%)] text-right">
               {caption.length}/{MAX_CAPTION}
             </p>
           </div>
@@ -830,7 +830,11 @@ function BenderComposer({
 // ============================================================================
 // BenderPage — main feed.
 // ============================================================================
-export default function BenderPage() {
+interface BenderPageProps {
+  nativeEmbedded?: boolean;
+}
+
+export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) {
   const feed = useBenderFeed();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -917,26 +921,42 @@ export default function BenderPage() {
   }, [patchPost]);
 
   return (
-    <PageLayout showFooter={false}>
+    <PageLayout
+      showFooter={false}
+      embeddedNative={nativeEmbedded}
+      embeddedClassName={nativeEmbedded ? 'native-bender-page' : undefined}
+    >
       <CachedContentNotice cachedAt={feed.cachedAt} />
       <div ref={feedTopRef} />
       <div className="w-full max-w-md mx-auto md:py-4">
         {/* Sticky page header */}
-        <div className="sticky top-14 z-30 bg-[hsl(40,20%,98%)] border-b border-[hsl(35,18%,88%)] md:rounded-t-lg md:border md:border-b-[hsl(35,18%,88%)]">
+        <div className={`sticky z-30 bg-[hsl(40,20%,98%)] border-b border-[hsl(35,18%,88%)] md:rounded-t-lg md:border md:border-b-[hsl(35,18%,88%)] ${nativeEmbedded ? 'native-bender-header top-0' : 'top-14'}`}>
           <div className="flex items-center justify-between px-4 py-3">
             <h1 aria-label="Bender" style={{ color: BRONZE }}>
               <BenderLogo className="h-7 w-auto" />
             </h1>
-            {isAuthenticated && (
-              <button
-                onClick={handleComposerClick}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: BRONZE }}
-                aria-label="New post"
-              >
-                <Plus size={18} strokeWidth={2.5} />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {isAuthenticated && (
+                <button
+                  onClick={handleComposerClick}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                  style={{ backgroundColor: BRONZE }}
+                  aria-label="New post"
+                >
+                  <Plus size={18} strokeWidth={2.5} />
+                </button>
+              )}
+              {nativeEmbedded && isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/messages')}
+                  className="native-control native-bender-messages flex items-center justify-center rounded-full"
+                  aria-label="Messages"
+                >
+                  <Send size={21} aria-hidden="true" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -947,7 +967,7 @@ export default function BenderPage() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden"
+                  className="native-bender-surface native-bender-border native-bender-loading-card bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden"
                 >
                   <div className="flex items-center gap-2 px-3 py-2">
                     <Skeleton className="h-7 w-7 rounded-full" />
@@ -995,7 +1015,7 @@ export default function BenderPage() {
               {hasMore && (
                 <div ref={sentinelRef} className="py-6 text-center">
                   {loadingMore && (
-                    <span className="text-[11px] text-[hsl(30,10%,55%)]">
+                    <span className="native-bender-secondary text-[11px] text-[hsl(30,10%,55%)]">
                       Loading…
                     </span>
                   )}
@@ -1015,7 +1035,7 @@ export default function BenderPage() {
                 </div>
               )}
               {!hasMore && posts.length > 3 && (
-                <p className="text-center text-[11px] text-[hsl(30,10%,55%)] py-6">
+                <p className="native-bender-secondary text-center text-[11px] text-[hsl(30,10%,55%)] py-6">
                   You're all caught up.
                 </p>
               )}

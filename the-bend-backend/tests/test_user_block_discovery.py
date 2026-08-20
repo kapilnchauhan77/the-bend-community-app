@@ -1,5 +1,7 @@
 """Real PostgreSQL discovery matrix for Task 5 viewer-specific blocking."""
 from datetime import datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -160,6 +162,269 @@ async def reference_limit_rows():
                 statement = statement.where(model.tenant_id == ids["tenant"]) if not values else statement.where(model.id.in_(values))
                 assert (await db.execute(statement)).scalars().all() == []
         await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def bender_search_rows(discovery_rows):
+    ids = discovery_rows
+    search_ids = {
+        key: uuid4()
+        for key in (
+            "case_match",
+            "eligible_nonmatch",
+            "eligible_match_new",
+            "eligible_match_old",
+            "blocked_match",
+            "cross_tenant_match",
+            "cross_tenant_author_match",
+            "cross_tenant_shop_match",
+        )
+    }
+    marker = f"BenderSearch{uuid4().hex}"
+    author_marker = f"CommunityAuthor{uuid4().hex}"
+    shop_marker = f"CommunityShop{uuid4().hex}"
+    ordered = datetime.utcnow() + timedelta(hours=1)
+    async with async_session() as db:
+        author = await db.get(User, ids["other"])
+        shop = await db.get(Shop, ids["other_shop"])
+        author.name = author_marker
+        shop.name = shop_marker
+        db.add_all([
+            BenderPost(
+                id=search_ids["eligible_nonmatch"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                caption="Newest unrelated community update",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered,
+            ),
+            BenderPost(
+                id=search_ids["blocked_match"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["blocked"],
+                caption=f"{marker} blocked update",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=1),
+            ),
+            BenderPost(
+                id=search_ids["cross_tenant_match"],
+                tenant_id=ids["other_tenant"],
+                author_user_id=ids["cross_blocked"],
+                caption=f"{marker} other tenant update",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=2),
+            ),
+            BenderPost(
+                id=search_ids["eligible_match_new"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                caption=f"Fresh {marker.upper()} bulletin",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=3),
+            ),
+            BenderPost(
+                id=search_ids["eligible_match_old"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                caption=f"Older prefix {marker.lower()} suffix",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=4),
+            ),
+            BenderPost(
+                id=search_ids["case_match"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                author_shop_id=ids["other_shop"],
+                caption="Before MiXeD CaSe Fragment After",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=5),
+            ),
+            BenderPost(
+                id=search_ids["cross_tenant_author_match"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["cross_other"],
+                caption=f"{marker} malformed cross-tenant author",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=6),
+            ),
+            BenderPost(
+                id=search_ids["cross_tenant_shop_match"],
+                tenant_id=ids["tenant"],
+                author_user_id=ids["other"],
+                author_shop_id=ids["cross_shop"],
+                caption=f"{marker} malformed cross-tenant shop",
+                like_count=0,
+                comment_count=0,
+                created_at=ordered - timedelta(minutes=7),
+            ),
+        ])
+        await db.commit()
+    try:
+        yield ids, search_ids, marker, author_marker, shop_marker
+    finally:
+        async with async_session() as db:
+            await db.execute(delete(BenderPost).where(BenderPost.id.in_(search_ids.values())))
+            await db.commit()
+
+
+async def get_public_bender_feed(db, tenant, viewer, **params):
+    from app.api.deps import get_db
+    from app.api.v1.bender import router as bender_router
+    from app.core.permissions import get_current_tenant, get_current_user_optional
+
+    app = FastAPI()
+    app.include_router(bender_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_tenant] = lambda: tenant
+    app.dependency_overrides[get_current_user_optional] = lambda: viewer
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        return await client.get("/api/v1/bender/posts", params=params)
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_rejects_an_unresolved_tenant():
+    from app.api.v1.bender import get_service, router as bender_router
+    from app.core.permissions import get_current_tenant, get_current_user_optional
+
+    service = SimpleNamespace(feed=AsyncMock(return_value=([], None, False)))
+    app = FastAPI()
+    app.include_router(bender_router, prefix="/api/v1")
+    app.dependency_overrides[get_service] = lambda: service
+    app.dependency_overrides[get_current_tenant] = lambda: None
+    app.dependency_overrides[get_current_user_optional] = lambda: None
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/bender/posts")
+
+    assert response.status_code == 404
+    service.feed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_treats_a_cross_tenant_viewer_as_anonymous():
+    from app.api.v1.bender import get_service, router as bender_router
+    from app.core.permissions import get_current_tenant, get_current_user_optional
+
+    tenant = SimpleNamespace(id=uuid4())
+    viewer = SimpleNamespace(id=uuid4(), tenant_id=uuid4())
+    service = SimpleNamespace(feed=AsyncMock(return_value=([], None, False)))
+    app = FastAPI()
+    app.include_router(bender_router, prefix="/api/v1")
+    app.dependency_overrides[get_service] = lambda: service
+    app.dependency_overrides[get_current_tenant] = lambda: tenant
+    app.dependency_overrides[get_current_user_optional] = lambda: viewer
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/bender/posts")
+
+    assert response.status_code == 200
+    service.feed.assert_awaited_once_with(
+        tenant_id=tenant.id,
+        cursor=None,
+        limit=15,
+        current_user=None,
+        search=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_search_is_case_insensitive_and_matches_caption_substrings(bender_search_rows):
+    ids, search_ids, _, _, _ = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        response = await get_public_bender_feed(db, tenant, None, search="xEd CaSe Fr", limit=20)
+
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["items"]] == [str(search_ids["case_match"])]
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_search_matches_author_display_name(bender_search_rows):
+    ids, search_ids, _, author_marker, _ = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        response = await get_public_bender_feed(db, tenant, None, search=author_marker[4:-4].swapcase(), limit=20)
+
+    assert response.status_code == 200
+    assert {row["id"] for row in response.json()["items"]} == {
+        str(ids["late_bender"]),
+        str(search_ids["eligible_nonmatch"]),
+        str(search_ids["eligible_match_new"]),
+        str(search_ids["eligible_match_old"]),
+        str(search_ids["case_match"]),
+    }
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_search_matches_affiliated_shop_display_name(bender_search_rows):
+    ids, search_ids, _, _, shop_marker = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        response = await get_public_bender_feed(db, tenant, None, search=shop_marker[3:-3].swapcase(), limit=20)
+
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["items"]] == [str(search_ids["case_match"])]
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_search_composes_with_tenant_blocks_and_cursor_ordering(bender_search_rows):
+    ids, search_ids, marker, _, _ = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        blocker = await db.get(User, ids["blocker"])
+        first = await get_public_bender_feed(db, tenant, blocker, search=marker.swapcase(), limit=1)
+        first_body = first.json()
+        second = await get_public_bender_feed(
+            db,
+            tenant,
+            blocker,
+            search=marker.swapcase(),
+            cursor=first_body["next_cursor"],
+            limit=1,
+        )
+
+    assert first.status_code == second.status_code == 200
+    assert [row["id"] for row in first_body["items"]] == [str(search_ids["eligible_match_new"])]
+    assert first_body["has_more"] is True
+    assert first_body["next_cursor"] is not None
+    assert [row["id"] for row in second.json()["items"]] == [str(search_ids["eligible_match_old"])]
+    assert second.json()["has_more"] is False
+    assert second.json()["next_cursor"] is None
+
+
+@pytest.mark.asyncio
+async def test_bender_feed_excludes_posts_with_cross_tenant_author_or_shop_links(bender_search_rows):
+    ids, search_ids, marker, _, _ = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        response = await get_public_bender_feed(db, tenant, None, search=marker, limit=20)
+
+    assert response.status_code == 200
+    returned = {row["id"] for row in response.json()["items"]}
+    assert str(search_ids["cross_tenant_author_match"]) not in returned
+    assert str(search_ids["cross_tenant_shop_match"]) not in returned
+
+
+@pytest.mark.asyncio
+async def test_blank_bender_feed_search_matches_the_current_unfiltered_feed(bender_search_rows):
+    ids, _, _, _, _ = bender_search_rows
+    async with async_session() as db:
+        tenant = await db.get(Tenant, ids["tenant"])
+        blocker = await db.get(User, ids["blocker"])
+        current_items, current_cursor, current_has_more = await BenderService(db).feed(ids["tenant"], None, 3, blocker)
+        blank = await get_public_bender_feed(db, tenant, blocker, search=" \t ", limit=3)
+
+    assert blank.status_code == 200
+    assert [row["id"] for row in blank.json()["items"]] == [row.id for row in current_items]
+    assert blank.json()["next_cursor"] == current_cursor
+    assert blank.json()["has_more"] is current_has_more
 
 
 @pytest.mark.asyncio

@@ -2,11 +2,15 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 
-export default function GuidelinesViewPage() {
+interface GuidelinesViewPageProps {
+  embeddedNative?: boolean;
+}
+
+export default function GuidelinesViewPage({ embeddedNative = false }: GuidelinesViewPageProps) {
   const navigate = useNavigate();
 
   return (
-    <PageLayout>
+    <PageLayout embeddedNative={embeddedNative} embeddedClassName={embeddedNative ? 'native-guidelines-page' : undefined}>
       {/* Page Header */}
       <section className="bg-[hsl(160,25%,24%)] py-8">
         <div className="max-w-7xl mx-auto px-4 md:px-8">

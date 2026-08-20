@@ -1,4 +1,6 @@
-import type { CommunityEvent, Listing, Shop } from '@/types'
+import type { BenderPost, CommunityEvent, Listing, Shop } from '@/types'
+import { isVideoUrl } from '@/lib/utils'
+import { getSafeBenderPreview } from './benderPresentation'
 import type { NativeDiscoveryCardModel } from './types'
 
 function publicCoordinates(shop: Shop) {
@@ -37,4 +39,13 @@ export function adaptEvent(event: CommunityEvent, locale = 'en-US', now = new Da
   const date = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(event.start_date))
   const isPast = new Date(event.start_date).getTime() < now.getTime()
   return { id: event.id, kind: 'event', label: humanizeLabel(event.category), title: event.title, supportingText: `${date} · ${event.location ?? (isPast ? 'Past event' : 'Community event')}`, thumbnailUrl: event.image_url ?? null, targetPath: `/events/${event.id}`, coordinates: null, urgent: false }
+}
+
+export function adaptBender(post: BenderPost): NativeDiscoveryCardModel {
+  const author = post.author.shop_name?.trim() || post.author.name.trim() || 'Community member'
+  const caption = post.caption?.trim()
+  const { previewUrl } = getSafeBenderPreview(post)
+  const avatarUrl = post.author.avatar_url && !isVideoUrl(post.author.avatar_url) ? post.author.avatar_url : null
+  const thumbnailUrl = previewUrl || avatarUrl
+  return { id: post.id, kind: 'bender', label: 'Bender', title: caption || `Post from ${author}`, supportingText: author, thumbnailUrl, targetPath: `/bender?post=${encodeURIComponent(post.id)}`, coordinates: null, urgent: false }
 }

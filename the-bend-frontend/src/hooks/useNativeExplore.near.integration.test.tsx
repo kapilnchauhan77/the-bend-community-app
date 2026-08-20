@@ -4,6 +4,7 @@ import { useNativeExplore } from './useNativeExplore'
 import { shopApi } from '@/services/shopApi'
 import { listingApi } from '@/services/listingApi'
 import { eventApi } from '@/services/eventApi'
+import { benderApi } from '@/services/benderApi'
 
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>((res) => { resolve = res }); return { promise, resolve } }
 const shop = (id: string, coordinates: { latitude: number; longitude: number } | null = null) => ({ id, business_type: 'Farm', name: `Farm ${id}`, address: 'Main', status: 'active', latitude: coordinates?.latitude ?? null, longitude: coordinates?.longitude ?? null })
@@ -13,6 +14,7 @@ const platform = { network: { getStatus: vi.fn(), addListener: vi.fn() }, locati
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOpportunities: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn() } }))
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 
 beforeEach(() => {
@@ -25,6 +27,7 @@ beforeEach(() => {
   vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never)
   vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never)
   vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never)
+  vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never)
   vi.mocked(shopApi.getShop).mockResolvedValue({ data: shop('detail') } as never)
 })
 afterEach(() => cleanup())

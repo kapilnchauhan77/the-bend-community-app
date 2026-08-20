@@ -4,6 +4,7 @@ import { serializeNativeExploreQuery } from '@/native/discovery/queries'
 import { shopApi } from '@/services/shopApi'
 import { listingApi } from '@/services/listingApi'
 import { eventApi } from '@/services/eventApi'
+import { benderApi } from '@/services/benderApi'
 import { useNativeExplore } from './useNativeExplore'
 
 const deviceSentinel = { latitude: 11.111111, longitude: -22.222222 }
@@ -21,6 +22,7 @@ const storage = { setItem: vi.fn(), getItem: vi.fn(), removeItem: vi.fn() }
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOpportunities: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn() } }))
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 
 beforeEach(() => {
@@ -34,6 +36,7 @@ beforeEach(() => {
   vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never)
   vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never)
   vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never)
+  vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never)
   vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [shop] } } as never)
   vi.mocked(shopApi.getShop).mockResolvedValue({ data: { ...shop, ...hydratedSentinel } } as never)
 })

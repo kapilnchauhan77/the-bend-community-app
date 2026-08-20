@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.core.exceptions import NotFoundError
 from app.core.permissions import (
     get_current_tenant,
     get_current_user,
@@ -37,17 +38,22 @@ def get_service(db: AsyncSession = Depends(get_db)) -> BenderService:
 async def list_posts(
     cursor: str | None = Query(None),
     limit: int = Query(15, ge=1, le=30),
+    search: str | None = Query(None),
     service: BenderService = Depends(get_service),
     tenant: Tenant | None = Depends(get_current_tenant),
     viewer: User | None = Depends(get_current_user_optional),
 ):
     """Public-ish feed. Works without auth; `viewer_has_liked` is always
     false for anonymous viewers."""
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    tenant_viewer = viewer if viewer is not None and viewer.tenant_id == tenant.id else None
     items, next_cursor, has_more = await service.feed(
-        tenant_id=tenant.id if tenant else None,
+        tenant_id=tenant.id,
         cursor=cursor,
         limit=limit,
-        current_user=viewer,
+        current_user=tenant_viewer,
+        search=search,
     )
     return BenderFeedResponse(
         items=items, next_cursor=next_cursor, has_more=has_more

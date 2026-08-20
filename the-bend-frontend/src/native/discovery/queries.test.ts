@@ -3,7 +3,7 @@ import { parseNativeExploreQuery, serializeNativeExploreQuery, toBusinessParams,
 
 describe('native explore query', () => {
   it('drops Near me for non-business types during parse and serialization', () => {
-    for (const type of ['all', 'listings', 'events', 'volunteer']) {
+    for (const type of ['all', 'listings', 'events', 'bender', 'volunteer']) {
       const parsed = parseNativeExploreQuery(new URLSearchParams(`type=${type}&near=true`))
       expect(parsed.near).toBe(false)
       expect(serializeNativeExploreQuery({ ...parsed, near: true }).toString()).not.toContain('near=true')
@@ -48,5 +48,12 @@ describe('native explore query', () => {
     expect(event).toMatchObject({ category: 'food', sort: null })
     const volunteer = parseNativeExploreQuery(new URLSearchParams('type=volunteer&category=staff&sort=created_desc'))
     expect(volunteer).toMatchObject({ category: null, sort: 'created_desc' })
+  })
+
+  it('keeps Bender search canonical while clearing unsupported filters, map, and Near me', () => {
+    const parsed = parseNativeExploreQuery(new URLSearchParams('q=river&type=bender&category=staff&urgency=urgent&sort=created_desc&mode=map&near=true'))
+    expect(parsed).toEqual({ q: 'river', type: 'bender', category: null, urgency: null, sort: null, mode: 'list', near: false })
+    expect(serializeNativeExploreQuery(parsed).toString()).toBe('q=river&type=bender')
+    expect(serializeNativeExploreQuery({ ...parsed, category: 'staff', urgency: 'urgent', sort: 'created_desc', mode: 'map', near: true }).toString()).toBe('q=river&type=bender')
   })
 })

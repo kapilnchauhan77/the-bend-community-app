@@ -12,6 +12,7 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.bender import BenderComment, BenderLike, BenderPost
 from app.models.enums import UserRole
+from app.models.shop import Shop
 from app.models.user import User
 from app.schemas.bender import (
     BenderAuthor,
@@ -112,6 +113,7 @@ class BenderService:
         cursor: str | None,
         limit: int,
         current_user: User | None,
+        search: str | None = None,
     ) -> tuple[list[BenderPostResponse], str | None, bool]:
         """Cursor-paginated reverse-chronological feed.
 
@@ -128,9 +130,63 @@ class BenderService:
 
         if tenant_id is not None:
             query = query.where(BenderPost.tenant_id == tenant_id)
+            author_in_tenant = (
+                select(1)
+                .where(
+                    User.id == BenderPost.author_user_id,
+                    User.tenant_id == tenant_id,
+                )
+                .exists()
+            )
+            shop_in_tenant = (
+                select(1)
+                .where(
+                    Shop.id == BenderPost.author_shop_id,
+                    Shop.tenant_id == tenant_id,
+                )
+                .exists()
+            )
+            query = query.where(
+                author_in_tenant,
+                or_(BenderPost.author_shop_id.is_(None), shop_in_tenant),
+            )
         if current_user is not None and tenant_id is not None:
             from app.models.user_block import UserBlock
             query = query.where(~BenderPost.author_user_id.in_(select(UserBlock.blocked_id).where(UserBlock.tenant_id == tenant_id, UserBlock.blocker_id == current_user.id)))
+
+        search_term = search.strip() if search else ""
+        if search_term:
+            escaped_search = (
+                search_term.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            )
+            like = f"%{escaped_search}%"
+            author_matches = (
+                select(1)
+                .where(
+                    User.id == BenderPost.author_user_id,
+                    *([User.tenant_id == tenant_id] if tenant_id is not None else []),
+                    User.name.ilike(like, escape="\\"),
+                )
+                .exists()
+            )
+            shop_matches = (
+                select(1)
+                .where(
+                    Shop.id == BenderPost.author_shop_id,
+                    *([Shop.tenant_id == tenant_id] if tenant_id is not None else []),
+                    Shop.name.ilike(like, escape="\\"),
+                )
+                .exists()
+            )
+            query = query.where(
+                or_(
+                    BenderPost.caption.ilike(like, escape="\\"),
+                    author_matches,
+                    shop_matches,
+                )
+            )
 
         if cursor:
             cursor_data = decode_cursor(cursor)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { CommunityEvent, Listing, Shop } from '@/types'
-import { adaptBusiness, adaptEvent, adaptListing, adaptOpportunity, humanizeLabel } from './adapters'
+import type { BenderPost, CommunityEvent, Listing, Shop } from '@/types'
+import { adaptBender, adaptBusiness, adaptEvent, adaptListing, adaptOpportunity, humanizeLabel } from './adapters'
 
 const listing: Listing = {
   id: 'listing-1', shop: { id: 'shop-1', name: 'Westmoreland Works', business_type: 'Generator Repair', avatar_url: '/owner.png' },
@@ -15,6 +15,12 @@ const shop: Shop = {
 
 const event: CommunityEvent = {
   id: 'event-1', title: 'Market day', description: 'Gathering', start_date: '2026-08-20T12:00:00Z', location: 'Main street', category: 'market', image_url: '/event.jpg', source: 'public', is_featured: false, status: 'active', created_at: '2026-08-18T00:00:00Z',
+}
+
+const benderPost: BenderPost = {
+  id: 'post-1', author: { id: 'author-1', name: 'Pat Owner', shop_id: 'shop-1', shop_name: 'Westmoreland Works', avatar_url: '/author.jpg' },
+  caption: 'Fresh produce this weekend', media_url: '/uploads/bender/post.mp4', media_thumbnail_url: '/uploads/bender/post-thumb.jpg', media_type: 'video',
+  like_count: 3, comment_count: 2, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z',
 }
 
 describe('native discovery adapters', () => {
@@ -50,5 +56,19 @@ describe('native discovery adapters', () => {
 
   it('maps an event date and location and keeps coordinates private', () => {
     expect(adaptEvent(event, 'en-US', new Date('2026-08-18T00:00:00Z'))).toMatchObject({ kind: 'event', supportingText: expect.stringContaining('Main street'), thumbnailUrl: '/event.jpg', targetPath: '/events/event-1', coordinates: null })
+  })
+
+  it('maps a Bender post to a focused native card without exposing social viewer state', () => {
+    expect(adaptBender(benderPost)).toEqual({
+      id: 'post-1', kind: 'bender', label: 'Bender', title: 'Fresh produce this weekend', supportingText: 'Westmoreland Works',
+      thumbnailUrl: '/uploads/bender/post-thumb.jpg', targetPath: '/bender?post=post-1', coordinates: null, urgent: false,
+    })
+  })
+
+  it('never renders a video asset as a discovery image when its thumbnail is missing', () => {
+    expect(adaptBender({ ...benderPost, caption: null, media_thumbnail_url: null }).thumbnailUrl).toBe('/author.jpg')
+    expect(adaptBender({ ...benderPost, caption: null, media_thumbnail_url: null }).title).toBe('Post from Westmoreland Works')
+    expect(adaptBender({ ...benderPost, media_type: 'image', media_url: '/uploads/mislabeled.mp4', media_thumbnail_url: null, author: { ...benderPost.author, avatar_url: null } }).thumbnailUrl).toBeNull()
+    expect(adaptBender({ ...benderPost, media_type: 'image', media_url: '/uploads/full.jpg', media_thumbnail_url: '/uploads/not-a-thumbnail.mp4' }).thumbnailUrl).toBe('/uploads/full.jpg')
   })
 })

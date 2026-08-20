@@ -9,12 +9,13 @@ import type { NativeDiscoveryCardModel } from '@/native/discovery/types'
 const business = { id: '1', kind: 'business' as const, label: 'Farm', title: 'Farm', supportingText: '', thumbnailUrl: null, targetPath: '/business/1', coordinates: null, urgent: false }
 const listing = { ...business, id: 'listing', kind: 'listing' as const, label: 'staff', title: 'Listing', targetPath: '/listing/1' }
 const event = { ...business, id: 'event', kind: 'event' as const, label: 'community', title: 'Event', targetPath: '/event/1' }
+const bender = { ...business, id: 'bender', kind: 'bender' as never, label: 'Bender', title: 'Community update', supportingText: 'Pat Owner', targetPath: '/bender?post=bender' }
 const volunteer = { ...business, id: 'volunteer', kind: 'volunteer' as const, label: 'Volunteer', title: 'Volunteer', targetPath: '/volunteer/1' }
 const fixture: { groups: NativeExploreGroup[]; typed: NativeTypedResults | null; refreshAll: ReturnType<typeof vi.fn>; mapBusinesses?: unknown[]; userCoordinates?: unknown; online?: boolean; location?: { status: string }; requestLocation?: ReturnType<typeof vi.fn> } = { groups: [], typed: null, refreshAll: vi.fn(), mapBusinesses: [], userCoordinates: null, online: true, location: { status: 'idle' }, requestLocation: vi.fn() }
 vi.mock('@/hooks/useNativeExplore', () => ({ useNativeExplore: vi.fn(() => fixture) }))
 
 function state(data: NativeDiscoveryCardModel[], status: 'success' | 'empty' | 'error' = 'success', cachedAt: string | null = null) { return { status, data, source: cachedAt ? 'cache' as const : 'network' as const, cachedAt, error: status === 'error' ? new Error('failed') : null, retry: vi.fn() } }
-function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null; fixture.mapBusinesses = [] }
+function configureAll() { fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'bender' as never, heading: 'Bender', state: state([bender]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]; fixture.typed = null; fixture.mapBusinesses = [] }
 function configureTyped(data: NativeDiscoveryCardModel[] = [business]) { fixture.groups = []; fixture.typed = { state: state(data), hasMore: false, loadingMore: false, loadMoreError: null, refineMessage: null, loadMore: vi.fn() } }
 function Probe() { const location = useLocation(); const navigate = useNavigate(); return <><output data-testid="location">{location.pathname}{location.search}</output><button type="button" onClick={() => navigate(-1)}>Back</button><button type="button" onClick={() => navigate(-1)}>Go back</button><button type="button" onClick={() => navigate('/explore?q=external&type=listings&category=materials&urgency=urgent&sort=created_desc&mode=map&near=true')}>External</button><button type="button" onClick={() => navigate('/explore')}>Defaults</button></> }
 function UnmountHarness() { const [visible, setVisible] = useState(true); return <MemoryRouter initialEntries={['/explore?q=old']}><button type="button" onClick={() => setVisible(false)}>Unmount Explore</button>{visible && <NativeExplorePage />}<Probe /></MemoryRouter> }
@@ -28,6 +29,7 @@ describe('NativeExplorePage', () => {
       { kind: 'listing', heading: 'Listings', state: state([listing], 'success', '2026-01-01T00:00:00.000Z') },
       { kind: 'business', heading: 'Businesses', state: state([business], 'success', '2026-01-01T00:00:00.000Z') },
       { kind: 'event', heading: 'Events', state: state([event], 'success', '2026-01-01T00:00:00.000Z') },
+      { kind: 'bender' as never, heading: 'Bender', state: state([bender]) },
       { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer], 'success', '2026-01-01T00:00:00.000Z') },
     ]
     render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /></MemoryRouter>)
@@ -39,7 +41,7 @@ describe('NativeExplorePage', () => {
   })
   it('renders the approved type chips without Talent', () => {
     render(<MemoryRouter><NativeExplorePage /></MemoryRouter>)
-    for (const label of ['All', 'Listings', 'Businesses', 'Events', 'Volunteer']) expect(screen.getByRole('tab', { name: label })).toBeInTheDocument()
+    for (const label of ['All', 'Listings', 'Businesses', 'Events', 'Bender', 'Volunteer']) expect(screen.getByRole('tab', { name: label })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Talent' })).not.toBeInTheDocument()
   })
 
@@ -62,11 +64,31 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
   })
 
-  it.each(['listings', 'events', 'volunteer'] as const)('never exposes Map or Near controls for %s', (type) => {
-    configureTyped([type === 'listings' ? listing : type === 'events' ? event : volunteer])
+  it.each(['listings', 'events', 'bender', 'volunteer'] as const)('never exposes Map or Near controls for %s', (type) => {
+    configureTyped([type === 'listings' ? listing : type === 'events' ? event : type === 'bender' ? bender : volunteer])
     render(<MemoryRouter initialEntries={[`/explore?type=${type}`]}><NativeExplorePage /></MemoryRouter>)
     expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
+  })
+
+  it('selects Bender as a first-class typed view while clearing unsupported controls', () => {
+    configureTyped([bender])
+    render(<MemoryRouter initialEntries={['/explore?type=listings&category=staff&urgency=urgent&sort=created_desc&mode=map&near=true']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('tab', { name: 'Bender' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/explore?type=bender')
+    expect(screen.getByRole('tab', { name: 'Bender' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'Bender' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Near me/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Remove .* filter/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Filters' })).not.toBeInTheDocument()
+  })
+
+  it('opens a typed Bender card on its focused post route', () => {
+    configureTyped([bender])
+    render(<MemoryRouter initialEntries={['/explore?type=bender']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Bender post by Pat Owner: Community update' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/bender?post=bender')
   })
 
   it('exposes Map for All and Businesses only when the supplied eligible business set exists', () => {
@@ -176,6 +198,7 @@ describe('NativeExplorePage', () => {
       { kind: 'listing', heading: 'Listings', state: state([listing]) },
       { kind: 'business', heading: 'Businesses', state: state([business, { ...business, id: '2', label: 'Farm' }, { ...business, id: '3', label: 'Cafe' }]) },
       { kind: 'event', heading: 'Events', state: state([event]) },
+      { kind: 'bender' as never, heading: 'Bender', state: state([bender]) },
       { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) },
     ]
     fixture.typed = null
@@ -195,6 +218,7 @@ describe('NativeExplorePage', () => {
     ['listing', 'listings', 'Listings'],
     ['business', 'businesses', 'Businesses'],
     ['event', 'events', 'Events'],
+    ['bender', 'bender', 'Bender'],
     ['volunteer', 'volunteer', 'Volunteer'],
   ])('P7 See all from the %s group preserves q and pushes %s', (_kind, type, heading) => {
     configureAll()
@@ -208,10 +232,10 @@ describe('NativeExplorePage', () => {
   })
   it('P8 keeps grouped partial failures local with retryable section state', () => {
     const retry = vi.fn()
-    fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([], 'empty') }, { kind: 'event', heading: 'Events', state: { ...state([], 'error'), retry } }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]
+    fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([], 'empty') }, { kind: 'event', heading: 'Events', state: { ...state([], 'error'), retry } }, { kind: 'bender' as never, heading: 'Bender', state: state([bender]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]
     fixture.typed = null
     render(<MemoryRouter initialEntries={['/explore']}><NativeExplorePage /></MemoryRouter>)
-    expect(screen.getByRole('heading', { name: 'Listings' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Events' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Volunteer' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Listings' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Events' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Bender' })).toBeInTheDocument(); expect(screen.getByRole('heading', { name: 'Volunteer' })).toBeInTheDocument()
     const failed = screen.getByRole('heading', { name: 'Events' }).closest('section')!
     const volunteerSection = screen.getByRole('heading', { name: 'Volunteer' }).closest('section')!
     const listingsSection = screen.getByRole('heading', { name: 'Listings' }).closest('section')!
@@ -219,7 +243,7 @@ describe('NativeExplorePage', () => {
   })
   it('P9 renders one authoritative typed list without grouped duplicates', () => {
     configureTyped([{ ...business, id: 'typed-1', title: 'Typed one' }, { ...business, id: 'typed-2', title: 'Typed two' }])
-    fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]
+    fixture.groups = [{ kind: 'listing', heading: 'Listings', state: state([listing]) }, { kind: 'business', heading: 'Businesses', state: state([business]) }, { kind: 'event', heading: 'Events', state: state([event]) }, { kind: 'bender' as never, heading: 'Bender', state: state([bender]) }, { kind: 'volunteer', heading: 'Volunteer', state: state([volunteer]) }]
     render(<MemoryRouter initialEntries={['/explore?type=businesses']}><NativeExplorePage /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Businesses' })).toBeInTheDocument(); expect(screen.getAllByText('Typed one')).toHaveLength(1); expect(screen.getAllByText('Typed two')).toHaveLength(1); expect(screen.queryByRole('heading', { name: 'Listings' })).not.toBeInTheDocument(); expect(screen.queryByRole('heading', { name: 'Events' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'See all' })).not.toBeInTheDocument(); expect(screen.queryByText('Listing')).not.toBeInTheDocument()
   })

@@ -9,6 +9,7 @@ export function useBenderFeed() {
   const cached = useCachedPublicContent<CachedFeed>(
     'bender:feed',
     useCallback(async () => (await benderApi.listPosts()).data, []),
+    { cachePolicy: 'none' },
   )
   const [posts, setPosts] = useState<BenderPost[]>([])
   const [cursor, setCursor] = useState<string | null>(null)

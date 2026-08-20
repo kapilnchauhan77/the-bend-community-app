@@ -59,6 +59,7 @@ export function NativeAppShell() {
       document.documentElement.style.backgroundColor = surface;
       document.body.style.backgroundColor = surface;
       void StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => undefined);
+      void StatusBar.setBackgroundColor({ color: surface }).catch(() => undefined);
     };
     const stored = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('theme') : null;
     let media: MediaQueryList | undefined;
@@ -76,5 +77,5 @@ export function NativeAppShell() {
       document.body.style.backgroundColor = previousBodyBackground;
     };
   }, []);
-  return <ShellContext.Provider value={shell}><div ref={rootRef} className="native-app"><main id="native-main" className="native-main"><Outlet /></main><NativeBottomNav /></div></ShellContext.Provider>;
+  return <ShellContext.Provider value={shell}><div ref={rootRef} className="native-app"><div className="native-status-bar-scrim" aria-hidden="true" /><main id="native-main" className="native-main"><Outlet /></main><NativeBottomNav /></div></ShellContext.Provider>;
 }

@@ -1,9 +1,11 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useNativeHome } from './useNativeHome'
 import { listingApi } from '@/services/listingApi'
 import { eventApi } from '@/services/eventApi'
 import { sponsorApi } from '@/services/sponsorApi'
+import { benderApi } from '@/services/benderApi'
+import type { BenderPost } from '@/types'
 
 vi.mock('@/services/listingApi', () => ({ listingApi: {
   browse: vi.fn().mockResolvedValue({ data: { items: [] } }),
@@ -12,17 +14,20 @@ vi.mock('@/services/listingApi', () => ({ listingApi: {
 } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { getUpcoming: vi.fn().mockResolvedValue({ data: { items: [] } }) } }))
 vi.mock('@/services/sponsorApi', () => ({ sponsorApi: { list: vi.fn().mockResolvedValue({ data: { items: [] } }) } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn().mockResolvedValue({ data: { items: [], next_cursor: null, has_more: false } }) } }))
 const platform = { network: { getStatus: vi.fn().mockResolvedValue('online'), addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) }, cache: { put: vi.fn().mockResolvedValue(undefined), get: vi.fn().mockResolvedValue(null) } }
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 
 describe('useNativeHome', () => {
   const event = { id: 'e1', title: 'Town hall', start_date: '2026-12-01T12:00:00Z', category: 'community', location: 'Main St', source: 'test', is_featured: false, status: 'published', created_at: '2026-01-01' } as never
+  const benderPost: BenderPost = { id: 'b1', author: { id: 'author-1', name: 'Alex Neighbor', avatar_url: null, shop_id: null, shop_name: null }, caption: 'Fresh produce at the market', media_url: null, media_thumbnail_url: null, media_type: null, like_count: 2, comment_count: 1, viewer_has_liked: false, created_at: '2026-12-01T10:00:00Z' }
   const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (reason: unknown) => void; const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej }); return { promise, resolve, reject } }
   beforeEach(() => { vi.clearAllMocks(); platform.network.getStatus.mockResolvedValue('online'); platform.cache.get.mockResolvedValue(null) })
 
-  it('starts all five home section requests independently', async () => {
+  it('starts all six home section requests independently', async () => {
     const { result } = renderHook(() => useNativeHome())
     await waitFor(() => expect(result.current.urgent.status).toBeDefined())
+    expect(result.current).toHaveProperty('bender')
     expect(result.current).toHaveProperty('highlights')
     expect(result.current).toHaveProperty('partners')
   })
@@ -32,17 +37,18 @@ describe('useNativeHome', () => {
     await waitFor(() => expect(typeof result.current.urgent.retry).toBe('function'))
     expect(typeof result.current.upcoming.retry).toBe('function')
     expect(typeof result.current.opportunities.retry).toBe('function')
+    expect(typeof result.current.bender.retry).toBe('function')
     expect(typeof result.current.highlights.retry).toBe('function')
     expect(typeof result.current.partners.retry).toBe('function')
   })
 
-  it('uses the exact bounded public calls and starts all five before resolution', async () => {
-    const urgent = deferred<{ items: never[] }>(); const events = deferred<{ items: never[] }>(); const opportunities = deferred<{ items: never[] }>(); const stories = deferred<{ items: never[] }>(); const partners = deferred<{ items: never[] }>()
-    vi.mocked(listingApi.browse).mockReturnValueOnce(urgent.promise as never); vi.mocked(eventApi.getUpcoming).mockReturnValueOnce(events.promise as never); vi.mocked(listingApi.getOpportunities).mockReturnValueOnce(opportunities.promise as never); vi.mocked(listingApi.getStories).mockReturnValueOnce(stories.promise as never); vi.mocked(sponsorApi.list).mockReturnValueOnce(partners.promise as never)
+  it('uses the exact bounded public calls and starts all six before resolution', async () => {
+    const urgent = deferred<{ items: never[] }>(); const events = deferred<{ items: never[] }>(); const opportunities = deferred<{ items: never[] }>(); const bender = deferred<{ items: never[] }>(); const stories = deferred<{ items: never[] }>(); const partners = deferred<{ items: never[] }>()
+    vi.mocked(listingApi.browse).mockReturnValueOnce(urgent.promise as never); vi.mocked(eventApi.getUpcoming).mockReturnValueOnce(events.promise as never); vi.mocked(listingApi.getOpportunities).mockReturnValueOnce(opportunities.promise as never); vi.mocked(benderApi.listPosts).mockReturnValueOnce(bender.promise as never); vi.mocked(listingApi.getStories).mockReturnValueOnce(stories.promise as never); vi.mocked(sponsorApi.list).mockReturnValueOnce(partners.promise as never)
     const { result } = renderHook(() => useNativeHome())
-    await waitFor(() => expect(vi.mocked(sponsorApi.list)).toHaveBeenCalledTimes(1))
-    expect(listingApi.browse).toHaveBeenCalledWith({ urgency: 'urgent', limit: 3 }); expect(eventApi.getUpcoming).toHaveBeenCalledWith(3); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ limit: 5 }); expect(listingApi.getStories).toHaveBeenCalledWith({ featured: 'true', limit: '3' }); expect(sponsorApi.list).toHaveBeenCalledWith('homepage')
-    urgent.resolve({ data: { items: [] } } as never); events.resolve({ data: { items: [] } } as never); opportunities.resolve({ data: { items: [] } } as never); stories.resolve({ data: { items: [] } } as never); partners.resolve({ data: { items: [] } } as never); await waitFor(() => expect(result.current.partners.status).toBe('empty'))
+    await waitFor(() => expect(vi.mocked(benderApi.listPosts)).toHaveBeenCalledTimes(1))
+    expect(listingApi.browse).toHaveBeenCalledWith({ urgency: 'urgent', limit: 3 }); expect(eventApi.getUpcoming).toHaveBeenCalledWith(3); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ limit: 5 }); expect(benderApi.listPosts).toHaveBeenCalledWith(undefined, 2); expect(listingApi.getStories).toHaveBeenCalledWith({ featured: 'true', limit: '3' }); expect(sponsorApi.list).toHaveBeenCalledWith('homepage')
+    urgent.resolve({ data: { items: [] } } as never); events.resolve({ data: { items: [] } } as never); opportunities.resolve({ data: { items: [] } } as never); bender.resolve({ data: { items: [], next_cursor: null, has_more: false } } as never); stories.resolve({ data: { items: [] } } as never); partners.resolve({ data: { items: [] } } as never); await waitFor(() => expect(result.current.bender.status).toBe('empty'))
   })
 
   it('keeps an event section successful when urgent fails', async () => {
@@ -51,9 +57,35 @@ describe('useNativeHome', () => {
     await waitFor(() => expect(result.current.urgent.status).toBe('error')); await waitFor(() => expect(result.current.upcoming.status).toBe('success')); expect(result.current.upcoming.data[0]?.title).toBe('Town hall')
   })
 
+  it('contains a failed Bender request without affecting another Home section', async () => {
+    vi.mocked(benderApi.listPosts).mockRejectedValueOnce(new Error('bender unavailable')); vi.mocked(eventApi.getUpcoming).mockResolvedValueOnce({ data: { items: [event] } } as never)
+    const { result } = renderHook(() => useNativeHome())
+    await waitFor(() => expect(result.current.bender.status).toBe('error')); await waitFor(() => expect(result.current.upcoming.status).toBe('success')); expect(result.current.upcoming.data[0]?.title).toBe('Town hall')
+  })
+
+  it('defensively caps the Home Bender preview to two posts', async () => {
+    vi.mocked(benderApi.listPosts).mockResolvedValueOnce({ data: { items: [benderPost, { ...benderPost, id: 'b2' }, { ...benderPost, id: 'b3' }], next_cursor: null, has_more: false } } as never)
+    const { result } = renderHook(() => useNativeHome())
+    await waitFor(() => expect(result.current.bender.status).toBe('success'))
+    expect(result.current.bender.data.map((post) => post.id)).toEqual(['b1', 'b2'])
+  })
+
+  it('retries only the failed Bender section', async () => {
+    vi.mocked(benderApi.listPosts).mockRejectedValueOnce(new Error('failed')).mockResolvedValueOnce({ data: { items: [benderPost], next_cursor: null, has_more: false } } as never)
+    const { result } = renderHook(() => useNativeHome()); await waitFor(() => expect(result.current.bender.status).toBe('error'))
+    const callsBeforeRetry = { urgent: vi.mocked(listingApi.browse).mock.calls.length, upcoming: vi.mocked(eventApi.getUpcoming).mock.calls.length, opportunities: vi.mocked(listingApi.getOpportunities).mock.calls.length, highlights: vi.mocked(listingApi.getStories).mock.calls.length, partners: vi.mocked(sponsorApi.list).mock.calls.length }
+    await act(async () => { await result.current.bender.retry() }); await waitFor(() => expect(result.current.bender.status).toBe('success'))
+    expect(result.current.bender.data).toEqual([benderPost]); expect(benderApi.listPosts).toHaveBeenCalledTimes(2); expect(listingApi.browse).toHaveBeenCalledTimes(callsBeforeRetry.urgent); expect(eventApi.getUpcoming).toHaveBeenCalledTimes(callsBeforeRetry.upcoming); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(callsBeforeRetry.opportunities); expect(listingApi.getStories).toHaveBeenCalledTimes(callsBeforeRetry.highlights); expect(sponsorApi.list).toHaveBeenCalledTimes(callsBeforeRetry.partners)
+  })
+
   it('turns malformed payloads into local errors', async () => {
     vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { nope: true } } as never)
     const { result } = renderHook(() => useNativeHome()); await waitFor(() => expect(result.current.urgent.status).toBe('error')); expect(result.current.urgent.error?.message).toMatch(/malformed/i)
+  })
+
+  it('turns a malformed raw Bender response into a Bender-only error', async () => {
+    vi.mocked(benderApi.listPosts).mockResolvedValueOnce({ data: { next_cursor: null, has_more: false } } as never)
+    const { result } = renderHook(() => useNativeHome()); await waitFor(() => expect(result.current.bender.status).toBe('error')); expect(result.current.bender.error?.message).toMatch(/malformed/i); expect(result.current.urgent.status).not.toBe('error')
   })
 
   it('projects cache source and freshness for cacheable sections', async () => {
@@ -69,10 +101,10 @@ describe('useNativeHome', () => {
 
   it('uses only the three real public cache keys and never caches network-only sections', async () => {
     const response = { data: { items: [] } }
-    vi.mocked(listingApi.browse).mockResolvedValue(response as never); vi.mocked(eventApi.getUpcoming).mockResolvedValue(response as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue(response as never); vi.mocked(listingApi.getStories).mockResolvedValue(response as never); vi.mocked(sponsorApi.list).mockResolvedValue(response as never)
+    vi.mocked(listingApi.browse).mockResolvedValue(response as never); vi.mocked(eventApi.getUpcoming).mockResolvedValue(response as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue(response as never); vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], next_cursor: null, has_more: false } } as never); vi.mocked(listingApi.getStories).mockResolvedValue(response as never); vi.mocked(sponsorApi.list).mockResolvedValue(response as never)
     renderHook(() => useNativeHome()); await waitFor(() => expect(platform.cache.put).toHaveBeenCalledTimes(3))
     const keys = platform.cache.put.mock.calls.map(([entry]) => entry.key)
     expect(keys).toEqual(expect.arrayContaining(['listing:native-home-urgent', 'event:native-home-upcoming', 'listing:native-home-opportunities']))
-    expect(keys.join('|')).not.toMatch(/search|user|token|coord/i); expect(platform.cache.get).not.toHaveBeenCalledWith(expect.stringMatching(/highlights|partners/))
+    expect(keys.join('|')).not.toMatch(/bender|search|user|token|coord/i); expect(platform.cache.get).not.toHaveBeenCalledWith(expect.stringMatching(/bender|highlights|partners/))
   })
 })

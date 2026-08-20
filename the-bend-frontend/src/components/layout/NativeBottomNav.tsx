@@ -1,4 +1,4 @@
-import { Home, Compass, Plus, Inbox, User } from 'lucide-react';
+import { Home, Compass, Plus, Sparkles, User } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PostActionSheet } from './PostActionSheet';
 import { useNativeAppShell } from './NativeAppShell';
@@ -8,7 +8,7 @@ import { useRef, useState } from 'react';
 const actions = [
   { label: 'Home', path: '/', icon: Home },
   { label: 'Explore', path: '/explore', icon: Compass },
-  { label: 'Inbox', path: '/messages', icon: Inbox },
+  { label: 'Bender', path: '/bender', icon: Sparkles },
   { label: 'You', path: '/you', icon: User },
 ] as const;
 

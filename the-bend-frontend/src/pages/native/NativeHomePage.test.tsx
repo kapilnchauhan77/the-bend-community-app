@@ -1,10 +1,13 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NativeHomePage } from './NativeHomePage'
+import type { BenderPost, Sponsor } from '@/types'
 
 type SectionFixture = { status: string; data: unknown[]; source: string; cachedAt: string | null; retry: ReturnType<typeof vi.fn> }
-const homeState: Record<string, SectionFixture> = { urgent: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, upcoming: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, opportunities: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, highlights: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, partners: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() } }
+const homeState: Record<string, SectionFixture> = { urgent: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, upcoming: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, opportunities: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, bender: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, highlights: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() }, partners: { status: 'success', data: [], source: 'network', cachedAt: null, retry: vi.fn() } }
+const benderPost = (id: string, caption: string, authorName: string): BenderPost => ({ id, author: { id: `author-${id}`, name: authorName, avatar_url: null, shop_id: null, shop_name: null }, caption, media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 0, viewer_has_liked: false, created_at: '2026-08-19T10:00:00Z' })
+const sponsor = (id: string, name: string, overrides: Partial<Sponsor> = {}): Sponsor => ({ id, name, placement: 'homepage', ...overrides })
 vi.mock('@/hooks/useNativeHome', () => ({ useNativeHome: () => homeState }))
 const registerRootScroll = vi.fn()
 vi.mock('@/components/layout/NativeAppShell', () => ({ useNativeAppShell: () => ({ registerRootScroll, scrollRootToTop: vi.fn() }) }))
@@ -46,16 +49,43 @@ describe('NativeHomePage', () => {
     expect(screen.getByRole('link', { name: /partner with us/i })).toHaveAttribute('data-path', '/advertise')
   })
 
-  it('shows guest account entry and signed-in notification/account entries', () => {
+  it('owns the partner carousel and Partner with us action inside the Partners section', () => {
+    homeState.partners.data = [
+      sponsor('first', 'First Partner', { description: 'First description', website_url: 'https://first.example' }),
+      sponsor('second', 'Second Partner', { description: 'Second description' }),
+    ]
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+
+    const section = screen.getByRole('heading', { name: /partners/i }).closest('section')!
+    const carousel = within(section).getByRole('region', { name: 'Community partners carousel' })
+    const partnerAction = within(section).getByRole('link', { name: /partner with us/i })
+
+    expect(screen.getAllByRole('link', { name: /partner with us/i })).toHaveLength(1)
+    expect(partnerAction).toHaveAttribute('data-path', '/advertise')
+    expect(carousel.compareDocumentPosition(partnerAction) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(section.querySelectorAll(':scope > a.native-card')).toHaveLength(0)
+    expect(within(section).queryByRole('link', { name: /Second Partner/i })).toBeNull()
+  })
+
+  it('keeps Partner with us inside the empty Partners section', () => {
+    homeState.partners.status = 'empty'
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+
+    const section = screen.getByRole('heading', { name: /partners/i }).closest('section')!
+    expect(within(section).getByText(/no results found/i)).toBeInTheDocument()
+    expect(within(section).getByRole('link', { name: /partner with us/i })).toHaveAttribute('href', '/advertise')
+    expect(screen.getAllByRole('link', { name: /partner with us/i })).toHaveLength(1)
+  })
+
+  it('shows no Account entry and routes signed-in header actions to notifications and messages', () => {
     const { rerender } = render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: /account/i }))
-    expect(navigate).toHaveBeenCalledWith('/login')
+    expect(screen.queryByRole('button', { name: /account/i })).toBeNull()
     authState.isAuthenticated = true
     rerender(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }))
-    fireEvent.click(screen.getByRole('button', { name: /account/i }))
+    fireEvent.click(screen.getByRole('button', { name: /messages/i }))
     expect(navigate).toHaveBeenCalledWith('/notifications')
-    expect(navigate).toHaveBeenCalledWith('/you')
+    expect(navigate).toHaveBeenCalledWith('/messages')
     authState.isAuthenticated = false
   })
 
@@ -75,13 +105,38 @@ describe('NativeHomePage', () => {
 
   it('renders populated sections in exact order with lazy media and all See all destinations', () => {
     const item = { id: 'u1', kind: 'listing', label: 'Urgent', title: 'Generator', supportingText: 'Need', thumbnailUrl: '/generator.jpg', targetPath: '/listing/u1', coordinates: null, urgent: true }
-    homeState.urgent.data = [item]; homeState.upcoming.data = [{ ...item, id: 'e1', kind: 'event', title: 'Town hall', urgent: false }]; homeState.opportunities.data = [{ ...item, id: 'v1', kind: 'volunteer', title: 'Food drive', urgent: false }]
+    homeState.urgent.data = [item]; homeState.upcoming.data = [{ ...item, id: 'e1', kind: 'event', title: 'Town hall', urgent: false }]; homeState.opportunities.data = [{ ...item, id: 'v1', kind: 'volunteer', title: 'Food drive', urgent: false }]; homeState.bender.data = [benderPost('b1', 'Fresh vegetables', 'Alex Neighbor')]
     const { container } = render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
     const headings = [...container.querySelectorAll('h2')].map((node) => node.textContent?.replace(/\s*\(\d+\)/, ''))
-    expect(headings).toEqual(['Urgent needs', 'Happening soon', 'Opportunities', 'Community highlights', 'Partners'])
+    expect(headings).toEqual(['Urgent needs', 'Happening soon', 'Opportunities', 'From Bender', 'Community highlights', 'Partners'])
     expect(screen.getAllByRole('img')[0]).toHaveAttribute('loading', 'lazy')
     const seeAll = screen.getAllByRole('button', { name: 'See all' }); fireEvent.click(seeAll[0]!); fireEvent.click(seeAll[1]!); fireEvent.click(seeAll[2]!)
     expect(navigate).toHaveBeenCalledWith('/explore?type=listings&urgency=urgent'); expect(navigate).toHaveBeenCalledWith('/explore?type=events'); expect(navigate).toHaveBeenCalledWith('/explore?type=volunteer')
+  })
+
+  it('renders Bender previews as full-width cards with feed and post destinations', () => {
+    homeState.bender.data = [benderPost('post-one', 'Fresh vegetables today', 'Alex Neighbor'), benderPost('post-two', 'Community cleanup Saturday', 'Jordan Neighbor')]
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+    const benderHeading = screen.getByRole('heading', { name: /from bender/i })
+    const benderSection = benderHeading.closest('section')!
+    const cards = within(benderSection).getAllByRole('button', { name: /open bender post by/i })
+    expect(cards).toHaveLength(2)
+    expect(cards.every((card) => card.classList.contains('native-bender-card'))).toBe(true)
+    expect(benderSection.querySelector('.native-card-list')).toBeNull()
+    fireEvent.click(within(benderSection).getByRole('button', { name: 'See all' }))
+    fireEvent.click(cards[0]!)
+    expect(navigate).toHaveBeenCalledWith('/bender')
+    expect(navigate).toHaveBeenCalledWith('/bender?post=post-one')
+  })
+
+  it('keeps a Bender error local and wires its retry action', () => {
+    homeState.bender.status = 'error'; homeState.bender.retry = vi.fn()
+    render(<MemoryRouter><NativeHomePage /></MemoryRouter>)
+    const benderSection = screen.getByRole('heading', { name: /from bender/i }).closest('section')!
+    expect(within(benderSection).getByRole('alert')).toHaveTextContent(/something went wrong/i)
+    expect(screen.getByRole('heading', { name: /community highlights/i })).toBeInTheDocument()
+    fireEvent.click(within(benderSection).getByRole('button', { name: /retry/i }))
+    expect(homeState.bender.retry).toHaveBeenCalledOnce()
   })
 
   it('renders section-local loading, empty, error retry, and cached freshness states', () => {

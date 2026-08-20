@@ -6,12 +6,14 @@ import { useBenderFeed } from './useBenderFeed'
 let cachedData: PaginatedResponse<BenderPost> | BenderPost[] | null = null
 let cachedSource: 'network' | 'cache' | null = null
 let firstPageFetcher: (() => Promise<PaginatedResponse<BenderPost>>) | undefined
+let cacheOptions: { cachePolicy?: string } | undefined
 const refresh = vi.fn()
 const listPosts = vi.fn()
 
 vi.mock('./useCachedPublicContent', () => ({
-  useCachedPublicContent: (_key: string, fetcher: () => Promise<PaginatedResponse<BenderPost>>) => {
+  useCachedPublicContent: (_key: string, fetcher: () => Promise<PaginatedResponse<BenderPost>>, options?: { cachePolicy?: string }) => {
     firstPageFetcher = fetcher
+    cacheOptions = options
     return { data: cachedData, source: cachedSource, cachedAt: cachedSource === 'cache' ? '2026-08-18T00:00:00Z' : null, refresh }
   },
 }))
@@ -27,7 +29,13 @@ describe('useBenderFeed', () => {
     cachedData = null
     cachedSource = null
     firstPageFetcher = undefined
+    cacheOptions = undefined
     vi.clearAllMocks()
+  })
+
+  it('keeps viewer-specific likes and block projections out of the public cache', () => {
+    renderHook(() => useBenderFeed())
+    expect(cacheOptions).toEqual({ cachePolicy: 'none' })
   })
 
   it('uses one cache-aware fetcher as the authoritative initial-page request', async () => {

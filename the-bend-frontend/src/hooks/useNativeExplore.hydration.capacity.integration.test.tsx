@@ -4,6 +4,7 @@ import { useNativeExplore } from './useNativeExplore'
 import { shopApi } from '@/services/shopApi'
 import { listingApi } from '@/services/listingApi'
 import { eventApi } from '@/services/eventApi'
+import { benderApi } from '@/services/benderApi'
 
 const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (reason: unknown) => void; const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej }); return { promise, resolve, reject } }
 const shop = (id: string, coordinates: { latitude: number; longitude: number } | null = null) => ({ id, business_type: 'Farm', name: `Farm ${id}`, address: 'Main', status: 'active', latitude: coordinates?.latitude ?? null, longitude: coordinates?.longitude ?? null })
@@ -12,11 +13,12 @@ let handler: ((status: 'online' | 'offline') => void) | null = null
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOpportunities: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn() } }))
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 const typedQuery = { q: '', type: 'businesses' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false }
 const allQuery = { ...typedQuery, type: 'all' as const }
 
-beforeEach(() => { vi.clearAllMocks(); handler = null; platform.network.getStatus.mockResolvedValue('online'); platform.network.addListener.mockImplementation(async (fn: (status: 'online' | 'offline') => void) => { handler = fn; return { remove: vi.fn().mockResolvedValue(undefined) } }); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never) })
+beforeEach(() => { vi.clearAllMocks(); handler = null; platform.network.getStatus.mockResolvedValue('online'); platform.network.addListener.mockImplementation(async (fn: (status: 'online' | 'offline') => void) => { handler = fn; return { remove: vi.fn().mockResolvedValue(undefined) } }); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never) })
 afterEach(() => cleanup())
 
 describe('useNativeExplore hydration capacity integration', () => {

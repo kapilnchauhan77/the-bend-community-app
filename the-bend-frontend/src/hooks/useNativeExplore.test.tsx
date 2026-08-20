@@ -4,10 +4,12 @@ import { useNativeExplore } from './useNativeExplore'
 import { listingApi } from '@/services/listingApi'
 import { shopApi } from '@/services/shopApi'
 import { eventApi } from '@/services/eventApi'
+import { benderApi } from '@/services/benderApi'
 
 vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOpportunities: vi.fn() } }))
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn() } }))
 
 const platform = { network: { getStatus: vi.fn().mockResolvedValue('online'), addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) }, location: { getForegroundPosition: vi.fn() }, cache: { put: vi.fn().mockResolvedValue(undefined), get: vi.fn().mockResolvedValue(null) } }
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
@@ -17,9 +19,10 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (rea
 const listing = (id: string) => ({ id, category: 'staff', title: `Listing ${id}`, images: [], shop: null, posted_by: null, urgency: 'normal', type: 'offer', description: '', is_free: true, status: 'active', interest_count: 0, created_at: '' }) as never
 const business = (id: string) => ({ id, business_type: 'Farm', name: `Business ${id}`, address: 'Main', status: 'active' }) as never
 const event = (id: string) => ({ id, title: `Event ${id}`, category: 'community', start_date: '2026-12-01T12:00:00Z', location: 'Main' }) as never
+const bender = (id: string) => ({ id, author: { id: `author-${id}`, name: `Author ${id}` }, caption: `Bender ${id}`, media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 0, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z' }) as never
 const allQuery = (overrides = {}) => ({ q: '', type: 'all' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false, ...overrides })
 
-beforeEach(() => { vi.clearAllMocks(); platform.network.getStatus.mockResolvedValue('online'); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never) })
+beforeEach(() => { vi.clearAllMocks(); platform.network.getStatus.mockResolvedValue('online'); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never) })
 
 describe('useNativeExplore grouped All behavior', () => {
   it('makes zero automatic location calls across lifecycle, query, and hydration rerenders', async () => {
@@ -97,13 +100,13 @@ describe('useNativeExplore grouped All behavior', () => {
     await act(async () => { resolveStatus('online'); await Promise.resolve() })
     await waitFor(() => expect(shopApi.getShop).toHaveBeenCalledTimes(1))
   })
-  it('H1 starts all four client calls before any deferred response resolves with bounded params', async () => {
-    const listingRequest = deferred<unknown>(); const businessRequest = deferred<unknown>(); const eventRequest = deferred<unknown>(); const volunteerRequest = deferred<unknown>()
-    vi.mocked(listingApi.browse).mockReturnValueOnce(listingRequest.promise as never); vi.mocked(shopApi.directory).mockReturnValueOnce(businessRequest.promise as never); vi.mocked(eventApi.list).mockReturnValueOnce(eventRequest.promise as never); vi.mocked(listingApi.getOpportunities).mockReturnValueOnce(volunteerRequest.promise as never)
+  it('H1 starts all five client calls before any deferred response resolves with bounded params', async () => {
+    const listingRequest = deferred<unknown>(); const businessRequest = deferred<unknown>(); const eventRequest = deferred<unknown>(); const benderRequest = deferred<unknown>(); const volunteerRequest = deferred<unknown>()
+    vi.mocked(listingApi.browse).mockReturnValueOnce(listingRequest.promise as never); vi.mocked(shopApi.directory).mockReturnValueOnce(businessRequest.promise as never); vi.mocked(eventApi.list).mockReturnValueOnce(eventRequest.promise as never); vi.mocked(benderApi.listPosts).mockReturnValueOnce(benderRequest.promise as never); vi.mocked(listingApi.getOpportunities).mockReturnValueOnce(volunteerRequest.promise as never)
     const { result } = renderHook(() => useNativeExplore(allQuery()), { reactStrictMode: false })
-    await waitFor(() => { expect(listingApi.browse).toHaveBeenCalledTimes(1); expect(shopApi.directory).toHaveBeenCalledTimes(1); expect(eventApi.list).toHaveBeenCalledTimes(1); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(1) })
-    expect(listingApi.browse).toHaveBeenCalledWith({ limit: 5 }); expect(shopApi.directory).toHaveBeenCalledWith({ limit: 5 }); expect(eventApi.list).toHaveBeenCalledWith({ limit: 5 }); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ limit: 5 })
-    await act(async () => { listingRequest.resolve({ data: { items: [] } }); businessRequest.resolve({ data: { items: [] } }); eventRequest.resolve({ data: { items: [] } }); volunteerRequest.resolve({ data: { items: [] } }) }); await waitFor(() => expect(result.current.groups.every((group) => group.state.status === 'empty')).toBeTruthy())
+    await waitFor(() => { expect(listingApi.browse).toHaveBeenCalledTimes(1); expect(shopApi.directory).toHaveBeenCalledTimes(1); expect(eventApi.list).toHaveBeenCalledTimes(1); expect(benderApi.listPosts).toHaveBeenCalledTimes(1); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(1) })
+    expect(listingApi.browse).toHaveBeenCalledWith({ limit: 5 }); expect(shopApi.directory).toHaveBeenCalledWith({ limit: 5 }); expect(eventApi.list).toHaveBeenCalledWith({ limit: 5 }); expect(benderApi.listPosts).toHaveBeenCalledWith(undefined, 5, expect.objectContaining({ search: undefined })); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ limit: 5 })
+    await act(async () => { listingRequest.resolve({ data: { items: [] } }); businessRequest.resolve({ data: { items: [] } }); eventRequest.resolve({ data: { items: [] } }); benderRequest.resolve({ data: { items: [], has_more: false } }); volunteerRequest.resolve({ data: { items: [] } }) }); await waitFor(() => expect(result.current.groups.every((group) => group.state.status === 'empty')).toBeTruthy())
   })
 
   it('does not execute the typed request engine in All mode', async () => {
@@ -111,26 +114,39 @@ describe('useNativeExplore grouped All behavior', () => {
   })
 
   it('H2 caps every All group at five mapped domain records', async () => {
-    vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => listing(String(index))) } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => business(String(index))) } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => event(String(index))) } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => listing(String(index))) } } as never)
+    vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => listing(String(index))) } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => business(String(index))) } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => event(String(index))) } } as never); vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => bender(String(index))), has_more: true, next_cursor: 'ignored-in-all' } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: Array.from({ length: 7 }, (_, index) => listing(String(index))) } } as never)
     const { result } = renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(result.current.groups.every((group) => group.state.status === 'success')).toBeTruthy())
-    expect(result.current.groups[0].state.data).toHaveLength(5); expect(result.current.groups[0].state.data[0].id).toBe('0'); expect(result.current.groups[0].state.data[4].id).toBe('4'); expect(result.current.groups[1].state.data).toHaveLength(5); expect(result.current.groups[2].state.data).toHaveLength(5); expect(result.current.groups[3].state.data).toHaveLength(5)
+    expect(result.current.groups.map((group) => group.kind)).toEqual(['listing', 'business', 'event', 'bender', 'volunteer'])
+    for (const group of result.current.groups) expect(group.state.data).toHaveLength(5)
+    expect(result.current.groups[0].state.data[0].id).toBe('0'); expect(result.current.groups[0].state.data[4].id).toBe('4')
   })
 
   it('H3 translates q to search while retaining endpoint-supported fields', async () => {
     renderHook(() => useNativeExplore(allQuery({ q: 'tractor', urgency: 'urgent', sort: 'urgency_desc', category: 'food' }))); await waitFor(() => expect(listingApi.browse).toHaveBeenCalled())
-    expect(listingApi.browse).toHaveBeenCalledWith({ search: 'tractor', category: undefined, urgency: 'urgent', sort: 'urgency_desc', limit: 5 }); expect(shopApi.directory).toHaveBeenCalledWith({ search: 'tractor', business_type: 'food', limit: 5 }); expect(eventApi.list).toHaveBeenCalledWith({ search: 'tractor', category: 'food', limit: 5 }); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ search: 'tractor', urgency: 'urgent', sort: 'urgency_desc', limit: 5 })
+    expect(listingApi.browse).toHaveBeenCalledWith({ search: 'tractor', category: undefined, urgency: 'urgent', sort: 'urgency_desc', limit: 5 }); expect(shopApi.directory).toHaveBeenCalledWith({ search: 'tractor', business_type: 'food', limit: 5 }); expect(eventApi.list).toHaveBeenCalledWith({ search: 'tractor', category: 'food', limit: 5 }); expect(benderApi.listPosts).toHaveBeenCalledWith(undefined, 5, expect.objectContaining({ search: 'tractor' })); expect(listingApi.getOpportunities).toHaveBeenCalledWith({ search: 'tractor', urgency: 'urgent', sort: 'urgency_desc', limit: 5 })
   })
 
-  it('H4a uses exactly the four public default cache keys and puts network results', async () => {
-    renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(platform.cache.put).toHaveBeenCalledTimes(4)); const keys = platform.cache.put.mock.calls.map(([entry]) => entry.key); expect(keys).toEqual(expect.arrayContaining(['listing:native-explore-default', 'business:native-explore-default', 'event:native-explore-default', 'listing:native-explore-volunteer-default']))
+  it('H4a keeps Bender viewer-sensitive previews network-only while retaining the four public cache keys', async () => {
+    renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(benderApi.listPosts).toHaveBeenCalledTimes(1)); await waitFor(() => expect(platform.cache.put).toHaveBeenCalledTimes(4)); const writtenKeys = platform.cache.put.mock.calls.map(([entry]) => entry.key); const readKeys = platform.cache.get.mock.calls.map(([key]) => key); expect(writtenKeys).toEqual(expect.arrayContaining(['listing:native-explore-default', 'business:native-explore-default', 'event:native-explore-default', 'listing:native-explore-volunteer-default'])); expect([...writtenKeys, ...readKeys].some((key) => String(key).startsWith('bender:'))).toBe(false)
   })
 
   it.each([{ q: 'tractor' }, { category: 'staff' }, { urgency: 'urgent' }, { sort: 'urgency_desc' }, { mode: 'map' }, { near: true }])('H4b uses no cache reads or writes for non-default %#', async (filter) => { renderHook(() => useNativeExplore(allQuery(filter))); await waitFor(() => expect(listingApi.browse).toHaveBeenCalled()); expect(platform.cache.get).not.toHaveBeenCalled(); expect(platform.cache.put).not.toHaveBeenCalled() })
 
   it('H5 isolates errors and empty groups, then retries only the failed client', async () => {
     vi.mocked(listingApi.browse).mockRejectedValueOnce(new Error('listing failed')); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [business('b1')] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [listing('v1')] } } as never)
-    const { result } = renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(result.current.groups[0].state.status).toBe('error')); expect(result.current.groups[1].state.status).toBe('success'); expect(result.current.groups[2].state.status).toBe('empty'); expect(result.current.groups[3].state.status).toBe('success')
-    vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('l1')] } } as never); const before = { business: shopApi.directory.mock.calls.length, event: eventApi.list.mock.calls.length, volunteer: listingApi.getOpportunities.mock.calls.length }; await act(async () => { await result.current.groups[0].state.retry() }); await waitFor(() => expect(result.current.groups[0].state.status).toBe('success')); expect(listingApi.browse).toHaveBeenCalledTimes(2); expect(shopApi.directory).toHaveBeenCalledTimes(before.business); expect(eventApi.list).toHaveBeenCalledTimes(before.event); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(before.volunteer)
+    const { result } = renderHook(() => useNativeExplore(allQuery())); await waitFor(() => expect(result.current.groups.find((group) => group.kind === 'listing')?.state.status).toBe('error')); expect(result.current.groups.find((group) => group.kind === 'business')?.state.status).toBe('success'); expect(result.current.groups.find((group) => group.kind === 'event')?.state.status).toBe('empty'); expect(result.current.groups.find((group) => group.kind === 'bender')?.state.status).toBe('empty'); expect(result.current.groups.find((group) => group.kind === 'volunteer')?.state.status).toBe('success')
+    vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('l1')] } } as never); const before = { business: shopApi.directory.mock.calls.length, event: eventApi.list.mock.calls.length, bender: benderApi.listPosts.mock.calls.length, volunteer: listingApi.getOpportunities.mock.calls.length }; await act(async () => { await result.current.groups[0].state.retry() }); await waitFor(() => expect(result.current.groups[0].state.status).toBe('success')); expect(listingApi.browse).toHaveBeenCalledTimes(2); expect(shopApi.directory).toHaveBeenCalledTimes(before.business); expect(eventApi.list).toHaveBeenCalledTimes(before.event); expect(benderApi.listPosts).toHaveBeenCalledTimes(before.bender); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(before.volunteer)
+  })
+
+  it('H5 isolates and retries a failed network-only Bender group without refetching other groups', async () => {
+    vi.mocked(benderApi.listPosts).mockRejectedValueOnce(new Error('bender failed'))
+    const { result } = renderHook(() => useNativeExplore(allQuery()), { reactStrictMode: false })
+    await waitFor(() => expect(result.current.groups.find((group) => group.kind === 'bender')?.state.status).toBe('error'))
+    const before = { listing: listingApi.browse.mock.calls.length, business: shopApi.directory.mock.calls.length, event: eventApi.list.mock.calls.length, volunteer: listingApi.getOpportunities.mock.calls.length }
+    vi.mocked(benderApi.listPosts).mockResolvedValueOnce({ data: { items: [bender('retry')], has_more: false } } as never)
+    await act(async () => { await result.current.groups.find((group) => group.kind === 'bender')!.state.retry() })
+    await waitFor(() => expect(result.current.groups.find((group) => group.kind === 'bender')?.state.data.map((item) => item.id)).toEqual(['retry']))
+    expect(listingApi.browse).toHaveBeenCalledTimes(before.listing); expect(shopApi.directory).toHaveBeenCalledTimes(before.business); expect(eventApi.list).toHaveBeenCalledTimes(before.event); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(before.volunteer)
   })
 
   it('H6 retries a failed typed first page through production state.retry', async () => {
@@ -141,6 +157,43 @@ describe('useNativeExplore grouped All behavior', () => {
   it('H7 preserves cards through load-more failure and recovers with de-duplication', async () => {
     vi.mocked(listingApi.browse).mockResolvedValueOnce({ data: { items: [listing('1')], has_more: true, next_cursor: 'c1' } } as never).mockRejectedValueOnce(new Error('page failed')).mockResolvedValueOnce({ data: { items: [listing('1'), listing('2')], has_more: false } } as never)
     const { result } = renderHook(() => useNativeExplore({ q: '', type: 'listings', category: null, urgency: null, sort: null, mode: 'list', near: false })); await waitFor(() => expect(result.current.typed?.hasMore).toBeTruthy()); await act(async () => { await result.current.typed!.loadMore() }); expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1']); expect(result.current.typed?.loadMoreError?.message).toBe('page failed'); expect(result.current.typed?.hasMore).toBeTruthy(); await act(async () => { await result.current.typed!.loadMore() }); await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1', '2'])); expect(result.current.typed?.loadMoreError).toBeNull(); expect(listingApi.browse.mock.calls[1][0]).toMatchObject({ cursor: 'c1' })
+  })
+
+  it('loads searchable Bender results and recovers cursor pagination without duplicates', async () => {
+    vi.mocked(benderApi.listPosts)
+      .mockResolvedValueOnce({ data: { items: [bender('1')], has_more: true, next_cursor: 'b1' } } as never)
+      .mockRejectedValueOnce(new Error('bender page failed'))
+      .mockResolvedValueOnce({ data: { items: [bender('1'), bender('2')], has_more: false } } as never)
+    const { result } = renderHook(() => useNativeExplore({ q: 'river', type: 'bender' as never, category: null, urgency: null, sort: null, mode: 'list', near: false }), { reactStrictMode: false })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1']))
+    expect(benderApi.listPosts).toHaveBeenNthCalledWith(1, undefined, 15, expect.objectContaining({ search: 'river', signal: expect.any(AbortSignal) }))
+    expect(result.current.typed?.hasMore).toBe(true)
+    await act(async () => { await result.current.typed!.loadMore() })
+    expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1'])
+    expect(result.current.typed?.loadMoreError?.message).toBe('bender page failed')
+    expect(result.current.typed?.hasMore).toBe(true)
+    await act(async () => { await result.current.typed!.loadMore() })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1', '2']))
+    expect(result.current.typed?.loadMoreError).toBeNull()
+    expect(benderApi.listPosts).toHaveBeenNthCalledWith(3, 'b1', 15, expect.objectContaining({ search: 'river', signal: expect.any(AbortSignal) }))
+  })
+
+  it('ignores a late Bender response after a newer server search wins', async () => {
+    const oldRequest = deferred<unknown>()
+    const newRequest = deferred<unknown>()
+    vi.mocked(benderApi.listPosts).mockReturnValueOnce(oldRequest.promise as never).mockReturnValueOnce(newRequest.promise as never)
+    const query = { q: 'old', type: 'bender' as never, category: null, urgency: null, sort: null, mode: 'list' as const, near: false }
+    const { result, rerender } = renderHook(({ value }) => useNativeExplore(value), { initialProps: { value: query }, reactStrictMode: false })
+    await waitFor(() => expect(benderApi.listPosts).toHaveBeenCalledTimes(1))
+    rerender({ value: { ...query, q: 'new' } })
+    await waitFor(() => expect(benderApi.listPosts).toHaveBeenCalledTimes(2))
+    expect(benderApi.listPosts).toHaveBeenNthCalledWith(2, undefined, 15, expect.objectContaining({ search: 'new', signal: expect.any(AbortSignal) }))
+    await act(async () => { newRequest.resolve({ data: { items: [bender('new')], has_more: false } }) })
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new']))
+    await act(async () => { oldRequest.resolve({ data: { items: [bender('old')], has_more: false } }) })
+    await Promise.resolve()
+    expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new'])
+    expect(result.current.typed?.state.error).toBeNull()
   })
 
   it('H8 resets typed items and cursor across query, type, and filter transitions', async () => {
@@ -189,16 +242,19 @@ describe('useNativeExplore grouped All behavior', () => {
     vi.mocked(listingApi.browse).mockRejectedValueOnce(new Error('refresh failed'))
     vi.mocked(shopApi.directory).mockResolvedValueOnce({ data: { items: [business('fresh')] } } as never)
     vi.mocked(eventApi.list).mockResolvedValueOnce({ data: { items: [event('fresh')] } } as never)
+    vi.mocked(benderApi.listPosts).mockResolvedValueOnce({ data: { items: [bender('fresh')], has_more: false } } as never)
     vi.mocked(listingApi.getOpportunities).mockResolvedValueOnce({ data: { items: [listing('fresh')] } } as never)
     await expect(act(async () => { await result.current.refreshAll() })).resolves.toBeUndefined()
     expect(listingApi.browse).toHaveBeenCalledTimes(2)
     expect(shopApi.directory).toHaveBeenCalledTimes(2)
     expect(eventApi.list).toHaveBeenCalledTimes(2)
+    expect(benderApi.listPosts).toHaveBeenCalledTimes(2)
     expect(listingApi.getOpportunities).toHaveBeenCalledTimes(2)
-    await waitFor(() => expect(result.current.groups[0].state.status).toBe('error'))
-    expect(result.current.groups[1].state.status).toBe('success')
-    expect(result.current.groups[2].state.status).toBe('success')
-    expect(result.current.groups[3].state.status).toBe('success')
+    await waitFor(() => expect(result.current.groups.find((group) => group.kind === 'listing')?.state.status).toBe('error'))
+    expect(result.current.groups.find((group) => group.kind === 'business')?.state.status).toBe('success')
+    expect(result.current.groups.find((group) => group.kind === 'event')?.state.status).toBe('success')
+    expect(result.current.groups.find((group) => group.kind === 'bender')?.state.status).toBe('success')
+    expect(result.current.groups.find((group) => group.kind === 'volunteer')?.state.status).toBe('success')
   })
 
   it('H12 exposes load more only for a valid cursor and exact business refinement', async () => {

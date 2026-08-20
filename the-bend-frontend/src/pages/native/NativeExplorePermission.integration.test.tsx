@@ -12,11 +12,13 @@ const platform = {
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => platform }))
 vi.mock('@/services/listingApi', () => ({ listingApi: { browse: vi.fn(), getOpportunities: vi.fn() } }))
 vi.mock('@/services/eventApi', () => ({ eventApi: { list: vi.fn() } }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { listPosts: vi.fn() } }))
 vi.mock('@/services/shopApi', () => ({ shopApi: { directory: vi.fn(), getShop: vi.fn() } }))
 vi.mock('@/components/native/NativeExploreMap', () => ({ default: () => <div data-testid="lazy-map">Map</div> }))
 
 import { listingApi } from '@/services/listingApi'
 import { eventApi } from '@/services/eventApi'
+import { benderApi } from '@/services/benderApi'
 import { shopApi } from '@/services/shopApi'
 
 const deferred = <T,>() => {
@@ -50,6 +52,7 @@ beforeEach(() => {
   vi.mocked(listingApi.browse).mockResolvedValue(emptyPage as never)
   vi.mocked(listingApi.getOpportunities).mockResolvedValue(emptyPage as never)
   vi.mocked(eventApi.list).mockResolvedValue(emptyPage as never)
+  vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never)
   vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [farm] } } as never)
   vi.mocked(shopApi.getShop).mockResolvedValue({ data: farm } as never)
 })
