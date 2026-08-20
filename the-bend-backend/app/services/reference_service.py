@@ -6,7 +6,7 @@ not visible in the given tenant, so callers can reject-on-send or render an
 "unavailable" card.
 """
 from uuid import UUID
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.models.listing import Listing
@@ -69,6 +69,26 @@ async def _bender_card_async(db, obj) -> dict:
     return _bender_card(obj, author)
 
 
+def _bender_tenant_integrity(tenant_id):
+    author_in_tenant = exists(
+        select(User.id).where(
+            User.id == BenderPost.author_user_id,
+            User.tenant_id == tenant_id,
+        )
+    )
+    shop_in_tenant = exists(
+        select(Shop.id).where(
+            Shop.id == BenderPost.author_shop_id,
+            Shop.tenant_id == tenant_id,
+        )
+    )
+    return (
+        BenderPost.tenant_id == tenant_id,
+        author_in_tenant,
+        or_(BenderPost.author_shop_id.is_(None), shop_in_tenant),
+    )
+
+
 async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: UUID, viewer_id: UUID | None = None) -> dict | None:
     if ref_type not in REFERENCE_TYPES:
         return None
@@ -94,11 +114,29 @@ async def resolve_reference(db, tenant_id: UUID | None, ref_type: str, ref_id: U
         return _shop_card(obj)
 
     if ref_type == "bender":
-        res = await db.execute(select(BenderPost).options(selectinload(BenderPost.author)).where(BenderPost.id == ref_id))
+        query = (
+            select(BenderPost)
+            .options(selectinload(BenderPost.author))
+            .where(
+                BenderPost.id == ref_id,
+                *_bender_tenant_integrity(tenant_id),
+            )
+        )
+        if viewer_id and tenant_id:
+            from app.models.user_block import UserBlock
+
+            query = query.where(
+                ~exists(
+                    select(UserBlock.id).where(
+                        UserBlock.tenant_id == tenant_id,
+                        UserBlock.blocker_id == viewer_id,
+                        UserBlock.blocked_id == BenderPost.author_user_id,
+                    )
+                )
+            )
+        res = await db.execute(query)
         obj = res.scalar_one_or_none()
-        if not obj or not _tenant_ok(obj.tenant_id, tenant_id):
-            return None
-        if viewer_id and await _author_blocked(db, tenant_id, viewer_id, obj.author_user_id):
+        if not obj:
             return None
         return await _bender_card_async(db, obj)
 
@@ -160,7 +198,14 @@ async def search_references(db, tenant_id, q, type_filter=None, viewer_id=None) 
         rows = (await db.execute(query.order_by(User.created_at.desc(), User.id.desc()).limit(8))).scalars().all()
         out += [_user_card(o) for o in rows]
     if "bender" in types_:
-        query = select(BenderPost).options(selectinload(BenderPost.author)).where(BenderPost.tenant_id == tenant_id, BenderPost.caption.ilike(like))
+        query = (
+            select(BenderPost)
+            .options(selectinload(BenderPost.author))
+            .where(
+                *_bender_tenant_integrity(tenant_id),
+                BenderPost.caption.ilike(like),
+            )
+        )
         criterion = visible(BenderPost.author_user_id)
         if criterion is not None:
             query = query.where(criterion)

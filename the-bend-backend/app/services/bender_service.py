@@ -67,6 +67,75 @@ class BenderService:
             raise NotFoundError("Post")
         return row
 
+    def _tenant_integrity(self, tenant_id: UUID):
+        author_in_tenant = (
+            select(1)
+            .where(
+                User.id == BenderPost.author_user_id,
+                User.tenant_id == tenant_id,
+            )
+            .exists()
+        )
+        shop_in_tenant = (
+            select(1)
+            .where(
+                Shop.id == BenderPost.author_shop_id,
+                Shop.tenant_id == tenant_id,
+            )
+            .exists()
+        )
+        return (
+            author_in_tenant,
+            or_(BenderPost.author_shop_id.is_(None), shop_in_tenant),
+        )
+
+    async def _get_visible_post_or_404(
+        self,
+        *,
+        post_id: UUID,
+        tenant_id: UUID | None,
+        current_user: User | None,
+        load_author: bool = False,
+        require_tenant_viewer: bool = False,
+    ) -> BenderPost:
+        if tenant_id is None:
+            raise NotFoundError("Post")
+
+        tenant_viewer = (
+            current_user
+            if current_user is not None and current_user.tenant_id == tenant_id
+            else None
+        )
+        if require_tenant_viewer and tenant_viewer is None:
+            raise NotFoundError("Post")
+
+        query = select(BenderPost).where(
+            BenderPost.id == post_id,
+            BenderPost.tenant_id == tenant_id,
+            *self._tenant_integrity(tenant_id),
+        )
+        if load_author:
+            query = query.options(
+                selectinload(BenderPost.author),
+                selectinload(BenderPost.shop),
+            )
+        if tenant_viewer is not None:
+            from app.models.user_block import UserBlock
+
+            query = query.where(
+                ~BenderPost.author_user_id.in_(
+                    select(UserBlock.blocked_id).where(
+                        UserBlock.tenant_id == tenant_id,
+                        UserBlock.blocker_id == tenant_viewer.id,
+                    )
+                )
+            )
+
+        row = (await self.db.execute(query)).scalars().unique().one_or_none()
+        if row is None:
+            raise NotFoundError("Post")
+        return row
+
     def _is_community_admin(self, user: User) -> bool:
         return user.role in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN)
 
@@ -129,26 +198,9 @@ class BenderService:
         )
 
         if tenant_id is not None:
-            query = query.where(BenderPost.tenant_id == tenant_id)
-            author_in_tenant = (
-                select(1)
-                .where(
-                    User.id == BenderPost.author_user_id,
-                    User.tenant_id == tenant_id,
-                )
-                .exists()
-            )
-            shop_in_tenant = (
-                select(1)
-                .where(
-                    Shop.id == BenderPost.author_shop_id,
-                    Shop.tenant_id == tenant_id,
-                )
-                .exists()
-            )
             query = query.where(
-                author_in_tenant,
-                or_(BenderPost.author_shop_id.is_(None), shop_in_tenant),
+                BenderPost.tenant_id == tenant_id,
+                *self._tenant_integrity(tenant_id),
             )
         if current_user is not None and tenant_id is not None:
             from app.models.user_block import UserBlock
@@ -263,55 +315,17 @@ class BenderService:
         current_user: User | None,
     ) -> BenderPostResponse:
         """Return one post using the feed's tenant and visibility rules."""
-        query = (
-            select(BenderPost)
-            .options(
-                selectinload(BenderPost.author),
-                selectinload(BenderPost.shop),
-            )
-            .where(BenderPost.id == post_id, BenderPost.tenant_id == tenant_id)
-        )
-        author_in_tenant = (
-            select(1)
-            .where(
-                User.id == BenderPost.author_user_id,
-                User.tenant_id == tenant_id,
-            )
-            .exists()
-        )
-        shop_in_tenant = (
-            select(1)
-            .where(
-                Shop.id == BenderPost.author_shop_id,
-                Shop.tenant_id == tenant_id,
-            )
-            .exists()
-        )
-        query = query.where(
-            author_in_tenant,
-            or_(BenderPost.author_shop_id.is_(None), shop_in_tenant),
-        )
-
         tenant_viewer = (
             current_user
             if current_user is not None and current_user.tenant_id == tenant_id
             else None
         )
-        if tenant_viewer is not None:
-            from app.models.user_block import UserBlock
-
-            query = query.where(
-                ~BenderPost.author_user_id.in_(
-                    select(UserBlock.blocked_id).where(
-                        UserBlock.tenant_id == tenant_id,
-                        UserBlock.blocker_id == tenant_viewer.id,
-                    )
-                )
-            )
-
-        row = (await self.db.execute(query)).scalars().unique().one_or_none()
-        if row is None:
-            raise NotFoundError("Post")
+        row = await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id,
+            current_user=tenant_viewer,
+            load_author=True,
+        )
 
         liked = False
         if tenant_viewer is not None:
@@ -341,7 +355,13 @@ class BenderService:
     # likes
     # ------------------------------------------------------------------
 
-    async def like(self, post_id: UUID, current_user: User) -> BenderPost:
+    async def like(
+        self,
+        post_id: UUID,
+        current_user: User,
+        *,
+        tenant_id: UUID | None = None,
+    ) -> BenderPost:
         """Idempotent like.
 
         Strategy: try to insert; if (post_id, user_id) collides on the
@@ -349,7 +369,12 @@ class BenderService:
         and return without bumping the count. Counter bump is an atomic
         UPDATE so concurrent likers can't lose increments.
         """
-        post = await self._get_post_or_404(post_id)
+        post = await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id if tenant_id is not None else current_user.tenant_id,
+            current_user=current_user,
+            require_tenant_viewer=True,
+        )
 
         like_row = BenderLike(
             id=uuid4(),
@@ -379,9 +404,20 @@ class BenderService:
         await self.db.refresh(post)
         return post
 
-    async def unlike(self, post_id: UUID, current_user: User) -> BenderPost:
+    async def unlike(
+        self,
+        post_id: UUID,
+        current_user: User,
+        *,
+        tenant_id: UUID | None = None,
+    ) -> BenderPost:
         """Idempotent unlike."""
-        post = await self._get_post_or_404(post_id)
+        post = await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id if tenant_id is not None else current_user.tenant_id,
+            current_user=current_user,
+            require_tenant_viewer=True,
+        )
 
         like_q = select(BenderLike).where(
             BenderLike.post_id == post.id,
@@ -414,14 +450,20 @@ class BenderService:
         post_id: UUID,
         cursor: str | None,
         limit: int,
+        *,
+        tenant_id: UUID | None = None,
+        current_user: User | None = None,
     ) -> tuple[list[BenderCommentResponse], str | None, bool]:
         """Comments listed ASC by created_at, id (oldest first).
 
         Different from the feed: a chat-style ascending order. Cursor still
         keyed on (created_at, id) but the comparison flips.
         """
-        # Ensure post exists; gives a clean 404 vs. silent empty list.
-        await self._get_post_or_404(post_id)
+        await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id,
+            current_user=current_user,
+        )
 
         query = (
             select(BenderComment)
@@ -483,10 +525,17 @@ class BenderService:
         post_id: UUID,
         data: BenderCommentCreate,
         current_user: User,
+        *,
+        tenant_id: UUID | None = None,
     ) -> BenderComment:
+        post = await self._get_visible_post_or_404(
+            post_id=post_id,
+            tenant_id=tenant_id if tenant_id is not None else current_user.tenant_id,
+            current_user=current_user,
+            require_tenant_viewer=True,
+        )
         from app.services.content_moderation_service import ContentModerationService
         ContentModerationService().validate_public_text({"content": data.content})
-        post = await self._get_post_or_404(post_id)
 
         comment = BenderComment(
             id=uuid4(),

@@ -129,8 +129,15 @@ async def like_post(
     post_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    post = await service.like(post_id, current_user)
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    post = await service.like(
+        post_id,
+        current_user,
+        tenant_id=tenant.id,
+    )
     return {
         "id": str(post.id),
         "like_count": post.like_count,
@@ -143,8 +150,15 @@ async def unlike_post(
     post_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    post = await service.unlike(post_id, current_user)
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    post = await service.unlike(
+        post_id,
+        current_user,
+        tenant_id=tenant.id,
+    )
     return {
         "id": str(post.id),
         "like_count": post.like_count,
@@ -166,9 +180,18 @@ async def list_comments(
     cursor: str | None = Query(None),
     limit: int = Query(20, ge=1, le=50),
     service: BenderService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+    viewer: User | None = Depends(get_current_user_optional),
 ):
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    tenant_viewer = viewer if viewer is not None and viewer.tenant_id == tenant.id else None
     items, next_cursor, has_more = await service.list_comments(
-        post_id=post_id, cursor=cursor, limit=limit
+        post_id=post_id,
+        cursor=cursor,
+        limit=limit,
+        tenant_id=tenant.id,
+        current_user=tenant_viewer,
     )
     return BenderCommentsResponse(
         items=items, next_cursor=next_cursor, has_more=has_more
@@ -185,8 +208,16 @@ async def create_comment(
     data: BenderCommentCreate,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    comment = await service.create_comment(post_id, data, current_user)
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    comment = await service.create_comment(
+        post_id,
+        data,
+        current_user,
+        tenant_id=tenant.id,
+    )
     return BenderCommentResponse(
         id=str(comment.id),
         author=service._author_block(current_user, None),
