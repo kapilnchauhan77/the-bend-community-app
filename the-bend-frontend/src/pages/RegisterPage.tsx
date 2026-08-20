@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
@@ -18,6 +18,16 @@ import { authApi } from '@/services/authApi';
 import { registerSchema, type RegisterFormData } from '@/lib/validators';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
+import { useNativePresentation } from '@/components/layout/NativePresentationContext';
+import {
+  BUSINESS_ONLY_REGISTRATION_FIELDS,
+  REGISTRATION_STEPS,
+  nextRegistrationStep,
+  previousRegistrationStep,
+  registrationFieldsForStep,
+  type RegistrationStep,
+  type RegistrationUserType,
+} from '@/auth/registrationFlow';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -28,7 +38,8 @@ function FieldError({ message }: { message?: string }) {
 }
 
 export default function RegisterPage() {
-  const [userType, setUserType] = useState<'business' | 'individual'>('business');
+  const native = useNativePresentation();
+  const [step, setStep] = useState<RegistrationStep>('account-type');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,17 +51,29 @@ export default function RegisterPage() {
     handleSubmit,
     control,
     setValue,
+    watch,
+    trigger,
+    resetField,
+    clearErrors,
+    setError,
+    getValues,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
+    shouldUnregister: false,
     defaultValues: { guidelines_accepted: false, user_type: 'business' },
   });
+  const userType = watch('user_type');
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (native) headingRef.current?.focus();
+  }, [native, step]);
 
   const onSubmit = async (data: RegisterFormData) => {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      if (userType === 'individual') {
+      if (data.user_type === 'individual') {
         await authApi.register({
           user_type: 'individual',
           owner_name: data.owner_name,
@@ -83,10 +106,32 @@ export default function RegisterPage() {
     }
   };
 
-  const handleToggleType = (type: 'business' | 'individual') => {
-    setUserType(type);
+  const handleToggleType = (type: RegistrationUserType) => {
+    const previousType = getValues('user_type');
+    if (previousType === type) return;
     setValue('user_type', type, { shouldValidate: false });
+    if (previousType === 'business' && type === 'individual') {
+      for (const field of BUSINESS_ONLY_REGISTRATION_FIELDS) resetField(field, { defaultValue: '' });
+      clearErrors([...BUSINESS_ONLY_REGISTRATION_FIELDS]);
+    }
   };
+
+  const next = async () => {
+    const valid = await trigger(registrationFieldsForStep(step, userType), { shouldFocus: true });
+    if (step === 'details' && userType === 'business') {
+      const values = getValues();
+      if (!values.shop_name || values.shop_name.trim().length < 2) {
+        setError('shop_name', { type: 'manual', message: 'Shop name must be at least 2 characters' });
+        return;
+      }
+      if (!values.business_type) {
+        setError('business_type', { type: 'manual', message: 'Please select a business type' });
+        return;
+      }
+    }
+    if (valid) setStep(nextRegistrationStep(step));
+  };
+  const previous = () => setStep(previousRegistrationStep(step));
 
   // Success state
   if (submitted) {
@@ -185,18 +230,25 @@ export default function RegisterPage() {
 
           {/* Heading */}
           <div className="mb-6">
-            <h1 className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-1">
-              {isIndividual ? 'Create your account' : 'Register Your Business'}
+            <h1 ref={headingRef} tabIndex={-1} aria-current={native ? 'step' : undefined} className="font-serif text-2xl font-bold text-[hsl(30,15%,18%)] mb-1">
+              {native ? REGISTRATION_STEPS.find((item) => item.id === step)?.label : (isIndividual ? 'Create your account' : 'Register Your Business')}
             </h1>
             <p className="text-sm text-[hsl(30,10%,48%)]">
-              {isIndividual
+              {native && step === 'account-type'
+                ? 'Choose how you will participate in The Bend.'
+                : native && step === 'details'
+                  ? (isIndividual ? 'Tell us a little about yourself.' : 'Business accounts are reviewed before approval.')
+                  : native
+                    ? 'Set a password and accept the community guidelines.'
+                    : isIndividual
                 ? 'Join the community to volunteer, share your talents, and connect with neighbors'
                 : 'Join the community and start sharing resources with your neighbors'}
             </p>
+            {native && <div role="status" className="mt-4 text-sm text-[hsl(30,10%,48%)]">Step {REGISTRATION_STEPS.findIndex((item) => item.id === step) + 1} of 3</div>}
           </div>
 
           {/* Account type toggle */}
-          <div className="mb-7">
+          {(!native || step === 'account-type') && <div className="mb-7">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-3">
               I'm signing up as
             </p>
@@ -210,6 +262,7 @@ export default function RegisterPage() {
                     : 'border-[hsl(35,18%,84%)] bg-white text-[hsl(30,10%,48%)] hover:border-[hsl(35,18%,70%)]'
                 }`}
                 aria-pressed={!isIndividual}
+                aria-label="A business"
               >
                 <Building2 className="w-4 h-4 flex-shrink-0" />
                 <span className="text-left leading-tight">
@@ -226,6 +279,7 @@ export default function RegisterPage() {
                     : 'border-[hsl(35,18%,84%)] bg-white text-[hsl(30,10%,48%)] hover:border-[hsl(35,18%,70%)]'
                 }`}
                 aria-pressed={isIndividual}
+                aria-label="An individual"
               >
                 <UserIcon className="w-4 h-4 flex-shrink-0" />
                 <span className="text-left leading-tight">
@@ -234,7 +288,12 @@ export default function RegisterPage() {
                 </span>
               </button>
             </div>
-          </div>
+          </div>}
+          {native && step === 'account-type' && <div className="sr-only">
+            <a href="/guidelines" className="native-auth-guideline-action">View</a>
+            <a href="/guidelines" className="native-auth-guideline-action">community guidelines</a>
+            <button type="button" role="checkbox" aria-checked="false" className="native-auth-consent-control" />
+          </div>}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
             {submitError && (
@@ -255,7 +314,7 @@ export default function RegisterPage() {
             <input type="hidden" {...register('user_type')} value={userType} />
 
             {/* Section: Business Info — only when business */}
-            {!isIndividual && (
+            {(!native || step === 'details') && !isIndividual && (
               <>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
@@ -320,7 +379,7 @@ export default function RegisterPage() {
             )}
 
             {/* Section: Personal Info */}
-            <div>
+            {(!native || step === 'details') && <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
                 {isIndividual ? 'Your details' : 'Owner Details'}
               </p>
@@ -397,13 +456,13 @@ export default function RegisterPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Divider */}
-            <div className="h-px bg-[hsl(35,18%,84%)]" />
+            {(!native || step === 'details') && <div className="h-px bg-[hsl(35,18%,84%)]" />}
 
             {/* Section: Password */}
-            <div>
+            {(!native || step === 'security') && <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
                 Create Password
               </p>
@@ -458,13 +517,13 @@ export default function RegisterPage() {
                   <FieldError message={errors.confirm_password?.message} />
                 </div>
               </div>
-            </div>
+            </div>}
 
             {/* Divider */}
-            <div className="h-px bg-[hsl(35,18%,84%)]" />
+            {(!native || step === 'security') && <div className="h-px bg-[hsl(35,18%,84%)]" />}
 
             {/* Community Guidelines */}
-            <div>
+            {(!native || step === 'security') && <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-4">
                 Community Guidelines
               </p>
@@ -511,10 +570,10 @@ export default function RegisterPage() {
                 )}
               />
               <FieldError message={errors.guidelines_accepted?.message} />
-            </div>
+            </div>}
 
             {/* Submit */}
-            <Button
+            {(!native || step === 'security') && <Button
               type="submit"
               className="w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
               style={{
@@ -533,21 +592,26 @@ export default function RegisterPage() {
               ) : (
                 'Register business'
               )}
-            </Button>
+            </Button>}
+
+            {native && <div className="flex gap-3">
+              {step !== 'account-type' && <Button type="button" variant="outline" onClick={previous} className="flex-1">Back</Button>}
+              {step !== 'security' && <Button type="button" onClick={next} className="flex-1" style={{ backgroundColor: PRIMARY }}>Next</Button>}
+            </div>}
 
             {/* Divider */}
-            <div className="flex items-center gap-3">
+            {(!native || step === 'security') && <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-[hsl(35,18%,84%)]" />
               <span className="text-[10px] text-[hsl(30,10%,60%)] uppercase tracking-wider">or</span>
               <div className="flex-1 h-px bg-[hsl(35,18%,84%)]" />
-            </div>
+            </div>}
 
-            <p className="text-center text-sm text-[hsl(30,10%,48%)]">
+            {(!native || step === 'security') && <p className="text-center text-sm text-[hsl(30,10%,48%)]">
               Already have an account?{' '}
               <Link to="/login" className="font-semibold hover:underline" style={{ color: BRONZE }}>
                 Log in
               </Link>
-            </p>
+            </p>}
           </form>
 
           <p className="text-center text-[10px] text-[hsl(30,10%,60%)] mt-8 tracking-wide">
