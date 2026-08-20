@@ -30,7 +30,8 @@ vi.mock('@/pages/LoginPage', () => ({ default: function MockLoginPage() { return
 
 afterEach(() => { authState.isAuthenticated = false; cleanup(); });
 
-const nativeEvent = { id: 'event-1', title: 'Native event', description: 'Native description', start_date: '2026-09-12T14:00:00Z', category: 'community', location: 'Market Square', source: 'manual', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
+const nativeEventId = '00000000-0000-0000-0000-000000000003';
+const nativeEvent = { id: nativeEventId, title: 'Native event', description: 'Native description', start_date: '2026-09-12T14:00:00Z', category: 'community', location: 'Market Square', source: 'manual', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
 
 function renderNativeAt(path: string) {
   const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: 'https://api.example.test', wsBaseUrl: 'wss://api.example.test', tenantSlug: 'westmoreland', appVersion: 'test', buildNumber: '1', environment: 'test' };
@@ -127,7 +128,7 @@ describe('NativeRoutes', () => {
 
   it('renders the real event detail page for the native event-detail route', async () => {
     vi.mocked(eventApi.getDetail).mockResolvedValue({ data: nativeEvent } as never);
-    renderNativeAt('/events/event-1');
+    renderNativeAt(`/events/${nativeEventId}`);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Native event' })).toBeInTheDocument());
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.queryByText("This page isn't available in the mobile app")).not.toBeInTheDocument();
@@ -136,7 +137,7 @@ describe('NativeRoutes', () => {
 
   it.each([
     ['/bender/post-1', 'Bender post'],
-    ['/events/event-1', 'Event'],
+    [`/events/${nativeEventId}`, 'Event'],
     ['/volunteers', 'Volunteer'],
     ['/talent', 'Talent'],
     ['/messages', 'Messages'],
@@ -164,7 +165,7 @@ describe('NativeRoutes', () => {
     ['/listing/listing-1', 'Listing', 'native-listing-detail-sentinel', '/explore?type=listings'],
     ['/business/shop-1', 'Business', 'business-sentinel', '/explore?type=businesses'],
     ['/events', 'Events', 'events-sentinel', '/explore?type=events'],
-    ['/events/event-1', 'Event', 'Native event', '/events'],
+    [`/events/${nativeEventId}`, 'Event', 'Native event', '/events'],
     ['/volunteers', 'Volunteer', 'volunteer-sentinel', '/explore?type=volunteer'],
     ['/talent', 'Talent', 'talent-sentinel', '/explore'],
     ['/bender/123e4567-e89b-12d3-a456-426614174000', 'Bender post', 'bender-sentinel', '/bender'],

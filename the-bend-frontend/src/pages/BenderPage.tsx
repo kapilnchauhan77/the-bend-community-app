@@ -875,8 +875,9 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
 
   const canonicalParamId = parseCanonicalUuid(postId ?? '');
   const legacyPostId = getLegacyBenderPostId(searchParams.toString(), hash);
+  const malformedFocusedId = postId !== undefined && canonicalParamId === null;
   const focusedId = canonicalParamId ?? legacyPostId;
-  const focused = Boolean(focusedId);
+  const focused = malformedFocusedId || Boolean(focusedId);
   const feed = useBenderFeed({ enabled: !focused });
   const focusedPost = useBenderPost(focusedId);
 
@@ -999,7 +1000,9 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
         {/* Feed */}
         <div className="md:p-0 pt-2">
           {focused ? (
-            focusedPost.status === 'loading' ? (
+            malformedFocusedId ? (
+              <EmptyState icon={<MessageCircle size={32} />} title="Post unavailable" description="This post may have been deleted or is not available." />
+            ) : focusedPost.status === 'loading' ? (
               <div className="native-bender-surface native-bender-border bg-white border border-[hsl(35,18%,88%)] overflow-hidden"><div className="flex items-center gap-2 px-3 py-2"><Skeleton className="h-7 w-7 rounded-full" /><Skeleton className="h-3 w-32" /></div><Skeleton className="w-full aspect-square rounded-none" /><div className="px-3 py-2 space-y-2"><Skeleton className="h-3 w-1/2" /><Skeleton className="h-3 w-3/4" /></div></div>
             ) : focusedPost.status === 'unavailable' ? (
               <EmptyState icon={<MessageCircle size={32} />} title="Post unavailable" description="This post may have been deleted or is not available." />

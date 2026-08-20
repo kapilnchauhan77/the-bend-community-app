@@ -13,11 +13,13 @@ const browserOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()), usePlatformServices: () => ({ browser: { open: browserOpen } }) }));
 vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => true }));
 
-const event: CommunityEvent = { id: 'event-1', title: 'Harvest Festival', description: 'A day in the park', start_date: '2026-09-12T14:00:00Z', end_date: '2026-09-12T16:00:00Z', location: 'Market Square', category: 'community', image_url: 'https://cdn.example.test/event.jpg', source: 'Calendar', source_url: 'https://events.example.test/harvest', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
+const eventId = '00000000-0000-0000-0000-000000000003';
+const secondEventId = '00000000-0000-0000-0000-000000000004';
+const event: CommunityEvent = { id: eventId, title: 'Harvest Festival', description: 'A day in the park', start_date: '2026-09-12T14:00:00Z', end_date: '2026-09-12T16:00:00Z', location: 'Market Square', category: 'community', image_url: 'https://cdn.example.test/event.jpg', source: 'Calendar', source_url: 'https://events.example.test/harvest', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
 const cardEvent = (source_url?: string): CommunityEvent => ({ ...event, source_url });
 
-function renderAt(id = 'event-1') { return render(<MemoryRouter initialEntries={[`/events/${id}`]}><Routes><Route path="/events/:eventId" element={<EventDetailPage />} /></Routes></MemoryRouter>); }
-function SwitchToSecondEvent() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate('/events/event-2')}>switch</button>; }
+function renderAt(id = eventId) { return render(<MemoryRouter initialEntries={[`/events/${id}`]}><Routes><Route path="/events/:eventId" element={<EventDetailPage />} /></Routes></MemoryRouter>); }
+function SwitchToSecondEvent() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate(`/events/${secondEventId}`)}>switch</button>; }
 function PathProbe() { return <output data-testid="path">{useLocation().pathname}</output>; }
 
 beforeEach(() => vi.clearAllMocks());
@@ -32,14 +34,14 @@ describe('EventDetailPage', () => {
     expect(screen.getByText('community')).toBeInTheDocument();
     expect(screen.getByText('Market Square')).toBeInTheDocument();
     expect(screen.getByText('A day in the park')).toBeInTheDocument();
-    expect(screen.getByTestId('share-url')).toHaveTextContent('https://westmoreland.bend.community/events/event-1');
+    expect(screen.getByTestId('share-url')).toHaveTextContent(`https://westmoreland.bend.community/events/${eventId}`);
     expect(screen.getByRole('link', { name: 'View source' })).toHaveAttribute('href', event.source_url);
   });
 
   it('maps unavailable statuses without retry', async () => {
     for (const status of [400, 401, 403, 404, 422]) {
       vi.mocked(eventApi.getDetail).mockRejectedValueOnce({ response: { status } });
-      renderAt(`event-${status}`);
+      renderAt(`00000000-0000-0000-0000-000000000${status}`);
       await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Event unavailable'));
       expect(screen.queryByRole('button', { name: 'Retry event' })).not.toBeInTheDocument();
       cleanup();
@@ -56,13 +58,13 @@ describe('EventDetailPage', () => {
 
   it.each([408, 429, 500, 503])('shows retry for transient status %i', async (status) => {
     vi.mocked(eventApi.getDetail).mockRejectedValueOnce({ response: { status } });
-    renderAt(`event-${status}`);
+    renderAt(`00000000-0000-0000-0000-000000000${status}`);
     expect(await screen.findByRole('button', { name: 'Retry event' })).toBeInTheDocument();
   });
 
   it('shows retry for a network failure', async () => {
     vi.mocked(eventApi.getDetail).mockRejectedValueOnce(new Error('network down'));
-    renderAt('network-event');
+    renderAt('00000000-0000-0000-0000-000000000900');
     expect(await screen.findByRole('button', { name: 'Retry event' })).toBeInTheDocument();
   });
 
@@ -77,12 +79,21 @@ describe('EventDetailPage', () => {
   it('does not show stale content when the event id changes', async () => {
     let resolveFirst!: (value: unknown) => void;
     const first = new Promise((resolve) => { resolveFirst = resolve; });
-    vi.mocked(eventApi.getDetail).mockReturnValueOnce(first as never).mockResolvedValueOnce({ data: { ...event, id: 'event-2', title: 'New event' } } as never);
-    render(<MemoryRouter initialEntries={['/events/event-1']}><Routes><Route path="/events/:eventId" element={<><EventDetailPage /><SwitchToSecondEvent /></>} /></Routes></MemoryRouter>);
+    vi.mocked(eventApi.getDetail).mockReturnValueOnce(first as never).mockResolvedValueOnce({ data: { ...event, id: secondEventId, title: 'New event' } } as never);
+    render(<MemoryRouter initialEntries={[`/events/${eventId}`]}><Routes><Route path="/events/:eventId" element={<><EventDetailPage /><SwitchToSecondEvent /></>} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'switch' }));
     expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
     resolveFirst({ data: event });
     await waitFor(() => expect(screen.queryByRole('heading', { name: event.title })).not.toBeInTheDocument());
+  });
+
+  it.each([
+    '%2e%2e%2fevents%2fpricing',
+    '%2e%2e%2fadmin%2fevents',
+  ])('renders unavailable for invalid decoded traversal id %s without requesting it', async (invalidId) => {
+    renderAt(invalidId);
+    expect(await screen.findByRole('heading', { name: 'Event unavailable' })).toBeInTheDocument();
+    expect(eventApi.getDetail).not.toHaveBeenCalled();
   });
 });
 
@@ -90,7 +101,7 @@ describe('native event cards', () => {
   it('navigates source-less cards internally', () => {
     render(<MemoryRouter initialEntries={['/events']}><Routes><Route path="*" element={<><EventCard event={cardEvent()} /><PathProbe /></>} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('heading', { name: event.title }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/events/event-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(`/events/${eventId}`);
   });
 
   it('opens safe sources through the platform browser and omits unsafe sources', () => {

@@ -5,12 +5,12 @@ import { cleanup } from '@testing-library/react'
 import type { BenderPost } from '@/types'
 import BenderPage from './BenderPage'
 
-const mocks = vi.hoisted(() => ({ getPost: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getPost: vi.fn(), listPosts: vi.fn() }))
 const getPost = mocks.getPost
 const feed = { posts: [], cursor: null, hasMore: false, loading: false, firstPageError: null, retryFirstPage: vi.fn(), loadingMore: false, loadMoreError: null, cachedAt: null, loadNext: vi.fn(), prepend: vi.fn(), remove: vi.fn(), patch: vi.fn() }
 const auth = { isAuthenticated: true, user: { id: 'user-1', role: 'individual' } }
-vi.mock('@/services/benderApi', () => ({ benderApi: { getPost: mocks.getPost, listPosts: vi.fn(), deletePost: vi.fn(), like: vi.fn(), unlike: vi.fn(), listComments: vi.fn(), createComment: vi.fn(), deleteComment: vi.fn(), createPost: vi.fn() } }))
-vi.mock('@/hooks/useBenderFeed', () => ({ useBenderFeed: vi.fn(() => feed) }))
+vi.mock('@/services/benderApi', () => ({ benderApi: { getPost: mocks.getPost, listPosts: mocks.listPosts, deletePost: vi.fn(), like: vi.fn(), unlike: vi.fn(), listComments: vi.fn(), createComment: vi.fn(), deleteComment: vi.fn(), createPost: vi.fn() } }))
+vi.mock('@/hooks/useBenderFeed', () => ({ useBenderFeed: vi.fn((options?: { enabled?: boolean }) => { if (options?.enabled !== false) void mocks.listPosts(); return feed }) }))
 vi.mock('@/stores/authStore', () => ({ useAuthStore: () => auth }))
 vi.mock('@/hooks/useBenderDraft', () => ({ useBenderDraft: () => ({ caption: '', setCaption: vi.fn(), pending: null, setPending: vi.fn(), hydrated: true, discard: vi.fn(async () => undefined) }) }))
 vi.mock('@/hooks/useOnlineMutation', () => ({ useOnlineMutation: () => ({ online: true, ready: true, run: (fn: () => unknown) => fn() }) }))
@@ -32,7 +32,13 @@ describe('BenderPage focused phase 2', () => {
   beforeEach(() => { vi.clearAllMocks(); getPost.mockResolvedValue({ data: post }) })
   it('loads one focused card without feed controls', async () => { renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(document.querySelectorAll('article')).toHaveLength(1); expect(screen.queryByText('No posts yet')).not.toBeInTheDocument(); expect(screen.queryByLabelText('New post')).not.toBeInTheDocument() })
   it('replaces a valid legacy query route with canonical route', async () => { renderAt(`/bender?post=${post.id}`); await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/bender/${post.id}`)) })
-  it('does not focus a noncanonical direct id', () => { renderAt('/bender/not-a-uuid'); expect(getPost).not.toHaveBeenCalled(); expect(screen.getByText('No posts yet')).toBeInTheDocument() })
+  it('renders a safe unavailable state for a noncanonical direct id without starting feed or detail requests', () => {
+    renderAt('/bender/not-a-uuid')
+    expect(getPost).not.toHaveBeenCalled()
+    expect(mocks.listPosts).not.toHaveBeenCalled()
+    expect(screen.getByText('Post unavailable')).toBeInTheDocument()
+    expect(screen.queryByText('No posts yet')).not.toBeInTheDocument()
+  })
   it('suppresses native focused sticky header and owns hidden heading', async () => { renderAt(`/bender/${post.id}`, true); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(screen.getByRole('heading', { name: 'Bender post' })).toHaveClass('sr-only'); expect(document.querySelector('.native-bender-header')).not.toBeInTheDocument() })
   it('keeps web focused chrome', async () => { renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); expect(screen.getByTestId('web-navbar')).toBeInTheDocument() })
   it('returns to feed after deletion', async () => { window.confirm = vi.fn(() => true); renderAt(`/bender/${post.id}`); await waitFor(() => expect(screen.getByText('focused')).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: 'More' })); fireEvent.click(screen.getByRole('button', { name: 'Delete' })); await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/bender')) })

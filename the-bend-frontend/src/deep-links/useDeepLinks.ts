@@ -21,27 +21,30 @@ export function useDeepLinks(): void {
     let disposed = false
     let removeListener: (() => Promise<void>) | undefined
 
-    const handleUrl = (url: string) => {
+    const handleUrl = (url: string, replace: boolean) => {
       const target = parseDeepLink(url)
       if (!target || disposed) return
       if (target.requiresAuth && loadingRef.current) {
         savePendingDestination(target)
-        navigateRef.current(target.path)
+        if (replace) navigateRef.current(target.path, { replace: true })
+        else navigateRef.current(target.path)
         return
       }
       if (target.requiresAuth && !authRef.current) {
         savePendingDestination(target)
-        navigateRef.current('/login', { replace: true })
+        if (replace) navigateRef.current('/login', { replace: true })
+        else navigateRef.current('/login')
         return
       }
-      navigateRef.current(target.path)
+      if (replace) navigateRef.current(target.path, { replace: true })
+      else navigateRef.current(target.path)
     }
 
     void App.getLaunchUrl().then((launch) => {
-      if (launch?.url) handleUrl(launch.url)
+      if (launch?.url) handleUrl(launch.url, true)
     }).catch(() => undefined)
 
-    void App.addListener('appUrlOpen', ({ url }) => handleUrl(url)).then((handle) => {
+    void App.addListener('appUrlOpen', ({ url }) => handleUrl(url, false)).then((handle) => {
       if (disposed) void handle.remove()
       else removeListener = handle.remove
     }).catch(() => undefined)

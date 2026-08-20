@@ -18,7 +18,8 @@ vi.mock('@/components/shared/ProtectedRoute', () => ({ ProtectedRoute: ({ childr
 vi.mock('@/components/shared/RoleGuard', () => ({ RoleGuard: ({ children }: { children: React.ReactNode }) => children }));
 afterEach(() => cleanup());
 
-const publicEvent = { id: 'event-1', title: 'Public event', description: 'Public description', start_date: '2026-09-12T14:00:00Z', category: 'community', location: 'Market Square', source: 'manual', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
+const publicEventId = '00000000-0000-0000-0000-000000000003';
+const publicEvent = { id: publicEventId, title: 'Public event', description: 'Public description', start_date: '2026-09-12T14:00:00Z', category: 'community', location: 'Market Square', source: 'manual', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
 
 function renderAt(path: string) { return render(<MemoryRouter initialEntries={[path]}><WebRoutes /></MemoryRouter>); }
 
@@ -50,7 +51,7 @@ describe('WebRoutes', () => {
 
   it('renders event detail on the public web route with web routing', async () => {
     vi.mocked(eventApi.getDetail).mockResolvedValue({ data: publicEvent } as never);
-    renderAt('/events/event-1');
+    renderAt(`/events/${publicEventId}`);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Public event' })).toBeInTheDocument());
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByText('public web chrome')).toBeInTheDocument();

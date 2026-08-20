@@ -22,7 +22,7 @@ describe('useDeepLinks', () => {
     mocks.getLaunchUrl.mockResolvedValue({ url: 'https://westmoreland.bend.community/' })
     renderHook(() => useDeepLinks())
     await act(async () => { await Promise.resolve() })
-    expect(mocks.navigate).toHaveBeenCalledWith('/')
+    expect(mocks.navigate).toHaveBeenCalledWith('/', { replace: true })
     expect(mocks.addListener).toHaveBeenCalledTimes(1)
   })
 
@@ -51,5 +51,27 @@ describe('useDeepLinks', () => {
     renderHook(() => useDeepLinks())
     await act(async () => { await Promise.resolve() })
     expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('replaces a protected cold launch with Login and stores the canonical destination', async () => {
+    const destination = '/messages/00000000-0000-0000-0000-000000000005'
+    const setItem = vi.fn()
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { setItem, getItem: vi.fn(), removeItem: vi.fn() } })
+    mocks.state.isLoading = false
+    mocks.getLaunchUrl.mockResolvedValue({ url: `https://westmoreland.bend.community${destination}` })
+    renderHook(() => useDeepLinks())
+    await act(async () => { await Promise.resolve() })
+    expect(setItem).toHaveBeenCalledWith('native_pending_post_path', destination)
+    expect(mocks.navigate).toHaveBeenCalledWith('/login', { replace: true })
+  })
+
+  it('pushes a protected warm link to Login so prior history remains available', async () => {
+    let callback!: (event: { url: string }) => void
+    mocks.state.isLoading = false
+    mocks.addListener.mockImplementation(async (_name: string, handler: (event: { url: string }) => void) => { callback = handler; return { remove: vi.fn() } })
+    renderHook(() => useDeepLinks())
+    await act(async () => { await Promise.resolve() })
+    act(() => callback({ url: 'https://westmoreland.bend.community/notifications' }))
+    expect(mocks.navigate).toHaveBeenCalledWith('/login')
   })
 })

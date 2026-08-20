@@ -19,7 +19,20 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (rea
 const listing = (id: string) => ({ id, category: 'staff', title: `Listing ${id}`, images: [], shop: null, posted_by: null, urgency: 'normal', type: 'offer', description: '', is_free: true, status: 'active', interest_count: 0, created_at: '' }) as never
 const business = (id: string) => ({ id, business_type: 'Farm', name: `Business ${id}`, address: 'Main', status: 'active' }) as never
 const event = (id: string) => ({ id, title: `Event ${id}`, category: 'community', start_date: '2026-12-01T12:00:00Z', location: 'Main' }) as never
-const bender = (id: string) => ({ id, author: { id: `author-${id}`, name: `Author ${id}` }, caption: `Bender ${id}`, media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 0, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z' }) as never
+const BENDER_IDS: Record<string, string> = {
+  '0': '00000000-0000-0000-0000-000000000000',
+  '1': '00000000-0000-0000-0000-000000000001',
+  '2': '00000000-0000-0000-0000-000000000002',
+  '3': '00000000-0000-0000-0000-000000000003',
+  '4': '00000000-0000-0000-0000-000000000004',
+  '5': '00000000-0000-0000-0000-000000000005',
+  '6': '00000000-0000-0000-0000-000000000006',
+  retry: '00000000-0000-0000-0000-000000000101',
+  new: '00000000-0000-0000-0000-000000000102',
+  old: '00000000-0000-0000-0000-000000000103',
+  fresh: '00000000-0000-0000-0000-000000000104',
+}
+const bender = (label: string) => { const id = BENDER_IDS[label]; if (!id) throw new TypeError(`Missing canonical Bender fixture for ${label}`); return ({ id, author: { id: `author-${label}`, name: `Author ${label}` }, caption: `Bender ${label}`, media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 0, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z' }) as never }
 const allQuery = (overrides = {}) => ({ q: '', type: 'all' as const, category: null, urgency: null, sort: null, mode: 'list' as const, near: false, ...overrides })
 
 beforeEach(() => { vi.clearAllMocks(); platform.network.getStatus.mockResolvedValue('online'); platform.cache.get.mockResolvedValue(null); platform.cache.put.mockResolvedValue(undefined); vi.mocked(listingApi.browse).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(listingApi.getOpportunities).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(shopApi.directory).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(eventApi.list).mockResolvedValue({ data: { items: [] } } as never); vi.mocked(benderApi.listPosts).mockResolvedValue({ data: { items: [], has_more: false } } as never) })
@@ -145,7 +158,7 @@ describe('useNativeExplore grouped All behavior', () => {
     const before = { listing: listingApi.browse.mock.calls.length, business: shopApi.directory.mock.calls.length, event: eventApi.list.mock.calls.length, volunteer: listingApi.getOpportunities.mock.calls.length }
     vi.mocked(benderApi.listPosts).mockResolvedValueOnce({ data: { items: [bender('retry')], has_more: false } } as never)
     await act(async () => { await result.current.groups.find((group) => group.kind === 'bender')!.state.retry() })
-    await waitFor(() => expect(result.current.groups.find((group) => group.kind === 'bender')?.state.data.map((item) => item.id)).toEqual(['retry']))
+    await waitFor(() => expect(result.current.groups.find((group) => group.kind === 'bender')?.state.data.map((item) => item.id)).toEqual([BENDER_IDS.retry]))
     expect(listingApi.browse).toHaveBeenCalledTimes(before.listing); expect(shopApi.directory).toHaveBeenCalledTimes(before.business); expect(eventApi.list).toHaveBeenCalledTimes(before.event); expect(listingApi.getOpportunities).toHaveBeenCalledTimes(before.volunteer)
   })
 
@@ -165,15 +178,15 @@ describe('useNativeExplore grouped All behavior', () => {
       .mockRejectedValueOnce(new Error('bender page failed'))
       .mockResolvedValueOnce({ data: { items: [bender('1'), bender('2')], has_more: false } } as never)
     const { result } = renderHook(() => useNativeExplore({ q: 'river', type: 'bender' as never, category: null, urgency: null, sort: null, mode: 'list', near: false }), { reactStrictMode: false })
-    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1']))
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual([BENDER_IDS['1']]))
     expect(benderApi.listPosts).toHaveBeenNthCalledWith(1, undefined, 15, expect.objectContaining({ search: 'river', signal: expect.any(AbortSignal) }))
     expect(result.current.typed?.hasMore).toBe(true)
     await act(async () => { await result.current.typed!.loadMore() })
-    expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1'])
+    expect(result.current.typed?.state.data.map((item) => item.id)).toEqual([BENDER_IDS['1']])
     expect(result.current.typed?.loadMoreError?.message).toBe('bender page failed')
     expect(result.current.typed?.hasMore).toBe(true)
     await act(async () => { await result.current.typed!.loadMore() })
-    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['1', '2']))
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual([BENDER_IDS['1'], BENDER_IDS['2']]))
     expect(result.current.typed?.loadMoreError).toBeNull()
     expect(benderApi.listPosts).toHaveBeenNthCalledWith(3, 'b1', 15, expect.objectContaining({ search: 'river', signal: expect.any(AbortSignal) }))
   })
@@ -189,10 +202,10 @@ describe('useNativeExplore grouped All behavior', () => {
     await waitFor(() => expect(benderApi.listPosts).toHaveBeenCalledTimes(2))
     expect(benderApi.listPosts).toHaveBeenNthCalledWith(2, undefined, 15, expect.objectContaining({ search: 'new', signal: expect.any(AbortSignal) }))
     await act(async () => { newRequest.resolve({ data: { items: [bender('new')], has_more: false } }) })
-    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new']))
+    await waitFor(() => expect(result.current.typed?.state.data.map((item) => item.id)).toEqual([BENDER_IDS.new]))
     await act(async () => { oldRequest.resolve({ data: { items: [bender('old')], has_more: false } }) })
     await Promise.resolve()
-    expect(result.current.typed?.state.data.map((item) => item.id)).toEqual(['new'])
+    expect(result.current.typed?.state.data.map((item) => item.id)).toEqual([BENDER_IDS.new])
     expect(result.current.typed?.state.error).toBeNull()
   })
 

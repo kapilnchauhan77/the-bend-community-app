@@ -2,6 +2,7 @@ import api from './api';
 import type { AxiosResponse } from 'axios';
 import type { CommunityEvent, ItemsResponse, PaginatedResponse } from '@/types';
 import type { PublicRequestOptions } from './listingApi';
+import { parseCanonicalUuid } from '@/deep-links/deepLinkRoutes';
 
 export const eventApi = {
   // Public
@@ -9,8 +10,11 @@ export const eventApi = {
     api.get<PaginatedResponse<CommunityEvent>>('/events', { params, signal: options?.signal }),
   getUpcoming: (limit = 5): Promise<AxiosResponse<ItemsResponse<CommunityEvent>>> =>
     api.get<ItemsResponse<CommunityEvent>>('/events/upcoming', { params: { limit: String(limit) } }),
-  getDetail: (id: string, options?: PublicRequestOptions): Promise<AxiosResponse<CommunityEvent>> =>
-    api.get<CommunityEvent>(`/events/${id}`, { signal: options?.signal }),
+  getDetail: (id: string, options?: PublicRequestOptions): Promise<AxiosResponse<CommunityEvent>> => {
+    const canonicalId = parseCanonicalUuid(id);
+    if (!canonicalId) throw new TypeError('Expected a canonical event UUID');
+    return api.get<CommunityEvent>(`/events/${encodeURIComponent(canonicalId)}`, { signal: options?.signal });
+  },
 
   // Event submission (paid)
   getPricing: () =>

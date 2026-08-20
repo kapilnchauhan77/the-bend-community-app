@@ -6,24 +6,16 @@ export function benderPostPath(postId: string): string {
   return `/bender/${encodeURIComponent(canonical)}`
 }
 
-function canonicalLegacyId(value: string | null): string | null {
-  if (!value) return null
-  try {
-    return parseCanonicalUuid(decodeURIComponent(value))
-  } catch {
-    return null
-  }
-}
-
 export function getLegacyBenderPostId(search: string, hash: string): string | null {
-  let queryId: string | null = null
-  try {
-    queryId = new URLSearchParams(search).get('post')
-  } catch {
-    queryId = null
-  }
-  const hashId = hash.match(/^#post-(.+)$/)?.[1] ?? null
-  return queryId !== null ? canonicalLegacyId(queryId) : canonicalLegacyId(hashId)
+  const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+  const queryMatch = search.match(new RegExp(`^\\??post=(${uuid})$`, 'i'))
+  const hashMatch = hash.match(new RegExp(`^#post-(${uuid})$`, 'i'))
+  if ((search && !queryMatch) || (hash && !hashMatch)) return null
+  const queryId = queryMatch ? parseCanonicalUuid(queryMatch[1]) : null
+  const hashId = hashMatch ? parseCanonicalUuid(hashMatch[1]) : null
+  if ((queryMatch && !queryId) || (hashMatch && !hashId)) return null
+  if (queryId && hashId && queryId.toLowerCase() !== hashId.toLowerCase()) return null
+  return queryId ?? hashId
 }
 
 export function getLegacyBenderPostPath(search: string, hash: string): string | null {
