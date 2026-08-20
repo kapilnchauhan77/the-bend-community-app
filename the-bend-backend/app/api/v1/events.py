@@ -300,6 +300,13 @@ async def purchase_connector(
 
 
 @router.get("/{event_id}")
-async def get_event(event_id: UUID, service: EventService = Depends(get_service)):
-    event = await service.get_event(event_id)
+async def get_event(
+    event_id: UUID,
+    service: EventService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+    viewer: User | None = Depends(get_current_user_optional),
+):
+    service.tenant_id = tenant.id if tenant else None
+    viewer_id = viewer.id if viewer and tenant and viewer.tenant_id == tenant.id else None
+    event = await service.get_event(event_id, viewer_id=viewer_id)
     return _serialize_event(event)

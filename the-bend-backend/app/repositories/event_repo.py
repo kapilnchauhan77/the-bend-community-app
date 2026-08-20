@@ -75,6 +75,30 @@ class EventRepository(BaseRepository[Event]):
         )
         return result.scalar_one_or_none()
 
+    async def get_visible_by_id(
+        self,
+        event_id: UUID,
+        tenant_id: UUID,
+        viewer_id: UUID | None = None,
+    ) -> Event | None:
+        from app.models.user_block import UserBlock
+
+        if tenant_id is None:
+            return None
+        filters = [
+            Event.id == event_id,
+            Event.tenant_id == tenant_id,
+            Event.status == EventStatus.ACTIVE,
+        ]
+        if viewer_id:
+            filters.append((Event.submitted_by_user_id.is_(None)) | ~select(UserBlock.id).where(
+                UserBlock.tenant_id == tenant_id,
+                UserBlock.blocker_id == viewer_id,
+                UserBlock.blocked_id == Event.submitted_by_user_id,
+            ).exists())
+        result = await self.session.execute(select(Event).where(*filters))
+        return result.scalar_one_or_none()
+
 
 class ConnectorRepository(BaseRepository[EventConnector]):
     def __init__(self, session: AsyncSession):
