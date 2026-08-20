@@ -37,16 +37,22 @@ class _FakeRedis:
     def __init__(self):
         self.data = {}
         self.ttls = {}
+        self.expires_at = {}
+        self.now = 0
         self.calls = []
 
     async def get(self, key):
         self.calls.append(("get", key))
+        if key in self.expires_at and self.expires_at[key] <= self.now:
+            self.data.pop(key, None)
+            self.expires_at.pop(key, None)
         return self.data.get(key)
 
     async def setex(self, key, ttl, value):
         self.calls.append(("setex", key, ttl, value))
         self.data[key] = value
         self.ttls[key] = ttl
+        self.expires_at[key] = self.now + ttl
 
     async def delete(self, key):
         self.calls.append(("delete", key))
@@ -65,6 +71,7 @@ class _FakeRedis:
     async def expire(self, key, seconds):
         self.calls.append(("expire", key, seconds))
         self.ttls[key] = seconds
+        self.expires_at[key] = self.now + seconds
 
     def pipeline(self, transaction=True):
         self.calls.append(("pipeline", transaction))
@@ -72,6 +79,9 @@ class _FakeRedis:
 
     def values(self):
         return tuple(self.data.values())
+
+    def advance(self, seconds):
+        self.now += seconds
 
 
 class _FailingRedis:
@@ -255,8 +265,29 @@ async def test_resolve_invalid_draft_deletes_corrupt_value_and_returns_none():
 async def test_missing_or_expired_draft_is_a_miss_without_delete():
     redis = _FakeRedis()
     store = BenderLinkPreviewStore(redis)
-    assert await store.resolve_draft("expired", user_id=uuid4(), tenant_id=None, caption="https://example.org/start") is None
+    token = await store.issue_draft(_snapshot(), user_id=uuid4(), tenant_id=None)
+    redis.advance(store.ttl_seconds)
+    assert await store.resolve_draft(token, user_id=uuid4(), tenant_id=None, caption="https://example.org/start") is None
     assert not any(call[0] == "delete" for call in redis.calls)
+
+
+@pytest.mark.asyncio
+async def test_deep_bounded_cache_json_is_deleted_as_a_corrupt_miss():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    key = store.CACHE_PREFIX + hashlib.sha256(b"https://example.org/deep").hexdigest()
+    redis.data[key] = '{"a":' * 10000 + '{}' + '}' * 10000
+    assert len(redis.data[key].encode()) < store.MAX_RAW_JSON_BYTES
+    assert await store.get_cached_metadata("https://example.org/deep") is None
+    assert ("delete", key) in redis.calls
+
+
+@pytest.mark.asyncio
+async def test_deep_bounded_cache_json_is_ignored_by_live_image_scan():
+    redis = _FakeRedis()
+    store = BenderLinkPreviewStore(redis)
+    redis.data[store.CACHE_PREFIX + "deep"] = '{"a":' * 10000 + '{}' + '}' * 10000
+    assert await store.live_image_urls() == set()
 
 
 @pytest.mark.asyncio
@@ -332,11 +363,19 @@ async def test_redis_failures_escape_unchanged():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["setex"])
-async def test_cache_and_draft_write_failures_escape(failure):
+async def test_cache_write_failure_escapes(failure):
     redis = _FailureRedis(failure)
     store = BenderLinkPreviewStore(redis)
     with pytest.raises(RuntimeError, match=failure):
         await store.cache_metadata("https://example.org", _metadata())
+
+
+@pytest.mark.asyncio
+async def test_draft_write_failure_escapes():
+    redis = _FailureRedis("setex")
+    store = BenderLinkPreviewStore(redis)
+    with pytest.raises(RuntimeError, match="setex"):
+        await store.issue_draft(_snapshot(), user_id=uuid4(), tenant_id=None)
 
 
 @pytest.mark.asyncio

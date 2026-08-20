@@ -59,7 +59,7 @@ class BenderLinkPreviewStore:
             if not isinstance(raw, str) or len(raw.encode("utf-8")) > cls.MAX_RAW_JSON_BYTES:
                 return None
             value = json.loads(raw)
-        except (UnicodeError, ValueError, TypeError):
+        except (UnicodeError, ValueError, TypeError, RecursionError):
             return None
         return value if isinstance(value, dict) else None
 
@@ -108,10 +108,6 @@ class BenderLinkPreviewStore:
             created_at=datetime.now(UTC),
             preview=snapshot,
         )
-        try:
-            token.encode("utf-8")
-        except UnicodeEncodeError:
-            return None
         key = self.DRAFT_PREFIX + self._hash(token)
         await self.redis.setex(key, self.ttl_seconds, record.model_dump_json())
         return token
