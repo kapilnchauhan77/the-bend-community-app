@@ -1,11 +1,14 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CommunityEvent } from '@/types'
 import EventsPage from './EventsPage'
 
 const refresh = vi.fn(() => Promise.resolve())
 const browserOpen = vi.hoisted(() => vi.fn(() => Promise.resolve()))
+const nativePresentation = vi.hoisted(() => ({ value: true }))
+const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 let cachedState: {
   data: CommunityEvent[] | null
   source: 'cache' | 'network' | null
@@ -17,7 +20,7 @@ let cachedState: {
 
 vi.mock('@/hooks/useCachedPublicContent', () => ({ useCachedPublicContent: () => cachedState }))
 vi.mock('@/hooks/useOnlineMutation', () => ({ useOnlineMutation: () => ({ online: true, ready: true, run: vi.fn() }) }))
-vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => true }))
+vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => nativePresentation.value }))
 vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()),
   usePlatformServices: () => ({ browser: { open: browserOpen } }),
@@ -53,6 +56,7 @@ function renderPage() {
 beforeEach(() => {
   refresh.mockClear()
   browserOpen.mockClear()
+  nativePresentation.value = true
   cachedState = { data: [event], source: 'network', cachedAt: null, status: 'success', error: null, refresh }
 })
 afterEach(cleanup)
@@ -81,6 +85,20 @@ describe('EventsPage native recovery and destinations', () => {
     renderPage()
 
     expect(screen.getByRole('link', { name: `Open ${event.title}` })).toHaveAttribute('href', `/events/${event.id}`)
+  })
+
+  it('omits the duplicate web hero in native presentation while retaining events content', () => {
+    renderPage()
+    expect(screen.queryByRole('heading', { name: 'Community Events' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: `Open ${event.title}` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Post Event' })).toBeInTheDocument()
+    expect(nativeCss).toMatch(/\.native-app \.native-events-post-action\s*\{[^}]*display:\s*flex[^}]*justify-content:\s*flex-end[^}]*padding:\s*var\(--native-space-3\) 18px 0/)
+  })
+
+  it('retains the web events hero when rendered outside native presentation', () => {
+    nativePresentation.value = false
+    renderPage()
+    expect(screen.getByRole('heading', { name: 'Community Events' })).toBeInTheDocument()
   })
 
   it('makes each selected-day calendar row a named internal event link', () => {

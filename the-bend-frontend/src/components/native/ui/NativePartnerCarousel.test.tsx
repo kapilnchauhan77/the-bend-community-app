@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Sponsor } from '@/types'
 import { NativePartnerCarousel } from './NativePartnerCarousel'
 
+const browserOpen = vi.hoisted(() => vi.fn(() => Promise.resolve()))
+vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => ({ browser: { open: browserOpen } }) }))
+
 const partner = (id: string, name: string, overrides: Partial<Sponsor> = {}): Sponsor => ({
   id,
   name,
@@ -31,6 +34,7 @@ describe('NativePartnerCarousel', () => {
     cleanup()
     vi.useRealTimers()
     vi.restoreAllMocks()
+    browserOpen.mockReset()
   })
 
   it('keeps API order and exposes exactly one active, full-card partner at a time', () => {
@@ -108,6 +112,27 @@ describe('NativePartnerCarousel', () => {
 
     rerender(<NativePartnerCarousel partners={[partner('credentials', 'Credentials Partner', { website_url: 'https://user:password@example.com/path' })]} />)
     expect(screen.queryByRole('link', { name: /Credentials Partner/i })).toBeNull()
+  })
+
+  it('opens a safe website through the platform browser while retaining semantic link metadata', () => {
+    render(<NativePartnerCarousel partners={[partners[0]!]} />)
+    const link = screen.getByRole('link', { name: /Colonial Beach Brewing/i })
+    expect(link).toHaveAttribute('href', 'https://colonialbeachbrewing.com/')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    fireEvent.click(link)
+    expect(browserOpen).toHaveBeenCalledWith('https://colonialbeachbrewing.com/')
+  })
+
+  it.each([
+    partner('no-site', 'No Site Partner'),
+    partner('unsafe-site', 'Unsafe Site Partner', { website_url: 'javascript:alert(1)' }),
+  ])('does not invoke the browser for a noninteractive partner card', (item) => {
+    render(<NativePartnerCarousel partners={[item]} />)
+    const heading = screen.getByRole('heading', { name: item.name })
+    const link = heading.closest('a')
+    if (link) fireEvent.click(link)
+    expect(browserOpen).not.toHaveBeenCalled()
   })
 
   it.each([

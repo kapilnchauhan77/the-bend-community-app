@@ -104,7 +104,7 @@ function KebabMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="native-bender-secondary p-1 text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] transition-colors cursor-pointer"
+        className="native-bender-kebab native-bender-secondary p-1 text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] transition-colors cursor-pointer"
         aria-label={ariaLabel}
       >
         <MoreHorizontal size={iconSize} />

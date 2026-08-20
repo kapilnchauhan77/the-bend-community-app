@@ -12,10 +12,6 @@ vi.mock('@/components/shared/SponsorBanner', () => ({ SponsorBanner: () => <div 
 
 const nativeCss = readFileSync('src/styles/native.css', 'utf8');
 const guidelinesRule = nativeCss.match(/\.native-app \.native-guidelines-page\s*\{([^}]*)\}/)?.[1] ?? '';
-const darkGuidelinesHeadingRule = nativeCss.match(/\.dark \.native-app \.native-guidelines-page article h2\s*\{([^}]*)\}/)?.[1] ?? '';
-const darkGuidelinesBodyRule = nativeCss.match(/\.dark \.native-app \.native-guidelines-page article p,\s*\.dark \.native-app \.native-guidelines-page article ul\s*\{([^}]*)\}/)?.[1] ?? '';
-const darkGuidelinesPanelRule = nativeCss.match(/\.dark \.native-app \.native-guidelines-page article \.bg-\\\[hsl\\\(40\\,20\\%\\,98\\%\\\)\\\]\s*\{([^}]*)\}/)?.[1] ?? '';
-const darkGuidelinesLinkRule = nativeCss.match(/\.dark \.native-app \.native-guidelines-page article a\s*\{([^}]*)\}/)?.[1] ?? '';
 
 function renderPage(embeddedNative = false) {
   return render(
@@ -115,17 +111,17 @@ describe('GuidelinesViewPage native shell', () => {
     expect(screen.getByTestId('web-install-banner')).toBeInTheDocument();
   });
 
-  it('keeps the legal document on a readable light surface in native dark mode', () => {
+  it('uses native theme tokens for the legal document in native dark mode', () => {
     document.documentElement.classList.add('dark');
     const { container } = renderPage(true);
 
     expect(container.querySelector('.native-embedded-page')).toHaveClass('native-guidelines-page');
-    expect(guidelinesRule).toMatch(/background:\s*#f7f3ea/);
-    expect(guidelinesRule).toMatch(/color:\s*#352e27/);
-    expect(guidelinesRule).toMatch(/color-scheme:\s*light/);
-    expect(darkGuidelinesHeadingRule).toMatch(/color:\s*#352e27\s*!important/);
-    expect(darkGuidelinesBodyRule).toMatch(/color:\s*#625950\s*!important/);
-    expect(darkGuidelinesPanelRule).toMatch(/background:\s*#fffdf8\s*!important/);
-    expect(darkGuidelinesLinkRule).toMatch(/color:\s*#8f672e\s*!important/);
+    expect(guidelinesRule).toMatch(/background:\s*var\(--native-page\)/);
+    expect(guidelinesRule).toMatch(/color:\s*var\(--native-text\)/);
+    expect(guidelinesRule).not.toMatch(/color-scheme:\s*light/);
+    expect(nativeCss).toMatch(/\.native-app \.native-guidelines-page article h2[^{]*\{[^}]*color:\s*var\(--native-text\)/);
+    expect(nativeCss).toMatch(/\.native-app \.native-guidelines-page article p,[\s\S]*color:\s*var\(--native-muted\)/);
+    expect(nativeCss).toMatch(/\.native-app \.native-guidelines-page article > div\s*\{[^}]*background:\s*var\(--native-card\)/);
+    expect(nativeCss).toMatch(/\.native-app \.native-guidelines-page article a\s*\{[^}]*color:\s*var\(--native-primary\)/);
   });
 });

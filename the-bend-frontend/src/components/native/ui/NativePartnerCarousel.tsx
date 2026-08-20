@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type UIEvent } from 'react'
 import { resolveAssetUrl } from '@/lib/constants'
 import type { Sponsor } from '@/types'
+import { usePlatformServices } from '@/platform/createPlatformServices'
 
 export interface NativePartnerCarouselProps {
   partners: Sponsor[]
@@ -38,6 +39,7 @@ function partnerSlideOffset(track: HTMLUListElement, index: number): number {
 }
 
 export function NativePartnerCarousel({ partners }: NativePartnerCarouselProps) {
+  const { browser } = usePlatformServices()
   const partnerOrder = partners.map((partner) => partner.id).join('\u0000')
   const trackRef = useRef<HTMLUListElement>(null)
   const [position, setPosition] = useState(() => ({ partnerOrder, index: 0 }))
@@ -82,7 +84,7 @@ export function NativePartnerCarousel({ partners }: NativePartnerCarouselProps) 
       {partner.description ? <p className="native-partner-description">{partner.description}</p> : null}
     </>
     const website = websiteFor(partner)
-    return website ? <a className="native-partner-card" href={website} target="_blank" rel="noopener noreferrer">{card}</a> : <article className="native-partner-card">{card}</article>
+    return website ? <a className="native-partner-card" href={website} target="_blank" rel="noopener noreferrer" onClick={(event) => { event.preventDefault(); void browser.open(website); }}>{card}</a> : <article className="native-partner-card">{card}</article>
   }
 
   return <div className="native-partner-carousel" role="region" aria-roledescription="carousel" aria-label="Community partners carousel">

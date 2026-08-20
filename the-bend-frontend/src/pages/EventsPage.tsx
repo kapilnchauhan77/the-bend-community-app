@@ -504,14 +504,16 @@ export default function EventsPage() {
     }
     return [...filteredEvents].sort(byStartAsc);
   })();
+  const openPostForm = () => { setShowPostForm(true); setPostStep('tier'); setPostError(''); };
 
   return (
     <PageLayout>
       {!online && <OfflineBanner />}
       <div className="max-w-7xl mx-auto px-4 md:px-8 pt-3"><CachedContentNotice cachedAt={cached.cachedAt} /></div>
       {!native && <SponsorBanner placement="events" />}
+      {native && <div className="native-events-post-action"><Button onClick={openPostForm} size="sm" className="native-control gap-1.5 text-xs tracking-wider uppercase font-semibold cursor-pointer" style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}><Plus className="w-3.5 h-3.5" />Post Event</Button></div>}
       {/* ── Page Header ── */}
-      <section className="py-8" style={{ backgroundColor: PRIMARY }}>
+      {!native && <section className="py-8" style={{ backgroundColor: PRIMARY }}>
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="flex items-center gap-2 text-white/90 text-sm mb-1">
             {!native && <button
@@ -531,7 +533,7 @@ export default function EventsPage() {
               <p className="text-sm text-white/85 mt-1">Discover what's happening in the community</p>
             </div>
             <Button
-              onClick={() => { setShowPostForm(true); setPostStep('tier'); setPostError(''); }}
+              onClick={openPostForm}
               size="sm"
               className="gap-1.5 text-xs tracking-wider uppercase font-semibold cursor-pointer"
               style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}
@@ -541,7 +543,7 @@ export default function EventsPage() {
             </Button>
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* ── Controls Bar ── */}
       <section className="border-b border-gray-100 bg-white sticky top-14 z-30">

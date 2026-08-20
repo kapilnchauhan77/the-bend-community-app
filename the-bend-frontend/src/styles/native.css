@@ -53,6 +53,7 @@
 .native-app .native-result-group .native-section-header { margin-bottom: var(--native-space-3); }
 .native-app .native-card { display: block; min-width: 0; padding: var(--native-space-3); border: 1px solid var(--native-border); border-radius: var(--native-radius-card); color: var(--native-text); background: var(--native-elevated); overflow-wrap: anywhere; }
 .native-app .native-partner-button { display: inline-flex; align-items: center; justify-content: center; margin: var(--native-space-3) 0 var(--native-space-6); padding: 10px var(--native-space-4); border: 1px solid var(--native-bronze); border-radius: var(--native-radius-control); color: var(--native-primary); background: transparent; text-decoration: none; }
+.native-app .native-events-post-action { display: flex; justify-content: flex-end; padding: var(--native-space-3) 18px 0; }
 .native-app button.native-partner-button:focus-visible { outline: 3px solid var(--native-focus); outline-offset: 2px; }
 .native-app .native-partner-error { margin: calc(var(--native-space-6) * -1) 0 var(--native-space-6); color: var(--native-urgent-text); font-size: 13px; }
 .native-app .native-partner-carousel { width: 100%; min-width: 0; }
@@ -124,19 +125,18 @@
 .native-app .native-header-title h1 { margin: 0; font-size: 18px; line-height: 1.15; }
 .native-app .native-header-icon { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; color: var(--native-primary); background: transparent; }
 .native-app .native-embedded-page { min-height: 100dvh; color: var(--native-text); background: var(--native-page); }
-.native-app .native-guidelines-page { color: #352e27; background: #f7f3ea; color-scheme: light; }
-.native-app .native-guidelines-contents { border: 1px solid #ded6c9; border-radius: 10px; padding: 12px 16px; background: #fffdf8; }
-.native-app .native-guidelines-contents summary { cursor: pointer; color: #352e27; font-weight: 700; }
+.native-app .native-guidelines-page { color: var(--native-text); background: var(--native-page); }
+.native-app .native-guidelines-page article h2 { color: var(--native-text) !important; }
+.native-app .native-guidelines-page article p,
+.native-app .native-guidelines-page article ul { color: var(--native-muted) !important; }
+.native-app .native-guidelines-page article > div { border-color: var(--native-border) !important; color: var(--native-muted) !important; background: var(--native-card) !important; }
+.native-app .native-guidelines-page article a { color: var(--native-primary) !important; }
+.native-app .native-guidelines-contents { border: 1px solid var(--native-border); border-radius: 10px; padding: 12px 16px; background: var(--native-card); }
+.native-app .native-guidelines-contents summary { cursor: pointer; color: var(--native-text); font-weight: 700; }
 .native-app .native-guidelines-contents nav { margin-top: 10px; }
 .native-app .native-guidelines-contents ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.native-app .native-guidelines-contents a { color: #8f672e; text-decoration: underline; }
-.dark .native-app .native-guidelines-page article h2 { color: #352e27 !important; }
-.dark .native-app .native-guidelines-page article p,
-.dark .native-app .native-guidelines-page article ul { color: #625950 !important; }
-.dark .native-app .native-guidelines-page article p.text-xs { color: #6f675e !important; }
-.dark .native-app .native-guidelines-page article a { color: #8f672e !important; }
-.dark .native-app .native-guidelines-page article .bg-\[hsl\(40\,20\%\,98\%\)\] { background: #fffdf8 !important; }
-.dark .native-app .native-guidelines-page article .border-\[hsl\(35\,18\%\,84\%\)\] { border-color: #ded6c9 !important; }
+.native-app .native-guidelines-contents a { color: var(--native-primary); text-decoration: underline; }
+.native-app .native-bender-kebab { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; width: 44px; min-height: 44px; height: 44px; padding: 0.25rem; flex: 0 0 44px; }
 .native-app .native-bender-page { min-height: 100dvh; color: var(--native-text) !important; background: var(--native-page) !important; }
 .native-app .native-bender-surface { color: var(--native-text) !important; background: var(--native-card) !important; }
 .native-app .native-bender-muted-surface { background: var(--native-page) !important; }

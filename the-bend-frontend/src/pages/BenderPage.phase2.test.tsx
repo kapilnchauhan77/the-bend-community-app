@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
@@ -24,6 +25,7 @@ vi.mock('@/components/features/messages/ShareToMessageButton', () => ({ ShareToM
 vi.mock('@/platform/createPlatformServices', () => ({ usePlatformServices: () => ({ browser: { open: vi.fn() } }) }))
 
 const post: BenderPost = { id: '123e4567-e89b-12d3-a456-426614174000', caption: 'focused', media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 0, viewer_has_liked: false, created_at: '2026-08-18T00:00:00Z', author: { id: 'user-1', name: 'Author' } }
+const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 function Location() { return <output data-testid="location"><span>{useLocation().pathname}</span></output> }
 function renderAt(path: string, nativeEmbedded = false) { return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/bender/:postId?" element={<><BenderPage nativeEmbedded={nativeEmbedded} /><Location /></>} /></Routes></MemoryRouter>) }
 
@@ -60,6 +62,14 @@ describe('BenderPage compact native cards', () => {
     expect(screen.getByRole('button', { name: `View comments on ${boundedAuthor}'s post` })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: `Share ${boundedAuthor}'s post` })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: `More actions for ${boundedAuthor}'s post` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `More actions for ${boundedAuthor}'s post` })).toHaveClass('native-bender-kebab')
+  })
+
+  it('keeps native kebab controls at least 44 pixels without changing card layout', () => {
+    feed.posts = [{ ...post, author: { id: 'user-1', name: 'Author' } }]
+    const { container } = renderAt('/bender', true)
+    expect(container.querySelector('.native-bender-post-card')).toBeInTheDocument()
+    expect(nativeCss).toMatch(/\.native-app \.native-bender-kebab\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/)
   })
 })
 
