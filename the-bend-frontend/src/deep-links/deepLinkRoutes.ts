@@ -34,6 +34,8 @@ function parseLegacyBenderId(search: string, hash: string): string | null {
 
 export function parseDeepLink(url: string): DeepLinkTarget | null {
   if (typeof url !== 'string' || !url || url.startsWith('//') || !/^https:\/\/westmoreland\.bend\.community(?:\/|$)/.test(url) || url.includes('\\') || /(?:^|\/)\.{1,2}(?:\/|[?#]|$)/.test(url.slice('https://westmoreland.bend.community'.length)) || [...url].some((char) => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127)) return null
+  const rawPath = url.slice(`https://${HOST}`.length).split(/[?#]/, 1)[0]
+  if (rawPath.includes('%')) return null
   let parsed: URL
   try { parsed = new URL(url) } catch { return null }
   if (parsed.protocol !== 'https:' || parsed.hostname !== HOST || parsed.port || parsed.username || parsed.password) return null

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { parseDeepLink } from './deepLinkRoutes'
 
 describe('parseDeepLink', () => {
+  const eventId = '00000000-0000-0000-0000-000000000003'
+  const postId = '00000000-0000-0000-0000-000000000004'
+  const messageId = '00000000-0000-0000-0000-000000000005'
+
   it.each([
     ['https://westmoreland.bend.community/listing/00000000-0000-0000-0000-000000000001', '/listing/00000000-0000-0000-0000-000000000001'],
     ['https://westmoreland.bend.community/business/00000000-0000-0000-0000-000000000002', '/business/00000000-0000-0000-0000-000000000002'],
@@ -48,6 +52,22 @@ describe('parseDeepLink', () => {
     'https://westmoreland.bend.community/listing/00000000-0000-0000-0000-00000000000g',
     'https://westmoreland.bend.community/listing/00000000-0000-0000-0000-0000000000011',
   ])('rejects unsafe URL %s', (url) => expect(parseDeepLink(url)).toBeNull())
+
+  it.each([
+    `https://westmoreland.bend.community/admin/%2e%2e/events/${eventId}`,
+    `https://westmoreland.bend.community/admin/.%2E/bender/${postId}`,
+    `https://westmoreland.bend.community/admin/%2e./bender?post=${postId}`,
+    `https://westmoreland.bend.community/admin/%2E%2e/bender#post-${postId}`,
+    'https://westmoreland.bend.community/admin/%2e./guidelines#contact',
+    'https://westmoreland.bend.community/admin/%2E%2E/notifications',
+    `https://westmoreland.bend.community/admin/.%2e/messages/${messageId}`,
+    `https://westmoreland.bend.community/%2e/events/${eventId}`,
+    `https://westmoreland.bend.community/admin/%2e%2e%2fevents%2f${eventId}`,
+    `https://westmoreland.bend.community/admin/%2e%2e%5cevents%5c${eventId}`,
+    `https://westmoreland.bend.community/admin/../events/${eventId}`,
+  ])('rejects raw traversal before URL normalization for %s', (url) => {
+    expect(parseDeepLink(url)).toBeNull()
+  })
 
   it.each([
     ['https://westmoreland.bend.community/', false],
