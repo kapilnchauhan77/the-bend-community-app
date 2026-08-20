@@ -40,6 +40,7 @@ describe('RegisterPage native steps', () => {
     renderNative()
     expect(screen.getByRole('status')).toHaveTextContent('Step 1 of 3')
     expect(screen.getByRole('heading', { name: 'Account type' })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Business accounts require admin approval before access. Individual accounts can access immediately after registration.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByRole('heading', { name: 'Your details' })).toHaveFocus()
     expect(screen.getByRole('status')).toHaveTextContent('Step 2 of 3')

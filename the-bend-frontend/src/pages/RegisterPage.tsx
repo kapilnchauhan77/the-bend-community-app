@@ -215,7 +215,7 @@ export default function RegisterPage() {
             </h1>
             <p className="text-sm text-[hsl(30,10%,48%)]">
               {native && step === 'account-type'
-                ? 'Choose how you will participate in The Bend.'
+                ? 'Business accounts require admin approval before access. Individual accounts can access immediately after registration.'
                 : native && step === 'details'
                   ? (isIndividual ? 'Tell us a little about yourself.' : 'Business accounts are reviewed before approval.')
                   : native

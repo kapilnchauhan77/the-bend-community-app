@@ -92,4 +92,9 @@ describe('native auth pages', () => {
     expect(cssRule(".native-app .native-auth-page input[autocomplete='new-password']")).toMatch(/padding-right:\s*52px/)
     expect(cssRule(".native-app .native-auth-page input[autocomplete='current-password']")).toMatch(/padding-right:\s*52px/)
   })
+
+  it('gives native auth pages the full available viewport without the obsolete nav height', () => {
+    expect(cssRule('.native-app .native-auth-page')).toMatch(/min-height:\s*calc\(100dvh - var\(--native-safe-bottom\)\)/)
+    expect(cssRule('.native-app .native-auth-page')).not.toMatch(/88px/)
+  })
 })

@@ -137,14 +137,20 @@ describe('NativeAppShell', () => {
     expect(add).toHaveBeenCalled()
   })
 
-  it('updates bottom navigation and inset as routes transition', () => {
-    function Probe() { const navigate = useNavigate(); return <button onClick={() => navigate('/')}>root</button> }
+  it('hides bottom navigation on every auth route and restores nav padding on normal routes', () => {
+    function Probe() { const navigate = useNavigate(); return <><button onClick={() => navigate('/register')}>register</button><button onClick={() => navigate('/forgot-password')}>forgot</button><button onClick={() => navigate('/reset-password')}>reset</button><button onClick={() => navigate('/')}>root</button></> }
     const view = render(<PlatformServicesProvider config={config}><MemoryRouter initialEntries={['/bender/one']}><Routes><Route element={<NativeAppShell />}><Route path="*" element={<Probe />} /></Route></Routes></MemoryRouter></PlatformServicesProvider>)
     const main = document.querySelector('.native-main')!
     expect(main).toHaveAttribute('data-bottom-navigation', 'hidden')
     expect(main).toHaveClass('native-main')
+    fireEvent.click(screen.getByRole('button', { name: 'register' }))
+    expect(main).toHaveAttribute('data-bottom-navigation', 'hidden')
+    fireEvent.click(screen.getByRole('button', { name: 'forgot' }))
+    expect(main).toHaveAttribute('data-bottom-navigation', 'hidden')
+    fireEvent.click(screen.getByRole('button', { name: 'reset' }))
+    expect(main).toHaveAttribute('data-bottom-navigation', 'hidden')
     fireEvent.click(screen.getByRole('button', { name: 'root' }))
-    expect(document.querySelector('.native-main')).toHaveAttribute('data-bottom-navigation', 'visible')
+    expect(main).toHaveAttribute('data-bottom-navigation', 'visible')
     view.unmount()
   })
 })
