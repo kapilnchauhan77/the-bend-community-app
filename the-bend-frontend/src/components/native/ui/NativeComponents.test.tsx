@@ -223,6 +223,18 @@ describe('native UI primitives', () => {
     expect(cssRule('.native-app .native-partner-description')).toMatch(/-webkit-line-clamp:\s*3/)
     expect(cssRule('.native-app .native-partner-pagination')).toMatch(/display:\s*flex/)
   })
+  it('keeps partner steps and discovery media controls touch-safe and explicit', () => {
+    expect(cssRule('.native-app .native-partner-controls')).toMatch(/display:\s*flex/)
+    expect(cssRule('.native-app .native-partner-step')).toMatch(/min-width:\s*44px/)
+    expect(cssRule('.native-app .native-partner-step')).toMatch(/min-height:\s*44px/)
+    expect(cssRule('.native-app .native-partner-step')).toMatch(/border:/)
+    expect(cssRule('.native-app .native-partner-step:disabled')).toMatch(/color:/)
+    expect(cssRule('.native-app .native-partner-step:disabled')).toMatch(/background:/)
+    expect(nativeCss).toContain('.native-app .native-partner-step:focus-visible')
+    expect(cssRule('.native-app .native-discovery-media--contain')).toMatch(/object-fit:\s*contain/)
+    expect(cssRule('.native-app .native-discovery-media--cover')).toMatch(/object-fit:\s*cover/)
+    expect(cssRule('.native-app .native-partner-logo img')).toMatch(/object-fit:\s*contain/)
+  })
   it('routes the full native Bender feed through adaptive semantic colors', () => {
     expect(cssRule('.native-app .native-bender-page')).toMatch(/background:\s*var\(--native-page\)\s*!important/)
     expect(cssRule('.native-app .native-bender-surface')).toMatch(/background:\s*var\(--native-card\)\s*!important/)

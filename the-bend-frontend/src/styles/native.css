@@ -94,6 +94,10 @@
 .native-app .native-partner-logo-fallback { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 14px; color: var(--native-primary); background: color-mix(in srgb, var(--native-primary) 12%, var(--native-card)); font-size: 18px; font-weight: 800; letter-spacing: .04em; }
 .native-app .native-partner-name { margin: 0; font-family: Georgia, serif; font-size: 19px; line-height: 1.25; letter-spacing: -.01em; }
 .native-app .native-partner-description { display: -webkit-box; margin: var(--native-space-2) 0 0; overflow: hidden; color: var(--native-muted); font-size: 14px; line-height: 1.45; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.native-app .native-partner-controls { display: flex; align-items: center; justify-content: space-between; gap: var(--native-space-3); width: 100%; min-width: 0; margin-top: var(--native-space-3); }
+.native-app .native-partner-step { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid var(--native-border); border-radius: 50%; color: var(--native-primary); background: var(--native-elevated); font-size: 28px; line-height: 1; }
+.native-app .native-partner-step:focus-visible { outline: 3px solid var(--native-focus); outline-offset: 2px; }
+.native-app .native-partner-step:disabled { border-color: var(--native-border); color: var(--native-muted); background: var(--native-card); cursor: not-allowed; }
 .native-app .native-partner-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; min-height: 14px; margin-top: var(--native-space-3); }
 .native-app .native-partner-dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--native-border); }
 .native-app .native-partner-dot[data-active="true"] { background: var(--native-bronze); }
@@ -269,6 +273,8 @@
   aspect-ratio: 1;
   object-fit: cover;
 }
+.native-app .native-discovery-media--contain { object-fit: contain; }
+.native-app .native-discovery-media--cover { object-fit: cover; }
 .native-app .native-thumbnail { display: block; }
 .native-app .native-thumbnail-fallback { display: grid; place-items: center; border-radius: 12px; color: var(--native-primary); background: color-mix(in srgb, var(--native-primary) 12%, var(--native-card)); }
 .native-app .native-search-bar {
