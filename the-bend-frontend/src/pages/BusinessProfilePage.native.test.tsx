@@ -5,7 +5,7 @@ import BusinessProfilePage from './BusinessProfilePage'
 
 const nativePresentation = vi.hoisted(() => ({ value: false }))
 vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => nativePresentation.value }))
-vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
+vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children, embeddedClassName }: { children: React.ReactNode; embeddedClassName?: string }) => <div className={embeddedClassName}>{children}</div> }))
 vi.mock('@/hooks/useBusinessProfilePublicData', () => ({
   useBusinessProfilePublicData: () => ({
     cached: { cachedAt: null }, shopData: null, listings: [], endorsements: [], setEndorsements: vi.fn(),
@@ -37,7 +37,8 @@ describe('BusinessProfilePage unavailable navigation', () => {
 
   it('opens the native business explorer when a business is unavailable', () => {
     nativePresentation.value = true
-    renderPage()
+    const { container } = renderPage()
+    expect(container.querySelector('.native-themed-page.native-business-profile-page')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Browse Directory' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/explore?type=businesses')
   })

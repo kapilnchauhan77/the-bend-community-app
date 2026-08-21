@@ -128,7 +128,7 @@ export default function RegisterPage() {
   // Success state
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
+      <div className="native-auth-page native-auth-surface min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
         <div className="w-full max-w-md text-center">
           <div
             className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center"
@@ -204,7 +204,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Right — Registration form */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="native-auth-surface flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto px-6 py-10">
           <NativeAuthBack fallbackPath="/login" />
           {/* Mobile logo */}

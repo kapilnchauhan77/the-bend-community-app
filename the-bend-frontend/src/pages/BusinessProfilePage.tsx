@@ -146,7 +146,7 @@ export default function BusinessProfilePage() {
 
   if (loading) {
     return (
-      <PageLayout>
+      <PageLayout embeddedClassName="native-themed-page native-business-profile-page">
         <div className="max-w-4xl mx-auto px-4 md:px-8 py-8 animate-pulse space-y-6">
           <div className="h-8 w-48 bg-[hsl(35,15%,90%)] rounded" />
           <div className="h-40 bg-[hsl(35,15%,90%)] rounded" />
@@ -160,7 +160,7 @@ export default function BusinessProfilePage() {
 
   if (error || !shopData) {
     return (
-      <PageLayout>
+      <PageLayout embeddedClassName="native-themed-page native-business-profile-page">
         <div className="max-w-4xl mx-auto px-4 md:px-8 py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-[hsl(35,15%,90%)] flex items-center justify-center mx-auto mb-4">
             <Store className="w-8 h-8 text-[hsl(30,10%,55%)]" />
@@ -180,7 +180,7 @@ export default function BusinessProfilePage() {
   const activeListings = listings.filter((l) => l.status === 'active');
 
   return (
-    <PageLayout>
+    <PageLayout embeddedClassName="native-themed-page native-business-profile-page">
       {!online && <OfflineBanner />}
       <div className="max-w-4xl mx-auto px-4 md:px-8 pt-4">
         <CachedContentNotice cachedAt={cached.cachedAt} />

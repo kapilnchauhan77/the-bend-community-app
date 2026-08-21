@@ -507,7 +507,7 @@ export default function EventsPage() {
   const openPostForm = () => { setShowPostForm(true); setPostStep('tier'); setPostError(''); };
 
   return (
-    <PageLayout>
+    <PageLayout embeddedClassName="native-themed-page native-events-page">
       {!online && <OfflineBanner />}
       <div className="max-w-7xl mx-auto px-4 md:px-8 pt-3"><CachedContentNotice cachedAt={cached.cachedAt} /></div>
       {!native && <SponsorBanner placement="events" />}

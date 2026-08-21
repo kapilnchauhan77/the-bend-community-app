@@ -199,7 +199,7 @@ export default function ListingDetailPage() {
 
   if (!activeListing && cached.status === 'loading') {
     return (
-      <PageLayout>
+      <PageLayout embeddedClassName="native-themed-page native-listing-detail-page">
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 w-32 bg-gray-200 rounded" />
@@ -215,7 +215,7 @@ export default function ListingDetailPage() {
 
   if (!activeListing && cached.status === 'error') {
     return (
-      <PageLayout>
+      <PageLayout embeddedClassName="native-themed-page native-listing-detail-page">
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Package className="w-8 h-8 text-gray-400" />
@@ -232,7 +232,7 @@ export default function ListingDetailPage() {
 
   if (!activeListing) {
     return (
-      <PageLayout>
+      <PageLayout embeddedClassName="native-themed-page native-listing-detail-page">
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Package className="w-8 h-8 text-gray-400" />
@@ -253,7 +253,7 @@ export default function ListingDetailPage() {
   const safeImageIndex = Math.min(imageIndex, Math.max(images.length - 1, 0));
 
   return (
-    <PageLayout>
+    <PageLayout embeddedClassName="native-themed-page native-listing-detail-page">
       {!online && <OfflineBanner />}
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
         <CachedContentNotice cachedAt={cached.cachedAt} />

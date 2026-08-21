@@ -19,7 +19,7 @@ let cachedState: {
 vi.mock('@/hooks/useOnlineMutation', () => ({ useOnlineMutation: () => ({ online: false, ready: true, run: runOnline }) }))
 vi.mock('@/hooks/useCachedPublicContent', () => ({ useCachedPublicContent: () => cachedState }))
 vi.mock('@/stores/authStore', () => ({ useAuthStore: () => ({ isAuthenticated: true, shop: null, user: { id: 'viewer', role: 'individual' } }) }))
-vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
+vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children, embeddedClassName }: { children: React.ReactNode; embeddedClassName?: string }) => <div className={embeddedClassName}>{children}</div> }))
 vi.mock('@/components/features/messages/ShareToMessageButton', () => ({ ShareToMessageButton: () => null }))
 vi.mock('@/components/shared/ShareButton', () => ({ ShareButton: () => null }))
 vi.mock('@/services/discountCodeApi', () => ({ discountCodeApi: { listForUser, markUsed: vi.fn() } }))
@@ -54,6 +54,16 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('ListingDetailPage offline actions', () => {
+  it('exposes the adaptive native detail surface', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/listings/l1']}>
+        <Routes><Route path="/listings/:id" element={<ListingDetailPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: 'Oak desk' })
+    expect(container.querySelector('.native-themed-page.native-listing-detail-page')).toBeInTheDocument()
+  })
+
   it('replaces a cold-cache fetch failure with a truthful retry state', () => {
     cachedState = { ...cachedState, data: null, source: null, cachedAt: null, status: 'error', error: new Error('network down') }
     render(

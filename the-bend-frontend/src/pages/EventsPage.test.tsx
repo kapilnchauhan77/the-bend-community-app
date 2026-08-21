@@ -25,7 +25,7 @@ vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/platform/createPlatformServices')>()),
   usePlatformServices: () => ({ browser: { open: browserOpen } }),
 }))
-vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
+vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children, embeddedClassName }: { children: React.ReactNode; embeddedClassName?: string }) => <div className={embeddedClassName}>{children}</div> }))
 vi.mock('@/components/shared/SponsorBanner', () => ({ SponsorBanner: () => null }))
 vi.mock('@/components/native/CachedContentNotice', () => ({ CachedContentNotice: () => null }))
 vi.mock('@/components/shared/ShareButton', () => ({ ShareButton: ({ url }: { url: string }) => <button type="button" data-share-url={url}>Share</button> }))
@@ -88,7 +88,8 @@ describe('EventsPage native recovery and destinations', () => {
   })
 
   it('omits the duplicate web hero in native presentation while retaining events content', () => {
-    renderPage()
+    const { container } = renderPage()
+    expect(container.querySelector('.native-themed-page.native-events-page')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Community Events' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: `Open ${event.title}` })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Post Event' })).toBeInTheDocument()

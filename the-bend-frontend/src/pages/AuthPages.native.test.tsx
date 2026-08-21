@@ -55,6 +55,7 @@ describe('native auth pages', () => {
       const { container } = renderNative(page, path)
       const authRoot = container.querySelector('.native-auth-page')
       expect(authRoot).toBeInTheDocument()
+      expect(authRoot?.querySelector('.native-auth-surface') ?? (authRoot?.classList.contains('native-auth-surface') ? authRoot : null)).toBeInTheDocument()
       for (const input of authRoot?.querySelectorAll('input[type="password"]') ?? []) {
         expect(input.closest('.native-auth-page')).toBe(authRoot)
       }
@@ -106,5 +107,12 @@ describe('native auth pages', () => {
     expect(nativeCss).toMatch(/\.native-app \.native-auth-page\s*\{[^}]*--native-auth-safe-top:\s*var\(--native-safe-top\)/)
     expect(nativeCss).toMatch(/\.native-app \.native-auth-page\s*\{[^}]*padding-top:\s*var\(--native-auth-safe-top\)/)
     expect(nativeCss).toContain('.native-app .native-auth-page .native-route-back')
+  })
+
+  it('maps native auth surfaces and controls to adaptive dark tokens', () => {
+    expect(cssRule('.dark .native-app .native-auth-surface')).toMatch(/background:\s*var\(--native-page\)/)
+    expect(nativeCss).toMatch(/\.dark \.native-app \.native-auth-surface input[^{]*\{[^}]*background:\s*var\(--native-elevated\)/)
+    expect(nativeCss).toMatch(/\.dark \.native-app \.native-auth-surface \[class\*="text-\[hsl\(30,15%,"\][^{]*\{[^}]*color:\s*var\(--native-text\)/)
+    expect(nativeCss).toMatch(/\.dark \.native-app \.native-auth-surface \[class\*="text-\[hsl\(30,10%,"\][^{]*\{[^}]*color:\s*var\(--native-muted\)/)
   })
 })

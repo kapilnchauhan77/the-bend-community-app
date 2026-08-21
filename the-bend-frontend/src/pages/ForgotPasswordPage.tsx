@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="native-auth-page min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
+    <div className="native-auth-page native-auth-surface min-h-screen flex items-center justify-center px-6 py-12 bg-[hsl(40,25%,97%)]">
       <div className="w-full max-w-sm">
         <NativeAuthBack fallbackPath="/login" />
         {/* Logo */}

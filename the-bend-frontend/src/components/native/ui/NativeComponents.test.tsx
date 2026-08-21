@@ -352,6 +352,10 @@ describe('native UI primitives', () => {
     expect(cssRule('.native-app .native-explore-scroll')).toMatch(/padding:\s*0\s*18px/)
     expect(cssRule('.native-app .native-partner-button')).toMatch(/display:\s*inline-flex/)
     expect(cssRule('.dark .native-app')).toMatch(/--native-page:/)
+    expect(cssRule('.dark .native-app .native-themed-page')).toMatch(/background:\s*var\(--native-page\)/)
+    expect(nativeCss).toMatch(/\.dark \.native-app \.native-themed-page \.bg-white[^{]*\{[^}]*background:\s*var\(--native-card\)/)
+    expect(nativeCss).toMatch(/\.dark \.native-app \.native-themed-page \[class\*="text-gray-9"\][^{]*\{[^}]*color:\s*var\(--native-text\)/)
+    expect(nativeCss).toMatch(/\.dark \.native-app \.native-themed-page (?:input|input,)[\s\S]*background:\s*var\(--native-elevated\)/)
   })
   it('focuses, traps, and closes the filter sheet while returning focus', () => {
     const trigger = document.createElement('button'); trigger.textContent = 'Open'; document.body.append(trigger); const onClose = vi.fn()
