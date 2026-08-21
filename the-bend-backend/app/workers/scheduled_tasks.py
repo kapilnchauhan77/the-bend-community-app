@@ -1,6 +1,11 @@
 """Scheduled background tasks (Celery Beat)."""
 import logging
 from datetime import datetime, timedelta
+from redis.asyncio import Redis
+
+from app.config import get_settings
+from app.database import async_session
+from app.services.link_preview_cleanup import cleanup_link_preview_image_files
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -94,6 +99,33 @@ def cleanup_read_notifications():
     """Delete read notifications older than 30 days. Runs weekly."""
     import asyncio
     asyncio.run(_cleanup_notifications())
+
+
+@celery_app.task
+def cleanup_link_preview_images():
+    """Remove old link-preview images with no database or Redis references."""
+    import asyncio
+
+    asyncio.run(_cleanup_link_preview_images())
+
+
+async def _cleanup_link_preview_images():
+    redis = Redis.from_url(get_settings().REDIS_URL, decode_responses=True)
+    try:
+        async with async_session() as session:
+            stats = await cleanup_link_preview_image_files(session, redis)
+            logger.info(
+                "Cleaned link-preview images: scanned=%d deleted=%d recent=%d database_referenced=%d redis_referenced=%d skipped=%d",
+                stats.scanned,
+                stats.deleted,
+                stats.recent,
+                stats.database_referenced,
+                stats.redis_referenced,
+                stats.skipped,
+            )
+            return stats.deleted
+    finally:
+        await redis.aclose()
 
 
 async def _cleanup_notifications():

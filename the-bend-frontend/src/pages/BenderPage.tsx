@@ -24,8 +24,12 @@ import { BenderLogo } from '@/components/shared/BenderLogo';
 import { ShareToMessageButton } from '@/components/features/messages/ShareToMessageButton';
 import { useAuthStore } from '@/stores/authStore';
 import { resolveAssetUrl } from '@/lib/constants';
+import { extractFirstHttpUrl, isSafeHttpUrl } from '@/lib/benderLinks';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
+import { BenderCaption } from '@/components/features/bender/BenderCaption';
+import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPreviewCard';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
+import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -219,7 +223,7 @@ function CommentsDrawer({
   );
 
   return (
-    <div className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
+    <div data-testid="bender-comments-drawer" className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
       <div className="max-h-80 overflow-y-auto px-3 py-2">
         {loading ? (
           <div className="space-y-2 py-2">
@@ -337,7 +341,6 @@ function BenderPostCard({
 }) {
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [captionExpanded, setCaptionExpanded] = useState(false);
 
   const display = post.author.shop_name || post.author.name;
   const canDelete =
@@ -407,11 +410,19 @@ function BenderPostCard({
     }
   }, [post.id, onDelete]);
 
-  const captionTooLong = (post.caption?.length ?? 0) > 140;
+  const visiblePreview = post.link_preview && isSafeHttpUrl(post.link_preview.url) ? post.link_preview : null;
+  const captionBlock = post.caption ? (
+    <BenderCaption
+      caption={post.caption}
+      authorName={display}
+      omittedSourceUrl={visiblePreview?.source_url}
+    />
+  ) : null;
 
   return (
     <article
       id={`post-${post.id}`}
+      data-testid="bender-post"
       className={`bg-white border border-[hsl(35,18%,88%)] md:rounded-lg overflow-hidden mb-3 transition-shadow duration-300 ${
         isHighlighted
           ? 'ring-2 ring-offset-2 ring-[hsl(35,45%,42%)]'
@@ -419,7 +430,7 @@ function BenderPostCard({
       }`}
     >
       {/* Header row */}
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div data-testid="bender-post-header" className="flex items-center gap-2 px-3 py-2">
         <AuthorAvatar author={post.author} size={28} />
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-[hsl(30,15%,18%)] truncate">
@@ -442,9 +453,16 @@ function BenderPostCard({
         )}
       </div>
 
+      {visiblePreview && captionBlock}
+      {visiblePreview && (
+        <div data-testid="bender-preview-slot" className="px-3 pb-1 min-w-0">
+          <BenderLinkPreviewCard mode="feed" state="ready" preview={visiblePreview} />
+        </div>
+      )}
+
       {/* Media (1:1) */}
       {post.media_url && (
-        <div className="relative w-full bg-black aspect-square overflow-hidden">
+        <div data-testid="bender-media" className="relative w-full bg-black aspect-square overflow-hidden">
           {isVideo ? (
             <video
               controls
@@ -466,7 +484,7 @@ function BenderPostCard({
       )}
 
       {/* Action row */}
-      <div className="flex items-center gap-3 px-3 pt-2 pb-1">
+      <div data-testid="bender-actions" className="flex items-center gap-3 px-3 pt-2 pb-1">
         <button
           onClick={handleLikeToggle}
           className="flex items-center gap-1 cursor-pointer transition-transform active:scale-90"
@@ -518,33 +536,12 @@ function BenderPostCard({
         </button>
       </div>
 
-      {/* Caption */}
-      {post.caption && (
-        <div className="px-3 pt-1 pb-1 text-[13px] leading-snug">
-          <span className="font-semibold text-[hsl(30,15%,18%)] mr-1">
-            {display}
-          </span>
-          <span
-            className={`text-[hsl(30,10%,28%)] whitespace-pre-wrap ${
-              !captionExpanded && captionTooLong ? 'line-clamp-2' : ''
-            }`}
-          >
-            {post.caption}
-          </span>
-          {captionTooLong && !captionExpanded && (
-            <button
-              onClick={() => setCaptionExpanded(true)}
-              className="text-[hsl(30,10%,55%)] text-[12px] ml-1 cursor-pointer hover:underline"
-            >
-              more
-            </button>
-          )}
-        </div>
-      )}
+      {!visiblePreview && captionBlock}
 
       {/* View comments link */}
       {post.comment_count > 0 && !commentsOpen && (
         <button
+          data-testid="bender-comments-link"
           onClick={() => setCommentsOpen(true)}
           className="block px-3 pb-2 pt-0.5 text-[12px] text-[hsl(30,10%,50%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
         >
@@ -577,7 +574,7 @@ type PendingMedia = {
   type: 'image' | 'video';
 };
 
-function BenderComposer({
+export function BenderComposer({
   open,
   onClose,
   onCreated,
@@ -591,8 +588,15 @@ function BenderComposer({
   const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const [sessionId, setSessionId] = useState(0);
+  const sessionRef = useRef(0);
+  const composerOpenRef = useRef(open);
+  composerOpenRef.current = open;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const linkPreview = useBenderLinkPreview(caption, open);
+  const { reset: resetLinkPreview, waitForPreviewToken } = linkPreview;
 
   // Autosize textarea — grows up to ~12 lines then scrolls.
   useEffect(() => {
@@ -602,40 +606,74 @@ function BenderComposer({
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [caption, open]);
 
-  // Reset on close so the next open is clean.
+  const advanceSession = useCallback(() => {
+    const nextSession = sessionRef.current + 1;
+    sessionRef.current = nextSession;
+    setSessionId(nextSession);
+    return nextSession;
+  }, []);
+
+  const isCurrentSession = useCallback((session: number) => (
+    sessionRef.current === session && composerOpenRef.current && !submittingRef.current
+  ), []);
+  const cameraSession = sessionId;
+
+  const closeComposer = useCallback(() => {
+    composerOpenRef.current = false;
+    advanceSession();
+    setCameraOpen(false);
+    onClose();
+  }, [advanceSession, onClose]);
+
+  // Reset on close so the next open is clean and cannot inherit async work.
   useEffect(() => {
+    composerOpenRef.current = open;
+    advanceSession();
     if (!open) {
+      resetLinkPreview();
       setCaption('');
       setPending(null);
       setError(null);
       setSubmitting(false);
+      setCameraOpen(false);
+      submittingRef.current = false;
     }
-  }, [open]);
+  }, [advanceSession, open, resetLinkPreview]);
 
   const handleCameraResult = useCallback((result: CameraResult) => {
+    if (!isCurrentSession(cameraSession)) return;
     setPending({
       url: result.url,
       thumbnail_url: result.thumbnail_url,
       type: result.type,
     });
     setCameraOpen(false);
-  }, []);
+  }, [cameraSession, isCurrentSession]);
+
+  const handleCameraClose = useCallback(() => {
+    if (!isCurrentSession(cameraSession)) return;
+    setCameraOpen(false);
+  }, [cameraSession, isCurrentSession]);
 
   const handleFilePicked = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const operationSession = sessionRef.current;
+      if (!isCurrentSession(operationSession)) return;
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
       // Reuse /upload/media via the existing CameraCapture upload path. Since
       // the composer file picker accepts both images + videos and the camera
       // modal handles both modes, we just submit to /upload/media directly.
-      const { default: api } = await import('@/services/api');
       const fd = new FormData();
       fd.append('file', file, file.name);
       try {
+        const { default: api } = await import('@/services/api');
+        if (!isCurrentSession(operationSession)) return;
         const res = await api.post('/upload/media', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
+        if (!isCurrentSession(operationSession)) return;
         const data = res.data as Record<string, unknown>;
         setPending({
           url: String(data.url || ''),
@@ -643,34 +681,47 @@ function BenderComposer({
           type: (data.type as 'image' | 'video' | undefined) ?? (file.type.startsWith('video/') ? 'video' : 'image'),
         });
       } catch {
+        if (!isCurrentSession(operationSession)) return;
         setError('Could not upload that file. Try a smaller one.');
       }
     },
-    []
+    [isCurrentSession]
   );
 
   const canSubmit = (caption.trim().length > 0 || pending !== null) && !submitting;
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current || !composerOpenRef.current) return;
+    submittingRef.current = true;
+    const submissionSession = advanceSession();
     setSubmitting(true);
     setError(null);
     try {
+      const submittedCaption = caption.trim();
+      const submittedSourceUrl = extractFirstHttpUrl(submittedCaption);
+      const previewToken = await waitForPreviewToken(submittedSourceUrl, 5000);
+      if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
       const payload: CreatePostPayload = {};
-      if (caption.trim()) payload.caption = caption.trim();
+      if (submittedCaption) payload.caption = submittedCaption;
+      if (previewToken) payload.preview_token = previewToken;
       if (pending) {
         payload.media_url = pending.url;
         if (pending.thumbnail_url) payload.media_thumbnail_url = pending.thumbnail_url;
         payload.media_type = pending.type;
       }
       const res = await benderApi.createPost(payload);
+      if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
       onCreated(res.data);
-      onClose();
+      submittingRef.current = false;
+      resetLinkPreview();
+      closeComposer();
     } catch {
+      if (sessionRef.current !== submissionSession || !composerOpenRef.current) return;
       setError('Could not post. Please try again.');
+      submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [canSubmit, caption, pending, onCreated, onClose]);
+  }, [advanceSession, canSubmit, caption, closeComposer, onCreated, pending, resetLinkPreview, waitForPreviewToken]);
 
   if (!open) return null;
 
@@ -680,7 +731,7 @@ function BenderComposer({
         className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center"
         role="dialog"
         aria-modal="true"
-        onClick={onClose}
+        onClick={() => { if (!submitting) closeComposer(); }}
       >
         <div
           className="bg-white w-full md:max-w-md md:rounded-lg shadow-2xl flex flex-col max-h-[90vh] md:max-h-[80vh]"
@@ -689,7 +740,8 @@ function BenderComposer({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(35,18%,88%)]">
             <button
-              onClick={onClose}
+              onClick={() => { if (!submitting) closeComposer(); }}
+              disabled={submitting}
               className="text-[hsl(30,10%,40%)] hover:text-[hsl(30,15%,18%)] cursor-pointer"
               aria-label="Cancel"
             >
@@ -716,10 +768,23 @@ function BenderComposer({
               ref={textareaRef}
               value={caption}
               onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION))}
+              disabled={submitting}
               placeholder="Write a caption…"
               className="resize-none border-0 shadow-none focus-visible:ring-0 text-[14px] px-0 min-h-[80px]"
               maxLength={MAX_CAPTION}
             />
+
+            {linkPreview.status === 'loading' && (
+              <BenderLinkPreviewCard mode="composer" state="loading" />
+            )}
+            {linkPreview.status === 'success' && linkPreview.preview && (
+              <BenderLinkPreviewCard
+                mode="composer"
+                state="ready"
+                preview={linkPreview.preview}
+                onRemove={() => { if (!submitting) linkPreview.dismiss(); }}
+              />
+            )}
 
             {pending && (
               <div className="relative w-full max-w-[240px] aspect-square bg-black rounded overflow-hidden">
@@ -752,7 +817,8 @@ function BenderComposer({
                   />
                 )}
                 <button
-                  onClick={() => setPending(null)}
+                  onClick={() => { if (!submitting) setPending(null); }}
+                  disabled={submitting}
                   className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
                   aria-label="Remove media"
                 >
@@ -765,7 +831,8 @@ function BenderComposer({
               <div className="flex items-center gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setCameraOpen(true)}
+                  onClick={() => { if (!submitting) setCameraOpen(true); }}
+                  disabled={submitting}
                   className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
                 >
                   <Camera size={14} />
@@ -773,7 +840,8 @@ function BenderComposer({
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => { if (!submitting) fileInputRef.current?.click(); }}
+                  disabled={submitting}
                   className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-[hsl(30,15%,30%)] border border-[hsl(35,18%,84%)] rounded hover:bg-[hsl(35,15%,94%)] transition-colors cursor-pointer"
                 >
                   <ImageIcon size={14} />
@@ -784,6 +852,7 @@ function BenderComposer({
                   type="file"
                   accept="image/*,video/*"
                   className="hidden"
+                  disabled={submitting}
                   onChange={handleFilePicked}
                 />
               </div>
@@ -801,8 +870,9 @@ function BenderComposer({
       </div>
 
       <CameraCapture
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
+        key={`bender-camera-${cameraSession}`}
+        open={open && cameraOpen && !submitting && sessionRef.current === cameraSession}
+        onClose={handleCameraClose}
         onCaptured={handleCameraResult}
         mode="both"
       />

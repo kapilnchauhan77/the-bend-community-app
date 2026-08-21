@@ -15,7 +15,7 @@ COPY . .
 RUN pip install --no-cache-dir . && pip install "bcrypt==4.0.1"
 
 # Create uploads directory
-RUN mkdir -p uploads/images uploads/guidelines uploads/videos uploads/audio
+RUN mkdir -p uploads/images uploads/guidelines uploads/videos uploads/audio uploads/link-previews
 
 # Expose port
 EXPOSE 8000

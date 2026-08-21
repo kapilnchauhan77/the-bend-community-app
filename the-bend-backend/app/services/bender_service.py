@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
+from pydantic import ValidationError as PydanticValidationError
+from redis.exceptions import RedisError
+import asyncio
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,12 +20,16 @@ from app.schemas.bender import (
     BenderAuthor,
     BenderCommentCreate,
     BenderCommentResponse,
+    BenderLinkPreview,
+    BenderLinkPreviewSnapshot,
     BenderPostCreate,
     BenderPostResponse,
 )
+from app.services.bender_link_preview_store import BenderLinkPreviewStore
 
 
 class BenderService:
+    PREVIEW_DRAFT_TIMEOUT_SECONDS = 1.5
     """Server-side Bender (community feed) business logic.
 
     Notes on non-obvious decisions:
@@ -43,8 +50,16 @@ class BenderService:
       under concurrency.
     """
 
-    def __init__(self, db: AsyncSession):
+    def __init__(
+        self,
+        db: AsyncSession,
+        link_preview_store: BenderLinkPreviewStore | None = None,
+        *,
+        preview_draft_timeout_seconds: float = PREVIEW_DRAFT_TIMEOUT_SECONDS,
+    ):
         self.db = db
+        self.link_preview_store = link_preview_store
+        self.preview_draft_timeout_seconds = preview_draft_timeout_seconds
 
     # ------------------------------------------------------------------
     # helpers
@@ -69,6 +84,21 @@ class BenderService:
     def _is_community_admin(self, user: User) -> bool:
         return user.role in (UserRole.COMMUNITY_ADMIN, UserRole.SUPER_ADMIN)
 
+    @staticmethod
+    def _preview_block(value: object | None) -> BenderLinkPreview | None:
+        if not isinstance(value, dict):
+            return None
+        version = value.get("version")
+        if isinstance(version, bool) or not isinstance(version, int) or version != 1:
+            return None
+        try:
+            snapshot = BenderLinkPreviewSnapshot.model_validate(value)
+            return BenderLinkPreview.model_validate(
+                snapshot.model_dump(exclude={"version"})
+            )
+        except PydanticValidationError:
+            return None
+
     # ------------------------------------------------------------------
     # posts
     # ------------------------------------------------------------------
@@ -76,15 +106,34 @@ class BenderService:
     async def create_post(
         self, data: BenderPostCreate, current_user: User
     ) -> BenderPost:
+        caption = data.caption.strip() if data.caption else None
+        link_preview = None
+        if (
+            self.link_preview_store is not None
+            and data.preview_token
+            and len(data.preview_token) <= 128
+        ):
+            try:
+                snapshot = await asyncio.wait_for(self.link_preview_store.resolve_draft(
+                    data.preview_token,
+                    user_id=current_user.id,
+                    tenant_id=current_user.tenant_id,
+                    caption=caption,
+                ), timeout=self.preview_draft_timeout_seconds)
+            except (RedisError, asyncio.TimeoutError):
+                snapshot = None
+            if snapshot is not None:
+                link_preview = snapshot.model_dump(mode="json")
         post = BenderPost(
             id=uuid4(),
             author_user_id=current_user.id,
             author_shop_id=current_user.shop_id,
             tenant_id=current_user.tenant_id,
-            caption=data.caption.strip() if data.caption else None,
+            caption=caption,
             media_url=data.media_url,
             media_thumbnail_url=data.media_thumbnail_url,
             media_type=data.media_type,
+            link_preview=link_preview,
             like_count=0,
             comment_count=0,
         )
@@ -183,6 +232,7 @@ class BenderService:
                 comment_count=r.comment_count,
                 viewer_has_liked=r.id in liked_ids,
                 created_at=r.created_at,
+                link_preview=self._preview_block(r.link_preview),
             )
             for r in rows
         ]
