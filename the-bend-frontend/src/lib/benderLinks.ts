@@ -35,11 +35,19 @@ export function isSafeHttpUrl(value: string | null | undefined): boolean {
     !value
     || value.includes('\\')
     || authority?.includes('%')
+    || authority?.includes('@')
+    || /[<>"'`^|{}\\]/.test(authority ?? '')
     || hasControlCharacter(value)
     || /%(?![0-9a-f]{2})/i.test(value)
   ) return false;
   try {
     const url = new URL(value);
+    const bracketedHost = authority?.match(/^\[([^\]]*)\](?::\d+)?$/)?.[1];
+    if (bracketedHost !== undefined) {
+      if (url.hostname !== `[${bracketedHost}]`) return false;
+    } else if (!url.hostname.replace(/\.$/, '').split('.').every(
+      (label) => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label),
+    )) return false;
     return (
       (url.protocol === 'http:' || url.protocol === 'https:') &&
       !url.username &&

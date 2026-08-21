@@ -62,8 +62,27 @@ def _caption_token_is_valid(token: str) -> bool:
         parsed = urlsplit(token)
         if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
             return False
-        if parsed.username is not None or parsed.password is not None or "%" in (parsed.hostname or "") or "\\" in token:
+        raw_netloc = parsed.netloc
+        if "@" in raw_netloc or "%" in (parsed.hostname or "") or "\\" in token:
             return False
+        if raw_netloc.startswith("["):
+            closing = raw_netloc.find("]")
+            if closing < 0 or raw_netloc[1:closing] != parsed.hostname:
+                return False
+            try:
+                literal = ipaddress.ip_address(parsed.hostname)
+            except ValueError:
+                return False
+            if literal.version != 6 or str(literal) != parsed.hostname:
+                return False
+            if raw_netloc[closing + 1:] and not re.fullmatch(r":\d+", raw_netloc[closing + 1:]):
+                return False
+        else:
+            raw_hostname = raw_netloc.rsplit(":", 1)[0] if ":" in raw_netloc else raw_netloc
+            try:
+                idna.encode(raw_hostname, uts46=True, std3_rules=True)
+            except (idna.IDNAError, UnicodeError):
+                return False
         parsed.port
     except (ValueError, UnicodeError):
         return False
