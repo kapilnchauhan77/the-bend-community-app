@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useNavigate } from 'react-router-dom'
 import { NativeAppShell, useNativeAppShell } from './NativeAppShell'
 import { PlatformServicesProvider } from '@/platform/createPlatformServices'
 import type { RuntimeConfig } from '@/platform/contracts'
+import { useDarkMode } from '@/hooks/useDarkMode'
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => 'ios' } }))
 vi.mock('@capacitor/status-bar', () => ({ StatusBar: { setStyle: vi.fn().mockResolvedValue(undefined), setBackgroundColor: vi.fn().mockResolvedValue(undefined) }, Style: { Dark: 'DARK', Light: 'LIGHT' } }))
@@ -16,7 +17,11 @@ const config: RuntimeConfig = { kind: 'web', isNative: false, apiBaseUrl: '', ws
 function renderShell() { return render(<PlatformServicesProvider config={config}><MemoryRouter><NativeAppShell /></MemoryRouter></PlatformServicesProvider>) }
 
 describe('NativeAppShell', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    delete (document as Document & { scrollingElement?: Element }).scrollingElement
+  })
   it('owns one native-app root and removes the visual viewport listener', () => {
     let resizeHandler: (() => void) | undefined
     const add = vi.fn((_type: string, handler: () => void) => { resizeHandler = handler }); const remove = vi.fn()
@@ -34,22 +39,26 @@ describe('NativeAppShell', () => {
     view.unmount(); expect(remove).toHaveBeenCalledWith('resize', resizeHandler); expect(root.style.getPropertyValue('--native-keyboard-bottom')).toBe('')
   })
 
-  it('scrolls registered roots with motion preference and unregisters them', () => {
-    const scrollTo = vi.fn()
-    const root = document.createElement('div'); root.scrollTo = scrollTo
+  it('scrolls the document root when a registered page wrapper is not scrollable or is absent', () => {
+    const pageScrollTo = vi.fn()
+    const pageRoot = document.createElement('div'); pageRoot.scrollTo = pageScrollTo
+    const documentScrollTo = vi.fn()
+    const documentRoot = document.createElement('div'); documentRoot.scrollTo = documentScrollTo
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: documentRoot })
     const exposeShell = vi.fn()
     function Probe() { exposeShell(useNativeAppShell()); return null }
     Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn(() => ({ matches: false } as MediaQueryList)) })
     const matchMedia = vi.mocked(window.matchMedia)
     const view = render(<PlatformServicesProvider config={{ kind: 'web', isNative: false, apiBaseUrl: '', wsBaseUrl: '', tenantSlug: '', appVersion: '', buildNumber: '', environment: 'test' }}><MemoryRouter><Routes><Route element={<NativeAppShell />}><Route path="/" element={<Probe />} /></Route></Routes></MemoryRouter></PlatformServicesProvider>)
     const shell = exposeShell.mock.calls[0][0] as ReturnType<typeof useNativeAppShell>
-    shell.registerRootScroll('explore', root); shell.scrollRootToTop('explore')
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    shell.registerRootScroll('home', pageRoot); shell.scrollRootToTop('home')
+    expect(documentScrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    expect(pageScrollTo).not.toHaveBeenCalled()
     matchMedia.mockReturnValue({ matches: true } as MediaQueryList)
+    shell.registerRootScroll('explore', null)
     shell.scrollRootToTop('explore')
-    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: 'auto' })
-    shell.registerRootScroll('explore', null); shell.scrollRootToTop('explore')
-    expect(scrollTo).toHaveBeenCalledTimes(2)
+    expect(documentScrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: 'auto' })
+    expect(documentScrollTo).toHaveBeenCalledTimes(2)
     view.unmount()
   })
 
@@ -117,6 +126,31 @@ describe('NativeAppShell', () => {
     media.matches = false; change?.()
     expect(vi.mocked(StatusBar.setStyle)).toHaveBeenCalledWith({ style: Style.Light })
     expect(document.body.style.backgroundColor).toBe('rgb(247, 243, 234)')
+    view.unmount()
+  })
+
+  it('updates native chrome immediately when the in-app theme control changes', async () => {
+    let storedTheme = 'light'
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => storedTheme,
+        setItem: (_key: string, value: string) => { storedTheme = value },
+      },
+    })
+    function ThemeControl() {
+      const { toggle } = useDarkMode()
+      return <button type="button" onClick={toggle}>change theme</button>
+    }
+    const view = render(<PlatformServicesProvider config={config}><MemoryRouter><Routes><Route element={<NativeAppShell />}><Route path="/" element={<ThemeControl />} /></Route></Routes></MemoryRouter></PlatformServicesProvider>)
+    vi.mocked(StatusBar.setStyle).mockClear()
+    vi.mocked(StatusBar.setBackgroundColor).mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change theme' }))
+
+    await waitFor(() => expect(StatusBar.setStyle).toHaveBeenCalledWith({ style: Style.Dark }))
+    expect(StatusBar.setBackgroundColor).toHaveBeenCalledWith({ color: '#121915' })
+    expect(document.body.style.backgroundColor).toBe('rgb(18, 25, 21)')
     view.unmount()
   })
 

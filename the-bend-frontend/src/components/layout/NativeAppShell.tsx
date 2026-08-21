@@ -20,7 +20,15 @@ export function NativeAppShell() {
   const roots = useRef(new Map<NativeRootTab, HTMLElement>());
   const shell = {
     registerRootScroll: (tab: NativeRootTab, element: HTMLElement | null) => { if (element) roots.current.set(tab, element); else roots.current.delete(tab) },
-    scrollRootToTop: (tab: NativeRootTab) => { const element = roots.current.get(tab); if (!element) return; const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches; element.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }) },
+    scrollRootToTop: (tab: NativeRootTab) => {
+      const registered = roots.current.get(tab);
+      const registeredOverflow = registered ? window.getComputedStyle(registered).overflowY : '';
+      const registeredScrolls = Boolean(registered && registered.scrollHeight > registered.clientHeight && /(auto|scroll|overlay)/.test(registeredOverflow));
+      const target = registeredScrolls ? registered : document.scrollingElement;
+      const options: ScrollToOptions = { top: 0, behavior: typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' };
+      if (target && typeof target.scrollTo === 'function') target.scrollTo(options);
+      else window.scrollTo(options);
+    },
   };
   useEffect(() => {
     const root = rootRef.current;
@@ -74,7 +82,10 @@ export function NativeAppShell() {
       update = () => apply(media!.matches);
       update(); media.addEventListener?.('change', update);
     }
+    const themeObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => apply(document.documentElement.classList.contains('dark'))) : undefined;
+    themeObserver?.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => {
+      themeObserver?.disconnect();
       if (media && update) media.removeEventListener?.('change', update);
       apply(hadDarkClass);
       document.documentElement.style.backgroundColor = previousHtmlBackground;
