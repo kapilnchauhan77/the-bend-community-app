@@ -5,8 +5,10 @@ from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from uuid import UUID, uuid4
 
 from dateutil import parser as dateutil_parser
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.event import Event
 from app.repositories.event_repo import EventRepository, ConnectorRepository
 from app.models.enums import ConnectorType
 from app.services.external_urls import (
@@ -32,6 +34,7 @@ _FEED_HEADERS = {
 }
 
 _DCR_HOSTS = {"dcr.virginia.gov", "www.dcr.virginia.gov"}
+_MAX_PARSED_EVENTS = 500
 _DCR_RESULTS_COUNT_RE = re.compile(
     r"\(\s*(?P<count>\d+)\s*\)\s*events?\s+found", re.IGNORECASE
 )
@@ -181,20 +184,57 @@ def _is_dcr_chrome_line(value: str) -> bool:
     )
 
 
-def _next_safe_link_identity(
+def _safe_link_content_identity(
     candidate_url: str | None,
-    occurrences: dict[str, int],
+    raw_content: str,
 ) -> tuple[str, str] | None:
-    """Return a canonical link and stable zero-based occurrence identity."""
+    """Return a canonical link and an order-independent content identity."""
     if not candidate_url:
         return None
     try:
         normalized_link = normalize_external_url(candidate_url)
     except ValueError:
         return None
-    occurrence = occurrences.get(normalized_link, 0)
-    occurrences[normalized_link] = occurrence + 1
-    return normalized_link, f"link:{normalized_link}|occurrence:{occurrence}"
+    return normalized_link, f"link:{normalized_link}|content:{raw_content}"
+
+
+def _b68_source_key(
+    feed_url: str,
+    event_data: dict,
+    predecessor_source_url: str | None,
+) -> str | None:
+    """Reconstruct the key written by the immediate predecessor release."""
+    if not predecessor_source_url:
+        return None
+    source_identity = "|".join(
+        str(value or "")
+        for value in (
+            event_data.get("title"),
+            event_data.get("start_date"),
+            event_data.get("location"),
+            predecessor_source_url,
+        )
+    )
+    return deterministic_source_url(feed_url, predecessor_source_url, source_identity)
+
+
+def _source_key_base(source_url: str) -> str:
+    return legacy_source_url(source_url) or source_url
+
+
+def _intrinsic_key_fragment(feed_url: str, intrinsic_identity: str | None) -> str | None:
+    if not intrinsic_identity:
+        return None
+    key = deterministic_source_url(feed_url, None, intrinsic_identity)
+    return urlparse(key).fragment
+
+
+def _enforce_parsed_event_limit(events: list[dict]) -> list[dict]:
+    if len(events) > _MAX_PARSED_EVENTS:
+        raise ValueError(
+            "Connector returned more than 500 events; no events were saved."
+        )
+    return events
 
 
 def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | None]:
@@ -268,6 +308,11 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
             description = f"This event has been canceled. {description or ''}".strip()
 
         start_date, end_date = parsed_range
+        predecessor_source_url = deterministic_source_url(
+            page_url,
+            candidate_source_url,
+            f"{title}|{start_date.isoformat()}|{location or ''}",
+        )
         source_url = deterministic_source_url(
             page_url,
             candidate_source_url,
@@ -282,6 +327,7 @@ def _parse_dcr_event_page(html: str, page_url: str) -> tuple[list[dict], int | N
             "end_date": end_date,
             "location": location[:255] if location else None,
             "source_url": source_url,
+            "_predecessor_source_url": predecessor_source_url,
             "status": "cancelled" if cancelled else "active",
         })
         seen_urls.add(source_url)
@@ -325,30 +371,176 @@ class ConnectorService:
             raise NotFoundError("Connector")
 
         try:
-            events = await self._parse_source(connector)
-            saved = 0
+            events = _enforce_parsed_event_limit(
+                await self._parse_source(connector)
+            )
+            prepared_events = []
             for event_data in events:
+                event_data = dict(event_data)
+                predecessor_source_url = event_data.pop("_predecessor_source_url", None)
+                intrinsic_source_identity = event_data.pop(
+                    "_intrinsic_source_identity", None
+                )
                 event_data["source_url"] = sanitize_imported_source_url(
                     connector.url,
                     event_data.get("source_url"),
                 )
-                # Dedup by source_url + connector_id
-                if event_data.get("source_url"):
-                    existing = await self.event_repo.find_by_source_url(
-                        event_data["source_url"], connector_id
-                    )
-                    if existing:
-                        continue
-                    legacy_url = legacy_source_url(event_data["source_url"])
-                    if legacy_url:
-                        legacy = await self.event_repo.find_by_source_url(
-                            legacy_url, connector_id
-                        )
-                        if legacy:
-                            legacy.source_url = event_data["source_url"]
-                            await self.db.flush()
-                            continue
+                predecessor_key = _b68_source_key(
+                    connector.url,
+                    event_data,
+                    predecessor_source_url,
+                )
+                intrinsic_fragment = _intrinsic_key_fragment(
+                    connector.url,
+                    intrinsic_source_identity,
+                )
+                prepared_events.append(
+                    (event_data, predecessor_key, intrinsic_fragment)
+                )
 
+            current_keys = [event["source_url"] for event, _, _ in prepared_events]
+            if len(current_keys) != len(set(current_keys)):
+                raise ValueError(
+                    "Connector entries are indistinguishable after identity parsing; "
+                    "no events were saved."
+                )
+            intrinsic_fragments = [
+                fragment for _, _, fragment in prepared_events if fragment
+            ]
+            if len(intrinsic_fragments) != len(set(intrinsic_fragments)):
+                raise ValueError(
+                    "Connector entries reuse one intrinsic id; no events were saved."
+                )
+
+            existing_rows = list(
+                (
+                    await self.db.execute(
+                        select(Event).where(
+                            Event.connector_id == connector_id,
+                            Event.tenant_id == self.tenant_id,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            rows_by_url = {
+                row.source_url: row for row in existing_rows if row.source_url
+            }
+            reserved_ids = set()
+            resolutions = []
+
+            for event_data, predecessor_key, intrinsic_fragment in prepared_events:
+                current_key = event_data["source_url"]
+                current = rows_by_url.get(current_key)
+                plain_key = legacy_source_url(current_key)
+                explicit_legacy = {
+                    row.id: row
+                    for key in (predecessor_key, plain_key)
+                    if key and key != current_key and (row := rows_by_url.get(key))
+                }
+                if intrinsic_fragment:
+                    explicit_legacy.update(
+                        {
+                            row.id: row
+                            for row in existing_rows
+                            if row.source_url != current_key
+                            and urlparse(row.source_url or "").fragment
+                            == intrinsic_fragment
+                        }
+                    )
+                if current and explicit_legacy:
+                    raise ValueError(
+                        "Connector identity conflict: current and legacy rows coexist; "
+                        "no events were saved."
+                    )
+                if current:
+                    if current.id in reserved_ids:
+                        raise ValueError(
+                            "Connector entries resolve to the same stored event; "
+                            "no events were saved."
+                        )
+                    reserved_ids.add(current.id)
+                    resolutions.append((event_data, current, False))
+                    continue
+                if len(explicit_legacy) > 1:
+                    raise ValueError(
+                        "Connector identity conflict: multiple legacy rows match one "
+                        "event; no events were saved."
+                    )
+                legacy = next(iter(explicit_legacy.values()), None)
+                if legacy:
+                    if legacy.id in reserved_ids:
+                        raise ValueError(
+                            "Connector entries resolve to the same legacy event; "
+                            "no events were saved."
+                        )
+                    reserved_ids.add(legacy.id)
+                    resolutions.append((event_data, legacy, True))
+                else:
+                    resolutions.append((event_data, None, False))
+
+            unresolved_base_counts = {}
+            current_bases = set()
+            for event_data, existing, _ in resolutions:
+                if existing is None:
+                    base = _source_key_base(event_data["source_url"])
+                    unresolved_base_counts[base] = (
+                        unresolved_base_counts.get(base, 0) + 1
+                    )
+                elif existing.source_url == event_data["source_url"]:
+                    current_bases.add(_source_key_base(event_data["source_url"]))
+
+            for base in current_bases:
+                unmatched_hashes = [
+                    row
+                    for row in existing_rows
+                    if row.id not in reserved_ids
+                    and row.source_url
+                    and legacy_source_url(row.source_url) == base
+                ]
+                if unmatched_hashes and unresolved_base_counts.get(base, 0) == 0:
+                    raise ValueError(
+                        "Connector identity conflict: current and unmatched legacy "
+                        "rows coexist; no events were saved."
+                    )
+
+            final_resolutions = []
+            for event_data, existing, migrate in resolutions:
+                if existing:
+                    final_resolutions.append((event_data, existing, migrate))
+                    continue
+                base = _source_key_base(event_data["source_url"])
+                fallback = [
+                    row
+                    for row in existing_rows
+                    if row.id not in reserved_ids
+                    and row.source_url
+                    and legacy_source_url(row.source_url) == base
+                ]
+                if len(fallback) > 1:
+                    raise ValueError(
+                        "Connector identity is ambiguous: multiple hashed legacy rows "
+                        "share one source URL; no events were saved."
+                    )
+                if fallback:
+                    if unresolved_base_counts[base] > 1:
+                        raise ValueError(
+                            "Connector identity is ambiguous: one legacy row could "
+                            "match multiple source entries; no events were saved."
+                        )
+                    legacy = fallback[0]
+                    reserved_ids.add(legacy.id)
+                    final_resolutions.append((event_data, legacy, True))
+                else:
+                    final_resolutions.append((event_data, None, False))
+
+            saved = 0
+            for event_data, existing, migrate in final_resolutions:
+                if existing:
+                    if migrate:
+                        existing.source_url = event_data["source_url"]
+                    continue
                 event_data["id"] = uuid4()
                 event_data["connector_id"] = connector_id
                 event_data["source"] = connector.name
@@ -359,6 +551,8 @@ class ConnectorService:
                 event_data["tenant_id"] = connector.tenant_id
                 await self.event_repo.create(event_data)
                 saved += 1
+
+            await self.db.flush()
 
             # Update connector sync status
             await self.connector_repo.update_for_tenant(connector_id, self.tenant_id, {
@@ -385,7 +579,7 @@ class ConnectorService:
         c.url = url
         c.config = config
 
-        events = await self._parse_source(c)
+        events = _enforce_parsed_event_limit(await self._parse_source(c))
         sample = events[:3] if events else []
         return {"count": len(events), "sample": sample}
 
@@ -445,8 +639,7 @@ class ConnectorService:
 
         cal = Calendar.from_ical(body)
         events = []
-        now = datetime.utcnow()
-        link_occurrences: dict[str, int] = {}
+        seen_source_urls = set()
 
         for component in cal.walk():
             if component.name != "VEVENT":
@@ -493,16 +686,38 @@ class ConnectorService:
                     break
                 except ValueError:
                     continue
+            predecessor_identity = uid or f"{summary}|{start.isoformat()}|{location}"
+            predecessor_source_url = deterministic_source_url(
+                url,
+                event_link or None,
+                predecessor_identity,
+            )
             identity = uid
             if not identity:
-                link_identity = _next_safe_link_identity(
-                    event_link or None, link_occurrences
+                raw_content = "\x1f".join(
+                    (
+                        summary,
+                        start.isoformat(),
+                        end.isoformat() if end else "",
+                        location,
+                        description,
+                        url_prop,
+                    )
                 )
-                if link_identity:
-                    event_link, identity = link_identity
-            if not identity:
-                identity = f"{summary}|{start.isoformat()}|{location}"
+                link_identity = _safe_link_content_identity(
+                    event_link or None,
+                    raw_content,
+                )
+                identity = (
+                    link_identity[1] if link_identity else f"content:{raw_content}"
+                )
             source_url = deterministic_source_url(url, event_link or None, identity)
+            if source_url in seen_source_urls:
+                raise ValueError(
+                    "iCalendar entries are indistinguishable without a unique UID; "
+                    "no events were saved."
+                )
+            seen_source_urls.add(source_url)
 
             # If DESCRIPTION is just the event's own URL (common in CivicPlus
             # exports), don't echo it back as body text.
@@ -515,6 +730,8 @@ class ConnectorService:
                 "end_date": end,
                 "location": location.strip() if location else None,
                 "source_url": source_url,
+                "_predecessor_source_url": predecessor_source_url,
+                "_intrinsic_source_identity": uid or None,
                 "status": "active",
             })
 
@@ -529,7 +746,7 @@ class ConnectorService:
 
         feed = feedparser.parse(resp.text)
         events = []
-        link_occurrences: dict[str, int] = {}
+        seen_source_urls = set()
 
         for entry in feed.entries:
             title = entry.get("title", "").strip()
@@ -555,25 +772,40 @@ class ConnectorService:
                         pass
                     break
 
-            source_start_date = start_date
             if not start_date:
                 start_date = datetime.utcnow()
 
-            identity = entry.get("id") or entry.get("guid")
+            intrinsic_identity = entry.get("id") or entry.get("guid")
+            predecessor_identity = str(
+                intrinsic_identity or f"{title}|{start_date.isoformat()}|{link}"
+            )
+            predecessor_source_url = deterministic_source_url(
+                url,
+                link or None,
+                predecessor_identity,
+            )
+            identity = intrinsic_identity
             safe_link = None
             if not identity:
-                link_identity = _next_safe_link_identity(link or None, link_occurrences)
+                source_date_text = entry.get("published") or entry.get("updated") or ""
+                raw_content = "\x1f".join(
+                    (title, source_date_text, link, description or "")
+                )
+                link_identity = _safe_link_content_identity(link or None, raw_content)
                 if link_identity:
                     safe_link, identity = link_identity
-            if not identity and source_start_date:
-                identity = f"{title}|{source_start_date.isoformat()}|{link}"
             if not identity:
-                source_date_text = entry.get("published") or entry.get("updated") or ""
-                identity = f"{title}|{source_date_text}|{link}|{description or ''}"
+                identity = f"content:{raw_content}"
             identity = str(identity)
             source_url = deterministic_source_url(
                 url, safe_link or link or None, identity
             )
+            if source_url in seen_source_urls:
+                raise ValueError(
+                    "RSS entries are indistinguishable without a unique id or guid; "
+                    "no events were saved."
+                )
+            seen_source_urls.add(source_url)
 
             events.append({
                 "title": title[:255],
@@ -582,6 +814,10 @@ class ConnectorService:
                 "end_date": None,
                 "location": None,
                 "source_url": source_url,
+                "_predecessor_source_url": predecessor_source_url,
+                "_intrinsic_source_identity": (
+                    str(intrinsic_identity) if intrinsic_identity else None
+                ),
                 "status": "active",
             })
 
@@ -636,7 +872,7 @@ class ConnectorService:
 
         soup = BeautifulSoup(resp.text, "lxml")
         events = []
-        link_occurrences: dict[str, int] = {}
+        seen_source_urls = set()
 
         # Find all title elements as event anchors
         title_elements = soup.select(title_sel)
@@ -676,20 +912,36 @@ class ConnectorService:
             candidate_source_url = None
             if link_el and link_el.get("href"):
                 candidate_source_url = urljoin(url, link_el["href"])
-            link_identity = _next_safe_link_identity(
-                candidate_source_url, link_occurrences
+            predecessor_source_url = deterministic_source_url(
+                url,
+                candidate_source_url,
+                f"{title}|{start_date.isoformat()}|{candidate_source_url or ''}",
+            )
+            raw_content = "\x1f".join(
+                (
+                    title,
+                    start_date.isoformat(),
+                    description or "",
+                    candidate_source_url or "",
+                )
+            )
+            link_identity = _safe_link_content_identity(
+                candidate_source_url,
+                raw_content,
             )
             safe_link = link_identity[0] if link_identity else None
-            identity = (
-                link_identity[1]
-                if link_identity
-                else f"{title}|{start_date.isoformat()}|{candidate_source_url or ''}"
-            )
+            identity = link_identity[1] if link_identity else f"content:{raw_content}"
             source_url = deterministic_source_url(
                 url,
                 safe_link or candidate_source_url,
                 identity,
             )
+            if source_url in seen_source_urls:
+                raise ValueError(
+                    "HTML event entries are indistinguishable without unique content; "
+                    "no events were saved."
+                )
+            seen_source_urls.add(source_url)
 
             events.append({
                 "title": title[:255],
@@ -698,6 +950,7 @@ class ConnectorService:
                 "end_date": None,
                 "location": None,
                 "source_url": source_url,
+                "_predecessor_source_url": predecessor_source_url,
                 "status": "active",
             })
 

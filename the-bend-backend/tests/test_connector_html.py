@@ -64,6 +64,7 @@ def test_dcr_parser_ignores_results_heading_and_parses_event_fields():
     assert reported_count == 1
     assert len(events) == 1
     source_url = events[0].pop("source_url")
+    predecessor_source_url = events[0].pop("_predecessor_source_url")
     assert events[0] == {
         "title": "Campfire Kickoff",
         "description": "A ranger-led program for park visitors.",
@@ -76,6 +77,11 @@ def test_dcr_parser_ignores_results_heading_and_parses_event_fields():
         "https://www.dcr.virginia.gov/state-parks/"
         "event-detail?event=campfire-kickoff#event-"
     )
+    assert predecessor_source_url.startswith(
+        "https://www.dcr.virginia.gov/state-parks/"
+        "event-detail?event=campfire-kickoff#event-"
+    )
+    assert predecessor_source_url != source_url
     assert len(source_url) <= 500
 
 
