@@ -20,7 +20,7 @@ export function NativeFilterSheet({ open, title = 'Filters', closeLabel = `Close
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
       if (event.key !== 'Tab' || !sheetRef.current) return
-      const controls = [...sheetRef.current.querySelectorAll<HTMLElement>('a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((element) => !element.hasAttribute('disabled'))
+      const controls = [...sheetRef.current.querySelectorAll<HTMLElement>('a[href],button,input,select,summary,textarea,[tabindex]:not([tabindex="-1"])')].filter((element) => !element.hasAttribute('disabled'))
       if (!controls.length) return
       const index = controls.indexOf(document.activeElement as HTMLElement)
       if (event.shiftKey && index <= 0) { event.preventDefault(); controls.at(-1)?.focus() }

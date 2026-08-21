@@ -362,4 +362,11 @@ describe('native UI primitives', () => {
     fireEvent.mouseDown(screen.getByRole('presentation')); expect(onClose).toHaveBeenCalledTimes(2)
     rerender(<NativeFilterSheet open={false} title="Filters" closeLabel="Close filters" onClose={onClose} returnFocusRef={{ current: trigger }}><button>Apply</button></NativeFilterSheet>); expect(trigger).toHaveFocus(); trigger.remove()
   })
+  it('keeps a Guidelines disclosure inside the sheet focus boundary', () => {
+    render(<NativeFilterSheet open title="Community Guidelines" onClose={vi.fn()}><details><summary>On this page</summary></details></NativeFilterSheet>)
+    const close = screen.getByRole('button', { name: 'Close Community Guidelines' })
+    const summary = screen.getByText('On this page')
+    summary.focus(); fireEvent.keyDown(document, { key: 'Tab' }); expect(close).toHaveFocus()
+    close.focus(); fireEvent.keyDown(document, { key: 'Tab', shiftKey: true }); expect(summary).toHaveFocus()
+  })
 })
