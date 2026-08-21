@@ -301,18 +301,18 @@ export default function ListingDetailPage() {
                   <button
                     aria-label="Previous image"
                     onClick={() => setImageIndex((i) => (i - 1 + images.length) % images.length)}
-                    className="native-listing-image-nav absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
+                    className="native-listing-image-nav absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
                   >
                     <ChevronLeft size={18} />
                   </button>
                   <button
                     aria-label="Next image"
                     onClick={() => setImageIndex((i) => (i + 1) % images.length)}
-                    className="native-listing-image-nav absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
+                    className="native-listing-image-nav absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
                   >
                     <ChevronRight size={18} />
                   </button>
-                  <div className="native-listing-image-pagination absolute bottom-3 left-1/2 -translate-x-1/2 flex">
+                  <div className="native-listing-image-pagination absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                     {images.map((_, i) => (
                       <button
                         key={i}
@@ -320,9 +320,14 @@ export default function ListingDetailPage() {
                         aria-label={`Show image ${i + 1} of ${images.length}`}
                         aria-current={i === safeImageIndex ? 'true' : undefined}
                         onClick={() => setImageIndex(i)}
-                        className="native-listing-image-dot-control"
+                        className="native-listing-image-dot-control inline-flex h-1.5 w-1.5 items-center justify-center border-0 bg-transparent p-0"
                       >
-                        <span className="native-listing-image-dot" aria-hidden="true" />
+                        <span
+                          className={`native-listing-image-dot block h-1.5 w-1.5 rounded-full transition-colors ${
+                            i === safeImageIndex ? 'bg-white' : 'bg-white/50'
+                          }`}
+                          aria-hidden="true"
+                        />
                       </button>
                     ))}
                   </div>

@@ -348,6 +348,8 @@ describe('native UI primitives', () => {
     expect(cssRule('.native-app .native-explore-controls')).toMatch(/display:\s*flex/)
     expect(cssRule('.native-app .native-explore-controls > button:disabled')).toMatch(/opacity:/)
     expect(cssRule('.native-app .native-explore-controls > button:disabled')).toMatch(/cursor:\s*not-allowed/)
+    expect(cssRule('.native-app .native-listing-image-nav')).toMatch(/min-width:\s*44px/)
+    expect(cssRule('.native-app .native-listing-image-nav')).toMatch(/min-height:\s*44px/)
     expect(cssRule('.native-app .native-home-scroll')).toMatch(/padding:\s*0\s*18px/)
     expect(cssRule('.native-app .native-explore-scroll')).toMatch(/padding:\s*0\s*18px/)
     expect(cssRule('.native-app .native-partner-button')).toMatch(/display:\s*inline-flex/)

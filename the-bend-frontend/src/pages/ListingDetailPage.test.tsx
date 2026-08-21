@@ -165,17 +165,33 @@ describe('ListingDetailPage offline actions', () => {
     )
 
     await screen.findByRole('heading', { name: 'Listing A' })
-    expect(screen.getByRole('button', { name: 'Previous image' })).toHaveClass('native-listing-image-nav', 'w-11', 'h-11')
-    expect(screen.getByRole('button', { name: 'Next image' })).toHaveClass('native-listing-image-nav', 'w-11', 'h-11')
+    expect(screen.getByRole('button', { name: 'Previous image' })).toHaveClass('native-listing-image-nav', 'w-8', 'h-8')
+    expect(screen.getByRole('button', { name: 'Next image' })).toHaveClass('native-listing-image-nav', 'w-8', 'h-8')
     const dots = [1, 2, 3].map((index) => screen.getByRole('button', { name: `Show image ${index} of 3` }))
+    expect(dots[0].parentElement).toHaveClass('native-listing-image-pagination', 'gap-1.5')
     expect(dots[0]).toHaveAttribute('aria-current', 'true')
     expect(dots[1]).not.toHaveAttribute('aria-current')
     for (const dot of dots) {
-      expect(dot).toHaveClass('native-listing-image-dot-control')
-      expect(dot.querySelector('.native-listing-image-dot')).toBeInTheDocument()
+      expect(dot).toHaveClass(
+        'native-listing-image-dot-control',
+        'inline-flex',
+        'h-1.5',
+        'w-1.5',
+        'items-center',
+        'justify-center',
+      )
+      expect(dot.querySelector('.native-listing-image-dot')).toHaveClass(
+        'block',
+        'h-1.5',
+        'w-1.5',
+        'rounded-full',
+      )
     }
+    expect(dots[0].querySelector('.native-listing-image-dot')).toHaveClass('bg-white')
+    expect(dots[1].querySelector('.native-listing-image-dot')).toHaveClass('bg-white/50')
     fireEvent.click(dots[1])
     expect(dots[1]).toHaveAttribute('aria-current', 'true')
+    expect(dots[1].querySelector('.native-listing-image-dot')).toHaveClass('bg-white')
   })
 
   it('ignores discount codes that resolve after the listing id changes', async () => {

@@ -468,6 +468,7 @@
 .native-app .native-map-marker-icon { width: 44px; height: 44px; object-fit: contain; }
 .native-app .native-map-container { min-height: 320px; border-radius: var(--native-radius-card); }
 .native-app .native-map-open-control { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px 12px; }
+.native-app .native-listing-image-nav { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 .native-app .native-listing-image-pagination { max-width: calc(100% - 96px); overflow-x: auto; }
 .native-app .native-listing-image-dot-control { display: inline-flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; }
 .native-app .native-listing-image-dot { width: 6px; height: 6px; border-radius: 999px; background: rgb(255 255 255 / 55%); }
