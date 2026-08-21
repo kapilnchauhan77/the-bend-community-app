@@ -146,6 +146,8 @@ PHASE2_SOURCE_COMMIT="$(git rev-parse HEAD)"
 PHASE2_ANDROID_SERIAL="emulator-5554"
 PHASE2_ANDROID_AVD="Bend_Westmoreland_API_36"
 PHASE2_APK="$PHASE2_WORKTREE/the-bend-frontend/android/app/build/outputs/apk/debug/app-debug.apk"
+PHASE2_JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+PHASE2_ANDROID_SDK="/Users/kapil/Library/Android/sdk"
 PHASE2_IOS_UDID="C824154C-356B-4B2C-BDF1-2DC8F71BDB23"
 PHASE2_IOS_DERIVED="/tmp/bend-native-phase2-$PHASE2_SOURCE_COMMIT"
 PHASE2_IOS_APP="$PHASE2_IOS_DERIVED/Build/Products/Debug-iphonesimulator/App.app"
@@ -163,7 +165,14 @@ cd "$PHASE2_WORKTREE/the-bend-backend"
 uv run --frozen pytest -q
 
 cd "$PHASE2_WORKTREE/the-bend-frontend/android"
-./gradlew assembleDebug
+test -x "$PHASE2_JAVA_HOME/bin/java"
+test -d "$PHASE2_ANDROID_SDK"
+env \
+  JAVA_HOME="$PHASE2_JAVA_HOME" \
+  PATH="$PHASE2_JAVA_HOME/bin:$PATH" \
+  ANDROID_HOME="$PHASE2_ANDROID_SDK" \
+  ANDROID_SDK_ROOT="$PHASE2_ANDROID_SDK" \
+  ./gradlew assembleDebug
 test -f "$PHASE2_APK"
 shasum -a 256 "$PHASE2_APK"
 
