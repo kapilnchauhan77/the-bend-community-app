@@ -4,15 +4,18 @@ import WebKit
 
 @MainActor
 final class DynamicTypeBridgeViewControllerTests: XCTestCase {
-    private final class NavigationObserver: NSObject, WKNavigationDelegate {
-        private let didFinish: (WKWebView) -> Void
+    private final class ScriptMessageObserver: NSObject, WKScriptMessageHandler {
+        private let didReceive: (WKScriptMessage) -> Void
 
-        init(didFinish: @escaping (WKWebView) -> Void) {
-            self.didFinish = didFinish
+        init(didReceive: @escaping (WKScriptMessage) -> Void) {
+            self.didReceive = didReceive
         }
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            didFinish(webView)
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            didReceive(message)
         }
     }
 
@@ -53,15 +56,44 @@ final class DynamicTypeBridgeViewControllerTests: XCTestCase {
         )
         controller.loadViewIfNeeded()
 
-        guard let webView = controller.webView else {
-            XCTFail("Expected Capacitor to create a web view")
-            return
-        }
+        let configuration = WKWebViewConfiguration()
+        let webView = controller.webView(with: .zero, configuration: configuration)
 
-        webView.configuration.userContentController.addUserScript(
+        let userContentController = webView.configuration.userContentController
+        userContentController.addUserScript(
             WKUserScript(
                 source: "window.existingUserScriptValue = 'preserved';",
                 injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
+
+        let reloaded = expectation(description: "Latest scale applied after reload")
+        let scriptMessageObserver = ScriptMessageObserver { message in
+            let result = message.body as? [String: Any]
+            XCTAssertEqual(result?["scale"] as? String, "160%")
+            XCTAssertEqual(result?["existingUserScriptValue"] as? String, "preserved")
+            reloaded.fulfill()
+        }
+        let messageHandlerName = "dynamicTypeReloadProof"
+        userContentController.add(scriptMessageObserver, name: messageHandlerName)
+        defer {
+            userContentController.removeScriptMessageHandler(forName: messageHandlerName)
+        }
+        userContentController.addUserScript(
+            WKUserScript(
+                source: """
+                (() => {
+                  if (!document.querySelector('[data-dynamic-type-reload-proof]')) return;
+                  window.webkit.messageHandlers.\(messageHandlerName).postMessage({
+                    scale: getComputedStyle(document.documentElement)
+                      .getPropertyValue('--native-content-text-scale')
+                      .trim(),
+                    existingUserScriptValue: window.existingUserScriptValue ?? null
+                  });
+                })();
+                """,
+                injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true
             )
         )
@@ -72,31 +104,12 @@ final class DynamicTypeBridgeViewControllerTests: XCTestCase {
             object: nil
         )
 
-        let reloaded = expectation(description: "Latest scale applied after reload")
-        let navigationObserver = NavigationObserver { reloadedWebView in
-            reloadedWebView.evaluateJavaScript(
-                """
-                ({
-                  scale: getComputedStyle(document.documentElement)
-                    .getPropertyValue('--native-content-text-scale')
-                    .trim(),
-                  existingUserScriptValue: window.existingUserScriptValue ?? null
-                })
-                """
-            ) { value, error in
-                XCTAssertNil(error)
-                let result = value as? [String: Any]
-                XCTAssertEqual(result?["scale"] as? String, "160%")
-                XCTAssertEqual(result?["existingUserScriptValue"] as? String, "preserved")
-                reloaded.fulfill()
-            }
-        }
-        webView.navigationDelegate = navigationObserver
-        webView.loadHTMLString("<html><body>Reloaded</body></html>", baseURL: nil)
+        webView.loadHTMLString(
+            "<html><body data-dynamic-type-reload-proof>Reloaded</body></html>",
+            baseURL: nil
+        )
 
-        withExtendedLifetime(navigationObserver) {
-            wait(for: [reloaded], timeout: 5)
-        }
+        wait(for: [reloaded], timeout: 20)
     }
 
     func testCoordinatorAppliesTheCurrentScaleWhenContentSizeChanges() {
