@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
@@ -6,24 +6,31 @@ import { GUIDELINE_SECTIONS } from '@/routes/guidelineSections';
 
 interface GuidelinesViewPageProps {
   embeddedNative?: boolean;
+  sectionNavigation?: 'route' | 'local';
 }
 
-export default function GuidelinesViewPage({ embeddedNative = false }: GuidelinesViewPageProps) {
+export default function GuidelinesViewPage({ embeddedNative = false, sectionNavigation = 'route' }: GuidelinesViewPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [localSection, setLocalSection] = useState<string | null>(null);
+  const activeHash = sectionNavigation === 'local' ? (localSection ? `#${localSection}` : '') : location.hash;
 
   useEffect(() => {
-    if (!embeddedNative || !location.hash) return;
-    const heading = document.getElementById(location.hash.slice(1));
+    if (!embeddedNative || !activeHash) return;
+    const heading = document.getElementById(activeHash.slice(1));
     if (!heading) return;
     heading.focus({ preventScroll: true });
     heading.scrollIntoView({
       behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
       block: 'start',
     });
-  }, [embeddedNative, location.hash]);
+  }, [activeHash, embeddedNative]);
 
   const selectSection = (id: string) => {
+    if (sectionNavigation === 'local') {
+      setLocalSection(id);
+      return;
+    }
     navigate({ pathname: location.pathname, search: location.search, hash: `#${id}` }, { replace: true });
   };
 

@@ -74,6 +74,22 @@ describe('GuidelinesViewPage native shell', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
   });
 
+  it('supports local section focus without changing the registration URL', async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <MemoryRouter initialEntries={['/register?step=security']}>
+        <GuidelinesViewPage embeddedNative sectionNavigation="local" />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: '4. Listings & Transactions' }));
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('listings-transactions')));
+    expect(screen.getByTestId('guidelines-location')).toHaveTextContent(/^\/register\?step=security$/);
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+  });
+
   it('focuses a known direct hash after render, ignores unknown hashes, and honors reduced motion', async () => {
     const scrollIntoView = vi.fn();
     HTMLElement.prototype.scrollIntoView = scrollIntoView;

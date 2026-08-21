@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import RegisterPage from './RegisterPage'
 import { NativePresentationProvider } from '@/components/layout/NativePresentationContext'
 import { nextRegistrationStep, previousRegistrationStep, registrationFieldsForStep, resetBusinessRegistrationFields } from '@/auth/registrationFlow'
-import { publicWestmorelandUrl } from '@/lib/publicUrl'
 
 vi.mock('@/services/authApi', () => ({ authApi: { register: vi.fn() } }))
 const browserOpen = vi.hoisted(() => vi.fn(() => Promise.resolve()))
@@ -179,32 +178,41 @@ describe('RegisterPage native steps', () => {
     expect(registerButton).toBeEnabled()
   })
 
-  it('opens Guidelines outside the native app without losing security-step values', async () => {
+  it('opens Guidelines inside the native app without losing security-step values', async () => {
     renderNative()
     await fillNativeBusinessForm()
     fireEvent.click(screen.getByRole('checkbox', { name: /agree to the community guidelines/i }))
 
-    fireEvent.click(screen.getByRole('link', { name: 'View' }))
+    const trigger = screen.getByRole('link', { name: 'View' })
+    fireEvent.click(trigger)
 
-    await waitFor(() => expect(browserOpen).toHaveBeenCalledWith(publicWestmorelandUrl('/guidelines')))
+    const dialog = await screen.findByRole('dialog', { name: 'Community Guidelines' })
+    expect(dialog).toHaveTextContent('1. Purpose & Mission')
+    expect(browserOpen).not.toHaveBeenCalled()
     expect(screen.getByRole('heading', { name: 'Security and guidelines' })).toBeInTheDocument()
     expect(document.getElementById('password')).toHaveValue('safe-password1')
     expect(document.getElementById('confirm_password')).toHaveValue('safe-password1')
     expect(screen.getByRole('checkbox', { name: /agree to the community guidelines/i })).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Community Guidelines' }))
+    expect(screen.queryByRole('dialog', { name: 'Community Guidelines' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(document.getElementById('password')).toHaveValue('safe-password1')
   })
 
-  it('uses the same native browser boundary for the inline Guidelines link', async () => {
+  it('uses the same in-app Guidelines sheet for the inline link', async () => {
     renderNative()
     await fillNativeBusinessForm()
     const link = screen.getByRole('link', { name: 'community guidelines' })
     const consent = screen.getByRole('checkbox', { name: /agree to the community guidelines/i })
     fireEvent.click(consent)
     expect(consent).toBeChecked()
-    expect(link).toHaveAttribute('href', publicWestmorelandUrl('/guidelines'))
+    expect(link).toHaveAttribute('href', '/guidelines')
 
     fireEvent.click(link)
 
-    await waitFor(() => expect(browserOpen).toHaveBeenCalledWith(publicWestmorelandUrl('/guidelines')))
+    expect(await screen.findByRole('dialog', { name: 'Community Guidelines' })).toBeInTheDocument()
+    expect(browserOpen).not.toHaveBeenCalled()
     expect(screen.getByRole('heading', { name: 'Security and guidelines' })).toBeInTheDocument()
     expect(consent).toBeChecked()
   })

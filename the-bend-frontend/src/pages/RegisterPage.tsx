@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
@@ -19,8 +19,8 @@ import { registerSchema, type RegisterFormData } from '@/lib/validators';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS } from '@/lib/businessTypes';
 import { NativeAuthBack } from '@/components/features/auth/NativeAuthBack';
 import { useNativePresentation } from '@/components/layout/NativePresentationContext';
-import { usePlatformServices } from '@/platform/createPlatformServices';
-import { publicWestmorelandUrl } from '@/lib/publicUrl';
+import { NativeFilterSheet } from '@/components/native/ui/NativeFilterSheet';
+import GuidelinesViewPage from '@/pages/GuidelinesViewPage';
 import {
   REGISTRATION_STEPS,
   nextRegistrationStep,
@@ -42,13 +42,14 @@ function FieldError({ message, id }: { message?: string; id: string }) {
 
 export default function RegisterPage() {
   const native = useNativePresentation();
-  const { browser } = usePlatformServices();
   const [step, setStep] = useState<RegistrationStep>('account-type');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [guidelinesOpen, setGuidelinesOpen] = useState(false);
+  const guidelinesReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const {
     register,
@@ -119,8 +120,10 @@ export default function RegisterPage() {
     if (!native) return;
     event.preventDefault();
     event.stopPropagation();
-    void browser.open(publicWestmorelandUrl('/guidelines')).catch(() => undefined);
+    guidelinesReturnFocusRef.current = event.currentTarget;
+    setGuidelinesOpen(true);
   };
+  const closeGuidelines = useCallback(() => setGuidelinesOpen(false), []);
 
   // Success state
   if (submitted) {
@@ -542,7 +545,7 @@ export default function RegisterPage() {
                   <p className="text-xs text-[hsl(30,10%,48%)] mt-0.5">Rules for respectful resource sharing</p>
                 </div>
                 <a
-                  href={native ? publicWestmorelandUrl('/guidelines') : '/guidelines'}
+                  href="/guidelines"
                   onClick={openGuidelines}
                   className="native-auth-guideline-action flex-shrink-0 text-xs font-semibold hover:underline"
                   style={{ color: BRONZE }}
@@ -566,7 +569,7 @@ export default function RegisterPage() {
                     />
                     <label htmlFor="guidelines_accepted" className="text-sm leading-relaxed cursor-pointer select-none text-[hsl(30,15%,25%)]">
                       I have read and agree to the{' '}
-                      <a href={native ? publicWestmorelandUrl('/guidelines') : '/guidelines'} onClick={openGuidelines} className="native-auth-guideline-action font-semibold hover:underline" style={{ color: BRONZE }}>
+                      <a href="/guidelines" onClick={openGuidelines} className="native-auth-guideline-action font-semibold hover:underline" style={{ color: BRONZE }}>
                         community guidelines
                       </a>
                     </label>
@@ -623,6 +626,17 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
+      {native && <NativeFilterSheet
+        open={guidelinesOpen}
+        title="Community Guidelines"
+        closeLabel="Close Community Guidelines"
+        onClose={closeGuidelines}
+        returnFocusRef={guidelinesReturnFocusRef}
+      >
+        <div className="native-registration-guidelines">
+          <GuidelinesViewPage embeddedNative sectionNavigation="local" />
+        </div>
+      </NativeFilterSheet>}
     </div>
   );
 }
