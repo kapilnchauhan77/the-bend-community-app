@@ -301,14 +301,14 @@ export default function ListingDetailPage() {
                   <button
                     aria-label="Previous image"
                     onClick={() => setImageIndex((i) => (i - 1 + images.length) % images.length)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
+                    className="native-listing-image-nav absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
                   >
                     <ChevronLeft size={18} />
                   </button>
                   <button
                     aria-label="Next image"
                     onClick={() => setImageIndex((i) => (i + 1) % images.length)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
+                    className="native-listing-image-nav absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
                   >
                     <ChevronRight size={18} />
                   </button>

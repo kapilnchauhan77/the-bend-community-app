@@ -49,6 +49,7 @@ describe('GuidelinesViewPage native shell', () => {
     );
 
     expect(screen.getByText('On this page')).toBeInTheDocument();
+    expect(screen.getByText('On this page')).toHaveClass('native-guidelines-summary');
     expect(container.querySelector('details')).toBeInTheDocument();
     expect([...container.querySelectorAll('article h2')].map((heading) => heading.id)).toEqual([
       'purpose-mission', 'membership-eligibility', 'acceptable-use', 'listings-transactions',
@@ -60,6 +61,8 @@ describe('GuidelinesViewPage native shell', () => {
       expect(link).toHaveClass('native-guidelines-link', 'native-control');
     }
     expect(nativeCss).toMatch(/\.native-app\s+\.native-guidelines-link\s*\{[^}]*display:\s*inline-flex/i);
+    expect(nativeCss).toMatch(/\.native-app\s+\.native-guidelines-summary\s*\{[^}]*min-height:\s*44px/i);
+    expect(nativeCss).toMatch(/\.native-app\s+\.native-guidelines-summary\s*\{[^}]*display:\s*list-item/i);
   });
 
   it('replaces the hash and focuses and scrolls a selected section', async () => {

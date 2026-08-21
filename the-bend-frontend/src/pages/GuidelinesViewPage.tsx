@@ -56,7 +56,7 @@ export default function GuidelinesViewPage({ embeddedNative = false, sectionNavi
         {embeddedNative && <h1 className="sr-only">Community Guidelines</h1>}
         <p className="text-xs text-[hsl(30,10%,55%)] mb-8 uppercase tracking-wider">Last updated: April 2026</p>
         {embeddedNative && <details className="native-guidelines-contents mb-8">
-          <summary>On this page</summary>
+          <summary className="native-guidelines-summary">On this page</summary>
           <nav aria-label="Community Guidelines sections">
             <ul>
               {GUIDELINE_SECTIONS.map(({ id, label }) => <li key={id}><a className="native-guidelines-link native-control" href={`#${id}`} onClick={(event) => { event.preventDefault(); selectSection(id); }}>{label}</a></li>)}

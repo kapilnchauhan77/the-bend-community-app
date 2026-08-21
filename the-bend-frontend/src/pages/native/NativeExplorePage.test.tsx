@@ -182,6 +182,7 @@ describe('NativeExplorePage', () => {
     expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'Continue across Westmoreland' }))
     expect(screen.getByTestId('location')).not.toHaveTextContent('near=true')
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
 
   it.each(['denied', 'unavailable'] as const)('keeps All-map location %s local and recoverable', async (status) => {
@@ -199,6 +200,50 @@ describe('NativeExplorePage', () => {
     expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'Continue across Westmoreland' }))
     expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+
+  it('retries a denied Businesses map-centering request without enabling Near me', async () => {
+    configureTyped([{ ...business, coordinates: { latitude: 40, longitude: -79 } }])
+    fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    fixture.requestLocation = vi.fn()
+      .mockResolvedValueOnce({ status: 'denied' })
+      .mockResolvedValueOnce({ status: 'granted', latitude: 40, longitude: -79 })
+    const view = render(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => { await Promise.resolve() })
+    fixture.location = { status: 'denied' }
+    view.rerender(<MemoryRouter initialEntries={['/explore?type=businesses&mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('location')).not.toHaveTextContent('near=true')
+  })
+
+  it('does not carry a denied Near me intent into an All-map request', async () => {
+    configureTyped([business])
+    fixture.location = { status: 'denied' }
+    fixture.requestLocation = vi.fn().mockResolvedValue({ status: 'denied' })
+    const view = render(<MemoryRouter initialEntries={['/explore?type=businesses&near=true']}><NativeExplorePage /><Probe /></MemoryRouter>)
+
+    expect(screen.getByText('Use your location for Near me')).toBeInTheDocument()
+    configureAll()
+    fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }))
+    view.rerender(<MemoryRouter initialEntries={['/explore?type=businesses&near=true']}><NativeExplorePage /><Probe /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Map' }))
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('Use your location on the map')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveClass('native-control')
+    expect(screen.getByRole('button', { name: 'Continue across Westmoreland' })).toHaveClass('native-control')
+    fireEvent.click(screen.getByRole('button', { name: 'Continue across Westmoreland' }))
+    expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
 
   it('P1 keeps typed text visible, replaces q after 300ms, and does not add history', async () => {

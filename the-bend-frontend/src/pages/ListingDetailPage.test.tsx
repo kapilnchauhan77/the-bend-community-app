@@ -165,6 +165,8 @@ describe('ListingDetailPage offline actions', () => {
     )
 
     await screen.findByRole('heading', { name: 'Listing A' })
+    expect(screen.getByRole('button', { name: 'Previous image' })).toHaveClass('native-listing-image-nav', 'w-11', 'h-11')
+    expect(screen.getByRole('button', { name: 'Next image' })).toHaveClass('native-listing-image-nav', 'w-11', 'h-11')
     const dots = [1, 2, 3].map((index) => screen.getByRole('button', { name: `Show image ${index} of 3` }))
     expect(dots[0]).toHaveAttribute('aria-current', 'true')
     expect(dots[1]).not.toHaveAttribute('aria-current')
