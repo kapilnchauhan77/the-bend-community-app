@@ -312,15 +312,18 @@ export default function ListingDetailPage() {
                   >
                     <ChevronRight size={18} />
                   </button>
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  <div className="native-listing-image-pagination absolute bottom-3 left-1/2 -translate-x-1/2 flex">
                     {images.map((_, i) => (
                       <button
                         key={i}
+                        type="button"
+                        aria-label={`Show image ${i + 1} of ${images.length}`}
+                        aria-current={i === safeImageIndex ? 'true' : undefined}
                         onClick={() => setImageIndex(i)}
-                        className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                          i === safeImageIndex ? 'bg-white' : 'bg-white/50'
-                        }`}
-                      />
+                        className="native-listing-image-dot-control"
+                      >
+                        <span className="native-listing-image-dot" aria-hidden="true" />
+                      </button>
                     ))}
                   </div>
                 </>

@@ -59,7 +59,7 @@ export default function GuidelinesViewPage({ embeddedNative = false, sectionNavi
           <summary>On this page</summary>
           <nav aria-label="Community Guidelines sections">
             <ul>
-              {GUIDELINE_SECTIONS.map(({ id, label }) => <li key={id}><a href={`#${id}`} onClick={(event) => { event.preventDefault(); selectSection(id); }}>{label}</a></li>)}
+              {GUIDELINE_SECTIONS.map(({ id, label }) => <li key={id}><a className="native-guidelines-link native-control" href={`#${id}`} onClick={(event) => { event.preventDefault(); selectSection(id); }}>{label}</a></li>)}
             </ul>
           </nav>
         </details>}

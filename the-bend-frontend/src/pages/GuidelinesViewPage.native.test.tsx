@@ -56,6 +56,10 @@ describe('GuidelinesViewPage native shell', () => {
       'privacy-data', 'content-moderation-enforcement', 'modifications', 'contact',
     ]);
     expect([...container.querySelectorAll('article h2')].every((heading) => heading.tabIndex === -1)).toBe(true);
+    for (const link of container.querySelectorAll('.native-guidelines-contents a')) {
+      expect(link).toHaveClass('native-guidelines-link', 'native-control');
+    }
+    expect(nativeCss).toMatch(/\.native-app\s+\.native-guidelines-link\s*\{[^}]*display:\s*inline-flex/i);
   });
 
   it('replaces the hash and focuses and scrolls a selected section', async () => {

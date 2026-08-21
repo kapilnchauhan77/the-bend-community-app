@@ -184,6 +184,23 @@ describe('NativeExplorePage', () => {
     expect(screen.getByTestId('location')).not.toHaveTextContent('near=true')
   })
 
+  it.each(['denied', 'unavailable'] as const)('keeps All-map location %s local and recoverable', async (status) => {
+    configureAll()
+    fixture.mapBusinesses = [{ ...business, coordinates: { latitude: 40, longitude: -79 }, distanceMiles: null }]
+    fixture.location = { status }
+    fixture.requestLocation = vi.fn().mockResolvedValue({ status })
+    render(<MemoryRouter initialEntries={['/explore?mode=map']}><NativeExplorePage /><Probe /></MemoryRouter>)
+
+    expect(screen.getByRole('button', { name: 'Use my location' })).toHaveClass('native-map-location-control')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continue across Westmoreland' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await act(async () => { await Promise.resolve() })
+    expect(fixture.requestLocation).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Continue across Westmoreland' }))
+    expect(screen.getByTestId('location')).not.toHaveTextContent('mode=map')
+  })
+
   it('P1 keeps typed text visible, replaces q after 300ms, and does not add history', async () => {
     render(<MemoryRouter initialEntries={['/before', '/explore?q=old']} initialIndex={1}><NativeExplorePage /><Probe /></MemoryRouter>)
     const input = screen.getByRole('searchbox'); fireEvent.change(input, { target: { value: 'tractor' } }); expect(input).toHaveValue('tractor'); expect(screen.getByTestId('location')).toHaveTextContent('/explore?q=old')

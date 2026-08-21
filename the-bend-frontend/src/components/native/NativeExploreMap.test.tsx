@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { readFileSync } from 'node:fs'
 import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { NativeExploreMap } from './NativeExploreMap'
+import { NativeExploreMap, nativeBusinessMarkerIcon } from './NativeExploreMap'
 
 const mapHarness = vi.hoisted(() => ({ setView: vi.fn(), getZoom: vi.fn(() => 11) }))
 
@@ -71,6 +71,12 @@ describe('NativeExploreMap', () => {
     } finally {
       style.remove()
     }
+  })
+
+  it('keeps Leaflet marker and zoom targets at least 44 points', () => {
+    expect(nativeBusinessMarkerIcon.options.iconSize).toEqual([44, 44])
+    expect(nativeCss).toMatch(/\.native-app\s+\.leaflet-control-zoom\s+a\s*\{[^}]*min-width:\s*44px/i)
+    expect(nativeCss).toMatch(/\.native-app\s+\.leaflet-control-zoom\s+a\s*\{[^}]*min-height:\s*44px/i)
   })
 
   it('treats selectedId as controlled and exposes Open details inside the marker popup', () => {

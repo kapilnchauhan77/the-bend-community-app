@@ -156,6 +156,26 @@ describe('ListingDetailPage offline actions', () => {
     expect(screen.queryByRole('button', { name: /next image/i })).not.toBeInTheDocument()
   })
 
+  it('names image pagination targets while keeping the visual dots compact', async () => {
+    cachedState = { ...cachedState, data: listingWithImages('l1', 'Listing A', ['/a-1.jpg', '/a-2.jpg', '/a-3.jpg']) }
+    render(
+      <MemoryRouter initialEntries={['/listings/l1']}>
+        <Routes><Route path="/listings/:id" element={<ListingDetailPage />} /></Routes>
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: 'Listing A' })
+    const dots = [1, 2, 3].map((index) => screen.getByRole('button', { name: `Show image ${index} of 3` }))
+    expect(dots[0]).toHaveAttribute('aria-current', 'true')
+    expect(dots[1]).not.toHaveAttribute('aria-current')
+    for (const dot of dots) {
+      expect(dot).toHaveClass('native-listing-image-dot-control')
+      expect(dot.querySelector('.native-listing-image-dot')).toBeInTheDocument()
+    }
+    fireEvent.click(dots[1])
+    expect(dots[1]).toHaveAttribute('aria-current', 'true')
+  })
+
   it('ignores discount codes that resolve after the listing id changes', async () => {
     let resolveFirst!: (value: { data: Array<Record<string, unknown>> }) => void
     const first = {
