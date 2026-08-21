@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ListingDetail } from '@/types'
@@ -6,6 +6,7 @@ import ListingDetailPage from './ListingDetailPage'
 
 const runOnline = vi.fn(async () => { throw new Error('OFFLINE_ACTION_UNAVAILABLE') })
 const cachedRefresh = vi.fn(() => Promise.resolve())
+const listForUser = vi.hoisted(() => vi.fn(() => Promise.resolve({ data: [] })))
 let cachedState: {
   data: ListingDetail | null
   source: 'cache' | 'network' | null
@@ -21,6 +22,7 @@ vi.mock('@/stores/authStore', () => ({ useAuthStore: () => ({ isAuthenticated: t
 vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 vi.mock('@/components/features/messages/ShareToMessageButton', () => ({ ShareToMessageButton: () => null }))
 vi.mock('@/components/shared/ShareButton', () => ({ ShareButton: () => null }))
+vi.mock('@/services/discountCodeApi', () => ({ discountCodeApi: { listForUser, markUsed: vi.fn() } }))
 
 const listing: ListingDetail = {
   id: 'l1', title: 'Oak desk', description: 'A sturdy oak desk', type: 'offer', category: 'equipment', urgency: 'normal',
@@ -38,6 +40,8 @@ const listingWithImages = (id: string, title: string, urls: string[]): ListingDe
 
 beforeEach(() => {
   cachedRefresh.mockClear()
+  listForUser.mockReset()
+  listForUser.mockResolvedValue({ data: [] })
   cachedState = {
     data: listing,
     source: 'cache',
@@ -118,5 +122,59 @@ describe('ListingDetailPage offline actions', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Listing B' })).toBeInTheDocument())
     expect(screen.getByRole('img', { name: 'Listing B' })).toHaveAttribute('src', '/b-1.jpg')
     expect(screen.queryByRole('button', { name: /next image/i })).not.toBeInTheDocument()
+  })
+
+  it('ignores discount codes that resolve after the listing id changes', async () => {
+    let resolveFirst!: (value: { data: Array<Record<string, unknown>> }) => void
+    const first = {
+      ...listing,
+      id: 'l1',
+      title: 'Listing A',
+      shop: null,
+      posted_by: { id: 'user-a', name: 'Alice', avatar_url: null },
+    }
+    const second = {
+      ...listing,
+      id: 'l2',
+      title: 'Listing B',
+      shop: null,
+      posted_by: { id: 'user-b', name: 'Blake', avatar_url: null },
+    }
+    const code = (id: string, value: string) => ({
+      id,
+      code: value,
+      name: value,
+      discount_type: 'percentage' as const,
+      discount_value: 10,
+      usage_count: 0,
+      is_active: true,
+      created_at: '2026-08-18T00:00:00Z',
+    })
+    listForUser.mockImplementation((userId: string) => {
+      if (userId === 'user-a') return new Promise((resolve) => { resolveFirst = resolve }) as never
+      return Promise.resolve({ data: [code('b-code', 'BONLY')] }) as never
+    })
+    cachedState = { ...cachedState, data: first }
+    function SwitchListing() {
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate('/listings/l2')}>Open B</button>
+    }
+    render(
+      <MemoryRouter initialEntries={['/listings/l1']}>
+        <SwitchListing />
+        <Routes><Route path="/listings/:id" element={<ListingDetailPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: 'Listing A' })
+    await waitFor(() => expect(listForUser).toHaveBeenCalledWith('user-a'))
+
+    cachedState = { ...cachedState, data: second }
+    fireEvent.click(screen.getByRole('button', { name: 'Open B' }))
+    await screen.findByRole('heading', { name: 'Listing B' })
+    expect((await screen.findAllByText('BONLY')).length).toBeGreaterThan(0)
+
+    await act(async () => { resolveFirst({ data: [code('a-code', 'STALE-A')] }) })
+    expect(screen.queryByText('STALE-A')).not.toBeInTheDocument()
+    expect(screen.getAllByText('BONLY').length).toBeGreaterThan(0)
   })
 })

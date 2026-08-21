@@ -124,15 +124,17 @@ export default function ListingDetailPage() {
 
   useEffect(() => {
     if (!activeListing) return;
+    let current = true;
     if (activeListing.shop) {
       setPosterDiscountCodes([]);
-      return;
+      return () => { current = false; };
     }
-    if (!activeListing.posted_by) return;
+    if (!activeListing.posted_by) return () => { current = false; };
     discountCodeApi
       .listForUser(activeListing.posted_by.id)
-      .then((res) => setPosterDiscountCodes(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setPosterDiscountCodes([]));
+      .then((res) => { if (current) setPosterDiscountCodes(Array.isArray(res.data) ? res.data : []); })
+      .catch(() => { if (current) setPosterDiscountCodes([]); });
+    return () => { current = false; };
   }, [activeListing]);
 
   async function handleInterest() {
