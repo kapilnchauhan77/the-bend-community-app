@@ -21,6 +21,7 @@ from app.services.link_preview_errors import (
     LinkPreviewUpstreamFailure,
 )
 from app.services.bender_link_urls import LinkPreviewURLRejected
+from app.services.bender_link_urls import prepare_external_url
 
 
 class FakeService:
@@ -127,6 +128,38 @@ def test_preview_returns_public_shape_and_passes_authenticated_binding():
     assert set(response.json()) == {"preview_token", "preview"}
     assert "version" not in response.json()["preview"]
     assert service.calls == [("https://example.org/event", user.id, user.tenant_id)]
+
+
+def test_preview_rejects_bracketed_non_ipv6_before_issuing_draft():
+    class RecordingStore:
+        def __init__(self):
+            self.outcomes = []
+            self.tokens = []
+
+        async def get_cached_metadata(self, _url):
+            return None
+
+        async def record_outcome(self, outcome):
+            self.outcomes.append(outcome)
+
+        async def issue_draft(self, *args, **kwargs):
+            self.tokens.append((args, kwargs))
+            return "unexpected"
+
+    class PreparingGenerator:
+        def normalize_request_url(self, url):
+            return prepare_external_url(url).normalized_url
+
+    user = _user()
+    store = RecordingStore()
+    service = BenderLinkPreviewService(store, PreparingGenerator())
+    with TestClient(_app(user=user, service=service), raise_server_exceptions=False) as client:
+        response = client.post("/api/v1/bender/link-preview", json={"url": "https://[v1.foo]/"})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "LINK_PREVIEW_URL_REJECTED"
+    assert store.tokens == []
+    assert store.outcomes == ["blocked_destination"]
 
 
 def test_real_preview_limiter_returns_existing_429_and_retry_after_on_request_11():

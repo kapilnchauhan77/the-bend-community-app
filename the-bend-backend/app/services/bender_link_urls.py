@@ -151,6 +151,12 @@ def prepare_external_url(raw_url: str) -> PreparedExternalUrl:
         if "]" not in raw_netloc:
             _reject("invalid_url")
         raw_hostname = raw_netloc[1 : raw_netloc.index("]")]
+        try:
+            literal = ipaddress.ip_address(raw_hostname)
+        except ValueError:
+            _reject("invalid_url", raw_hostname or None)
+        if literal.version != 6 or str(literal) != raw_hostname:
+            _reject("invalid_url", raw_hostname)
     else:
         raw_hostname = raw_netloc.split(":", 1)[0]
     try:

@@ -12,6 +12,7 @@ from app.services.link_preview_errors import (
     LinkPreviewUpstreamFailure,
 )
 from app.services.bender_link_urls import LinkPreviewURLRejected
+from app.services.bender_link_urls import prepare_external_url
 
 
 SOURCE = "https://example.org/event"
@@ -84,6 +85,20 @@ async def test_length_guard_runs_before_normalization_and_generator():
             await service.create_preview(value, user_id=uuid4(), tenant_id=None)
     assert generator.calls == []
     assert store.calls == []
+
+
+@pytest.mark.asyncio
+async def test_bracketed_non_ipv6_source_is_rejected_before_cache_or_draft():
+    store = FakeStore()
+    generator = FakeGenerator(generated=_generated())
+    generator.normalize_request_url = lambda url: prepare_external_url(url).normalized_url
+    service = BenderLinkPreviewService(store, generator)
+
+    with pytest.raises(LinkPreviewURLRejected):
+        await service.create_preview("https://[v1.foo]/", user_id=uuid4(), tenant_id=None)
+
+    assert store.calls == []
+    assert store.tokens == []
 
 
 @pytest.mark.asyncio

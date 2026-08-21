@@ -67,6 +67,7 @@ def test_extracts_exact_caption_tokens(case):
         "https://example.org/%gg",
         "https://example.org:8080/path",
         "https://[2606:2800:220:1:248:1893:25C8:1946]/",
+        "https://[v1.foo]/",
     ],
 )
 def test_rejects_unsafe_external_urls(url):
@@ -91,6 +92,11 @@ def test_accepts_canonical_global_ipv6_literal():
     result = prepare_external_url("https://[2606:2800:220:1:248:1893:25c8:1946]/")
     assert result.hostname == "2606:2800:220:1:248:1893:25c8:1946"
     assert result.normalized_url == "https://[2606:2800:220:1:248:1893:25c8:1946]/"
+
+
+def test_rejects_bracketed_non_ipv6_authority_before_normalization():
+    with pytest.raises(LinkPreviewURLRejected):
+        prepare_external_url("https://[v1.foo]/")
 
 
 @pytest.mark.parametrize("value", [
