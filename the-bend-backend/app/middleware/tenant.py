@@ -27,23 +27,32 @@ class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Skip tenant resolution for health, docs, openapi, static, and super-admin routes
         path = request.url.path
+        header_slug = request.headers.get("x-tenant-slug")
+        host = request.headers.get("host", "")
+        hostname = host.split(":")[0]  # strip port
         skip_paths = ("/api/v1/health", "/api/v1/super-admin", "/docs", "/openapi.json", "/uploads/")
-        if any(path.startswith(p) for p in skip_paths):
+        shared_api_paths = ("/api/v1/advertising/webhook",)
+        is_shared_api_endpoint = (
+            header_slug is None
+            and hostname == f"api.{self.base_domain}"
+            and path in shared_api_paths
+        )
+        if any(path.startswith(p) for p in skip_paths) or is_shared_api_endpoint:
             request.state.tenant = None
             return await call_next(request)
 
         # 1. Try X-Tenant-Slug header
-        slug = request.headers.get("x-tenant-slug")
+        slug = header_slug
+        tenant_was_explicit = header_slug is not None
 
         # 2. Try subdomain extraction
-        if not slug:
-            host = request.headers.get("host", "")
-            hostname = host.split(":")[0]  # strip port
+        if header_slug is None:
             if hostname.endswith(f".{self.base_domain}"):
-                slug = hostname.replace(f".{self.base_domain}", "")
+                slug = hostname.removesuffix(f".{self.base_domain}")
+                tenant_was_explicit = True
 
         # 3. Fallback for local development — default to "montross"
-        if not slug:
+        if not slug and not tenant_was_explicit:
             slug = "westmoreland"
 
         # Look up tenant
@@ -54,6 +63,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
             tenant = result.scalar_one_or_none()
 
         if not tenant:
+            if tenant_was_explicit:
+                return JSONResponse(status_code=404, content={"detail": "Tenant not found"})
             # For the tenant/current endpoint, return 404 so frontend knows
             if path.startswith("/api/v1/tenant"):
                 return JSONResponse(status_code=404, content={"detail": "Tenant not found"})

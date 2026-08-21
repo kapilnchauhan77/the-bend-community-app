@@ -4,7 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 
 from app.api.deps import get_db
-from app.core.permissions import Permission, get_current_user
+from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.permissions import Permission, get_current_tenant, get_current_user
+from app.models.enums import UserRole
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.guideline import Guideline
 from app.services.file_service import (
@@ -14,13 +17,32 @@ from app.services.file_service import (
     ALLOWED_VIDEO_MIME_TYPES,
     FileService,
 )
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from app.services.upload_idempotency_service import UploadIdempotencyService, UploadClaim, UploadIdempotencyUnavailable
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
 file_service = FileService()
 idempotency = UploadIdempotencyService()
+_DEFAULT_TENANT_SLUG = "westmoreland"
+
+
+def _require_guideline_tenant(
+    tenant: Tenant | None, current_user: User | None = None
+) -> Tenant:
+    if tenant is None:
+        raise NotFoundError("Tenant")
+    if current_user is None:
+        return tenant
+    if current_user.role == UserRole.COMMUNITY_ADMIN:
+        if current_user.tenant_id != tenant.id:
+            raise ForbiddenError("Community admin tenant mismatch")
+    elif current_user.role == UserRole.SUPER_ADMIN:
+        if current_user.tenant_id is not None:
+            raise ForbiddenError("Platform admin must not belong to a tenant")
+    else:
+        raise ForbiddenError("Community admin access required")
+    return tenant
 
 async def _claim(endpoint: str, key: str | None, current_user: User | None, tenant: str | None = None, anonymous_client_id: str | None = None):
     if not isinstance(key, str):
@@ -82,18 +104,26 @@ async def upload_images(
 async def upload_guidelines(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
+    tenant = _require_guideline_tenant(tenant, current_user)
     result = await file_service.upload_guidelines(file)
 
-    # Deactivate previous
-    await db.execute(update(Guideline).where(Guideline.is_active == True).values(is_active=False))
+    tenant_filter = Guideline.tenant_id == tenant.id
+    if tenant.slug == _DEFAULT_TENANT_SLUG:
+        tenant_filter = or_(tenant_filter, Guideline.tenant_id.is_(None))
+    await db.execute(
+        update(Guideline)
+        .where(Guideline.is_active.is_(True), tenant_filter)
+        .values(is_active=False)
+    )
 
     # Create new record
     guideline = Guideline(
         id=uuid4(), file_url=result["file_url"], file_name=result["file_name"],
         file_type=result["file_type"], file_size=result["file_size"],
-        uploaded_by=current_user.id, is_active=True,
+        uploaded_by=current_user.id, is_active=True, tenant_id=tenant.id,
     )
     db.add(guideline)
     await db.flush()
@@ -102,11 +132,26 @@ async def upload_guidelines(
 
 
 @router.get("/guidelines/current")
-async def get_current_guidelines(db: AsyncSession = Depends(get_db)):
+async def get_current_guidelines(
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    tenant = _require_guideline_tenant(tenant)
     result = await db.execute(
-        select(Guideline).where(Guideline.is_active == True).order_by(Guideline.created_at.desc()).limit(1)
+        select(Guideline)
+        .where(Guideline.is_active.is_(True), Guideline.tenant_id == tenant.id)
+        .order_by(Guideline.created_at.desc())
+        .limit(1)
     )
     guideline = result.scalar_one_or_none()
+    if guideline is None and tenant.slug == _DEFAULT_TENANT_SLUG:
+        result = await db.execute(
+            select(Guideline)
+            .where(Guideline.is_active.is_(True), Guideline.tenant_id.is_(None))
+            .order_by(Guideline.created_at.desc())
+            .limit(1)
+        )
+        guideline = result.scalar_one_or_none()
     if not guideline:
         return {"message": "No guidelines uploaded yet"}
     return {

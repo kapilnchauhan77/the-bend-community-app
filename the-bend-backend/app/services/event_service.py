@@ -58,6 +58,8 @@ class EventService:
         return event
 
     async def browse_events(self, category=None, start_after=None, start_before=None, search=None, cursor=None, limit=50, viewer_id=None):
+        if self.tenant_id is None:
+            raise NotFoundError("Tenant")
         return await self.event_repo.browse(
             category=category,
             start_after=start_after,
@@ -70,6 +72,8 @@ class EventService:
         )
 
     async def get_upcoming(self, limit=5, viewer_id=None):
+        if self.tenant_id is None:
+            raise NotFoundError("Tenant")
         return await self.event_repo.get_upcoming(limit, tenant_id=self.tenant_id, viewer_id=viewer_id)
 
     async def list_all_events(self, cursor=None, limit=20):
