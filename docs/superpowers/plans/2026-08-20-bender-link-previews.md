@@ -1376,9 +1376,9 @@ Create files under a temporary `uploads/link-previews` directory and test recent
 ```python
 @pytest.mark.asyncio
 async def test_cleanup_deletes_only_old_unreferenced_digest_files(tmp_path):
-    old_unreferenced = _preview_file(tmp_path, "a" * 64, age_days=31)
-    old_database_reference = _preview_file(tmp_path, "b" * 64, age_days=31)
-    recent = _preview_file(tmp_path, "c" * 64, age_days=2)
+    old_unreferenced = _preview_file(tmp_path, "a" * 64, age_minutes=26)
+    old_database_reference = _preview_file(tmp_path, "b" * 64, age_minutes=26)
+    recent = _preview_file(tmp_path, "c" * 64, age_minutes=10)
     db = _DBWithPreviewUrls({_public_url(old_database_reference)})
     redis = _RedisWithPreviewUrls(set())
     stats = await cleanup_link_preview_image_files(
