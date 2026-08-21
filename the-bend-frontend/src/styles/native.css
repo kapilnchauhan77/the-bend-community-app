@@ -35,6 +35,8 @@
 .event-detail-message h1 { margin: 0 0 10px; }
 @media (min-width: 640px) { .event-detail-content { padding: 32px 40px; } }
 .native-app .native-auth-page { --native-auth-safe-top: var(--native-safe-top); min-height: calc(100dvh - var(--native-safe-bottom)); padding-top: var(--native-auth-safe-top); }
+.native-app .native-registration-page { height: calc(100dvh - var(--native-safe-bottom)); min-height: 0; overflow: hidden; }
+.native-app .native-registration-scroll { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .native-app .native-auth-page .native-route-back { margin-top: 0; }
 .native-app .native-auth-password-toggle,
 .native-app .native-auth-inline-action,

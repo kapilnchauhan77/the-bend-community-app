@@ -161,7 +161,7 @@ export default function RegisterPage() {
   const isIndividual = userType === 'individual';
 
   return (
-    <div className="native-auth-page min-h-screen flex">
+    <div className={`native-auth-page min-h-screen flex${native ? ' native-registration-page' : ''}`}>
       {/* Left — Heritage image panel */}
       <div className="hidden lg:flex lg:w-5/12 relative overflow-hidden" style={{ backgroundColor: PRIMARY }}>
         <div
@@ -204,7 +204,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Right — Registration form */}
-      <div className="native-auth-surface flex-1 overflow-y-auto">
+      <div className={`native-auth-surface flex-1 overflow-y-auto${native ? ' native-registration-scroll' : ''}`}>
         <div className="max-w-lg mx-auto px-6 py-10">
           <NativeAuthBack fallbackPath="/login" />
           {/* Mobile logo */}

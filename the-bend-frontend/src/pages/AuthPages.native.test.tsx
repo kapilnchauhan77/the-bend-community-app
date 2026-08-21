@@ -148,6 +148,35 @@ describe('native auth pages', () => {
     expect(cssRule('.native-app .native-auth-page')).not.toMatch(/88px/)
   })
 
+  it('keeps every registration step reachable through a native viewport scroller', () => {
+    const { container } = renderNative(<RegisterPage />, '/register')
+    expect(container.querySelector('.native-auth-page')).toHaveClass('native-registration-page')
+    expect(container.querySelector('.native-auth-surface')).toHaveClass('native-registration-scroll')
+
+    const pageRule = cssRule('.native-app .native-registration-page')
+    expect(pageRule).toMatch(/height:\s*calc\(100dvh - var\(--native-safe-bottom\)\)/)
+    expect(pageRule).toMatch(/min-height:\s*0/)
+    expect(pageRule).toMatch(/overflow:\s*hidden/)
+
+    const scrollRule = cssRule('.native-app .native-registration-scroll')
+    expect(scrollRule).toMatch(/min-height:\s*0/)
+    expect(scrollRule).toMatch(/overflow-y:\s*auto/)
+    expect(scrollRule).toMatch(/-webkit-overflow-scrolling:\s*touch/)
+  })
+
+  it('does not add the registration scroll container to native login or web registration', () => {
+    const nativeLogin = renderNative(<LoginPage />, '/login')
+    expect(nativeLogin.container.querySelector('.native-registration-page')).not.toBeInTheDocument()
+    expect(nativeLogin.container.querySelector('.native-registration-scroll')).not.toBeInTheDocument()
+
+    cleanup()
+    const webRegistration = render(<MemoryRouter initialEntries={['/register']}><RegisterPage /></MemoryRouter>)
+    expect(webRegistration.container.querySelector('.native-registration-page')).not.toBeInTheDocument()
+    expect(webRegistration.container.querySelector('.native-registration-scroll')).not.toBeInTheDocument()
+    expect(webRegistration.container.querySelector('.native-auth-page')).toHaveClass('min-h-screen')
+    expect(webRegistration.container.querySelector('.native-auth-surface')).toHaveClass('overflow-y-auto')
+  })
+
   it('places native auth back controls and content below the status scrim', () => {
     expect(nativeCss).toMatch(/\.native-app \.native-auth-page\s*\{[^}]*--native-auth-safe-top:\s*var\(--native-safe-top\)/)
     expect(nativeCss).toMatch(/\.native-app \.native-auth-page\s*\{[^}]*padding-top:\s*var\(--native-auth-safe-top\)/)
