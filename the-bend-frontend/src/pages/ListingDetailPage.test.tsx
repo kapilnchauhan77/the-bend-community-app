@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ListingDetail } from '@/types'
 import ListingDetailPage from './ListingDetailPage'
@@ -28,6 +28,13 @@ const listing: ListingDetail = {
   viewer_has_interest: false, viewer_has_saved: false, posted_by: null,
   shop: { id: 's1', name: 'Workshop', business_type: 'maker', contact_phone: '123' },
 }
+
+const listingWithImages = (id: string, title: string, urls: string[]): ListingDetail => ({
+  ...listing,
+  id,
+  title,
+  images: urls.map((url) => ({ url, thumbnail_url: null })),
+})
 
 beforeEach(() => {
   cachedRefresh.mockClear()
@@ -79,5 +86,37 @@ describe('ListingDetailPage offline actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Message Business' }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('OFFLINE_ACTION_UNAVAILABLE'))
     expect(screen.getByText('Oak desk')).toBeInTheDocument()
+  })
+
+  it('clears the previous listing before a same-route id transition can reuse its carousel index', async () => {
+    const first = listingWithImages('l1', 'Listing A', ['/a-1.jpg', '/a-2.jpg', '/a-3.jpg'])
+    const second = listingWithImages('l2', 'Listing B', ['/b-1.jpg'])
+    cachedState = { ...cachedState, data: first }
+    function SwitchListing() {
+      const navigate = useNavigate()
+      return <button type="button" onClick={() => navigate('/listings/l2')}>Open B</button>
+    }
+    const view = render(
+      <MemoryRouter initialEntries={['/listings/l1']}>
+        <SwitchListing />
+        <Routes><Route path="/listings/:id" element={<ListingDetailPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: 'Listing A' })
+    fireEvent.click(screen.getByRole('button', { name: /next image/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next image/i }))
+    cachedState = { ...cachedState, data: first }
+    fireEvent.click(screen.getByRole('button', { name: 'Open B' }))
+    expect(screen.queryByRole('heading', { name: 'Listing A' })).not.toBeInTheDocument()
+    cachedState = { ...cachedState, data: second }
+    view.rerender(
+      <MemoryRouter initialEntries={['/listings/l2']}>
+        <SwitchListing />
+        <Routes><Route path="/listings/:id" element={<ListingDetailPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Listing B' })).toBeInTheDocument())
+    expect(screen.getByRole('img', { name: 'Listing B' })).toHaveAttribute('src', '/b-1.jpg')
+    expect(screen.queryByRole('button', { name: /next image/i })).not.toBeInTheDocument()
   })
 })

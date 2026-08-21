@@ -7,7 +7,8 @@
 .native-app .native-main { min-height: 100dvh; padding-bottom: calc(88px + var(--native-safe-bottom)); }
 .native-app .native-main[data-bottom-navigation="visible"] { padding-bottom: calc(88px + var(--native-safe-bottom)); }
 .native-app .native-main[data-bottom-navigation="hidden"] { padding-bottom: var(--native-safe-bottom); }
-.native-route-header { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; border-bottom: 1px solid var(--native-border); }
+.native-app .native-route-frame { --native-route-safe-top: var(--native-safe-top); }
+.native-app .native-route-header { display: flex; align-items: center; gap: 8px; min-height: calc(56px + var(--native-route-safe-top)); padding: var(--native-route-safe-top) 16px 0; border-bottom: 1px solid var(--native-border); background: var(--native-page); }
 .native-route-header > [data-testid="native-route-title"] { flex: 1; color: var(--native-text); font-size: 17px; font-weight: 700; }
 .native-route-action { display: grid; place-items: center; min-width: 44px; min-height: 44px; color: var(--native-primary); background: transparent; border: 0; border-radius: 10px; }
 .native-unavailable-page { max-width: 32rem; margin: 0 auto; padding: 4rem 1.25rem; text-align: center; }
@@ -32,7 +33,8 @@
 .event-detail-message { max-width: 560px; margin: 48px auto; padding: 24px 20px; text-align: center; }
 .event-detail-message h1 { margin: 0 0 10px; }
 @media (min-width: 640px) { .event-detail-content { padding: 32px 40px; } }
-.native-app .native-auth-page { min-height: calc(100dvh - var(--native-safe-bottom)); }
+.native-app .native-auth-page { --native-auth-safe-top: var(--native-safe-top); min-height: calc(100dvh - var(--native-safe-bottom)); padding-top: var(--native-auth-safe-top); }
+.native-app .native-auth-page .native-route-back { margin-top: 0; }
 .native-app .native-auth-password-toggle,
 .native-app .native-auth-inline-action,
 .native-app .native-auth-guideline-action,

@@ -102,29 +102,38 @@ export default function ListingDetailPage() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reported, setReported] = useState(false);
   const [posterDiscountCodes, setPosterDiscountCodes] = useState<DiscountCode[]>([]);
+  const activeListing = listing?.id === id ? listing : null;
 
-  const isOwner = !!(listing && shop && listing.shop && listing.shop.id === shop.id);
-  const isVolunteer = listing?.category === 'volunteer';
+  const isOwner = !!(activeListing && shop && activeListing.shop && activeListing.shop.id === shop.id);
+  const isVolunteer = activeListing?.category === 'volunteer';
+
+  useEffect(() => {
+    setListing(null);
+    setImageIndex(0);
+    setPosterDiscountCodes([]);
+    setHasInterest(false);
+    setHasSaved(false);
+  }, [id]);
 
   // Fetch discount codes for community-member-posted listings only.
   // Shop-owned listings surface codes on the business profile page instead.
   useEffect(() => {
-    if (!cached.data) return;
+    if (!cached.data || cached.data.id !== id) return;
     setListing(cached.data); setHasInterest(cached.data.viewer_has_interest); setHasSaved(cached.data.viewer_has_saved);
-  }, [cached.data]);
+  }, [cached.data, id]);
 
   useEffect(() => {
-    if (!listing) return;
-    if (listing.shop) {
+    if (!activeListing) return;
+    if (activeListing.shop) {
       setPosterDiscountCodes([]);
       return;
     }
-    if (!listing.posted_by) return;
+    if (!activeListing.posted_by) return;
     discountCodeApi
-      .listForUser(listing.posted_by.id)
+      .listForUser(activeListing.posted_by.id)
       .then((res) => setPosterDiscountCodes(Array.isArray(res.data) ? res.data : []))
       .catch(() => setPosterDiscountCodes([]));
-  }, [listing]);
+  }, [activeListing]);
 
   async function handleInterest() {
     if (!isAuthenticated) {
@@ -186,7 +195,7 @@ export default function ListingDetailPage() {
     }
   }
 
-  if (!listing && cached.status === 'loading') {
+  if (!activeListing && cached.status === 'loading') {
     return (
       <PageLayout>
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-8">
@@ -202,7 +211,7 @@ export default function ListingDetailPage() {
     );
   }
 
-  if (!listing && cached.status === 'error') {
+  if (!activeListing && cached.status === 'error') {
     return (
       <PageLayout>
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-16 text-center">
@@ -219,7 +228,7 @@ export default function ListingDetailPage() {
     );
   }
 
-  if (!listing) {
+  if (!activeListing) {
     return (
       <PageLayout>
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-16 text-center">
@@ -236,9 +245,10 @@ export default function ListingDetailPage() {
     );
   }
 
-  const urgency = urgencyStyles[listing.urgency];
-  const CategoryIcon = categoryIcons[listing.category] || Package;
-  const images = listing.images || [];
+  const urgency = urgencyStyles[activeListing.urgency];
+  const CategoryIcon = categoryIcons[activeListing.category] || Package;
+  const images = activeListing.images || [];
+  const safeImageIndex = Math.min(imageIndex, Math.max(images.length - 1, 0));
 
   return (
     <PageLayout>
@@ -260,7 +270,7 @@ export default function ListingDetailPage() {
           {images.length > 0 ? (
             <>
               {(() => {
-                const current = images[imageIndex];
+                const current = images[safeImageIndex];
                 if (isVideoUrl(current.url)) {
                   return (
                     <video
@@ -279,7 +289,7 @@ export default function ListingDetailPage() {
                 return (
                   <img
                     src={resolveAssetUrl(current.url)}
-                    alt={listing.title}
+                    alt={activeListing.title}
                     className="w-full h-full object-cover"
                   />
                 );
@@ -287,12 +297,14 @@ export default function ListingDetailPage() {
               {images.length > 1 && (
                 <>
                   <button
+                    aria-label="Previous image"
                     onClick={() => setImageIndex((i) => (i - 1 + images.length) % images.length)}
                     className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
                   >
                     <ChevronLeft size={18} />
                   </button>
                   <button
+                    aria-label="Next image"
                     onClick={() => setImageIndex((i) => (i + 1) % images.length)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow hover:bg-white transition-colors"
                   >
@@ -304,7 +316,7 @@ export default function ListingDetailPage() {
                         key={i}
                         onClick={() => setImageIndex(i)}
                         className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                          i === imageIndex ? 'bg-white' : 'bg-white/50'
+                          i === safeImageIndex ? 'bg-white' : 'bg-white/50'
                         }`}
                       />
                     ))}

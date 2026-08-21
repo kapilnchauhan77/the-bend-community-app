@@ -101,4 +101,10 @@ describe('native auth pages', () => {
     expect(cssRule('.native-app .native-auth-page')).toMatch(/min-height:\s*calc\(100dvh - var\(--native-safe-bottom\)\)/)
     expect(cssRule('.native-app .native-auth-page')).not.toMatch(/88px/)
   })
+
+  it('places native auth back controls and content below the status scrim', () => {
+    expect(nativeCss).toMatch(/\.native-app \.native-auth-page\s*\{[^}]*--native-auth-safe-top:\s*var\(--native-safe-top\)/)
+    expect(nativeCss).toMatch(/\.native-app \.native-auth-page\s*\{[^}]*padding-top:\s*var\(--native-auth-safe-top\)/)
+    expect(nativeCss).toContain('.native-app .native-auth-page .native-route-back')
+  })
 })
