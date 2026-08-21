@@ -284,15 +284,7 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
             {submitError && (
-              <div
-                className="p-3.5 rounded text-sm leading-relaxed"
-                style={{
-                  backgroundColor: 'hsl(0, 86%, 97%)',
-                  border: '1px solid hsl(0, 86%, 90%)',
-                  color: 'hsl(0, 72%, 42%)',
-                }}
-                role="alert"
-              >
+              <div className="native-auth-error p-3.5 rounded text-sm leading-relaxed" role="alert">
                 {submitError}
               </div>
             )}

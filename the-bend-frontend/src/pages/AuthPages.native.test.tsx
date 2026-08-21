@@ -114,5 +114,19 @@ describe('native auth pages', () => {
     expect(nativeCss).toMatch(/\.dark \.native-app \.native-auth-surface input[^{]*\{[^}]*background:\s*var\(--native-elevated\)/)
     expect(nativeCss).toMatch(/\.dark \.native-app \.native-auth-surface \[class\*="text-\[hsl\(30,15%,"\][^{]*\{[^}]*color:\s*var\(--native-text\)/)
     expect(nativeCss).toMatch(/\.dark \.native-app \.native-auth-surface \[class\*="text-\[hsl\(30,10%,"\][^{]*\{[^}]*color:\s*var\(--native-muted\)/)
+    expect(cssRule('.native-auth-error')).toMatch(/background:\s*hsl\(0,\s*86%,\s*97%\)/)
+    expect(cssRule('.dark .native-app .native-auth-error')).toMatch(/background:\s*var\(--native-urgent-surface\)/)
+    expect(cssRule('.dark .native-app .native-auth-error')).toMatch(/color:\s*var\(--native-urgent-text\)/)
+  })
+
+  it('uses the semantic error surface for every auth error state', () => {
+    renderNative(<ResetPasswordPage />, '/reset-password')
+    expect(screen.getByRole('alert')).toHaveClass('native-auth-error')
+
+    for (const file of ['LoginPage.tsx', 'RegisterPage.tsx', 'ForgotPasswordPage.tsx', 'ResetPasswordPage.tsx']) {
+      const source = readFileSync(`src/pages/${file}`, 'utf8')
+      expect(source).toContain('native-auth-error')
+      expect(source).not.toContain("backgroundColor: 'hsl(0, 86%, 97%)'")
+    }
   })
 })

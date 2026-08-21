@@ -481,7 +481,7 @@ export default function BusinessProfilePage() {
         )}
 
         <AlertDialog open={showWithdrawConfirm} onOpenChange={setShowWithdrawConfirm}>
-          <AlertDialogContent>
+          <AlertDialogContent nativeTheme={native}>
             <AlertDialogHeader>
               <AlertDialogTitle>Remove your endorsement?</AlertDialogTitle>
               <AlertDialogDescription>

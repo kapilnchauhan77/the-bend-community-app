@@ -7,6 +7,12 @@ import ListingDetailPage from './ListingDetailPage'
 const runOnline = vi.fn(async () => { throw new Error('OFFLINE_ACTION_UNAVAILABLE') })
 const cachedRefresh = vi.fn(() => Promise.resolve())
 const listForUser = vi.hoisted(() => vi.fn(() => Promise.resolve({ data: [] })))
+const nativePresentation = vi.hoisted(() => ({ value: false }))
+const authState = vi.hoisted(() => ({
+  isAuthenticated: true,
+  shop: null as { id: string } | null,
+  user: { id: 'viewer', role: 'individual' },
+}))
 let cachedState: {
   data: ListingDetail | null
   source: 'cache' | 'network' | null
@@ -18,7 +24,8 @@ let cachedState: {
 
 vi.mock('@/hooks/useOnlineMutation', () => ({ useOnlineMutation: () => ({ online: false, ready: true, run: runOnline }) }))
 vi.mock('@/hooks/useCachedPublicContent', () => ({ useCachedPublicContent: () => cachedState }))
-vi.mock('@/stores/authStore', () => ({ useAuthStore: () => ({ isAuthenticated: true, shop: null, user: { id: 'viewer', role: 'individual' } }) }))
+vi.mock('@/stores/authStore', () => ({ useAuthStore: () => authState }))
+vi.mock('@/components/layout/NativePresentationContext', () => ({ useNativePresentation: () => nativePresentation.value }))
 vi.mock('@/components/layout/PageLayout', () => ({ PageLayout: ({ children, embeddedClassName }: { children: React.ReactNode; embeddedClassName?: string }) => <div className={embeddedClassName}>{children}</div> }))
 vi.mock('@/components/features/messages/ShareToMessageButton', () => ({ ShareToMessageButton: () => null }))
 vi.mock('@/components/shared/ShareButton', () => ({ ShareButton: () => null }))
@@ -42,6 +49,8 @@ beforeEach(() => {
   cachedRefresh.mockClear()
   listForUser.mockReset()
   listForUser.mockResolvedValue({ data: [] })
+  nativePresentation.value = false
+  authState.shop = null
   cachedState = {
     data: listing,
     source: 'cache',
@@ -62,6 +71,19 @@ describe('ListingDetailPage offline actions', () => {
     )
     await screen.findByRole('heading', { name: 'Oak desk' })
     expect(container.querySelector('.native-themed-page.native-listing-detail-page')).toBeInTheDocument()
+  })
+
+  it('marks owner confirmation portals for native dark theming', async () => {
+    nativePresentation.value = true
+    authState.shop = { id: 's1' }
+    render(
+      <MemoryRouter initialEntries={['/listings/l1']}>
+        <Routes><Route path="/listings/:id" element={<ListingDetailPage />} /></Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: 'Oak desk' })
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as Fulfilled' }))
+    expect(await screen.findByRole('alertdialog')).toHaveClass('native-themed-dialog')
   })
 
   it('replaces a cold-cache fetch failure with a truthful retry state', () => {

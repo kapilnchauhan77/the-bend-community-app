@@ -46,6 +46,7 @@
 .native-app .native-auth-page input[type='password'],
 .native-app .native-auth-page input[autocomplete='new-password'],
 .native-app .native-auth-page input[autocomplete='current-password'] { padding-right: 52px; }
+.native-auth-error { color: hsl(0, 72%, 42%); background: hsl(0, 86%, 97%); border: 1px solid hsl(0, 86%, 90%); }
 .dark .native-app .native-auth-surface { color: var(--native-text); background: var(--native-page) !important; }
 .dark .native-app .native-auth-surface input,
 .dark .native-app .native-auth-surface textarea,
@@ -57,6 +58,7 @@
 .dark .native-app .native-auth-surface [class*="text-[hsl(30,15%,"] { color: var(--native-text) !important; }
 .dark .native-app .native-auth-surface [class*="text-[hsl(30,10%,"] { color: var(--native-muted) !important; }
 .dark .native-app .native-auth-surface [class*="border-[hsl(35,18%,"] { border-color: var(--native-border) !important; }
+.dark .native-app .native-auth-error { color: var(--native-urgent-text); background: var(--native-urgent-surface); border-color: var(--native-urgent-border); }
 .dark .native-app .native-themed-page { min-height: 100%; color: var(--native-text); background: var(--native-page); }
 .dark .native-app .native-themed-page .bg-white,
 .dark .native-app .native-themed-page .bg-gray-50,
@@ -79,6 +81,28 @@
 .dark .native-app .native-themed-page input,
 .dark .native-app .native-themed-page select,
 .dark .native-app .native-themed-page textarea { color: var(--native-text) !important; background: var(--native-elevated) !important; border-color: var(--native-border) !important; }
+.native-themed-dialog {
+  --native-dialog-background: #ffffff;
+  --native-dialog-text: #1f2a24;
+  --native-dialog-muted: #68716c;
+  --native-dialog-border: #ded7ca;
+  color: var(--native-dialog-text);
+  background: var(--native-dialog-background);
+  border-color: var(--native-dialog-border);
+}
+.native-themed-dialog .native-themed-dialog-description { color: var(--native-dialog-muted); }
+.native-themed-dialog .native-themed-dialog-cancel { color: var(--native-dialog-text); background: transparent; border-color: var(--native-dialog-border); }
+.dark .native-themed-dialog {
+  --native-dialog-background: #202c26;
+  --native-dialog-text: #f4f0e7;
+  --native-dialog-muted: #b6bdb8;
+  --native-dialog-border: #33433a;
+  color: var(--native-dialog-text);
+  background: var(--native-dialog-background);
+  border-color: var(--native-dialog-border);
+}
+.dark .native-themed-dialog .native-themed-dialog-description { color: var(--native-dialog-muted); }
+.dark .native-themed-dialog .native-themed-dialog-cancel { color: var(--native-dialog-text); background: transparent; border-color: var(--native-dialog-border); }
 .native-app h1,
 .native-app h2,
 .native-app h3 { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

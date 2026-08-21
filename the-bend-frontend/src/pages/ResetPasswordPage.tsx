@@ -81,15 +81,7 @@ export default function ResetPasswordPage() {
         {/* No token */}
         {!token ? (
           <div className="text-center">
-            <div
-              className="p-4 rounded text-sm leading-relaxed mb-6"
-              style={{
-                backgroundColor: 'hsl(0, 86%, 97%)',
-                border: '1px solid hsl(0, 86%, 90%)',
-                color: 'hsl(0, 72%, 42%)',
-              }}
-              role="alert"
-            >
+            <div className="native-auth-error p-4 rounded text-sm leading-relaxed mb-6" role="alert">
               Invalid or missing reset token. Please request a new password reset link.
             </div>
             <Link
@@ -138,15 +130,7 @@ export default function ResetPasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               {/* Error */}
               {error && (
-                <div
-                  className="p-3.5 rounded text-sm leading-relaxed"
-                  style={{
-                    backgroundColor: 'hsl(0, 86%, 97%)',
-                    border: '1px solid hsl(0, 86%, 90%)',
-                    color: 'hsl(0, 72%, 42%)',
-                  }}
-                  role="alert"
-                >
+                <div className="native-auth-error p-3.5 rounded text-sm leading-relaxed" role="alert">
                   {error}
                 </div>
               )}

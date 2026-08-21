@@ -583,7 +583,7 @@ export default function ListingDetailPage() {
                   Mark as Fulfilled
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent nativeTheme={native}>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Mark as Fulfilled?</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -612,7 +612,7 @@ export default function ListingDetailPage() {
                   Delete
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent nativeTheme={native}>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete this listing?</AlertDialogTitle>
                   <AlertDialogDescription>
