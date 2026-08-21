@@ -1428,12 +1428,12 @@ async def cleanup_link_preview_image_files(
     upload_dir: Path = UPLOAD_DIR,
     now: datetime | None = None,
 ) -> LinkPreviewCleanupStats:
-    """Delete only proven-unreferenced digest WebPs older than 30 days."""
+    """Delete only proven-unreferenced digest WebPs older than 25 minutes."""
 ```
 
 Query non-null `BenderPost.link_preview` values and collect exact local `image_url` strings after Pydantic validation. Collect live Redis references through `BenderLinkPreviewStore.live_image_urls()`. If either reference lookup fails, return without deleting.
 
-Run the final filesystem phase through `asyncio.to_thread`. Inside that thread, acquire `link_preview_directory_lock(image_dir, shared=False)`, then inspect only non-symlink regular files matching `[0-9a-f]{64}\.webp` directly under `uploads/link-previews`. Re-read each candidate's mtime while holding the exclusive lock, skip files newer than 30 days, and use `unlink(missing_ok=True)` only when absent from both reference sets. New stores and cache-hit touches take the shared lock: a touch completed first makes the file recent, while a touch that arrives after cleanup sees a missing file and forces regeneration in Task 8. A post created from an already-issued draft is safe because every 20-minute draft points to a file touched less than 20 minutes ago, far inside the 30-day grace period. Log counts only.
+Run the final filesystem phase through `asyncio.to_thread`. Inside that thread, acquire `link_preview_directory_lock(image_dir, shared=False)`, then inspect only non-symlink regular files matching `[0-9a-f]{64}\.webp` directly under `uploads/link-previews`. Re-read each candidate's mtime while holding the exclusive lock, skip files newer than 25 minutes, and delete only when absent from both reference sets. New stores and cache-hit touches take the shared lock: a touch completed first makes the file recent, while a touch that arrives after cleanup sees a missing file and forces regeneration in Task 8. A post created from an already-issued draft is safe because every 20-minute draft points to a file touched less than 20 minutes ago, inside the five-minute safety margin. The shorter orphan window and the hard store quotas bound unpublished storage; posted images remain protected by database references. Catch `FileNotFoundError` from a normal `unlink()` so cleanup does not overstate deletions when a file vanishes during the race window. Log counts only.
 
 - [ ] **Step 4: Register the worker task and schedule**
 

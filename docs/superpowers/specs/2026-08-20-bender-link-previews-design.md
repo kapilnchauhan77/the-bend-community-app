@@ -293,7 +293,7 @@ Create a dedicated `SafeExternalFetcher` for this feature. It must not expose a 
 - Write through a temporary file followed by an atomic rename.
 - If image retrieval or processing fails but usable text metadata exists, return and save a text-only preview.
 
-Celery Beat runs a daily cleanup task. It removes a link-preview image only when the file is older than 30 days, no `bender_posts.link_preview` row references it, and no live Redis preview cache or draft references it. Cleanup is idempotent and logs counts, not URLs.
+Celery Beat runs a daily cleanup task. It removes an unreferenced link-preview image only when the file is older than 25 minutes, which is five minutes beyond the 20-minute Redis cache and draft TTL, no `bender_posts.link_preview` row references it, and no live Redis preview cache or draft references it. This shorter orphan window bounds unpublished storage; posted images remain protected by their database references. Cleanup is idempotent, fails closed when reference lookup is uncertain, and logs counts, not URLs.
 
 ## Redis records
 
