@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class SponsorCreate(BaseModel):
@@ -25,6 +25,7 @@ class SponsorUpdate(BaseModel):
     logo_url: str | None = None
     banner_url: str | None = None
     website_url: str | None = None
+    contact_email: EmailStr | None = None
     placement: str | None = None
     is_active: bool | None = None
     sort_order: int | None = None

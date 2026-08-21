@@ -180,6 +180,45 @@ test('edit sponsor previews a replacement and uploads it only when Save Changes 
   await expect(dialog).toBeHidden();
 });
 
+test('edit sponsor loads and saves the contact email', async ({ page }) => {
+  await authenticateAdmin(page);
+  const capture = await stubSponsorApi(page);
+  const dialog = await openEditDialog(page);
+
+  const email = dialog.getByLabel('Email', { exact: true });
+  await expect(email).toHaveValue('info@montrossinn.com');
+  await email.fill('partners@montrossinn.com');
+  await dialog.getByRole('button', { name: 'Save Changes' }).click();
+
+  await expect.poll(() => capture.updatePayload?.contact_email).toBe('partners@montrossinn.com');
+  await expect(dialog).toBeHidden();
+});
+
+test('clearing a sponsor contact email saves null', async ({ page }) => {
+  await authenticateAdmin(page);
+  const capture = await stubSponsorApi(page);
+  const dialog = await openEditDialog(page);
+
+  await dialog.getByLabel('Email', { exact: true }).fill('');
+  await dialog.getByRole('button', { name: 'Save Changes' }).click();
+
+  await expect.poll(() => capture.updatePayload?.contact_email).toBe(null);
+  await expect(dialog).toBeHidden();
+});
+
+test('invalid sponsor contact email keeps the edit dialog open and skips the update', async ({ page }) => {
+  await authenticateAdmin(page);
+  const capture = await stubSponsorApi(page);
+  const dialog = await openEditDialog(page);
+
+  await dialog.getByLabel('Email', { exact: true }).fill('not-an-email');
+  await dialog.getByRole('button', { name: 'Save Changes' }).click();
+
+  await expect(dialog.getByRole('alert')).toHaveText('Enter a valid email address.');
+  await expect(dialog).toBeVisible();
+  expect(capture.updatePayload).toBeUndefined();
+});
+
 test('removing an existing sponsor logo saves logo_url as null without uploading', async ({ page }) => {
   await authenticateAdmin(page);
   const capture = await stubSponsorApi(page);

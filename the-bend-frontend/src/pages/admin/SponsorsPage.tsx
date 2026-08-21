@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { z } from 'zod';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { sponsorApi } from '@/services/sponsorApi';
 import { uploadApi } from '@/services/uploadApi';
@@ -41,6 +42,7 @@ import {
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const BRONZE = 'hsl(35, 45%, 42%)';
+const CONTACT_EMAIL_SCHEMA = z.string().email();
 
 type Placement = 'homepage' | 'browse' | 'events' | 'footer';
 
@@ -95,6 +97,7 @@ interface EditFormData {
   description: string;
   logo_url: string | null;
   website_url: string;
+  contact_email: string;
   placement: Placement;
   is_active: boolean;
 }
@@ -104,6 +107,7 @@ const EMPTY_EDIT_FORM: EditFormData = {
   description: '',
   logo_url: '',
   website_url: '',
+  contact_email: '',
   placement: 'homepage',
   is_active: true,
 };
@@ -340,6 +344,7 @@ export default function SponsorsPage() {
       description: sponsor.description ?? '',
       logo_url: sponsor.logo_url ?? '',
       website_url: sponsor.website_url ?? '',
+      contact_email: sponsor.contact_email ?? '',
       placement: sponsor.placement,
       is_active: sponsor.is_active,
     });
@@ -349,9 +354,14 @@ export default function SponsorsPage() {
 
   const handleSave = async () => {
     if (!editTarget) return;
-    if (!editForm.name.trim()) { setFormError('Name is required.'); return; }
-    setSaving(true);
     setFormError('');
+    if (!editForm.name.trim()) { setFormError('Name is required.'); return; }
+    const contactEmail = editForm.contact_email.trim();
+    if (contactEmail && !CONTACT_EMAIL_SCHEMA.safeParse(contactEmail).success) {
+      setFormError('Enter a valid email address.');
+      return;
+    }
+    setSaving(true);
     try {
       let logoUrl = editForm.logo_url?.trim() || null;
       if (editLogoFile) {
@@ -371,6 +381,7 @@ export default function SponsorsPage() {
         description: editForm.description.trim() || undefined,
         logo_url: logoUrl,
         website_url: editForm.website_url.trim() || undefined,
+        contact_email: contactEmail || null,
         placement: editForm.placement,
         is_active: editForm.is_active,
       });
@@ -781,6 +792,18 @@ export default function SponsorsPage() {
                 value={editForm.website_url}
                 onChange={(e) => setEditForm((f) => ({ ...f, website_url: e.target.value }))}
                 placeholder="https://..."
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="sp-email">Email</Label>
+              <Input
+                id="sp-email"
+                type="email"
+                autoComplete="email"
+                value={editForm.contact_email}
+                onChange={(e) => setEditForm((f) => ({ ...f, contact_email: e.target.value }))}
+                placeholder="sponsor@example.com"
               />
             </div>
 

@@ -2,6 +2,7 @@ import types
 import uuid
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.dialects import postgresql
 
 from app.api.v1.admin import admin_update_sponsor
@@ -91,3 +92,51 @@ async def test_admin_update_sponsor_returns_not_found_for_another_tenant():
 
     assert _bound_values(db.statement) == {sponsor_id, tenant_id}
     assert db.flushed is False
+
+
+@pytest.mark.asyncio
+async def test_admin_update_sponsor_changes_contact_email():
+    sponsor_id = uuid.uuid4()
+    sponsor = types.SimpleNamespace(
+        id=sponsor_id,
+        name="Community Partner",
+        contact_email="old@example.com",
+    )
+    db = _RecordingDB(sponsor)
+    admin = types.SimpleNamespace(tenant_id=None)
+
+    await admin_update_sponsor(
+        sponsor_id,
+        SponsorUpdate(contact_email="new@example.com"),
+        db,
+        admin,
+    )
+
+    assert sponsor.contact_email == "new@example.com"
+    assert db.flushed is True
+
+
+@pytest.mark.asyncio
+async def test_admin_update_sponsor_clears_contact_email():
+    sponsor_id = uuid.uuid4()
+    sponsor = types.SimpleNamespace(
+        id=sponsor_id,
+        name="Community Partner",
+        contact_email="old@example.com",
+    )
+    db = _RecordingDB(sponsor)
+    admin = types.SimpleNamespace(tenant_id=None)
+
+    await admin_update_sponsor(
+        sponsor_id,
+        SponsorUpdate(contact_email=None),
+        db,
+        admin,
+    )
+
+    assert sponsor.contact_email is None
+
+
+def test_sponsor_update_rejects_invalid_contact_email():
+    with pytest.raises(ValidationError):
+        SponsorUpdate(contact_email="not-an-email")
