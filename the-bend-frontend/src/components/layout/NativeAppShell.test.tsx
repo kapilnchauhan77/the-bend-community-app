@@ -7,7 +7,8 @@ import { PlatformServicesProvider } from '@/platform/createPlatformServices'
 import type { RuntimeConfig } from '@/platform/contracts'
 import { useDarkMode } from '@/hooks/useDarkMode'
 
-vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => 'ios' } }))
+const { getPlatform } = vi.hoisted(() => ({ getPlatform: vi.fn(() => 'ios') }))
+vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform } }))
 vi.mock('@capacitor/status-bar', () => ({ StatusBar: { setStyle: vi.fn().mockResolvedValue(undefined), setBackgroundColor: vi.fn().mockResolvedValue(undefined) }, Style: { Dark: 'DARK', Light: 'LIGHT' } }))
 import { StatusBar, Style } from '@capacitor/status-bar'
 
@@ -20,6 +21,7 @@ describe('NativeAppShell', () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    getPlatform.mockReturnValue('ios')
     delete (document as Document & { scrollingElement?: Element }).scrollingElement
   })
   it('owns one native-app root and removes the visual viewport listener', () => {
@@ -155,6 +157,7 @@ describe('NativeAppShell', () => {
   })
 
   it('tracks inverse Android root text scale on the native root and cleans up', () => {
+    getPlatform.mockReturnValue('android')
     vi.spyOn(window, 'getComputedStyle').mockReturnValue({ fontSize: '32px' } as CSSStyleDeclaration)
     let resize: (() => void) | undefined
     const add = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener) => { if (type === 'resize') resize = listener as () => void })
@@ -169,6 +172,16 @@ describe('NativeAppShell', () => {
     expect(remove).toHaveBeenCalledWith('resize', expect.any(Function))
     expect(root.style.getPropertyValue('--native-fixed-text-scale')).toBe('')
     expect(add).toHaveBeenCalled()
+  })
+
+  it('does not counteract the iOS native content scale', () => {
+    getPlatform.mockReturnValue('ios')
+    const add = vi.spyOn(window, 'addEventListener')
+    const view = renderShell()
+    const root = document.querySelector<HTMLElement>('.native-app')!
+    expect(root.style.getPropertyValue('--native-fixed-text-scale')).toBe('')
+    expect(add).not.toHaveBeenCalledWith('resize', expect.any(Function))
+    view.unmount()
   })
 
   it('hides bottom navigation on every auth route and restores nav padding on normal routes', () => {

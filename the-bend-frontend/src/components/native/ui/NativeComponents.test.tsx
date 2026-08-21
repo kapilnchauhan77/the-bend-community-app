@@ -267,6 +267,22 @@ describe('native UI primitives', () => {
     rerender(<NativeDiscoveryCard item={{ ...item, thumbnailUrl: null }} onOpen={vi.fn()} />)
     expect(document.querySelector('.native-thumbnail')).toHaveAttribute('aria-hidden', 'true')
   })
+  it('applies the native content scale to reading text while keeping compact chrome fixed', () => {
+    expect(cssRule('.native-app')).toMatch(/-webkit-text-size-adjust:\s*var\(--native-content-text-scale,\s*100%\)/)
+    expect(cssRule('.native-app')).toMatch(/(?:^|;)\s*text-size-adjust:\s*var\(--native-content-text-scale,\s*100%\)/)
+    for (const selector of ['.native-app .native-brand', '.native-app .native-quick-action', '.native-app .native-bottom-nav-item']) {
+      expect(cssRule(selector)).toMatch(/-webkit-text-size-adjust:\s*none/)
+      expect(cssRule(selector)).toMatch(/(?:^|;)\s*text-size-adjust:\s*none/)
+    }
+    for (const selector of ['.native-app .native-card', '.native-app .native-auth-page', '.native-app .native-explore-scroll [role="tab"]']) {
+      expect(cssRule(selector)).not.toMatch(/(?:-webkit-)?text-size-adjust:\s*none/)
+    }
+    expect(cssRule('.native-app .native-search-bar')).toMatch(/min-height:\s*48px/)
+    expect(cssRule('.native-app .native-search-bar')).toMatch(/height:\s*auto/)
+    expect(cssRule('.native-app .native-search-bar')).toMatch(/padding-block:\s*2px/)
+    expect(cssRule('.native-app .native-bender-page input.native-bender-input')).toMatch(/min-height:\s*44px/)
+    expect(cssRule('.native-app .native-bender-page input.native-bender-input')).toMatch(/height:\s*auto/)
+  })
   it('defines the warm native visual system without leaking into web styles', () => {
     expect(indexHtml).toContain('viewport-fit=cover')
     expect(cssRule('.native-app')).toMatch(/font-family:\s*Inter/)
@@ -296,7 +312,7 @@ describe('native UI primitives', () => {
     expect(cssRule('.native-app h3')).toMatch(/font-family:\s*Inter/)
     expect(cssRule('.native-app .native-header-top')).toMatch(/display:\s*flex/)
     expect(cssRule('.native-app .native-page-header')).toMatch(/padding:/)
-    expect(cssRule('.native-app .native-search-bar')).toMatch(/height:\s*48px/)
+    expect(cssRule('.native-app .native-search-bar')).toMatch(/min-height:\s*48px/)
     expect(cssRule('.native-app .native-page-header')).toMatch(/background:\s*var\(--native-page\)\s*!important/)
     expect(cssRule('.native-app .native-search-bar input')).toMatch(/background:\s*var\(--native-elevated\)\s*!important/)
     expect(cssRule('.native-app .native-page-header')).toMatch(/!important/)

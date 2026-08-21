@@ -132,7 +132,7 @@ export default function ForgotPasswordPage() {
               {/* Submit */}
               <Button
                 type="submit"
-                className="w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
+                className="native-auth-adaptive-action w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
                 style={{
                   backgroundColor: isSubmitting ? 'hsl(160, 25%, 18%)' : PRIMARY,
                   boxShadow: isSubmitting ? 'none' : `0 2px 8px hsl(160, 25%, 24%, 0.3)`,

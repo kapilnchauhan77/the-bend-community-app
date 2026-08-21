@@ -146,7 +146,7 @@ export default function RegisterPage() {
           </p>
           <Link to={userType === 'individual' ? '/login' : '/'}>
             <Button
-              className="font-semibold text-sm tracking-wider uppercase text-white cursor-pointer"
+              className="native-auth-adaptive-action font-semibold text-sm tracking-wider uppercase text-white cursor-pointer"
               style={{ backgroundColor: PRIMARY }}
             >
               <ArrowLeft size={16} className="mr-2" />
@@ -244,7 +244,7 @@ export default function RegisterPage() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,42%)] mb-3">
               I'm signing up as
             </p>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="native-registration-adaptive-grid grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => handleToggleType('business')}
@@ -414,7 +414,7 @@ export default function RegisterPage() {
                     <FieldError id="phone-error" message={errors.phone?.message} />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="native-registration-adaptive-grid grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="phone" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
                         Phone <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
@@ -426,7 +426,7 @@ export default function RegisterPage() {
                         {...register('phone')}
                         aria-invalid={errors.phone ? 'true' : 'false'}
                         aria-describedby={errors.phone ? 'phone-error' : undefined}
-                        className={`h-11 border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
+                        className={`${native ? 'native-registration-adaptive-control' : 'h-11'} border-[hsl(35,18%,84%)] bg-white ${errors.phone ? 'border-red-400' : ''}`}
                       />
                       <FieldError id="phone-error" message={errors.phone?.message} />
                     </div>
@@ -441,7 +441,7 @@ export default function RegisterPage() {
                         {...register('whatsapp')}
                         aria-invalid={errors.whatsapp ? 'true' : 'false'}
                         aria-describedby={errors.whatsapp ? 'whatsapp-error' : undefined}
-                        className="h-11 border-[hsl(35,18%,84%)] bg-white"
+                        className={`${native ? 'native-registration-adaptive-control' : 'h-11'} border-[hsl(35,18%,84%)] bg-white`}
                       />
                       <FieldError id="whatsapp-error" message={errors.whatsapp?.message} />
                     </div>
@@ -574,7 +574,7 @@ export default function RegisterPage() {
             {/* Submit */}
             {(!native || step === 'security') && <Button
               type="submit"
-              className="w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
+              className="native-auth-adaptive-action w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
               style={{
                 backgroundColor: isSubmitting ? 'hsl(160, 25%, 18%)' : PRIMARY,
                 boxShadow: isSubmitting ? 'none' : '0 2px 8px hsl(160, 25%, 24%, 0.3)',
@@ -594,8 +594,8 @@ export default function RegisterPage() {
             </Button>}
 
             {native && <div className="flex gap-3">
-              {step !== 'account-type' && <Button type="button" variant="outline" onClick={previous} className="flex-1">Back</Button>}
-              {step !== 'security' && <Button type="button" onClick={next} className="flex-1" style={{ backgroundColor: PRIMARY }}>Next</Button>}
+              {step !== 'account-type' && <Button type="button" variant="outline" onClick={previous} className="native-auth-adaptive-action flex-1">Back</Button>}
+              {step !== 'security' && <Button type="button" onClick={next} className="native-auth-adaptive-action flex-1" style={{ backgroundColor: PRIMARY }}>Next</Button>}
             </div>}
 
             {/* Divider */}

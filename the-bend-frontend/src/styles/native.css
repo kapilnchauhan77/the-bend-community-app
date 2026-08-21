@@ -1,6 +1,6 @@
 .native-app {
   --native-page: #f7f3ea; --native-card: #fffdf8; --native-elevated: #ffffff; --native-text: #1f2a24; --native-muted: #68716c; --native-primary: #2b5b49; --native-primary-contrast: #ffffff; --native-bronze: #a77935; --native-urgent-surface: #fff0ee; --native-urgent-border: #d96a5e; --native-urgent-text: #8f3027; --native-border: #ded7ca; --native-focus: #2d6f9f; --native-shadow: 0 8px 24px rgb(31 42 36 / 10%); --native-space-1: 4px; --native-space-2: 8px; --native-space-3: 12px; --native-space-4: 16px; --native-space-6: 24px; --native-space-8: 32px; --native-radius-card: 18px; --native-radius-control: 16px; --native-radius-pill: 999px; --native-nav-height: 72px; --native-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); --native-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)); --native-keyboard-bottom: 0px; --native-duration-short: 140ms; --native-duration-medium: 220ms;
-  min-height: 100dvh; --native-fixed-text-scale: 1; color: var(--native-text); background: var(--native-page); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100dvh; --native-fixed-text-scale: 1; color: var(--native-text); background: var(--native-page); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-text-size-adjust: var(--native-content-text-scale, 100%); text-size-adjust: var(--native-content-text-scale, 100%);
 }
 .dark .native-app { --native-page: #121915; --native-card: #18221d; --native-elevated: #202c26; --native-text: #f4f0e7; --native-muted: #b6bdb8; --native-primary: #70b99b; --native-primary-contrast: #101814; --native-bronze: #d0a45f; --native-urgent-surface: #3a201e; --native-urgent-border: #d97b70; --native-urgent-text: #ffb6ad; --native-border: #33433a; --native-focus: #8cc9ef; --native-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
 .native-app .native-status-bar-scrim { position: fixed; z-index: 50; top: 0; right: 0; left: 0; height: var(--native-safe-top); background: var(--native-page); pointer-events: none; }
@@ -40,6 +40,12 @@
 .native-app .native-auth-inline-action,
 .native-app .native-auth-guideline-action,
 .native-app .native-auth-consent-control { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+.native-app .native-auth-field-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; min-width: 0; }
+.native-app .native-auth-inline-action { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+.native-app .native-auth-adaptive-action { min-width: 0; max-width: 100%; min-height: 44px; height: auto; padding-block: 10px; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; text-align: center; }
+.native-app .native-registration-adaptive-grid { grid-template-columns: minmax(0, 1fr); }
+.native-app .native-registration-adaptive-grid > * { min-width: 0; }
+.native-app .native-registration-adaptive-control { min-width: 0; min-height: 44px; height: auto; }
 .native-app .native-auth-password-toggle:focus-visible,
 .native-app .native-auth-inline-action:focus-visible,
 .native-app .native-auth-guideline-action:focus-visible,
@@ -177,7 +183,7 @@
 .native-app .native-page-header { display: flex; flex-direction: column; align-items: stretch; min-height: 58px; padding: 10px 0 8px; gap: var(--native-space-2); }
 .native-app .native-page-header.native-safe-area { padding-top: calc(10px + var(--native-safe-top)); }
 .native-app .native-header-top { display: flex; align-items: center; justify-content: space-between; min-width: 0; width: 100%; }
-.native-app .native-brand { display: flex; align-items: center; gap: var(--native-space-2); min-width: 0; }
+.native-app .native-brand { display: flex; align-items: center; gap: var(--native-space-2); min-width: 0; -webkit-text-size-adjust: none; text-size-adjust: none; }
 .native-app .native-brand > strong { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; color: var(--native-primary-contrast); background: var(--native-primary); font-family: Georgia, serif; font-size: calc(21px * var(--native-fixed-text-scale)); line-height: 1; overflow: hidden; -webkit-text-size-adjust: none; }
 .native-app .native-brand > span { display: grid; min-width: 0; line-height: 1.1; }
 .native-app .native-brand b { font-size: calc(15px * var(--native-fixed-text-scale)); }
@@ -205,6 +211,7 @@
 .native-app .native-bender-secondary { color: var(--native-muted) !important; }
 .native-app .native-bender-border { border-color: var(--native-border) !important; }
 .native-app .native-bender-page .native-bender-input { border-color: var(--native-border) !important; color: var(--native-text) !important; background: var(--native-elevated) !important; }
+.native-app .native-bender-page input.native-bender-input { min-height: 44px; height: auto; }
 .native-app .native-bender-page .native-bender-input::placeholder { color: var(--native-muted) !important; }
 .native-app .native-bender-page .native-bender-menu .native-bender-primary:hover,
 .native-app .native-bender-page .native-bender-composer button.native-bender-primary:hover { background: var(--native-elevated) !important; }
@@ -350,15 +357,17 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  height: 48px;
-  padding: 0 var(--native-space-3);
+  min-height: 48px;
+  height: auto;
+  padding-block: 2px;
+  padding-inline: var(--native-space-3);
   border: 1px solid var(--native-border);
   border-radius: var(--native-radius-control);
   background: var(--native-elevated);
   box-shadow: 0 5px 18px rgb(51 69 62 / 6%);
 }
 .native-app .native-quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--native-space-2); margin: var(--native-space-3) 0 var(--native-space-6); }
-.native-app .native-quick-action { display: grid; place-items: center; gap: 5px; padding: 8px 4px; border: 1px solid var(--native-border); border-radius: 14px; color: var(--native-primary); background: var(--native-elevated); font-size: calc(11px * var(--native-fixed-text-scale)); font-weight: 700; -webkit-text-size-adjust: none; overflow-wrap: normal; word-break: keep-all; }
+.native-app .native-quick-action { display: grid; place-items: center; gap: 5px; padding: 8px 4px; border: 1px solid var(--native-border); border-radius: 14px; color: var(--native-primary); background: var(--native-elevated); font-size: calc(11px * var(--native-fixed-text-scale)); font-weight: 700; -webkit-text-size-adjust: none; text-size-adjust: none; overflow-wrap: normal; word-break: keep-all; }
 .native-app .native-search-bar input {
   flex: 1 1 12rem;
   min-width: 0;
@@ -418,7 +427,7 @@
 .native-app .native-bottom-nav { border-color: var(--native-border); background: var(--native-elevated); }
 .native-app .native-bottom-nav.native-safe-bottom { padding-bottom: var(--native-safe-bottom); }
 .native-app .native-bottom-nav-inner { min-height: var(--native-nav-height); }
-.native-app .native-bottom-nav-item { display: flex; flex: 1 1 0; min-width: 0; min-height: 44px; overflow: hidden; color: var(--native-muted); font-size: calc(16px * var(--native-fixed-text-scale)); line-height: 1.2; -webkit-text-size-adjust: none; }
+.native-app .native-bottom-nav-item { display: flex; flex: 1 1 0; min-width: 0; min-height: 44px; overflow: hidden; color: var(--native-muted); font-size: calc(16px * var(--native-fixed-text-scale)); line-height: 1.2; -webkit-text-size-adjust: none; text-size-adjust: none; }
 .native-app .native-bottom-nav-item span { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; -webkit-text-size-adjust: none; }
 .native-app .native-bottom-nav-item[aria-current="page"] { color: var(--native-primary); font-weight: 700; }
 .native-app .native-bottom-nav-item[aria-label="Create"] > span:first-child { width: 42px; height: 42px; margin-top: -18px; border-radius: 15px; box-shadow: 0 8px 18px rgb(40 79 66 / 25%); }

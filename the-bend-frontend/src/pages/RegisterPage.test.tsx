@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +14,11 @@ vi.mock('@/platform/createPlatformServices', async (importOriginal) => ({
 }))
 
 import { authApi } from '@/services/authApi'
+
+const nativeCss = readFileSync('src/styles/native.css', 'utf8')
+const cssRule = (selector: string) => {
+  return nativeCss.split('}').find((chunk) => chunk.includes(selector) && chunk.includes('{'))?.split('{').slice(1).join('{') ?? ''
+}
 
 function renderNative() {
   if (!globalThis.ResizeObserver) globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as typeof ResizeObserver
@@ -49,6 +55,38 @@ describe('RegisterPage native steps', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByRole('heading', { name: 'Your details' })).toHaveFocus()
     expect(screen.getByRole('status')).toHaveTextContent('Step 2 of 3')
+  })
+
+  it('uses one-column native registration grids with shrinkable children for large text', async () => {
+    renderNative()
+    const accountTypeGrid = screen.getByRole('button', { name: 'A business' }).parentElement
+    expect(accountTypeGrid).toHaveClass('native-registration-adaptive-grid')
+    expect(accountTypeGrid?.children).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Your details' })
+    const contactGrid = screen.getByLabelText(/WhatsApp/).parentElement?.parentElement
+    expect(contactGrid).toHaveClass('native-registration-adaptive-grid')
+    expect(contactGrid?.children).toHaveLength(2)
+
+    expect(cssRule('.native-app .native-registration-adaptive-grid')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+    expect(cssRule('.native-app .native-registration-adaptive-grid > *')).toMatch(/min-width:\s*0/)
+  })
+
+  it('lets native contact controls grow above their 44px minimum', async () => {
+    renderNative()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByRole('heading', { name: 'Your details' })
+
+    for (const control of [screen.getByLabelText(/Phone/), screen.getByLabelText(/WhatsApp/)]) {
+      expect(control).toHaveClass('native-registration-adaptive-control')
+      expect(control).not.toHaveClass('h-11')
+    }
+
+    const controlRule = cssRule('.native-app .native-registration-adaptive-control')
+    expect(controlRule).toMatch(/min-width:\s*0/)
+    expect(controlRule).toMatch(/min-height:\s*44px/)
+    expect(controlRule).toMatch(/height:\s*auto/)
   })
 
   it('validates only the current step and requires business details', async () => {
@@ -241,6 +279,7 @@ describe('RegisterPage native steps', () => {
       guidelines_accepted: true,
     })
     resolveRequest()
+    expect(await screen.findByRole('button', { name: 'Back to Home' })).toHaveClass('native-auth-adaptive-action')
   })
 
   it('stays on Security after rejection and retains values and confirmation', async () => {

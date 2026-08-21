@@ -106,7 +106,7 @@ export default function ResetPasswordPage() {
             </p>
             <Link
               to="/login"
-              className="inline-flex items-center justify-center h-11 px-6 font-semibold text-sm tracking-wider uppercase text-white rounded transition-all duration-150 active:scale-[0.98]"
+              className="native-auth-adaptive-action inline-flex items-center justify-center h-11 px-6 font-semibold text-sm tracking-wider uppercase text-white rounded transition-all duration-150 active:scale-[0.98]"
               style={{
                 backgroundColor: PRIMARY,
                 boxShadow: `0 2px 8px hsl(160, 25%, 24%, 0.3)`,
@@ -196,7 +196,7 @@ export default function ResetPasswordPage() {
               {/* Submit */}
               <Button
                 type="submit"
-                className="w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
+                className="native-auth-adaptive-action w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
                 style={{
                   backgroundColor: isSubmitting ? 'hsl(160, 25%, 18%)' : PRIMARY,
                   boxShadow: isSubmitting ? 'none' : `0 2px 8px hsl(160, 25%, 24%, 0.3)`,

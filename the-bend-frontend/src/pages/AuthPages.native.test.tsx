@@ -19,6 +19,9 @@ const nativeCss = readFileSync('src/styles/native.css', 'utf8')
 const cssRule = (selector: string) => {
   return nativeCss.split('}').find((chunk) => chunk.includes(selector) && chunk.includes('{'))?.split('{').slice(1).join('{') ?? ''
 }
+const cssRules = (selector: string) => {
+  return nativeCss.split('}').filter((chunk) => chunk.includes(selector) && chunk.includes('{')).map((chunk) => chunk.split('{').slice(1).join('{')).join(' ')
+}
 
 function renderNative(element: React.ReactElement, path: string) {
   if (!globalThis.ResizeObserver) globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as typeof ResizeObserver
@@ -83,6 +86,48 @@ describe('native auth pages', () => {
     const toggles = Array.from(document.querySelectorAll('.native-auth-password-toggle'))
     expect(toggles).toHaveLength(2)
     expect(toggles.every((button) => button instanceof HTMLButtonElement)).toBe(true)
+  })
+
+  it('marks shared auth actions for large-text wrapping across the flow', () => {
+    renderNative(<LoginPage />, '/login')
+    expect(screen.getByRole('button', { name: 'Log In' })).toHaveClass('native-auth-adaptive-action')
+    expect(screen.getByRole('button', { name: 'Register as a Business or Individual' })).toHaveClass('native-auth-adaptive-action')
+
+    cleanup()
+    renderNative(<ForgotPasswordPage />, '/forgot-password')
+    expect(screen.getByRole('button', { name: 'Send Reset Link' })).toHaveClass('native-auth-adaptive-action')
+
+    cleanup()
+    renderNative(<ResetPasswordPage />, '/reset-password?token=test')
+    expect(screen.getByRole('button', { name: 'Reset Password' })).toHaveClass('native-auth-adaptive-action')
+
+    cleanup()
+    renderNative(<RegisterPage />, '/register')
+    expect(screen.getByRole('button', { name: 'Next' })).toHaveClass('native-auth-adaptive-action')
+  })
+
+  it('allows the login field header and inline recovery action to wrap within the viewport', () => {
+    renderNative(<LoginPage />, '/login')
+    expect(screen.getByText('Forgot password?').parentElement).toHaveClass('native-auth-field-header')
+
+    const headerRule = cssRule('.native-app .native-auth-field-header')
+    expect(headerRule).toMatch(/flex-wrap:\s*wrap/)
+    expect(headerRule).toMatch(/min-width:\s*0/)
+
+    const inlineRule = cssRules('.native-app .native-auth-inline-action')
+    expect(inlineRule).toMatch(/max-width:\s*100%/)
+    expect(inlineRule).toMatch(/white-space:\s*normal/)
+    expect(inlineRule).toMatch(/overflow-wrap:\s*anywhere/)
+  })
+
+  it('lets large auth action text grow vertically without losing its 44px target', () => {
+    const rule = cssRule('.native-app .native-auth-adaptive-action')
+    expect(rule).toMatch(/min-width:\s*0/)
+    expect(rule).toMatch(/max-width:\s*100%/)
+    expect(rule).toMatch(/min-height:\s*44px/)
+    expect(rule).toMatch(/height:\s*auto/)
+    expect(rule).toMatch(/white-space:\s*normal/)
+    expect(rule).toMatch(/overflow-wrap:\s*anywhere/)
   })
 
   it('defines native auth touch geometry and focus outlines', () => {

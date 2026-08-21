@@ -143,7 +143,7 @@ export default function LoginPage() {
 
             {/* Password */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+              <div className="native-auth-field-header flex items-center justify-between">
                 <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
                   Password
                 </Label>
@@ -182,7 +182,7 @@ export default function LoginPage() {
             {/* Submit */}
             <Button
               type="submit"
-              className="w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
+              className="native-auth-adaptive-action w-full h-11 font-semibold text-sm tracking-wider uppercase text-white transition-all duration-150 active:scale-[0.98] cursor-pointer"
               style={{
                 backgroundColor: isSubmitting ? 'hsl(160, 25%, 18%)' : PRIMARY,
                 boxShadow: isSubmitting ? 'none' : `0 2px 8px hsl(160, 25%, 24%, 0.3)`,
@@ -210,7 +210,7 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full h-11 font-semibold text-sm tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
+              className="native-auth-adaptive-action w-full h-11 font-semibold text-sm tracking-wider uppercase border-[hsl(35,18%,84%)] text-[hsl(30,15%,30%)] hover:border-[hsl(35,45%,42%)] cursor-pointer"
               onClick={() => navigate('/register')}
             >
               Register as a Business or Individual

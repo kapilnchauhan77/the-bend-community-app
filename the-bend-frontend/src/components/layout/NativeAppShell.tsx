@@ -46,7 +46,7 @@ export function NativeAppShell() {
   }, []);
   useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || Capacitor.getPlatform() !== 'android') return;
     const updateFixedTextScale = () => {
       const rootSize = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize);
       const scale = Number.isFinite(rootSize) && rootSize > 0 ? Math.min(1, 16 / rootSize) : 1;
