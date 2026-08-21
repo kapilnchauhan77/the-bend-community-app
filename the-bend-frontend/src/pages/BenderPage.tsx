@@ -34,7 +34,7 @@ import { useBenderPost } from '@/hooks/useBenderPost';
 import { useBenderDraft } from '@/hooks/useBenderDraft';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
 import { benderPostPath, getLegacyBenderPostId } from '@/routes/benderRoutes';
-import { publicWestmorelandUrl } from '@/lib/publicUrl';
+import { publicPresentationUrl } from '@/lib/publicUrl';
 import { parseCanonicalUuid } from '@/deep-links/deepLinkRoutes';
 import { getSafeBenderPreview } from '@/native/discovery/benderPresentation';
 import { BenderCaptionLinkCard } from '@/components/features/bender/BenderCaptionLinkCard';
@@ -42,6 +42,12 @@ import { BenderCaptionLinkCard } from '@/components/features/bender/BenderCaptio
 const BRONZE = 'hsl(35, 45%, 42%)';
 const PRIMARY = 'hsl(160, 25%, 24%)';
 const MAX_CAPTION = 2000;
+
+function preferredScrollBehavior(): ScrollBehavior {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? 'auto'
+    : 'smooth';
+}
 
 // ============================================================================
 // Avatar — small reusable avatar with the same fallback rules used elsewhere
@@ -402,7 +408,7 @@ function BenderPostCard({
   }, [post, isAuthenticated, navigate, onPatch, runOnline]);
 
   const handleShare = useCallback(async () => {
-    const url = publicWestmorelandUrl(benderPostPath(post.id));
+    const url = publicPresentationUrl(benderPostPath(post.id), nativeCompact);
     const title = `${display} on Bender`;
     const text = post.caption || `${display} posted on Bender`;
     if (navigator.share) {
@@ -418,7 +424,7 @@ function BenderPostCard({
     } catch {
       // ignore
     }
-  }, [post.id, post.caption, display]);
+  }, [post.id, post.caption, display, nativeCompact]);
 
   const handleDeletePost = useCallback(async () => {
     if (!window.confirm('Delete this post?')) return;
@@ -915,13 +921,13 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
     const el = document.getElementById(`post-${focusPostId}`);
     if (!el) return;
     focusedPostRef.current = focusPostId;
-    el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    el.scrollIntoView?.({ behavior: preferredScrollBehavior(), block: 'center' });
     queueMicrotask(() => setHighlightedPostId(focusPostId));
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
     highlightTimeoutRef.current = setTimeout(() => {
       setHighlightedPostId(null);
     }, 2000);
-  }, [focusPostId, posts, loading]);
+  }, [focusPostId, focusedPost.status, posts, loading]);
 
   // Clear any pending highlight timeout on unmount.
   useEffect(() => {
@@ -943,7 +949,7 @@ export default function BenderPage({ nativeEmbedded = false }: BenderPageProps) 
     // After prepending, scroll up so the user sees their fresh post. Otherwise
     // the new content jumps in above the viewport and feels invisible.
     requestAnimationFrame(() => {
-      feedTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      feedTopRef.current?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' });
     });
   }, [prepend]);
 

@@ -30,6 +30,7 @@
 .event-detail-meta dt { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .event-detail-meta dd { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--native-muted); }
 .event-detail-source { display: inline-flex; align-items: center; gap: 7px; margin-top: 28px; color: var(--native-primary); font-weight: 700; }
+.native-app a.native-route-link { display: inline-flex; align-items: center; min-height: 44px; }
 .event-detail-message { max-width: 560px; margin: 48px auto; padding: 24px 20px; text-align: center; }
 .event-detail-message h1 { margin: 0 0 10px; }
 @media (min-width: 640px) { .event-detail-content { padding: 32px 40px; } }

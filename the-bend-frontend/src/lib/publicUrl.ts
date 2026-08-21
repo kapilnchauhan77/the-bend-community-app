@@ -19,3 +19,14 @@ export function publicWestmorelandUrl(path: string): string {
 
   return `${WESTMORELAND_PUBLIC_ORIGIN}${path}`
 }
+
+export function publicPresentationUrl(path: string, nativePresentation: boolean): string {
+  const westmorelandUrl = publicWestmorelandUrl(path)
+  if (nativePresentation) return westmorelandUrl
+
+  const currentOrigin = new URL(window.location.origin)
+  if (currentOrigin.protocol !== 'http:' && currentOrigin.protocol !== 'https:') {
+    throw new TypeError('Expected an HTTP web origin')
+  }
+  return `${currentOrigin.origin}${path}`
+}

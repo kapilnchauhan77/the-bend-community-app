@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityEvent } from '@/types';
@@ -19,16 +20,22 @@ const secondEventId = '00000000-0000-0000-0000-000000000004';
 const mixedCaseEventId = 'a0000000-b000-c000-d000-e00000000005';
 const event: CommunityEvent = { id: eventId, title: 'Harvest Festival', description: 'A day in the park', start_date: '2026-09-12T14:00:00Z', end_date: '2026-09-12T16:00:00Z', location: 'Market Square', category: 'community', image_url: 'https://cdn.example.test/event.jpg', source: 'Calendar', source_url: 'https://events.example.test/harvest', is_featured: false, status: 'published', created_at: '2026-01-01T00:00:00Z' };
 const cardEvent = (source_url?: string): CommunityEvent => ({ ...event, source_url });
+const originalLocation = window.location;
+const nativeCss = readFileSync('src/styles/native.css', 'utf8');
+const nativeRouteLinkRule = nativeCss.match(/\.native-app a\.native-route-link\s*\{([^}]*)\}/)?.[1] ?? '';
 
 function renderAt(id = eventId) { return render(<MemoryRouter initialEntries={[`/events/${id}`]}><Routes><Route path="/events/:eventId" element={<EventDetailPage />} /></Routes></MemoryRouter>); }
 function SwitchToSecondEvent() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate(`/events/${secondEventId}`)}>switch</button>; }
 function PathProbe() { return <output data-testid="path">{useLocation().pathname}</output>; }
 
 beforeEach(() => { vi.clearAllMocks(); nativePresentation = true; });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+});
 
 describe('EventDetailPage', () => {
-  it('renders the event fields and canonical public share URL', async () => {
+  it('renders the event fields and canonical native share URL', async () => {
     vi.mocked(eventApi.getDetail).mockResolvedValue({ data: event } as never);
     renderAt();
     expect(screen.getByText('Loading event')).toBeInTheDocument();
@@ -37,7 +44,45 @@ describe('EventDetailPage', () => {
     expect(screen.getByText('Market Square')).toBeInTheDocument();
     expect(screen.getByText('A day in the park')).toBeInTheDocument();
     expect(screen.getByTestId('share-url')).toHaveTextContent(`https://westmoreland.bend.community/events/${eventId}`);
+    expect(screen.getByRole('link', { name: 'All events' })).toHaveClass('native-control', 'native-route-link');
     expect(screen.getByRole('link', { name: 'View source' })).toHaveAttribute('href', event.source_url);
+    expect(screen.getByRole('link', { name: 'View source' })).toHaveClass('native-control', 'native-route-link');
+  });
+
+  it('shares a web event on the tenant origin that rendered it', async () => {
+    nativePresentation = false;
+    Object.defineProperty(window, 'location', { configurable: true, value: { origin: 'https://northumberland.bend.community' } });
+    vi.mocked(eventApi.getDetail).mockResolvedValue({ data: event } as never);
+
+    renderAt();
+
+    expect(await screen.findByRole('heading', { name: event.title })).toBeInTheDocument();
+    expect(screen.getByTestId('share-url')).toHaveTextContent(`https://northumberland.bend.community/events/${eventId}`);
+    expect(screen.getByRole('link', { name: 'All events' })).not.toHaveClass('native-control', 'native-route-link');
+    expect(screen.getByRole('link', { name: 'View source' })).not.toHaveClass('native-control', 'native-route-link');
+  });
+
+  it('gives the unavailable back link the native target contract', async () => {
+    vi.mocked(eventApi.getDetail).mockRejectedValueOnce({ response: { status: 404 } });
+
+    renderAt();
+
+    expect(await screen.findByRole('link', { name: 'Back to events' })).toHaveClass('native-control', 'native-route-link');
+  });
+
+  it('leaves the unavailable back link unchanged on the web', async () => {
+    nativePresentation = false;
+    vi.mocked(eventApi.getDetail).mockRejectedValueOnce({ response: { status: 404 } });
+
+    renderAt();
+
+    expect(await screen.findByRole('link', { name: 'Back to events' })).not.toHaveClass('native-control', 'native-route-link');
+  });
+
+  it('makes native route links measurable 44 pixel targets', () => {
+    expect(nativeRouteLinkRule).toMatch(/display:\s*inline-flex/);
+    expect(nativeRouteLinkRule).toMatch(/align-items:\s*center/);
+    expect(nativeRouteLinkRule).toMatch(/min-height:\s*44px/);
   });
 
   it('accepts a lowercase response for the same uppercase route UUID', async () => {
