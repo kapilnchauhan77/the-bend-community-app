@@ -1196,9 +1196,7 @@ def test_peer_verification_hook_is_locked_to_the_tested_aiohttp_minor():
         (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
     )
 
-    assert pyproject["tool"]["poetry"]["dependencies"]["aiohttp"] == (
-        ">=3.14.0,<3.15.0"
-    )
+    assert "aiohttp>=3.14.0,<3.15.0" in pyproject["project"]["dependencies"]
     assert aiohttp.__version__.startswith("3.14.")
     assert inspect.iscoroutinefunction(_PeerRecordingConnector._wrap_create_connection)
 
