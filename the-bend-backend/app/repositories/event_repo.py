@@ -140,6 +140,19 @@ class ConnectorRepository(BaseRepository[EventConnector]):
         )
         return result.scalar_one_or_none()
 
+    async def lock_by_id_for_tenant(
+        self, connector_id: UUID, tenant_id: UUID
+    ) -> bool:
+        result = await self.session.execute(
+            select(EventConnector.id)
+            .where(
+                EventConnector.id == connector_id,
+                EventConnector.tenant_id == tenant_id,
+            )
+            .with_for_update()
+        )
+        return result.scalar_one_or_none() is not None
+
     async def update_for_tenant(
         self, connector_id: UUID, tenant_id: UUID, data: dict
     ) -> EventConnector | None:

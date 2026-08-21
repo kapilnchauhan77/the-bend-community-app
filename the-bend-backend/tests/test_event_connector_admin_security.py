@@ -189,6 +189,39 @@ def _admin_app(db, tenant: Tenant | None, user: User) -> FastAPI:
     return app
 
 
+def _committing_admin_app(tenant_id: UUID, user_id: UUID) -> FastAPI:
+    """Build an admin app whose concurrent requests use independent sessions."""
+    app = FastAPI()
+
+    @app.exception_handler(AppException)
+    async def app_exception_handler(_, exc: AppException):
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    app.include_router(admin_router, prefix="/api/v1")
+
+    async def db_override():
+        async with async_session() as db:
+            try:
+                yield db
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
+
+    async def tenant_override():
+        async with async_session() as db:
+            return await db.get(Tenant, tenant_id)
+
+    async def user_override():
+        async with async_session() as db:
+            return await db.get(User, user_id)
+
+    app.dependency_overrides[get_db] = db_override
+    app.dependency_overrides[get_current_tenant] = tenant_override
+    app.dependency_overrides[get_current_user] = user_override
+    return app
+
+
 async def _request(app: FastAPI, method: str, path: str, **kwargs):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -461,6 +494,160 @@ async def test_sync_count_matches_the_number_of_persisted_event_rows(
 
         assert result == {"synced": 2, "total_parsed": 2}
         assert connector.last_sync_count == persisted_count == 2
+
+
+@pytest.mark.asyncio
+async def test_concurrent_asgi_syncs_serialize_one_connector_import(
+    admin_security_rows, monkeypatch
+):
+    """Removing connector serialization must recreate the duplicate-insert race."""
+    ids = admin_security_rows
+    both_parsing = asyncio.Barrier(2)
+    start = datetime(2031, 1, 2, 10, 0)
+
+    async def one_event(self, connector):
+        await both_parsing.wait()
+        return [
+            {
+                "title": "One concurrent import",
+                "start_date": start,
+                "source_url": "https://example.com/events/concurrent-import",
+                "status": "active",
+            }
+        ]
+
+    monkeypatch.setattr(ConnectorService, "_parse_source", one_event)
+    app = _committing_admin_app(ids["tenant_b"], ids["admin_b"])
+    path = f"/api/v1/admin/connectors/{ids['connector_b']}/sync"
+
+    responses = await asyncio.wait_for(
+        asyncio.gather(
+            _request(app, "POST", path),
+            _request(app, "POST", path),
+            return_exceptions=True,
+        ),
+        timeout=10,
+    )
+
+    assert not any(isinstance(response, Exception) for response in responses), responses
+    assert [response.status_code for response in responses] == [200, 200]
+    assert sorted(response.json()["synced"] for response in responses) == [0, 1]
+    assert all(response.json()["total_parsed"] == 1 for response in responses)
+
+    async with async_session() as db:
+        persisted = (
+            (
+                await db.execute(
+                    select(Event).where(
+                        Event.connector_id == ids["connector_b"],
+                        Event.tenant_id == ids["tenant_b"],
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        connector = await db.get(EventConnector, ids["connector_b"])
+
+    assert [(event.title, event.source_url) for event in persisted] == [
+        (
+            "One concurrent import",
+            "https://example.com/events/concurrent-import",
+        )
+    ]
+    assert connector.last_sync_error is None
+    assert connector.last_sync_count == 0
+
+
+@pytest.mark.asyncio
+async def test_sync_all_recovers_after_one_connector_flush_failure(
+    admin_security_rows, monkeypatch
+):
+    """Removing the savepoint must poison the shared sync-all session."""
+    ids = admin_security_rows
+    broken_connector_id = uuid4()
+    working_source_url = "https://example.com/events/after-failed-connector"
+
+    async with async_session() as db:
+        working = await db.get(EventConnector, ids["connector_b"])
+        working.name = "B working connector"
+        db.add(
+            EventConnector(
+                id=broken_connector_id,
+                tenant_id=ids["tenant_b"],
+                name="A broken connector",
+                type=ConnectorType.RSS,
+                url="https://example.com/broken-events.xml",
+                category=EventCategory.COMMUNITY,
+                is_active=True,
+            )
+        )
+        await db.commit()
+
+    async def connector_events(self, connector):
+        if connector.id == broken_connector_id:
+            return [
+                {
+                    "title": "Invalid imported event",
+                    "start_date": None,
+                    "source_url": "https://example.com/events/invalid",
+                    "status": "active",
+                }
+            ]
+        return [
+            {
+                "title": "Imported after connector failure",
+                "start_date": datetime(2031, 1, 3, 10, 0),
+                "source_url": working_source_url,
+                "status": "active",
+            }
+        ]
+
+    monkeypatch.setattr(ConnectorService, "_parse_source", connector_events)
+
+    async with async_session() as db:
+        tenant_b = await db.get(Tenant, ids["tenant_b"])
+        admin_b = await db.get(User, ids["admin_b"])
+        response = await _request(
+            _admin_app(db, tenant_b, admin_b),
+            "POST",
+            "/api/v1/admin/connectors/sync-all",
+        )
+
+    assert response.status_code == 200, response.text
+    broken_result = response.json()["A broken connector"]
+    assert broken_result["status"] == "error"
+    assert "NotNullViolationError" in broken_result["error"]
+    assert "PendingRollbackError" not in broken_result["error"]
+    assert response.json()["B working connector"] == {
+        "status": "ok",
+        "synced": 1,
+        "total_parsed": 1,
+    }
+
+    async with async_session() as db:
+        broken = await db.get(EventConnector, broken_connector_id)
+        working = await db.get(EventConnector, ids["connector_b"])
+        persisted = (
+            (
+                await db.execute(
+                    select(Event).where(
+                        Event.connector_id == ids["connector_b"],
+                        Event.tenant_id == ids["tenant_b"],
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert broken.last_sync_count == 0
+    assert "NotNullViolationError" in broken.last_sync_error
+    assert "PendingRollbackError" not in broken.last_sync_error
+    assert working.last_sync_count == 1
+    assert [(event.title, event.source_url) for event in persisted] == [
+        ("Imported after connector failure", working_source_url)
+    ]
 
 
 @pytest.mark.asyncio

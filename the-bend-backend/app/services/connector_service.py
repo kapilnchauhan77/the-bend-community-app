@@ -370,6 +370,7 @@ class ConnectorService:
             from app.core.exceptions import NotFoundError
             raise NotFoundError("Connector")
 
+        savepoint = None
         try:
             events = _enforce_parsed_event_limit(
                 await self._parse_source(connector)
@@ -411,6 +412,20 @@ class ConnectorService:
                 raise ValueError(
                     "Connector entries reuse one intrinsic id; no events were saved."
                 )
+
+            # Parsing can run in parallel, but only one transaction may resolve
+            # and write a connector's identities at a time. The row lock keeps
+            # the read-then-insert sequence deterministic across API workers.
+            if not await self.connector_repo.lock_by_id_for_tenant(
+                connector_id, self.tenant_id
+            ):
+                from app.core.exceptions import NotFoundError
+                raise NotFoundError("Connector")
+
+            # A database constraint failure must not abort the caller's outer
+            # transaction. sync_all intentionally reuses that transaction for
+            # the remaining connectors and records each connector's outcome.
+            savepoint = await self.db.begin_nested()
 
             existing_rows = list(
                 (
@@ -560,9 +575,12 @@ class ConnectorService:
                 "last_sync_count": saved,
                 "last_sync_error": None,
             })
+            await savepoint.commit()
             return {"synced": saved, "total_parsed": len(events)}
 
         except Exception as e:
+            if savepoint is not None:
+                await savepoint.rollback()
             await self.connector_repo.update_for_tenant(connector_id, self.tenant_id, {
                 "last_synced_at": datetime.utcnow(),
                 "last_sync_count": 0,
