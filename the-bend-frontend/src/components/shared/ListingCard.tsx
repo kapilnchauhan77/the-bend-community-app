@@ -64,7 +64,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
             src={resolveAssetUrl(coverUrl)}
             alt={listing.title}
             loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className={`w-full h-full transition-transform duration-300 ${coverIsVideo ? 'object-cover' : 'object-contain'}`}
           />
           {coverIsVideo && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
