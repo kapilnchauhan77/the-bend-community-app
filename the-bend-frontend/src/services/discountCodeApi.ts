@@ -15,7 +15,7 @@ export interface DiscountCodePayload {
 
 export const discountCodeApi = {
   // Owner endpoints (auth required)
-  listMine: () => api.get<DiscountCode[]>('/discount-codes/mine'),
+  listMine: () => api.get<DiscountCode[]>('/discount-codes'),
 
   create: (payload: DiscountCodePayload) =>
     api.post<DiscountCode>('/discount-codes', payload),
