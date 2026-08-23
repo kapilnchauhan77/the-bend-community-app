@@ -1,3 +1,5 @@
+import type { ListingCategory } from '@/types';
+
 export const URGENCY_LEVELS = ['normal', 'urgent'] as const;
 export const LISTING_CATEGORIES = ['staff', 'materials', 'equipment'] as const;
 export const LISTING_TYPES = ['offer', 'request'] as const;
@@ -7,11 +9,31 @@ export const URGENCY_COLORS = {
   urgent: 'bg-amber-100 text-amber-700',
 } as const;
 
-export const CATEGORY_LABELS = {
+export const CATEGORY_LABELS: Record<ListingCategory, string> = {
   staff: 'Gigs',
-  materials: 'Materials',
-  equipment: 'Equipment',
+  materials: 'Buy, Sell, and Rent',
+  equipment: 'Free, Trade, and Borrow',
+  volunteer: 'Volunteer',
 } as const;
+
+export const CATEGORY_GUIDANCE: { materials: string; equipment: string } = {
+  materials: 'Retail products and surplus goods available to buy, sell, or rent.',
+  equipment: 'Tools and equipment offered free, for trade, or to borrow.',
+};
+
+export const BROWSE_CATEGORY_TABS = [
+  { value: '', label: 'All' },
+  { value: 'staff', label: CATEGORY_LABELS.staff },
+  { value: 'materials', label: CATEGORY_LABELS.materials },
+  { value: 'equipment', label: CATEGORY_LABELS.equipment },
+] as const;
+
+export const CREATE_LISTING_CATEGORY_OPTIONS = [
+  { value: 'staff', label: CATEGORY_LABELS.staff },
+  { value: 'materials', label: CATEGORY_LABELS.materials },
+  { value: 'equipment', label: CATEGORY_LABELS.equipment },
+  { value: 'volunteer', label: 'Volunteer opportunity' },
+] as const;
 
 export { BUSINESS_TYPES } from './businessTypes';
 

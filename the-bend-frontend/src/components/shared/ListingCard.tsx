@@ -1,6 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { Briefcase, Package, Wrench, Clock, Heart, Play } from 'lucide-react';
-import { resolveAssetUrl } from '@/lib/constants';
+import { CATEGORY_LABELS, resolveAssetUrl } from '@/lib/constants';
 import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
 import type { Listing } from '@/types';
 
@@ -9,13 +9,6 @@ const categoryIcons = {
   materials: Package,
   equipment: Wrench,
   volunteer: Heart,
-};
-
-const categoryLabels: Record<string, string> = {
-  staff: 'Gigs',
-  materials: 'Materials',
-  equipment: 'Equipment',
-  volunteer: 'Volunteer',
 };
 
 function expiryLabel(dateStr?: string): string | null {
@@ -96,7 +89,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
           </div>
           <div className="flex items-center gap-1 text-[hsl(30,10%,55%)]">
             <CategoryIcon className="w-3.5 h-3.5" />
-            <span className="text-[10px]">{categoryLabels[listing.category]}</span>
+            <span className="text-[10px]">{CATEGORY_LABELS[listing.category]}</span>
           </div>
         </div>
 

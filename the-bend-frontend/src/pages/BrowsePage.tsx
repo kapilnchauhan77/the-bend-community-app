@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Search, Plus } from 'lucide-react';
+import { BROWSE_CATEGORY_TABS } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,13 +12,6 @@ import { ListingCard } from '@/components/shared/ListingCard';
 import { ListingGridSkeleton } from '@/components/shared/LoadingSkeletons';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { SponsorBanner } from '@/components/shared/SponsorBanner';
-
-const categories = [
-  { value: '', label: 'All' },
-  { value: 'staff', label: 'Gigs' },
-  { value: 'materials', label: 'Materials' },
-  { value: 'equipment', label: 'Equipment' },
-];
 
 export default function BrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,7 +88,7 @@ export default function BrowsePage() {
 
         {/* Category tabs */}
         <div className="flex gap-2 mb-4 flex-wrap">
-          {categories.map((cat) => (
+          {BROWSE_CATEGORY_TABS.map((cat) => (
             <Button
               key={cat.value}
               variant={category === cat.value ? 'default' : 'outline'}

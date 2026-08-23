@@ -1,16 +1,11 @@
 import { Briefcase, Package, Wrench } from 'lucide-react';
 import type { ListingCategory } from '@/types';
+import { CATEGORY_LABELS } from '@/lib/constants';
 
 const icons: Record<ListingCategory, React.ElementType> = {
   staff: Briefcase,
   materials: Package,
   equipment: Wrench,
-};
-
-const labels: Record<ListingCategory, string> = {
-  staff: 'Gigs',
-  materials: 'Materials',
-  equipment: 'Equipment',
 };
 
 export function CategoryIcon({
@@ -26,7 +21,7 @@ export function CategoryIcon({
   return (
     <span className="inline-flex items-center gap-1 text-muted-foreground">
       <Icon size={size} />
-      {showLabel && <span className="text-xs">{labels[category]}</span>}
+      {showLabel && <span className="text-xs">{CATEGORY_LABELS[category]}</span>}
     </span>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { resolveAssetUrl } from '@/lib/constants';
+import { CATEGORY_LABELS, resolveAssetUrl } from '@/lib/constants';
 import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -58,13 +58,6 @@ const categoryIcons = {
   materials: Package,
   equipment: Wrench,
   volunteer: Heart,
-};
-
-const categoryLabels = {
-  staff: 'Gigs',
-  materials: 'Materials',
-  equipment: 'Equipment',
-  volunteer: 'Volunteer',
 };
 
 function formatDate(dateStr: string): string {
@@ -332,7 +325,7 @@ export default function ListingDetailPage() {
             </Badge>
             <Badge variant="outline" className="flex items-center gap-1">
               <CategoryIcon size={12} />
-              {categoryLabels[listing.category]}
+              {CATEGORY_LABELS[listing.category]}
             </Badge>
           </div>
 

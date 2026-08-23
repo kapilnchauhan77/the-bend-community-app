@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -20,7 +19,7 @@ import {
 import { PageLayout } from '@/components/layout/PageLayout';
 import { listingApi } from '@/services/listingApi';
 import { uploadApi } from '@/services/uploadApi';
-import { resolveAssetUrl } from '@/lib/constants';
+import { resolveAssetUrl, CREATE_LISTING_CATEGORY_OPTIONS, CATEGORY_GUIDANCE } from '@/lib/constants';
 import { isVideoUrl } from '@/lib/utils';
 import { CameraCapture } from '@/components/shared/CameraCapture';
 
@@ -170,6 +169,10 @@ export default function CreateListingPage() {
   const watchedPricingType = watch('pricing_type');
   const watchedCategory = watch('category');
   const isVolunteer = watchedCategory === 'volunteer';
+  const categoryGuidance =
+    watchedCategory === 'materials' || watchedCategory === 'equipment'
+      ? CATEGORY_GUIDANCE[watchedCategory]
+      : null;
 
   // Volunteer opportunities are always free + always a "request" (org seeking help).
   useEffect(() => {
@@ -321,10 +324,11 @@ export default function CreateListingPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="staff">Gigs</SelectItem>
-                  <SelectItem value="materials">Materials</SelectItem>
-                  <SelectItem value="equipment">Equipment</SelectItem>
-                  <SelectItem value="volunteer">Volunteer opportunity</SelectItem>
+                  {CREATE_LISTING_CATEGORY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </CardContent>
@@ -636,9 +640,9 @@ export default function CreateListingPage() {
               )}
 
               {/* FREE — explanation */}
-              {watchedPricingType === 'free' && (
+              {watchedPricingType === 'free' && categoryGuidance && (
                 <p className="text-sm text-muted-foreground">
-                  No charge — perfect for surplus materials, lending, or volunteer offers.
+                  {categoryGuidance}
                 </p>
               )}
             </CardContent>
