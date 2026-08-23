@@ -30,6 +30,7 @@ def get_service(db: AsyncSession = Depends(get_db)) -> DiscountCodeService:
 
 
 @router.get("")
+@router.get("/mine")
 async def list_my_discount_codes(
     service: DiscountCodeService = Depends(get_service),
     current_user: User = Depends(get_current_user),
