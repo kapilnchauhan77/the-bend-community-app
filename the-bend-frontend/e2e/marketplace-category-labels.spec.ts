@@ -382,7 +382,8 @@ test('mobile 390px seam audit keeps category labels visible inside viewport', as
   await fixedPricingMode(page).click();
   await expect(page.getByText(MATERIALS_GUIDANCE, { exact: true })).toBeVisible();
   await assertLocatorInViewport(page.getByText(MATERIALS_GUIDANCE, { exact: true }), MOBILE_VIEWPORT.width);
-  await assertLocatorInViewport(page.getByRole('button', { name: BUY_SELL_RENT, exact: true }), MOBILE_VIEWPORT.width);
+  await expect(categoryTrigger).toContainText(BUY_SELL_RENT);
+  await assertLocatorInViewport(categoryTrigger, MOBILE_VIEWPORT.width);
 
   await categoryTrigger.click();
   await listbox.getByRole('option', { name: FREE_TRADE_BORROW, exact: true }).click();
@@ -390,7 +391,8 @@ test('mobile 390px seam audit keeps category labels visible inside viewport', as
   await fixedPricingMode(page).click();
   await expect(page.getByText(EQUIPMENT_GUIDANCE, { exact: true })).toBeVisible();
   await assertLocatorInViewport(page.getByText(EQUIPMENT_GUIDANCE, { exact: true }), MOBILE_VIEWPORT.width);
-  await assertLocatorInViewport(page.getByRole('button', { name: FREE_TRADE_BORROW, exact: true }), MOBILE_VIEWPORT.width);
+  await expect(categoryTrigger).toContainText(FREE_TRADE_BORROW);
+  await assertLocatorInViewport(categoryTrigger, MOBILE_VIEWPORT.width);
   await assertNoHorizontalOverflow(page);
 
   await page.goto('/about');
