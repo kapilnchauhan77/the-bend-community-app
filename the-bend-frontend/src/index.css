@@ -832,10 +832,21 @@ html.dark [role="checkbox"][data-state="checked"] {
    that caused the animation to silently no-op on slower mobile browsers). */
 @keyframes marquee {
   0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  100% { transform: translateX(calc(-50% - (var(--sponsor-marquee-gap) / 2))); }
 }
 .sponsor-marquee {
+  --sponsor-marquee-gap: 0.75rem;
   will-change: transform;
+}
+
+.sponsor-marquee:focus-within {
+  animation-play-state: paused !important;
+}
+
+@media (min-width: 768px) {
+  .sponsor-marquee {
+    --sponsor-marquee-gap: 1rem;
+  }
 }
 
 .home-mobile-menu {

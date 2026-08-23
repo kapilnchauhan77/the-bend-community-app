@@ -72,3 +72,11 @@ test('Westmoreland sponsor packages display whole-dollar prices without cents', 
   await expect(page.getByText('$100', { exact: true })).toBeVisible();
   await expect(page.getByText('$100.00', { exact: true })).toHaveCount(0);
 });
+
+test('advertising example features ProLine instead of Provoke', async ({ page }) => {
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  await expect(page.getByRole('heading', { name: 'ProLine Group' })).toBeVisible();
+  await expect(page.getByText('Provoke', { exact: true })).toHaveCount(0);
+});

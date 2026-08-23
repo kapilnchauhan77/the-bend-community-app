@@ -5,7 +5,7 @@ import { useTenant } from '@/context/TenantContext';
 import type { Sponsor } from '@/types';
 
 // Logos that are mostly dark/monochrome — need a white pill in dark mode
-// to stay visible. Colored brand logos (Provoke, ProLine) render transparent.
+// to stay visible. Colored brand logos such as ProLine render transparent.
 const DARK_LOGOS = [
   'westmoreland-museum-logo',
   'inn-at-montross',
@@ -85,9 +85,6 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
 // ─── Inline Marquee (infinite scroll) ───────────────────────────────────────
 
 function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
-  // Double the sponsors for seamless infinite loop
-  const doubled = [...sponsors, ...sponsors];
-
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 my-8">
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -109,37 +106,47 @@ function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
         <div className="absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none" style={{ background: 'linear-gradient(to left, var(--fade-bg, hsl(40,25%,96%)), transparent)' }} />
 
         <div
-          className="sponsor-marquee flex gap-3 md:gap-4 hover:[animation-play-state:paused]"
+          className="sponsor-marquee flex w-max gap-3 md:gap-4"
           style={{
             // ~3s per sponsor keeps the partner strip moving at a brisk,
             // consistent pace.
             animation: `marquee ${sponsors.length * 3}s linear infinite`,
           }}
         >
-          {doubled.map((s, i) => (
-            <a
-              key={`${s.id}-${i}`}
-              href={s.website_url || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 w-[200px] md:w-[280px] border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] px-3 py-3 md:px-4 md:py-4 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer group block"
-            >
-              {s.logo_url && (
-                <div className="mb-2.5 h-10 w-full flex items-center justify-start">
-                  <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'h-10 w-auto max-w-full object-contain')} />
-                </div>
-              )}
-              <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
-                {s.name}
-              </p>
-              {s.description && (
-                <p className="text-xs text-[hsl(30,10%,50%)] mt-1 line-clamp-2 leading-relaxed">{s.description}</p>
-              )}
-              <p className="text-[9px] tracking-[0.15em] uppercase text-[hsl(30,10%,65%)] mt-2 font-medium">Community Partner</p>
-            </a>
-          ))}
+          <SponsorMarqueeGroup sponsors={sponsors} />
+          <SponsorMarqueeGroup sponsors={sponsors} duplicate />
         </div>
       </div>
+    </div>
+  );
+}
+
+function SponsorMarqueeGroup({ sponsors, duplicate = false }: { sponsors: Sponsor[]; duplicate?: boolean }) {
+  return (
+    <div className="sponsor-marquee-group flex gap-3 md:gap-4" aria-hidden={duplicate ? true : undefined}>
+      {sponsors.map(s => (
+        <a
+          key={s.id}
+          href={s.website_url || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          tabIndex={duplicate ? -1 : undefined}
+          className="flex-shrink-0 w-[200px] md:w-[280px] border border-[hsl(35,18%,84%)] bg-[hsl(40,20%,98%)] px-3 py-3 md:px-4 md:py-4 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer group block"
+        >
+          {s.logo_url && (
+            <div className="mb-2.5 h-10 w-full flex items-center justify-start">
+              <img src={resolveAssetUrl(s.logo_url)} alt={s.name} className={logoClass(s.logo_url, 'h-10 w-auto max-w-full object-contain')} />
+            </div>
+          )}
+          <p className="font-serif font-semibold text-sm text-[hsl(30,15%,25%)] group-hover:text-[hsl(35,45%,35%)] transition-colors">
+            {s.name}
+          </p>
+          {s.description && (
+            <p className="text-xs text-[hsl(30,10%,50%)] mt-1 line-clamp-2 leading-relaxed">{s.description}</p>
+          )}
+          <p className="text-[9px] tracking-[0.15em] uppercase text-[hsl(30,10%,65%)] mt-2 font-medium">Community Partner</p>
+        </a>
+      ))}
     </div>
   );
 }

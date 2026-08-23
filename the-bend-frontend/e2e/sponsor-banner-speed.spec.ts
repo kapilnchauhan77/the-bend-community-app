@@ -34,9 +34,23 @@ async function stubHomeApi(page: Page) {
             },
             {
               id: 'sponsor-2',
-              name: 'Partner Two',
-              description: 'Second community partner',
-              website_url: 'https://partner-two.example',
+              name: 'Printify',
+              description: 'Partner immediately before ProLine',
+              website_url: 'https://printify.example',
+              placement: 'homepage',
+            },
+            {
+              id: 'sponsor-3',
+              name: 'ProLine Group',
+              description: 'Featured community partner',
+              website_url: 'https://proline.example',
+              placement: 'homepage',
+            },
+            {
+              id: 'sponsor-4',
+              name: 'Last Partner',
+              description: 'Final partner before the reel repeats',
+              website_url: 'https://last-partner.example',
               placement: 'homepage',
             },
           ],
@@ -64,17 +78,85 @@ async function stubHomeApi(page: Page) {
   });
 }
 
-test('horizontal sponsor banner completes a two-partner loop in six seconds', async ({ page }) => {
+test('horizontal sponsor banner uses three seconds per partner', async ({ page }) => {
   await stubHomeApi(page);
   await page.goto('/');
 
   const marquee = page.locator('.sponsor-marquee');
   await expect(marquee).toBeVisible();
-  await expect(marquee).toHaveCSS('animation-duration', '6s');
+  await expect(marquee).toHaveCSS('animation-duration', '12s');
 
   const partnerLogo = marquee.getByRole('img', { name: 'Partner One' }).first();
   await expect(partnerLogo).toBeVisible();
   await expect.poll(() => partnerLogo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+});
+
+test('horizontal sponsor reel traverses every partner before repeating', async ({ page }) => {
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const marquee = page.locator('.sponsor-marquee');
+  const groups = marquee.locator(':scope > .sponsor-marquee-group');
+  await expect(groups).toHaveCount(2);
+
+  const sponsorNames = async (groupIndex: number) => groups.nth(groupIndex).locator('a').evaluateAll(
+    links => links.map(link => link.querySelector('p')?.textContent?.trim()),
+  );
+  const expectedOrder = ['Partner One', 'Printify', 'ProLine Group', 'Last Partner'];
+  expect(await sponsorNames(0)).toEqual(expectedOrder);
+  expect(await sponsorNames(1)).toEqual(expectedOrder);
+  await expect(groups.nth(1)).toHaveAttribute('aria-hidden', 'true');
+
+  const travel = await marquee.evaluate((element) => {
+    const group = element.querySelector<HTMLElement>('.sponsor-marquee-group');
+    const animation = element.getAnimations()[0];
+    if (!group || !animation) throw new Error('Sponsor reel is missing its group or animation');
+
+    animation.pause();
+    const duration = Number(animation.effect?.getTiming().duration);
+    animation.currentTime = duration * 0.999;
+
+    const transform = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+    const gap = Number.parseFloat(getComputedStyle(element).columnGap);
+    return {
+      actual: Math.abs(transform.m41),
+      expected: group.getBoundingClientRect().width + gap,
+      contentWidth: element.scrollWidth,
+      trackWidth: element.getBoundingClientRect().width,
+    };
+  });
+
+  expect(travel.trackWidth).toBeGreaterThan(1000);
+  expect(Math.abs(travel.trackWidth - travel.contentWidth)).toBeLessThan(1);
+  expect(Math.abs(travel.actual - travel.expected)).toBeLessThan(5);
+});
+
+test('horizontal sponsor reel keeps moving while the pointer is over it', async ({ page }) => {
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const marquee = page.locator('.sponsor-marquee');
+  const point = await marquee.evaluate((element) => {
+    const viewport = element.parentElement;
+    if (!viewport) throw new Error('Sponsor reel is missing its viewport');
+    viewport.scrollIntoView({ block: 'center' });
+    const rect = viewport.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.move(point.x, point.y);
+
+  await expect.poll(() => marquee.evaluate(element => element.matches(':hover'))).toBe(true);
+  await expect(marquee).toHaveCSS('animation-play-state', 'running');
+});
+
+test('horizontal sponsor reel pauses while a keyboard user selects a partner', async ({ page }) => {
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const marquee = page.locator('.sponsor-marquee');
+  await marquee.locator('.sponsor-marquee-group').first().getByRole('link').first().focus();
+
+  await expect(marquee).toHaveCSS('animation-play-state', 'paused');
 });
 
 test('horizontal sponsor banner is static when reduced motion is enabled', async ({ page }) => {

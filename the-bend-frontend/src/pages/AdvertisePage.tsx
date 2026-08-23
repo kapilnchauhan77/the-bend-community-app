@@ -198,19 +198,15 @@ export default function AdvertisePage() {
               style={{ borderColor: CARD_BORDER, background: CARD_BG }}
             >
               <div
-                className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-xl font-bold font-serif text-white"
-                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
+                className="h-14 max-w-48 mx-auto mb-3 flex items-center justify-center"
               >
-                P
+                <img src="/images/proline-logo.png" alt="ProLine Group" className="h-14 w-auto max-w-full object-contain" />
               </div>
               <h3 className="font-serif font-bold text-base mb-1" style={{ color: 'hsl(30, 15%, 18%)' }}>
-                Provoke
+                ProLine Group
               </h3>
               <p className="text-xs leading-relaxed mb-2" style={{ color: 'hsl(35, 10%, 45%)' }}>
-                1 workspace every AI workflow.
-              </p>
-              <p className="text-[10px] uppercase tracking-wider font-medium" style={{ color: BRONZE }}>
-                Launching Spring 2026
+                AI-Native Business Infrastructure. Top-tier management consulting rigor meets AI-native execution.
               </p>
               <div className="mt-3 pt-3 border-t" style={{ borderColor: 'hsl(35, 18%, 88%)' }}>
                 <span className="text-[10px] uppercase tracking-wider" style={{ color: 'hsl(35, 10%, 60%)' }}>
