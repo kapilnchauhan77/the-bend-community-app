@@ -331,6 +331,11 @@ export default function CreateListingPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {categoryGuidance && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {categoryGuidance}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -640,9 +645,9 @@ export default function CreateListingPage() {
               )}
 
               {/* FREE — explanation */}
-              {watchedPricingType === 'free' && categoryGuidance && (
+              {watchedPricingType === 'free' && (
                 <p className="text-sm text-muted-foreground">
-                  {categoryGuidance}
+                  No charge — perfect for surplus materials, lending, or volunteer offers.
                 </p>
               )}
             </CardContent>
