@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const BUY_SELL_RENT = 'Buy, Sell, and Rent';
 const FREE_TRADE_BORROW = 'Free, Trade, and Borrow';
@@ -93,6 +93,36 @@ const tileFixture = {
     },
   ],
 };
+
+const MOBILE_VIEWPORT = { width: 390, height: 844 };
+
+function isWithinViewport(box: { x: number; y: number; width: number; height: number }, viewportWidth: number, tolerance = 1) {
+  return box.x >= -tolerance && box.x + box.width <= viewportWidth + tolerance;
+}
+
+async function assertNoHorizontalOverflow(page: Page, viewportWidth = MOBILE_VIEWPORT.width) {
+  const overflow = await page.evaluate((expectedWidth: number) => {
+    return {
+      docWidth: Math.ceil(document.documentElement.scrollWidth),
+      bodyWidth: Math.ceil(document.body.scrollWidth),
+      expectedWidth,
+      windowWidth: Math.ceil(window.innerWidth),
+    };
+  }, viewportWidth);
+
+  expect(overflow.windowWidth).toBeLessThanOrEqual(overflow.expectedWidth);
+  expect(overflow.docWidth).toBeLessThanOrEqual(overflow.expectedWidth);
+  expect(overflow.bodyWidth).toBeLessThanOrEqual(overflow.expectedWidth);
+}
+
+async function assertLocatorInViewport(locator: Locator, viewportWidth = MOBILE_VIEWPORT.width) {
+  await expect(locator).toBeVisible();
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(isWithinViewport(box as { x: number; y: number; width: number; height: number }, viewportWidth)).toBe(true);
+}
+
+const fixedPricingMode = (page: Page) => page.getByRole('button', { name: /Fixed/ });
 
 async function stubMarketplaceCategoryEndpoints(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
@@ -281,12 +311,16 @@ test('listing detail and create-listing paths expose the new category labels', a
     .getByRole('option', { name: BUY_SELL_RENT, exact: true })
     .click();
   await expect(page.getByText(MATERIALS_GUIDANCE, { exact: true })).toBeVisible();
+  await fixedPricingMode(page).click();
+  await expect(page.getByText(MATERIALS_GUIDANCE, { exact: true })).toBeVisible();
 
   await page.getByRole('combobox').first().click();
   await page
     .getByRole('listbox')
     .getByRole('option', { name: FREE_TRADE_BORROW, exact: true })
     .click();
+  await expect(page.getByText(EQUIPMENT_GUIDANCE, { exact: true })).toBeVisible();
+  await fixedPricingMode(page).click();
   await expect(page.getByText(EQUIPMENT_GUIDANCE, { exact: true })).toBeVisible();
 });
 
@@ -310,4 +344,71 @@ test('about, footer links, and settings notifications use the updated category w
   await expect(page.getByRole('switch', { name: FREE_TRADE_BORROW, exact: true })).toBeVisible();
   await expect(page.getByRole('switch', { name: 'Materials', exact: true })).toHaveCount(0);
   await expect(page.getByRole('switch', { name: 'Equipment', exact: true })).toHaveCount(0);
+});
+
+test('mobile 390px seam audit keeps category labels visible inside viewport', async ({ page }) => {
+  await stubMarketplaceCategoryEndpoints(page);
+  await seedAuth(page);
+  await page.setViewportSize(MOBILE_VIEWPORT);
+
+  await page.goto('/browse');
+  await expect(page.getByRole('button', { name: BUY_SELL_RENT, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: FREE_TRADE_BORROW, exact: true })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await assertLocatorInViewport(page.getByText(BUY_SELL_RENT, { exact: true }).first(), MOBILE_VIEWPORT.width);
+  await assertLocatorInViewport(page.getByText(FREE_TRADE_BORROW, { exact: true }).first(), MOBILE_VIEWPORT.width);
+
+  const materialsCard = cardByTitle(page, 'Surplus flour and sugar');
+  const equipmentCard = cardByTitle(page, 'Borrow a dough mixer');
+  await expect(materialsCard).toBeVisible();
+  await expect(equipmentCard).toBeVisible();
+  await expect(materialsCard.getByText(BUY_SELL_RENT, { exact: true })).toBeVisible();
+  await expect(equipmentCard.getByText(FREE_TRADE_BORROW, { exact: true })).toBeVisible();
+
+  await page.goto('/listing/listing-materials');
+  await expect(page.getByRole('heading', { name: listingDetailFixture.title, exact: true })).toBeVisible();
+  await assertLocatorInViewport(page.getByRole('heading', { name: listingDetailFixture.title, exact: true }), MOBILE_VIEWPORT.width);
+  await expect(page.getByText(BUY_SELL_RENT, { exact: true })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await assertLocatorInViewport(page.getByText(BUY_SELL_RENT, { exact: true }), MOBILE_VIEWPORT.width);
+
+  await page.goto('/create?category=materials');
+  const categoryTrigger = page.getByRole('combobox').first();
+  await categoryTrigger.click();
+  const listbox = page.getByRole('listbox');
+  await expect(listbox.getByRole('option', { name: BUY_SELL_RENT, exact: true })).toBeVisible();
+  await listbox.getByRole('option', { name: BUY_SELL_RENT, exact: true }).click();
+  await expect(page.getByText(MATERIALS_GUIDANCE, { exact: true })).toBeVisible();
+  await fixedPricingMode(page).click();
+  await expect(page.getByText(MATERIALS_GUIDANCE, { exact: true })).toBeVisible();
+  await assertLocatorInViewport(page.getByText(MATERIALS_GUIDANCE, { exact: true }), MOBILE_VIEWPORT.width);
+  await assertLocatorInViewport(page.getByRole('button', { name: BUY_SELL_RENT, exact: true }), MOBILE_VIEWPORT.width);
+
+  await categoryTrigger.click();
+  await listbox.getByRole('option', { name: FREE_TRADE_BORROW, exact: true }).click();
+  await expect(page.getByText(EQUIPMENT_GUIDANCE, { exact: true })).toBeVisible();
+  await fixedPricingMode(page).click();
+  await expect(page.getByText(EQUIPMENT_GUIDANCE, { exact: true })).toBeVisible();
+  await assertLocatorInViewport(page.getByText(EQUIPMENT_GUIDANCE, { exact: true }), MOBILE_VIEWPORT.width);
+  await assertLocatorInViewport(page.getByRole('button', { name: FREE_TRADE_BORROW, exact: true }), MOBILE_VIEWPORT.width);
+  await assertNoHorizontalOverflow(page);
+
+  await page.goto('/about');
+  await expect(page.getByText(BUY_SELL_RENT, { exact: true })).toBeVisible();
+  await expect(page.getByText(FREE_TRADE_BORROW, { exact: true })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+
+  const footer = page.locator('footer');
+  await expect(footer.getByRole('link', { name: `Browse ${BUY_SELL_RENT}`, exact: true })).toBeVisible();
+  await expect(footer.getByRole('link', { name: `Browse ${FREE_TRADE_BORROW}`, exact: true })).toBeVisible();
+  await assertLocatorInViewport(footer.getByRole('link', { name: `Browse ${BUY_SELL_RENT}`, exact: true }), MOBILE_VIEWPORT.width);
+  await assertLocatorInViewport(footer.getByRole('link', { name: `Browse ${FREE_TRADE_BORROW}`, exact: true }), MOBILE_VIEWPORT.width);
+
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Category Alerts', exact: true })).toBeVisible();
+  await expect(page.getByRole('switch', { name: BUY_SELL_RENT, exact: true })).toBeVisible();
+  await expect(page.getByRole('switch', { name: FREE_TRADE_BORROW, exact: true })).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await assertLocatorInViewport(page.getByRole('switch', { name: BUY_SELL_RENT, exact: true }), MOBILE_VIEWPORT.width);
+  await assertLocatorInViewport(page.getByRole('switch', { name: FREE_TRADE_BORROW, exact: true }), MOBILE_VIEWPORT.width);
 });
