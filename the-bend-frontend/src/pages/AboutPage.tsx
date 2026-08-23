@@ -3,7 +3,6 @@ import {
   Users,
   Package,
   Wrench,
-  Heart,
   Handshake,
   Leaf,
   ShieldCheck,
@@ -15,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { useTenant } from '@/context/TenantContext';
 import { useAuthStore } from '@/stores/authStore';
+import { CATEGORY_GUIDANCE, CATEGORY_LABELS } from '@/lib/constants';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -54,14 +54,14 @@ const categories = [
   },
   {
     icon: Package,
-    title: 'Materials',
-    description: 'Surplus flour, produce, or packaging? List it before it expires so a neighbor can put it to good use — free or at cost.',
+    title: CATEGORY_LABELS.materials,
+    description: CATEGORY_GUIDANCE.materials,
     color: 'bg-teal-100 text-teal-700',
   },
   {
     icon: Wrench,
-    title: 'Equipment',
-    description: 'Looking for commercial mixers, proofing racks, refrigeration units and more? See what your neighbors have to offer.',
+    title: CATEGORY_LABELS.equipment,
+    description: CATEGORY_GUIDANCE.equipment,
     color: 'bg-[hsl(35,15%,90%)] text-[hsl(160,25%,24%)]',
   },
 ];

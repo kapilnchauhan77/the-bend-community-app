@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
+import { CATEGORY_GUIDANCE, CATEGORY_LABELS } from '@/lib/constants';
 import api from '@/services/api';
 import { listingApi } from '@/services/listingApi';
 import { eventApi } from '@/services/eventApi';
@@ -35,8 +36,8 @@ const BRONZE = 'hsl(35, 45%, 42%)';
 
 const services = [
   { icon: Briefcase, label: 'Gig Board', desc: 'Job openings & available workers', href: '/browse?category=staff' },
-  { icon: Package, label: 'Materials', desc: 'Surplus ingredients & supplies', href: '/browse?category=materials' },
-  { icon: Wrench, label: 'Equipment', desc: 'Borrow or lend tools', href: '/browse?category=equipment' },
+  { icon: Package, label: CATEGORY_LABELS.materials, desc: CATEGORY_GUIDANCE.materials, href: '/browse?category=materials' },
+  { icon: Wrench, label: CATEGORY_LABELS.equipment, desc: CATEGORY_GUIDANCE.equipment, href: '/browse?category=equipment' },
   { icon: Heart, label: 'Volunteer', desc: 'Give your time to the community', href: '/volunteers' },
   { icon: HandHeart, label: 'Volunteer Opportunities', desc: 'Causes & projects that need help', href: '/opportunities' },
   { icon: Music, label: 'Talent', desc: 'Book local freelancers & artists', href: '/talent' },

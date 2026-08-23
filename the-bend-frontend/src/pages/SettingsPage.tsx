@@ -1,4 +1,4 @@
-import { resolveAssetUrl } from '@/lib/constants';
+import { CATEGORY_GUIDANCE, CATEGORY_LABELS, resolveAssetUrl } from '@/lib/constants';
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -106,7 +106,7 @@ function SwitchRow({
         <p className="text-sm font-medium text-gray-800">{label}</p>
         {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch aria-label={label} checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }
@@ -1141,9 +1141,9 @@ export default function SettingsPage() {
             <Separator />
 
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                 Category Alerts
-              </p>
+              </h3>
               <div className="space-y-3">
                 <SwitchRow
                   label="Gig Alerts"
@@ -1152,14 +1152,14 @@ export default function SettingsPage() {
                   onCheckedChange={setGigAlerts}
                 />
                 <SwitchRow
-                  label="Materials"
-                  description="Flour, dairy, produce and more"
+                  label={CATEGORY_LABELS.materials}
+                  description={CATEGORY_GUIDANCE.materials}
                   checked={materialsAlerts}
                   onCheckedChange={setMaterialsAlerts}
                 />
                 <SwitchRow
-                  label="Equipment"
-                  description="Mixers, ovens, and tools"
+                  label={CATEGORY_LABELS.equipment}
+                  description={CATEGORY_GUIDANCE.equipment}
                   checked={equipmentAlerts}
                   onCheckedChange={setEquipmentAlerts}
                 />

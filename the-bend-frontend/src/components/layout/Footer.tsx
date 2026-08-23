@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CATEGORY_LABELS } from '@/lib/constants';
 import { useTenant } from '@/context/TenantContext';
 
 export function Footer() {
@@ -38,8 +39,8 @@ export function Footer() {
             <h4 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(35,45%,55%)] mb-4">Services</h4>
             <ul className="space-y-2.5 text-sm">
               <li><Link to="/browse?category=staff" className="hover:text-[hsl(40,20%,90%)] transition-colors">Browse Gigs</Link></li>
-              <li><Link to="/browse?category=materials" className="hover:text-[hsl(40,20%,90%)] transition-colors">Browse Materials</Link></li>
-              <li><Link to="/browse?category=equipment" className="hover:text-[hsl(40,20%,90%)] transition-colors">Browse Equipment</Link></li>
+              <li><Link to="/browse?category=materials" className="hover:text-[hsl(40,20%,90%)] transition-colors">{`Browse ${CATEGORY_LABELS.materials}`}</Link></li>
+              <li><Link to="/browse?category=equipment" className="hover:text-[hsl(40,20%,90%)] transition-colors">{`Browse ${CATEGORY_LABELS.equipment}`}</Link></li>
             </ul>
           </div>
           <div>
