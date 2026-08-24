@@ -175,9 +175,9 @@ async def test_discount_service_lookup_rejects_missing_community_code_and_applie
     assert await DiscountCodeService(db).lookup_event_code("NOPE", uuid4()) is None
     assert db.calls == 1
     sql = str(db.query)
-    assert "discount_codes.is_active" in sql
-    assert "discount_codes.expiry_date" in sql
-    assert "discount_codes.max_uses" in sql
+    assert "discount_codes.is_active IS true" in sql
+    assert "discount_codes.expiry_date IS NULL OR discount_codes.expiry_date >" in sql
+    assert "discount_codes.max_uses IS NULL OR discount_codes.usage_count < discount_codes.max_uses" in sql
 
 
 @pytest.mark.asyncio
