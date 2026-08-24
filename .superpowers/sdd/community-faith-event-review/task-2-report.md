@@ -8,17 +8,20 @@ Correction pass status: DONE_WITH_CONCERNS. Free success copy, tier state isolat
 
 Command: `npx playwright test e2e/community-faith-event-review.spec.ts --reporter=line`
 
-Expected RED: the baseline failed because `Community or Faith Organization` did not exist. The baseline also had no community coupon gate, private review panel, or approve/reject UI.
+Correction RED captured 5 of 13 correction tests failing before implementation. Failures covered free-success copy, stale private payload fields after tier switching, review-action error visibility, pending/rejected status labels, and unsafe document links.
 
 ## GREEN
 
 Command: `npx playwright test e2e/community-faith-event-review.spec.ts --reporter=line`
 
-Result: 9 passed. Coverage includes all three tiers, exact payloads, coupon and documentation gates, upload failure feedback, backend error display, private review fields and document link, approve/reject endpoint calls and refresh, and 390px public/admin containment.
+Focused correction Playwright: 17/17 passed.
+
+Coverage includes all three tiers and exact payloads, coupon and documentation gates, invalid-coupon detail display, upload failure feedback, free versus paid success copy, tier-switch isolation, private review fields and safe document links, approve/reject calls and refresh, review-action failures, pending-load failures, status badges, and desktop/mobile containment.
 
 ## Verification
 
-- Full frontend Playwright: 82 passed, 1 failed. The failure was the pre-existing `bender-link-previews.spec.ts:128` shared fixture test, which timed out during `page.goto('/bender')`; the 9 new tests passed in the full run.
+- Full frontend Playwright: 90 passed, 1 unrelated Bender fixture failure in `bender-link-previews.spec.ts:128`.
+- Focused retry of `bender-link-previews.spec.ts -g "shared fixture rows render exactly the accepted URLs"`: 1/1 passed.
 - Build: `npm run build` passed. Vite emitted existing missing `VITE_CF_ANALYTICS_TOKEN` and chunk-size warnings.
 - TypeScript: `npx tsc --noEmit` passed.
 - Scoped ESLint: passed for changed source and e2e files.
@@ -34,18 +37,9 @@ Result: 9 passed. Coverage includes all three tiers, exact payloads, coupon and 
 
 ## Commits
 
-- Production/tests: `b8f9cb766dab22561e8271f74a963341fcb503aa`
-- Report: `e65aef6b24c69cfad32e7ac3ceca5f47852953fc`
+- Initial production/tests: `b8f9cb766dab22561e8271f74a963341fcb503aa`
+- Correction production/tests: `9e53a166b5df175e18318e376622caebc8b21d99`
 
 ## Self-review and concerns
 
-The public serializer remains unchanged and private fields are only consumed by the admin page. Relative nonprofit document URLs use `resolveAssetUrl` and external links use `noopener noreferrer`. Full-suite concern is limited to the unrelated flaky/timeout Bender fixture test. The build still reports the existing analytics environment and bundle-size warnings.
-
-## Correction evidence
-
-- Correction RED: 5 of 13 correction tests failed before implementation. Failures covered free success copy, stale document payload leakage, review-action error visibility, pending/rejected labels, and unsafe document links.
-- Correction GREEN focused Playwright: 17 passed.
-- Full frontend Playwright: 90 passed, 1 unrelated Bender fixture failure during the parallel run. Focused retry of `bender-link-previews.spec.ts -g "shared fixture rows render exactly the accepted URLs"`: 1 passed.
-- Build, `npx tsc --noEmit`, scoped ESLint, and `git diff --check`: passed.
-- Correction production/tests commit SHA: `9e53a166b5df175e18318e376622caebc8b21d99`.
-- The report commit SHA is intentionally reported in the final handoff after the report commit, avoiding a self-referential SHA in this file.
+The public serializer remains unchanged and private fields are only consumed by the admin page. Relative nonprofit document URLs use `resolveAssetUrl` and external links use `noopener noreferrer`. The full-suite Bender fixture failure is unrelated to this task and passed on focused retry. Existing analytics environment and bundle-size warnings remain.
