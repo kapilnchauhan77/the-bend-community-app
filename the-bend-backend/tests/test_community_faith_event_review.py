@@ -157,8 +157,7 @@ async def test_invalid_or_partial_community_coupon_creates_nothing(monkeypatch, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("label", ["missing", "invalid", "expired", "exhausted"])
-async def test_discount_service_lookup_rejects_unredeemable_community_codes(label):
+async def test_discount_service_lookup_rejects_missing_community_code_and_applies_guards():
     from app.services.discount_code_service import DiscountCodeService
 
     class Result:
@@ -169,11 +168,16 @@ async def test_discount_service_lookup_rejects_unredeemable_community_codes(labe
         calls = 0
         async def execute(self, _query):
             self.calls += 1
+            self.query = _query
             return Result()
 
     db = DB()
     assert await DiscountCodeService(db).lookup_event_code("NOPE", uuid4()) is None
     assert db.calls == 1
+    sql = str(db.query)
+    assert "discount_codes.is_active" in sql
+    assert "discount_codes.expiry_date" in sql
+    assert "discount_codes.max_uses" in sql
 
 
 @pytest.mark.asyncio
