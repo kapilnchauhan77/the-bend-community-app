@@ -876,11 +876,15 @@ export default function EventsPage() {
                         className="flex-1 h-11 rounded-xl font-semibold text-white cursor-pointer"
                         style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}
                       >
-                        {postSubmitting ? 'Submitting...' : (postTier === 'forprofit' ? 'Pay $19.99 & Submit' : 'Submit (Free)')}
+                        {postSubmitting ? 'Submitting...' : postTier !== 'forprofit' ? 'Submit (Free)' : couponCode.trim() ? 'Apply Code & Continue' : 'Pay $19.99 & Submit'}
                       </Button>
                     </div>
                     <p className="text-[10px] text-gray-400 text-center">
-                      {postTier === 'forprofit' ? 'You will be securely redirected to Stripe if payment is required. Event goes live after admin review.' : 'Your free event will be reviewed by a community admin before it goes live.'}
+                      {postTier === 'forprofit'
+                        ? couponCode.trim()
+                          ? 'Your code will be validated before payment. Event goes live after admin review.'
+                          : 'You will be securely redirected to Stripe to complete payment. Event goes live after admin review.'
+                        : 'Your free event will be reviewed by a community admin before it goes live.'}
                     </p>
                   </form>
                 </>

@@ -113,8 +113,23 @@ test('for-profit submission sends exact payload and retains optional coupon', as
   await openPost(page, 'For-Profit Business');
   await fillRequired(page);
   await page.getByPlaceholder('e.g. SUMMER250').fill('PROMO20');
-  await page.getByRole('button', { name: /Pay \$19\.99/ }).click();
+  await expect(page.getByRole('button', { name: 'Apply Code & Continue', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /\$19\.99/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Apply Code & Continue', exact: true }).click();
   await expect.poll(() => payload).toEqual({ title: 'Community Fair', description: '', start_date: '2026-09-03T18:00', end_date: '', location: '', category: 'community', submitted_by_name: 'Jane Smith', submitted_by_email: 'jane@example.com', is_nonprofit: false, organization_type: 'for_profit', coupon_code: 'PROMO20' });
+});
+
+test('paid success URL shows payment confirmation copy', async ({ page }) => {
+  await stubPublic(page, () => undefined);
+  await page.goto('/events?posted=success');
+  await expect(page.getByText('Payment received. Your event will be live after admin review.')).toBeVisible();
+});
+
+test('free success URL shows review copy without payment or Stripe language', async ({ page }) => {
+  await stubPublic(page, () => undefined);
+  await page.goto('/events?posted=free');
+  await expect(page.getByText('Your free event was submitted and will be reviewed by a community admin.')).toBeVisible();
+  await expect(page.getByText(/Payment received|Stripe/i)).toHaveCount(0);
 });
 
 test('switching tiers clears private fields and omits stale document and coupon', async ({ page }) => {
