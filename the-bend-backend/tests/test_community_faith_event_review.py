@@ -366,13 +366,13 @@ async def test_event_service_scoped_mutations_query_tenant_and_deny_other_tenant
 )
 async def test_mark_used_rejects_inactive_expired_and_exhausted_rows_without_increment(row):
     row.id = uuid4()
-    row.usage_count = row.usage_count
+    initial_usage_count = row.usage_count
     session = _QuerySession(row=row)
     service = DiscountCodeService(session)
     with pytest.raises(Exception) as error:
         await service.mark_used(row.id)
     assert error.value.status_code == 410
-    assert row.usage_count in (0, 1)
+    assert row.usage_count == initial_usage_count
 
 
 @pytest.mark.asyncio
