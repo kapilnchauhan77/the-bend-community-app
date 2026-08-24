@@ -10,6 +10,8 @@ Final correction commit: `d2740792aa206869e54c16463b4d298871890c3f`
 
 Evidence pass commit: `f9a846c2af6d5c905f8a15b9c4302431ea040e4d`
 
+Final evidence commit: `c79bd988a9984bb5895fcbe66dddc2c95f3b4668`
+
 ## RED
 
 Command: `.venv/bin/pytest -q tests/test_community_faith_event_review.py`
@@ -58,6 +60,7 @@ Correction commit: `c91c8c03e26168eab1e5489d1cf96edcab229793`
 Second correction commit: `f2b558c5c1be4023fb7d96d2f915c7e5ca3c9ba6`
 Final correction commit: `d2740792aa206869e54c16463b4d298871890c3f`
 Evidence pass commit: `f9a846c2af6d5c905f8a15b9c4302431ea040e4d`
+Final evidence commit: `c79bd988a9984bb5895fcbe66dddc2c95f3b4668`
 
 ## Self-review and remaining concerns
 
