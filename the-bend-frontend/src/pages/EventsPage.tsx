@@ -395,12 +395,22 @@ export default function EventsPage() {
   const [postError, setPostError] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [postSuccess, setPostSuccess] = useState(false);
+  const [postSuccessKind, setPostSuccessKind] = useState<'free' | 'paid'>('paid');
+
+  const chooseTier = (tier: 'forprofit' | 'nonprofit' | 'community') => {
+    setPostTier(tier);
+    setNonprofitDocUrl(null);
+    setCouponCode('');
+    setPostError('');
+    setPostStep('details');
+  };
 
   // Check for success return from Stripe
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('posted') === 'success') {
+    if (params.get('posted') === 'success' || params.get('posted') === 'free') {
       setPostSuccess(true);
+      setPostSuccessKind(params.get('posted') === 'free' ? 'free' : 'paid');
       window.history.replaceState({}, '', '/events');
     }
   }, []);
@@ -636,7 +646,7 @@ export default function EventsPage() {
           <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: PRIMARY }} />
           <div>
             <p className="text-sm font-semibold text-[hsl(30,15%,18%)]">Event submitted!</p>
-            <p className="text-xs text-[hsl(30,10%,48%)]">Payment received. Your event will be live after admin review.</p>
+            <p className="text-xs text-[hsl(30,10%,48%)]">{postSuccessKind === 'paid' ? 'Payment received. Your event will be live after admin review.' : 'Your free event was submitted and will be reviewed by a community admin.'}</p>
           </div>
           <button onClick={() => setPostSuccess(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X size={16} /></button>
         </div>
@@ -668,7 +678,7 @@ export default function EventsPage() {
                   <div className="space-y-3">
                     {/* For-Profit */}
                     <button
-                      onClick={() => { setPostTier('forprofit'); setPostStep('details'); }}
+                      onClick={() => chooseTier('forprofit')}
                       className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(35,45%,42%)] hover:shadow-md cursor-pointer"
                       style={{ borderColor: 'hsl(35, 18%, 84%)' }}
                     >
@@ -681,7 +691,7 @@ export default function EventsPage() {
 
                     {/* Nonprofit */}
                     <button
-                      onClick={() => { setPostTier('nonprofit'); setPostStep('details'); }}
+                      onClick={() => chooseTier('nonprofit')}
                       className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(160,25%,24%)] hover:shadow-md cursor-pointer"
                       style={{ borderColor: 'hsl(35, 18%, 84%)' }}
                     >
@@ -691,7 +701,7 @@ export default function EventsPage() {
                       </div>
                       <p className="text-xs text-gray-500">Free for verified nonprofits. Documentation of not-for-profit status is required to qualify.</p>
                     </button>
-                    <button onClick={() => { setPostTier('community'); setPostStep('details'); }} className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(160,25%,24%)] hover:shadow-md cursor-pointer" style={{ borderColor: 'hsl(35, 18%, 84%)' }}>
+                    <button onClick={() => chooseTier('community')} className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(160,25%,24%)] hover:shadow-md cursor-pointer" style={{ borderColor: 'hsl(35, 18%, 84%)' }}>
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-semibold text-gray-900">Community or Faith Organization</h3>
                         <span className="text-xl font-bold font-serif" style={{ color: PRIMARY }}>Free</span>
@@ -739,8 +749,8 @@ export default function EventsPage() {
                           ...postForm,
                           is_nonprofit: postTier === 'nonprofit',
                           organization_type: postTier === 'nonprofit' ? 'verified_nonprofit' : postTier === 'community' ? 'community_faith' : 'for_profit',
-                          nonprofit_doc_url: nonprofitDocUrl || undefined,
-                          coupon_code: couponCode.trim() || undefined,
+                          ...(postTier === 'nonprofit' && nonprofitDocUrl ? { nonprofit_doc_url: nonprofitDocUrl } : {}),
+                          ...(couponCode.trim() ? { coupon_code: couponCode.trim() } : {}),
                         });
                         const checkoutUrl = res.data?.checkout_url;
                         if (checkoutUrl) {
@@ -749,7 +759,7 @@ export default function EventsPage() {
                           // Nonprofit free path — no payment needed. Bounce
                           // to the events page with the existing success
                           // toast trigger.
-                          window.location.href = '/events?posted=success';
+                          window.location.href = '/events?posted=free';
                         }
                       } catch (err: unknown) {
                         const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;

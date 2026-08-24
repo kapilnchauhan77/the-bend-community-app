@@ -63,12 +63,27 @@ function categoryBadge(cat: EventCategory) {
 
 function statusBadge(status: string) {
   switch (status) {
+    case 'pending':
+      return <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">Pending</Badge>;
+    case 'rejected':
+      return <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">Rejected</Badge>;
     case 'cancelled':
       return <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">Cancelled</Badge>;
     case 'active':
       return <Badge variant="outline" className="text-[hsl(160,25%,24%)] border-[hsl(35,18%,84%)] bg-[hsl(35,15%,94%)]">Active</Badge>;
     default:
       return <Badge variant="outline" className="text-gray-500 border-gray-200 bg-gray-50">Past</Badge>;
+  }
+}
+
+function safeDocumentUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('/uploads/')) return resolveAssetUrl(url);
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -109,9 +124,11 @@ export default function EventsAdminPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | EventCategory>('all');
   const [events, setEvents] = useState<CommunityEvent[]>([]);
   const [pendingEvents, setPendingEvents] = useState<CommunityEvent[]>([]);
+  const [pendingLoadError, setPendingLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [reviewError, setReviewError] = useState('');
 
   // Create/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -137,11 +154,13 @@ export default function EventsAdminPage() {
   }, [categoryFilter]);
 
   const fetchPendingEvents = useCallback(async () => {
+    setPendingLoadError('');
     try {
       const res = await eventApi.adminList({ status: 'pending', limit: '50' });
       setPendingEvents(res.data?.items ?? res.data?.events ?? res.data ?? []);
     } catch {
       setPendingEvents([]);
+      setPendingLoadError('Pending reviews could not be loaded. Please try again.');
     }
   }, []);
 
@@ -151,11 +170,12 @@ export default function EventsAdminPage() {
   }, [fetchEvents, fetchPendingEvents]);
 
   const reviewEvent = async (event: CommunityEvent, action: 'approve' | 'reject') => {
+    setReviewError('');
     try {
       await eventApi[action](event.id);
       await Promise.all([fetchPendingEvents(), fetchEvents()]);
     } catch {
-      setError(`Failed to ${action} event. Please try again.`);
+      setReviewError(`Failed to ${action} event. Please try again.`);
     }
   };
 
@@ -251,12 +271,14 @@ export default function EventsAdminPage() {
           </Button>
         </div>
 
-        {pendingEvents.length > 0 && (
+        {(pendingEvents.length > 0 || pendingLoadError) && (
           <section aria-label="Pending event reviews" className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Pending event reviews</h2>
               <p className="text-sm text-muted-foreground">Review community submissions before they go live.</p>
             </div>
+            {reviewError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{reviewError}</p>}
+            {pendingLoadError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{pendingLoadError}</p>}
             <div className="grid gap-3">
               {pendingEvents.map((event) => (
                 <article key={event.id} className="rounded-lg border bg-white p-4 min-w-0">
@@ -266,7 +288,7 @@ export default function EventsAdminPage() {
                       <p className="text-sm text-muted-foreground">{formatDate(event.start_date)} · {event.location || 'No location'}</p>
                       <p className="text-sm break-words">Submitted by: <span className="font-medium">{event.submitted_by_name || 'Unknown'}</span> · {event.submitted_by_email || 'No email'}</p>
                       <p className="text-sm">Organization type: <span className="font-medium">{event.organization_type || (event.is_nonprofit ? 'verified_nonprofit' : 'for_profit')}</span></p>
-                      {event.nonprofit_doc_url && <a className="text-sm text-blue-700 underline break-all" href={resolveAssetUrl(event.nonprofit_doc_url)} target="_blank" rel="noopener noreferrer">View nonprofit document</a>}
+                      {event.nonprofit_doc_url && (safeDocumentUrl(event.nonprofit_doc_url) ? <a className="text-sm text-blue-700 underline break-all" href={safeDocumentUrl(event.nonprofit_doc_url)} target="_blank" rel="noopener noreferrer">View nonprofit document</a> : <span className="text-sm text-muted-foreground">Nonprofit document unavailable</span>)}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button size="sm" onClick={() => reviewEvent(event, 'approve')} style={{ backgroundColor: PRIMARY }} className="text-white">Approve</Button>
