@@ -882,7 +882,7 @@ export default function EventsPage() {
                     <p className="text-[10px] text-gray-400 text-center">
                       {postTier === 'forprofit'
                         ? couponCode.trim()
-                          ? 'Your code will be validated before payment. Event goes live after admin review.'
+                          ? 'Your code will be validated before the next step. Event goes live after admin review.'
                           : 'You will be securely redirected to Stripe to complete payment. Event goes live after admin review.'
                         : 'Your free event will be reviewed by a community admin before it goes live.'}
                     </p>
