@@ -185,13 +185,16 @@ async def admin_list_events(
 ):
     event_service.tenant_id = _.tenant_id
     from app.models.enums import EventStatus
+    if status is None:
+        result = await event_service.list_all_events(cursor, limit)
+        from app.api.v1.events import _serialize_admin_event
+        items = [_serialize_admin_event(e) for e in result.items]
+        return {"items": items, "next_cursor": result.next_cursor, "has_more": result.has_more}
     if status is not None:
         try:
             status_value = EventStatus(status)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid event status")
-    else:
-        status_value = EventStatus.PENDING
     events = await event_service.list_admin_events(status_value, limit)
     from app.api.v1.events import _serialize_admin_event
     return {"items": [_serialize_admin_event(e) for e in events], "next_cursor": None, "has_more": False}

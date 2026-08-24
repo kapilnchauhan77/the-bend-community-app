@@ -187,7 +187,7 @@ async def submit_event(
         nonprofit_doc_url=nonprofit_doc_url,
         submitted_by_name=data.submitted_by_name,
         submitted_by_email=data.submitted_by_email,
-        status=EventStatus.PENDING if hasattr(EventStatus, 'PENDING') else EventStatus.ACTIVE,
+        status=EventStatus.PENDING,
         paid=False,
         coupon_code_id=applied_coupon.id if applied_coupon else None,
         tenant_id=tenant.id if tenant else None,
