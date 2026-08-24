@@ -18,6 +18,8 @@ Focused correction Playwright: 17/17 passed.
 
 Final copy correction Playwright: 19/19 passed, including coupon-neutral for-profit CTA and explicit paid/free success URL copy.
 
+Final coupon-copy correction Playwright: 19/19 passed, including a free outcome from a for-profit coupon submission and neutral footer copy without payment or Stripe claims.
+
 Coverage includes all three tiers and exact payloads, coupon and documentation gates, invalid-coupon detail display, upload failure feedback, free versus paid success copy, tier-switch isolation, private review fields and safe document links, approve/reject calls and refresh, review-action failures, pending-load failures, status badges, and desktop/mobile containment.
 
 ## Verification
@@ -42,6 +44,7 @@ Coverage includes all three tiers and exact payloads, coupon and documentation g
 - Initial production/tests: `b8f9cb766dab22561e8271f74a963341fcb503aa`
 - Correction production/tests: `9e53a166b5df175e18318e376622caebc8b21d99`
 - Final copy correction production/tests: `ff5953dda44b3ad4368900510b0a093d55b519b6`
+- Final coupon-copy correction production/tests: `53dfb1674269d07cfac1d0b28c07bd30ef5f0131`
 
 ## Self-review and concerns
 
