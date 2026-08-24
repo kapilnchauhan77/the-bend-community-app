@@ -16,6 +16,8 @@ Command: `npx playwright test e2e/community-faith-event-review.spec.ts --reporte
 
 Focused correction Playwright: 17/17 passed.
 
+Final copy correction Playwright: 19/19 passed, including coupon-neutral for-profit CTA and explicit paid/free success URL copy.
+
 Coverage includes all three tiers and exact payloads, coupon and documentation gates, invalid-coupon detail display, upload failure feedback, free versus paid success copy, tier-switch isolation, private review fields and safe document links, approve/reject calls and refresh, review-action failures, pending-load failures, status badges, and desktop/mobile containment.
 
 ## Verification
@@ -39,7 +41,10 @@ Coverage includes all three tiers and exact payloads, coupon and documentation g
 
 - Initial production/tests: `b8f9cb766dab22561e8271f74a963341fcb503aa`
 - Correction production/tests: `9e53a166b5df175e18318e376622caebc8b21d99`
+- Final copy correction production/tests: `ff5953dda44b3ad4368900510b0a093d55b519b6`
 
 ## Self-review and concerns
 
 The public serializer remains unchanged and private fields are only consumed by the admin page. Relative nonprofit document URLs use `resolveAssetUrl` and external links use `noopener noreferrer`. The full-suite Bender fixture failure is unrelated to this task and passed on focused retry. Existing analytics environment and bundle-size warnings remain.
+
+The final copy correction did not rerun the full frontend suite. The prior full-suite result and focused unrelated Bender retry remain the applicable full-suite evidence.
