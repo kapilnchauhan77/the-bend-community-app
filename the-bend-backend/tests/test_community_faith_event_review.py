@@ -104,6 +104,12 @@ class _CouponService:
         return self.coupon
 
 
+class _RacingCouponService(_CouponService):
+    async def mark_used(self, _id):
+        from app.core.exceptions import AppException
+        raise AppException(status_code=410, code="GONE", message="Code is no longer available")
+
+
 def _request(**kwargs):
     values = dict(
         title="Food drive", start_date="2026-09-01T10:00:00",
@@ -270,6 +276,16 @@ async def test_invalid_organization_type_is_stable_400_without_row_or_usage(monk
     assert error.value.status_code == 400
     assert db.events == []
     assert _CouponService.used == 0
+
+
+@pytest.mark.asyncio
+async def test_community_coupon_last_use_race_is_stable_400(monkeypatch):
+    _RacingCouponService.coupon = SimpleNamespace(id=uuid4(), code="RACE", discount_type="percentage", discount_value=100)
+    monkeypatch.setattr("app.services.discount_code_service.DiscountCodeService", _RacingCouponService)
+    db = _SubmissionDB()
+    with pytest.raises(Exception) as error:
+        await submit_event(_request(), db=db, tenant=SimpleNamespace(id=uuid4()))
+    assert error.value.status_code == 400
 
 
 def test_migration_upgrade_and_downgrade_keep_default_around_enum_replacement():

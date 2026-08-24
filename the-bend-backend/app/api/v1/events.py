@@ -203,7 +203,16 @@ async def submit_event(
         if applied_coupon is not None:
             # We've already validated this row above; mark_used does its own
             # SELECT FOR UPDATE + bounds re-check before bumping.
-            await dc_service.mark_used(applied_coupon.id)
+            try:
+                await dc_service.mark_used(applied_coupon.id)
+            except Exception as exc:
+                # A concurrent redemption can exhaust the coupon between
+                # lookup and the locked usage increment. Treat that race as
+                # the same stable client error as any other invalid coupon.
+                from app.core.exceptions import AppException
+                if organization_type == "community_faith" and isinstance(exc, AppException):
+                    raise HTTPException(status_code=400, detail="Coupon is no longer available") from exc
+                raise
         await db.flush()
         return {
             "checkout_url": None, "session_id": None,
