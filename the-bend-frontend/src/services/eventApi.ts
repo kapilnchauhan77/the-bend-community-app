@@ -17,6 +17,7 @@ export const eventApi = {
     end_date?: string; location?: string; category?: string;
     image_url?: string; is_nonprofit: boolean; nonprofit_doc_url?: string;
     submitted_by_name: string; submitted_by_email: string;
+    organization_type?: 'for_profit' | 'verified_nonprofit' | 'community_faith';
     coupon_code?: string;
   }) =>
     api.post('/events/submit', data),
@@ -41,6 +42,8 @@ export const eventApi = {
     api.put(`/admin/events/${id}`, data),
   delete: (id: string) =>
     api.delete(`/admin/events/${id}`),
+  approve: (id: string) => api.post(`/admin/events/${id}/approve`),
+  reject: (id: string) => api.post(`/admin/events/${id}/reject`),
 
   // Admin - Connectors
   getConnectors: () =>

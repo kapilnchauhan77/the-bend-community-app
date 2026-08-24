@@ -384,7 +384,7 @@ export default function EventsPage() {
   // Post Event modal state
   const [showPostForm, setShowPostForm] = useState(false);
   const [postStep, setPostStep] = useState<'tier' | 'details'>('tier');
-  const [postTier, setPostTier] = useState<'forprofit' | 'nonprofit'>('forprofit');
+  const [postTier, setPostTier] = useState<'forprofit' | 'nonprofit' | 'community'>('forprofit');
   const [postForm, setPostForm] = useState({
     title: '', description: '', start_date: '', end_date: '', location: '', category: 'community',
     submitted_by_name: '', submitted_by_email: '',
@@ -691,6 +691,13 @@ export default function EventsPage() {
                       </div>
                       <p className="text-xs text-gray-500">Free for verified nonprofits. Documentation of not-for-profit status is required to qualify.</p>
                     </button>
+                    <button onClick={() => { setPostTier('community'); setPostStep('details'); }} className="w-full text-left border-2 rounded-xl p-5 transition-all hover:border-[hsl(160,25%,24%)] hover:shadow-md cursor-pointer" style={{ borderColor: 'hsl(35, 18%, 84%)' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900">Community or Faith Organization</h3>
+                        <span className="text-xl font-bold font-serif" style={{ color: PRIMARY }}>Free</span>
+                      </div>
+                      <p className="text-xs text-gray-500">Free event placement with a community-issued event code and admin review.</p>
+                    </button>
                   </div>
                 </>
               ) : (
@@ -705,9 +712,10 @@ export default function EventsPage() {
                     </button>
                   </div>
                   <h2 className="text-xl font-bold font-serif text-gray-900 mb-1">Event Details</h2>
-                  <p className="text-sm text-gray-500 mb-1">
-                    {postTier === 'nonprofit' ? 'Not-for-Profit' : 'For-Profit'} — <span className="font-semibold" style={{ color: 'hsl(35, 45%, 42%)' }}>{postTier === 'nonprofit' ? 'Free' : '$19.99'}</span>
+                      <p className="text-sm text-gray-500 mb-1">
+                    {postTier === 'nonprofit' ? 'Not-for-Profit' : postTier === 'community' ? 'Community or Faith' : 'For-Profit'} — <span className="font-semibold" style={{ color: 'hsl(35, 45%, 42%)' }}>{postTier !== 'forprofit' ? 'Free' : '$19.99'}</span>
                   </p>
+                  {postTier === 'community' && <p className="text-xs text-gray-500">Use your community-issued event code for this free placement. Submissions are reviewed by an admin.</p>}
 
                   {postError && (
                     <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">{postError}</div>
@@ -721,11 +729,16 @@ export default function EventsPage() {
                         setPostError('Please upload documentation of your not-for-profit status.');
                         return;
                       }
+                      if (postTier === 'community' && !couponCode.trim()) {
+                        setPostError('A community-issued event code is required for this free event placement.');
+                        return;
+                      }
                       setPostSubmitting(true);
                       try {
                         const res = await eventApi.submit({
                           ...postForm,
                           is_nonprofit: postTier === 'nonprofit',
+                          organization_type: postTier === 'nonprofit' ? 'verified_nonprofit' : postTier === 'community' ? 'community_faith' : 'for_profit',
                           nonprofit_doc_url: nonprofitDocUrl || undefined,
                           coupon_code: couponCode.trim() || undefined,
                         });
@@ -738,8 +751,9 @@ export default function EventsPage() {
                           // toast trigger.
                           window.location.href = '/events?posted=success';
                         }
-                      } catch {
-                        setPostError('Something went wrong. Please try again.');
+                      } catch (err: unknown) {
+                        const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+                        setPostError(typeof detail === 'string' ? detail : 'Something went wrong. Please try again.');
                       } finally {
                         setPostSubmitting(false);
                       }
@@ -817,7 +831,10 @@ export default function EventsPage() {
                               try {
                                 const { data } = await uploadApi.uploadPhoto(file);
                                 setNonprofitDocUrl(data.photo_url);
-                              } catch { /* silent */ }
+                              } catch (err: unknown) {
+                                const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+                                setPostError(typeof detail === 'string' ? detail : 'Document upload failed. Please try again.');
+                              }
                               setDocUploading(false);
                               ev.target.value = '';
                             }} />
@@ -828,7 +845,7 @@ export default function EventsPage() {
 
                     <div className="space-y-1.5">
                       <label className="block text-sm font-medium text-gray-700">
-                        Coupon code <span className="text-gray-400 font-normal">(optional)</span>
+                        Coupon code <span className="text-gray-400 font-normal">{postTier === 'community' ? '(required)' : '(optional)'}</span>
                       </label>
                       <Input
                         value={couponCode}
@@ -849,13 +866,11 @@ export default function EventsPage() {
                         className="flex-1 h-11 rounded-xl font-semibold text-white cursor-pointer"
                         style={{ backgroundColor: 'hsl(35, 45%, 42%)' }}
                       >
-                        {postSubmitting
-                          ? (postTier === 'nonprofit' ? 'Submitting...' : 'Redirecting to Payment...')
-                          : (postTier === 'nonprofit' ? 'Submit (Free)' : 'Pay $19.99 & Submit')}
+                        {postSubmitting ? 'Submitting...' : (postTier === 'forprofit' ? 'Pay $19.99 & Submit' : 'Submit (Free)')}
                       </Button>
                     </div>
                     <p className="text-[10px] text-gray-400 text-center">
-                      You'll be securely redirected to Stripe to complete payment. Event goes live after admin review.
+                      {postTier === 'forprofit' ? 'You will be securely redirected to Stripe if payment is required. Event goes live after admin review.' : 'Your free event will be reviewed by a community admin before it goes live.'}
                     </p>
                   </form>
                 </>

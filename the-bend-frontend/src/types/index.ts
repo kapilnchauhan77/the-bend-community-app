@@ -206,6 +206,13 @@ export interface CommunityEvent {
   is_featured: boolean;
   status: string;
   created_at: string;
+  submitted_by_name?: string;
+  submitted_by_email?: string;
+  is_nonprofit?: boolean;
+  organization_type?: 'for_profit' | 'verified_nonprofit' | 'community_faith' | string;
+  nonprofit_doc_url?: string | null;
+  paid?: boolean;
+  coupon_code_id?: string | null;
 }
 
 export interface EventConnector {

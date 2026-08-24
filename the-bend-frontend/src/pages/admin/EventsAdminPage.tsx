@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { eventApi } from '@/services/eventApi';
+import { resolveAssetUrl } from '@/lib/constants';
 import type { CommunityEvent, EventCategory } from '@/types';
 import {
   Table,
@@ -61,7 +62,6 @@ function categoryBadge(cat: EventCategory) {
 }
 
 function statusBadge(status: string) {
-  const now = new Date();
   switch (status) {
     case 'cancelled':
       return <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">Cancelled</Badge>;
@@ -108,6 +108,7 @@ const EMPTY_FORM: EventFormData = {
 export default function EventsAdminPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | EventCategory>('all');
   const [events, setEvents] = useState<CommunityEvent[]>([]);
+  const [pendingEvents, setPendingEvents] = useState<CommunityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -135,9 +136,28 @@ export default function EventsAdminPage() {
     }
   }, [categoryFilter]);
 
+  const fetchPendingEvents = useCallback(async () => {
+    try {
+      const res = await eventApi.adminList({ status: 'pending', limit: '50' });
+      setPendingEvents(res.data?.items ?? res.data?.events ?? res.data ?? []);
+    } catch {
+      setPendingEvents([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+    fetchPendingEvents();
+  }, [fetchEvents, fetchPendingEvents]);
+
+  const reviewEvent = async (event: CommunityEvent, action: 'approve' | 'reject') => {
+    try {
+      await eventApi[action](event.id);
+      await Promise.all([fetchPendingEvents(), fetchEvents()]);
+    } catch {
+      setError(`Failed to ${action} event. Please try again.`);
+    }
+  };
 
   const openCreate = () => {
     setEditTarget(null);
@@ -230,6 +250,34 @@ export default function EventsAdminPage() {
             Create Event
           </Button>
         </div>
+
+        {pendingEvents.length > 0 && (
+          <section aria-label="Pending event reviews" className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Pending event reviews</h2>
+              <p className="text-sm text-muted-foreground">Review community submissions before they go live.</p>
+            </div>
+            <div className="grid gap-3">
+              {pendingEvents.map((event) => (
+                <article key={event.id} className="rounded-lg border bg-white p-4 min-w-0">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <h3 className="font-semibold break-words">{event.title}</h3>
+                      <p className="text-sm text-muted-foreground">{formatDate(event.start_date)} · {event.location || 'No location'}</p>
+                      <p className="text-sm break-words">Submitted by: <span className="font-medium">{event.submitted_by_name || 'Unknown'}</span> · {event.submitted_by_email || 'No email'}</p>
+                      <p className="text-sm">Organization type: <span className="font-medium">{event.organization_type || (event.is_nonprofit ? 'verified_nonprofit' : 'for_profit')}</span></p>
+                      {event.nonprofit_doc_url && <a className="text-sm text-blue-700 underline break-all" href={resolveAssetUrl(event.nonprofit_doc_url)} target="_blank" rel="noopener noreferrer">View nonprofit document</a>}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button size="sm" onClick={() => reviewEvent(event, 'approve')} style={{ backgroundColor: PRIMARY }} className="text-white">Approve</Button>
+                      <Button size="sm" variant="outline" onClick={() => reviewEvent(event, 'reject')} className="text-red-600 border-red-200">Reject</Button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Category filter tabs */}
         <Tabs value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as typeof categoryFilter)}>
