@@ -89,6 +89,7 @@ class EventStatus(str, enum.Enum):
     PENDING = "pending"
     CANCELLED = "cancelled"
     PAST = "past"
+    REJECTED = "rejected"
 
 
 class ConnectorType(str, enum.Enum):

@@ -30,20 +30,30 @@ class EventService:
         })
 
     async def update_event(self, event_id: UUID, data: EventUpdate):
-        event = await self.event_repo.get_by_id(event_id)
+        event = await self._get_scoped_event(event_id)
         if not event:
             raise NotFoundError("Event")
         update = data.model_dump(exclude_unset=True)
         return await self.event_repo.update(event_id, update)
 
     async def delete_event(self, event_id: UUID):
-        event = await self.event_repo.get_by_id(event_id)
+        event = await self._get_scoped_event(event_id)
         if not event:
             raise NotFoundError("Event")
-        return await self.event_repo.delete(event_id)
+        await self.db.delete(event)
+        await self.db.flush()
+        return True
+
+    async def _get_scoped_event(self, event_id: UUID):
+        from sqlalchemy import select
+        from app.models.event import Event
+        query = select(Event).where(Event.id == event_id)
+        if self.tenant_id is not None:
+            query = query.where(Event.tenant_id == self.tenant_id)
+        return (await self.db.execute(query)).scalar_one_or_none()
 
     async def get_event(self, event_id: UUID):
-        event = await self.event_repo.get_by_id(event_id)
+        event = await self._get_scoped_event(event_id)
         if not event:
             raise NotFoundError("Event")
         return event
@@ -68,6 +78,27 @@ class EventService:
         if self.tenant_id:
             filters.append(Event.tenant_id == self.tenant_id)
         return await self.event_repo.get_all(filters=filters, limit=limit, cursor=cursor)
+
+    async def list_admin_events(self, status=None, limit=50):
+        from sqlalchemy import select
+        from app.models.event import Event
+        query = select(Event)
+        if self.tenant_id is not None:
+            query = query.where(Event.tenant_id == self.tenant_id)
+        if status:
+            query = query.where(Event.status == status)
+        query = query.order_by(Event.created_at.desc()).limit(limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def set_status(self, event_id: UUID, status):
+        event = await self._get_scoped_event(event_id)
+        if not event:
+            raise NotFoundError("Event")
+        event.status = status
+        await self.db.flush()
+        await self.db.refresh(event)
+        return event
 
     # Connectors
     async def create_connector(self, data: ConnectorCreate):

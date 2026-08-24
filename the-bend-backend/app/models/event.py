@@ -31,6 +31,10 @@ class Event(Base):
     nonprofit_doc_url: Mapped[str | None] = mapped_column(String(500))
     stripe_session_id: Mapped[str | None] = mapped_column(String(255))
     paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    organization_type: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    coupon_code_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("discount_codes.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

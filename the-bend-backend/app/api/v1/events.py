@@ -32,11 +32,11 @@ class EventSubmitRequest(BaseModel):
     category: str = "community"
     image_url: str | None = None
     is_nonprofit: bool = False
+    organization_type: str | None = None
     nonprofit_doc_url: str | None = None
     submitted_by_name: str
     submitted_by_email: str
     coupon_code: str | None = None
-
 
 def get_service(db: AsyncSession = Depends(get_db)):
     return EventService(db)
@@ -58,6 +58,20 @@ def _serialize_event(e):
         "status": e.status.value if hasattr(e.status, "value") else e.status,
         "created_at": str(e.created_at),
     }
+
+
+def _serialize_admin_event(e):
+    result = _serialize_event(e)
+    result.update({
+        "submitted_by_name": e.submitted_by_name,
+        "submitted_by_email": e.submitted_by_email,
+        "is_nonprofit": e.is_nonprofit,
+        "organization_type": e.organization_type,
+        "nonprofit_doc_url": e.nonprofit_doc_url,
+        "paid": e.paid,
+        "coupon_code_id": str(e.coupon_code_id) if e.coupon_code_id else None,
+    })
+    return result
 
 
 @router.get("")
@@ -106,13 +120,25 @@ async def submit_event(
     tenant: Tenant | None = Depends(get_current_tenant),
 ):
     """Submit an event and create a Stripe checkout session for payment."""
-    # Validate nonprofit doc if claiming nonprofit
-    if data.is_nonprofit and not data.nonprofit_doc_url:
-        from fastapi import HTTPException
+    from fastapi import HTTPException
+    organization_type = data.organization_type
+    if organization_type is None:
+        organization_type = "verified_nonprofit" if data.is_nonprofit else "for_profit"
+    if organization_type not in {"for_profit", "verified_nonprofit", "community_faith"}:
+        raise HTTPException(status_code=400, detail="Invalid organization type")
+    if organization_type == "verified_nonprofit" and not data.nonprofit_doc_url:
         raise HTTPException(status_code=400, detail="Not-for-profit documentation is required for the nonprofit rate")
+    if organization_type == "community_faith" and data.nonprofit_doc_url:
+        # Documentation is not part of this submission path and must not leak
+        # into the review record for community/faith organizations.
+        nonprofit_doc_url = None
+    else:
+        nonprofit_doc_url = data.nonprofit_doc_url
 
-    price_cents = EVENT_PRICE_NONPROFIT if data.is_nonprofit else EVENT_PRICE_FORPROFIT
-    price_label = "Not-for-Profit" if data.is_nonprofit else "For-Profit"
+    price_cents = EVENT_PRICE_NONPROFIT if organization_type == "verified_nonprofit" else EVENT_PRICE_FORPROFIT
+    price_label = "Not-for-Profit" if organization_type == "verified_nonprofit" else (
+        "Community/Faith" if organization_type == "community_faith" else "For-Profit"
+    )
 
     # Apply a platform-issued event coupon (admin-minted, coupon_type='event').
     # Reduces price_cents in cents; usage is bumped right after creation when
@@ -133,6 +159,12 @@ async def submit_event(
         else:
             price_cents = max(0, price_cents - applied_coupon.discount_value)
 
+    if organization_type == "community_faith":
+        if applied_coupon is None:
+            raise HTTPException(status_code=400, detail="A valid community/faith event coupon is required")
+        if price_cents != 0:
+            raise HTTPException(status_code=400, detail="Community/faith event coupon must provide a 100% discount")
+
     # Parse category
     try:
         cat = EventCategory(data.category)
@@ -150,18 +182,20 @@ async def submit_event(
         category=cat,
         image_url=data.image_url,
         source="submission",
-        is_nonprofit=data.is_nonprofit,
-        nonprofit_doc_url=data.nonprofit_doc_url,
+        is_nonprofit=organization_type == "verified_nonprofit",
+        organization_type=organization_type,
+        nonprofit_doc_url=nonprofit_doc_url,
         submitted_by_name=data.submitted_by_name,
         submitted_by_email=data.submitted_by_email,
         status=EventStatus.PENDING if hasattr(EventStatus, 'PENDING') else EventStatus.ACTIVE,
         paid=False,
+        coupon_code_id=applied_coupon.id if applied_coupon else None,
         tenant_id=tenant.id if tenant else None,
     )
     db.add(event)
     await db.flush()
 
-    # Free path (nonprofits): skip Stripe entirely. Mark the row as paid=True
+    # Free path: skip Stripe entirely. Mark the row as paid=True
     # so the existing community-admin review queue picks it up like any other
     # paid submission — the only difference is no money changed hands.
     if price_cents == 0:

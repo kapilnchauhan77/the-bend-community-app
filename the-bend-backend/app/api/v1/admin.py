@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.core.permissions import Permission
 from app.models.user import User
-from app.models.enums import UserRole
+from app.models.enums import UserRole, EventStatus
 from app.services.admin_service import AdminService
 from app.schemas.admin import RejectRequest, SuspendRequest, AdminListingDeleteRequest
 from app.services.event_service import EventService
@@ -177,16 +177,24 @@ def get_event_service(db: AsyncSession = Depends(get_db)):
 
 @router.get("/events")
 async def admin_list_events(
+    status: str | None = Query(None),
     cursor: str | None = Query(None),
     limit: int = Query(20, le=50),
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
     event_service.tenant_id = _.tenant_id
-    result = await event_service.list_all_events(cursor, limit)
-    from app.api.v1.events import _serialize_event
-    items = [_serialize_event(e) for e in result.items]
-    return {"items": items, "next_cursor": result.next_cursor, "has_more": result.has_more}
+    from app.models.enums import EventStatus
+    if status is not None:
+        try:
+            status_value = EventStatus(status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid event status")
+    else:
+        status_value = EventStatus.PENDING
+    events = await event_service.list_admin_events(status_value, limit)
+    from app.api.v1.events import _serialize_admin_event
+    return {"items": [_serialize_admin_event(e) for e in events], "next_cursor": None, "has_more": False}
 
 
 @router.post("/events")
@@ -207,6 +215,7 @@ async def admin_update_event(
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
+    event_service.tenant_id = _.tenant_id
     event = await event_service.update_event(event_id, data)
     return {"id": str(event.id), "status": "updated"}
 
@@ -217,8 +226,23 @@ async def admin_delete_event(
     event_service: EventService = Depends(get_event_service),
     _: User = Depends(Permission.require_community_admin()),
 ):
+    event_service.tenant_id = _.tenant_id
     await event_service.delete_event(event_id)
     return {"status": "deleted"}
+
+
+@router.post("/events/{event_id}/approve")
+async def approve_event(event_id: UUID, event_service: EventService = Depends(get_event_service), _: User = Depends(Permission.require_community_admin())):
+    event_service.tenant_id = _.tenant_id
+    event = await event_service.set_status(event_id, EventStatus.ACTIVE)
+    return {"id": str(event.id), "status": event.status.value}
+
+
+@router.post("/events/{event_id}/reject")
+async def reject_event(event_id: UUID, event_service: EventService = Depends(get_event_service), _: User = Depends(Permission.require_community_admin())):
+    event_service.tenant_id = _.tenant_id
+    event = await event_service.set_status(event_id, EventStatus.REJECTED)
+    return {"id": str(event.id), "status": event.status.value}
 
 
 # --- Connector Admin Routes ---
