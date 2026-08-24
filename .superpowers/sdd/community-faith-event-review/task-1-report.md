@@ -2,6 +2,8 @@
 
 Status: `DONE_WITH_CONCERNS`
 
+Correction pass commit: `c91c8c03e26168eab1e5489d1cf96edcab229793`
+
 ## RED
 
 Command: `pytest -q tests/test_community_faith_event_review.py`
@@ -12,20 +14,24 @@ Expected RED output: `2 failed, 1 passed`, with missing `EventSubmitRequest.orga
 
 Command: `pytest -q tests/test_community_faith_event_review.py`
 
-Output: `4 passed, 1 warning`.
+Output: `12 passed`.
+
+Correction RED command: `.venv/bin/pytest -q tests/test_community_faith_event_review.py`
+
+Correction RED output: `2 failed, 4 passed`. The failures caught the missing server-default handling in the enum migration and the pending fallback.
 
 ## Full backend suite
 
 Command: `pytest -q`
 
-Output: `366 passed, 6 failed, 12 warnings`. The six failures are pre-existing connector image tests blocked by missing `feedparser` and `icalendar` packages. No event-review test failed.
+Output: `381 passed, 12 warnings`.
 
 ## Checks
 
 - `python -m compileall -q app alembic/versions/20260824_community_faith_event_review.py`: passed.
 - `alembic heads`: passed, `20260824_community_faith_event_review (head)`.
 - `git diff --check`: passed.
-- Alembic offline upgrade/downgrade generation was attempted without Docker. The full-chain offline run is blocked by the pre-existing `westmoreland_sponsor_packages` migration calling a database result during SQL generation. The new migration itself has executable upgrade/downgrade operations and Python compilation passes.
+- Alembic offline upgrade/downgrade generation was attempted without Docker. The full-chain offline run is blocked by the pre-existing `westmoreland_sponsor_packages` migration calling a database result during SQL generation. The new migration now drops and reapplies `events.status`'s server default around enum replacement, and migration-focused assertions pass.
 
 ## Changed files and rationale
 
@@ -40,9 +46,10 @@ Output: `366 passed, 6 failed, 12 warnings`. The six failures are pre-existing c
 ## Commit
 
 Implementation commit: `bf172bb40eea7ec366eebee98a847e7ef01d2634`
+Correction commit: `c91c8c03e26168eab1e5489d1cf96edcab229793`
 
 ## Self-review and remaining concerns
 
 The public serializer does not expose submitter identity, nonprofit document URLs, or coupon IDs. Community/faith submissions require a redeemable event coupon that reduces the $19.99 path to exactly zero. Coupon lookup and usage increment each occur once. Admin event mutations are tenant filtered.
 
-Remaining concerns are limited to the unrelated missing parser dependencies and the existing migration's offline SQL-generation defect noted above.
+The prepared worktree venv includes the parser dependencies and the full suite passes. The remaining concern is the existing migration's offline SQL-generation defect noted above, outside this task's owned migration.
