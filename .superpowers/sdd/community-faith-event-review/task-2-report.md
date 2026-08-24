@@ -2,6 +2,8 @@
 
 Status: DONE_WITH_CONCERNS
 
+Correction pass status: DONE_WITH_CONCERNS. Free success copy, tier state isolation, review failures, status badges, pending-load failures, safe document links, exact payloads, and desktop/mobile overflow regressions were corrected.
+
 ## RED
 
 Command: `npx playwright test e2e/community-faith-event-review.spec.ts --reporter=line`
@@ -38,3 +40,12 @@ Result: 9 passed. Coverage includes all three tiers, exact payloads, coupon and 
 ## Self-review and concerns
 
 The public serializer remains unchanged and private fields are only consumed by the admin page. Relative nonprofit document URLs use `resolveAssetUrl` and external links use `noopener noreferrer`. Full-suite concern is limited to the unrelated flaky/timeout Bender fixture test. The build still reports the existing analytics environment and bundle-size warnings.
+
+## Correction evidence
+
+- Correction RED: 5 of 13 correction tests failed before implementation. Failures covered free success copy, stale document payload leakage, review-action error visibility, pending/rejected labels, and unsafe document links.
+- Correction GREEN focused Playwright: 17 passed.
+- Full frontend Playwright: 90 passed, 1 unrelated Bender fixture failure during the parallel run. Focused retry of `bender-link-previews.spec.ts -g "shared fixture rows render exactly the accepted URLs"`: 1 passed.
+- Build, `npx tsc --noEmit`, scoped ESLint, and `git diff --check`: passed.
+- Correction production/tests commit SHA: `9e53a166b5df175e18318e376622caebc8b21d99`.
+- The report commit SHA is intentionally reported in the final handoff after the report commit, avoiding a self-referential SHA in this file.
