@@ -7,6 +7,9 @@ import pytest
 from app.api.v1.events import EventSubmitRequest, _serialize_admin_event, _serialize_event
 from app.api.v1.events import submit_event
 from app.api.v1.admin import admin_list_events, approve_event, reject_event, admin_update_event, admin_delete_event
+from app.services.event_service import EventService
+from app.services.discount_code_service import DiscountCodeService
+from app.api.deps import get_db
 from app.models.enums import EventStatus
 
 
@@ -292,3 +295,138 @@ def test_migration_upgrade_and_downgrade_keep_default_around_enum_replacement():
     source = (Path(__file__).parents[1] / "alembic" / "versions" / "20260824_community_faith_event_review.py").read_text()
     assert source.index("DROP DEFAULT") < source.index("ALTER TYPE event_status ADD VALUE")
     assert source.index("ALTER TABLE events ALTER COLUMN status TYPE") < source.rindex("SET DEFAULT 'ACTIVE'::event_status")
+
+
+class _ScalarResult:
+    def __init__(self, row=None, rows=None):
+        self.row = row
+        self.rows = rows or ([] if row is None else [row])
+    def scalar_one_or_none(self):
+        return self.row
+    def scalars(self):
+        return self
+    def all(self):
+        return self.rows
+
+
+class _QuerySession:
+    def __init__(self, row=None, rows=None):
+        self.row = row
+        self.rows = rows
+        self.queries = []
+        self.deleted = []
+    async def execute(self, query):
+        self.queries.append(query)
+        return _ScalarResult(self.row, self.rows)
+    async def flush(self):
+        return None
+    async def refresh(self, _row):
+        return None
+    async def delete(self, row):
+        self.deleted.append(row)
+
+
+@pytest.mark.asyncio
+async def test_event_service_admin_query_has_tenant_status_newest_and_limit():
+    tenant_id = uuid4()
+    session = _QuerySession(rows=[])
+    events = EventService(session, tenant_id=tenant_id)
+    await events.list_admin_events(EventStatus.PENDING, 50)
+    sql = str(session.queries[0])
+    assert "events.tenant_id" in sql
+    assert "events.status" in sql
+    assert "events.created_at DESC" in sql
+    assert "LIMIT :param_1" in sql
+
+
+@pytest.mark.asyncio
+async def test_event_service_scoped_mutations_query_tenant_and_deny_other_tenant():
+    foreign = _admin_event(tenant_id=uuid4())
+    session = _QuerySession(row=None)
+    service = EventService(session, tenant_id=uuid4())
+    with pytest.raises(Exception) as error:
+        await service.set_status(foreign.id, EventStatus.ACTIVE)
+    assert error.value.status_code == 404
+    assert "events.tenant_id" in str(session.queries[-1])
+    with pytest.raises(Exception):
+        await service.update_event(foreign.id, SimpleNamespace(model_dump=lambda **_: {"title": "x"}))
+    with pytest.raises(Exception):
+        await service.delete_event(foreign.id)
+    assert session.deleted == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "row",
+    [
+        SimpleNamespace(is_active=False, expiry_date=None, max_uses=None, usage_count=0),
+        SimpleNamespace(is_active=True, expiry_date=__import__("datetime").datetime.utcnow(), max_uses=None, usage_count=0),
+        SimpleNamespace(is_active=True, expiry_date=None, max_uses=1, usage_count=1),
+    ],
+)
+async def test_mark_used_rejects_inactive_expired_and_exhausted_rows_without_increment(row):
+    row.id = uuid4()
+    row.usage_count = row.usage_count
+    session = _QuerySession(row=row)
+    service = DiscountCodeService(session)
+    with pytest.raises(Exception) as error:
+        await service.mark_used(row.id)
+    assert error.value.status_code == 410
+    assert row.usage_count in (0, 1)
+
+
+@pytest.mark.asyncio
+async def test_mark_used_missing_row_is_not_found():
+    session = _QuerySession(row=None)
+    with pytest.raises(Exception) as error:
+        await DiscountCodeService(session).mark_used(uuid4())
+    assert error.value.status_code == 404
+
+
+def test_migration_operations_are_invoked_and_fk_is_set_null(monkeypatch):
+    import importlib.util
+    migration_path = Path(__file__).parents[1] / "alembic" / "versions" / "20260824_community_faith_event_review.py"
+    spec = importlib.util.spec_from_file_location("event_review_migration", migration_path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    calls = []
+    class Op:
+        def __getattr__(self, name):
+            def record(*args, **kwargs): calls.append((name, args, kwargs))
+            return record
+    monkeypatch.setattr(migration, "op", Op())
+    migration.upgrade()
+    assert migration.revision == "20260824_event_review"
+    assert any(c[0] == "create_foreign_key" and c[2].get("ondelete") == "SET NULL" for c in calls)
+    assert any(c[0] == "add_column" and c[1][1].name == "organization_type" for c in calls)
+    assert any(c[0] == "add_column" and c[1][1].name == "coupon_code_id" for c in calls)
+    calls.clear()
+    migration.downgrade()
+    sql = [c[1][0] for c in calls if c[0] == "execute"]
+    assert any("DROP DEFAULT" in statement for statement in sql)
+    assert any("ALTER COLUMN status TYPE" in statement for statement in sql)
+
+
+@pytest.mark.asyncio
+async def test_get_db_rolls_back_when_submission_raises():
+    class Session:
+        committed = rolled_back = False
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_): return False
+        async def commit(self): self.committed = True
+        async def rollback(self): self.rolled_back = True
+    session = Session()
+    class Factory:
+        def __call__(self): return session
+    import app.api.deps as deps
+    old = deps.async_session
+    deps.async_session = Factory()
+    try:
+        generator = get_db()
+        await generator.__anext__()
+        with pytest.raises(RuntimeError):
+            await generator.athrow(RuntimeError("submission failed"))
+        assert session.rolled_back is True
+        assert session.committed is False
+    finally:
+        deps.async_session = old
