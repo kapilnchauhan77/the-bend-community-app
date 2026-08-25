@@ -56,7 +56,7 @@ test('submitted event cards open an internal details dialog', async ({ page }) =
   await expect(dialog.getByText(submittedEvent.location)).toBeVisible();
   await expect(dialog.getByText('Sat, Oct 17 · 10:00 AM – 3:00 PM')).toBeVisible();
 
-  await dialog.getByRole('button', { name: 'Close' }).click();
+  await dialog.getByRole('button', { name: 'Close' }).first().click();
   await expect(page.getByRole('link', { name: 'Details →', exact: true })).toHaveAttribute('href', externalEvent.source_url);
 });
 
