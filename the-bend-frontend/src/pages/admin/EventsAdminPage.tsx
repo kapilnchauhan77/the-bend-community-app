@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { eventApi } from '@/services/eventApi';
+import { uploadApi } from '@/services/uploadApi';
 import { resolveAssetUrl } from '@/lib/constants';
 import type { CommunityEvent, EventCategory } from '@/types';
 import {
@@ -34,7 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Loader2, CalendarDays } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, CalendarDays, Upload } from 'lucide-react';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -87,6 +88,17 @@ function safeDocumentUrl(url?: string | null): string | undefined {
   }
 }
 
+function safePhotoUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('/uploads/')) return resolveAssetUrl(url);
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-AU', {
     day: 'numeric', month: 'short', year: 'numeric',
@@ -108,6 +120,8 @@ interface EventFormData {
   image_url: string;
   is_featured: boolean;
 }
+
+type ImagePreviewStatus = 'empty' | 'loading' | 'valid' | 'invalid';
 
 const EMPTY_FORM: EventFormData = {
   title: '',
@@ -134,6 +148,9 @@ export default function EventsAdminPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CommunityEvent | null>(null);
   const [form, setForm] = useState<EventFormData>(EMPTY_FORM);
+  const [imagePreviewStatus, setImagePreviewStatus] = useState<ImagePreviewStatus>('empty');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<CommunityEvent | null>(null);
@@ -182,6 +199,8 @@ export default function EventsAdminPage() {
   const openCreate = () => {
     setEditTarget(null);
     setForm(EMPTY_FORM);
+    setImagePreviewStatus('empty');
+    setImageError('');
     setError('');
     setDialogOpen(true);
   };
@@ -198,13 +217,38 @@ export default function EventsAdminPage() {
       image_url: event.image_url ?? '',
       is_featured: event.is_featured,
     });
+    setImagePreviewStatus(event.image_url ? (safePhotoUrl(event.image_url) ? 'loading' : 'invalid') : 'empty');
+    setImageError('');
     setError('');
     setDialogOpen(true);
+  };
+
+  const handlePhotoUpload = async (file: File) => {
+    setImageUploading(true);
+    setImageError('');
+    try {
+      const { data } = await uploadApi.uploadPhoto(file);
+      setForm((current) => ({ ...current, image_url: data.photo_url }));
+      setImagePreviewStatus('loading');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      setImageError(typeof detail === 'string' ? detail : 'Photo upload failed. Please try again.');
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   const handleSave = async () => {
     if (!form.title.trim()) { setError('Title is required.'); return; }
     if (!form.start_date) { setError('Start date is required.'); return; }
+    if (form.image_url.trim() && imagePreviewStatus === 'invalid') {
+      setError('Upload the photo or use a direct image URL before saving.');
+      return;
+    }
+    if (form.image_url.trim() && imagePreviewStatus === 'loading') {
+      setError('Wait for the photo preview to finish loading before saving.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -219,7 +263,10 @@ export default function EventsAdminPage() {
         is_featured: form.is_featured,
       };
       if (editTarget) {
-        await eventApi.update(editTarget.id, payload);
+        await eventApi.update(editTarget.id, {
+          ...payload,
+          image_url: form.image_url.trim() || null,
+        });
       } else {
         await eventApi.create(payload);
       }
@@ -467,14 +514,83 @@ export default function EventsAdminPage() {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="ev-image">Image URL</Label>
+            <div className="space-y-2">
+              <Label htmlFor="ev-image">Photo URL</Label>
               <Input
                 id="ev-image"
                 value={form.image_url}
-                onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
+                onChange={(e) => {
+                  const imageUrl = e.target.value;
+                  setForm((current) => ({ ...current, image_url: imageUrl }));
+                  setImagePreviewStatus(imageUrl.trim() ? (safePhotoUrl(imageUrl.trim()) ? 'loading' : 'invalid') : 'empty');
+                  setImageError('');
+                  setError('');
+                }}
                 placeholder="https://..."
               />
+              <p className="text-xs text-muted-foreground">
+                Use a direct JPG, PNG, or WebP image URL. A Facebook page link is not a photo URL.
+              </p>
+
+              {form.image_url.trim() && imagePreviewStatus !== 'invalid' && (
+                <div className="overflow-hidden rounded-lg border bg-gray-50">
+                  <img
+                    key={form.image_url.trim()}
+                    src={safePhotoUrl(form.image_url.trim())}
+                    alt="Photo preview"
+                    onLoad={() => setImagePreviewStatus('valid')}
+                    onError={() => setImagePreviewStatus('invalid')}
+                    className="h-48 w-full object-contain bg-white"
+                  />
+                </div>
+              )}
+
+              {imagePreviewStatus === 'invalid' && (
+                <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                  This link is a webpage, not a displayable photo.
+                </p>
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={imageUploading}
+                  onClick={() => document.getElementById('ev-photo-upload')?.click()}
+                >
+                  {imageUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {imageUploading ? 'Uploading...' : 'Upload photo'}
+                </Button>
+                {form.image_url && (
+                  <button
+                    type="button"
+                    className="text-xs text-red-600 hover:underline"
+                    onClick={() => {
+                      setForm((current) => ({ ...current, image_url: '' }));
+                      setImagePreviewStatus('empty');
+                      setImageError('');
+                      setError('');
+                    }}
+                  >
+                    Remove photo
+                  </button>
+                )}
+                <input
+                  id="ev-photo-upload"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  disabled={imageUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handlePhotoUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+              {imageError && <p role="alert" className="text-xs text-red-600">{imageError}</p>}
             </div>
 
             <div className="flex items-center gap-2">

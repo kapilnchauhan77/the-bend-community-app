@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ShareButton } from '@/components/shared/ShareButton';
 import { EventThumb } from '@/components/shared/EventThumb';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -100,16 +107,20 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-function EventCard({ event }: { event: CommunityEvent }) {
+function EventCard({ event, onShowDetails }: { event: CommunityEvent; onShowDetails: (event: CommunityEvent) => void }) {
   const cat = getCategoryConfig(event.category);
-  const openSource = () => {
-    if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
+  const openDetails = () => {
+    if (event.source_url) {
+      window.open(event.source_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    onShowDetails(event);
   };
   return (
     <Card
       id={`event-${event.id}`}
-      onClick={event.source_url ? openSource : undefined}
-      className={`border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group ${event.source_url ? 'cursor-pointer' : ''}`}
+      onClick={openDetails}
+      className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group cursor-pointer"
     >
       <div className="relative">
         <EventThumb event={event} className="h-40 rounded-t-2xl" />
@@ -176,6 +187,19 @@ function EventCard({ event }: { event: CommunityEvent }) {
                 Details →
               </a>
             )}
+            {!event.source_url && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowDetails(event);
+                }}
+                className="text-[10px] font-medium hover:underline cursor-pointer"
+                style={{ color: PRIMARY }}
+              >
+                Details →
+              </button>
+            )}
           </div>
         </div>
       </CardContent>
@@ -185,15 +209,27 @@ function EventCard({ event }: { event: CommunityEvent }) {
 
 // ─── Mini Event Row (used in calendar day panel) ──────────────────────────────
 
-function MiniEventRow({ event }: { event: CommunityEvent }) {
+function MiniEventRow({ event, onShowDetails }: { event: CommunityEvent; onShowDetails: (event: CommunityEvent) => void }) {
   const cat = getCategoryConfig(event.category);
-  const openSource = () => {
-    if (event.source_url) window.open(event.source_url, '_blank', 'noopener,noreferrer');
+  const openDetails = () => {
+    if (event.source_url) {
+      window.open(event.source_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    onShowDetails(event);
   };
   return (
     <div
-      onClick={event.source_url ? openSource : undefined}
-      className={`flex items-start gap-3 py-3 border-b border-gray-100 last:border-0 ${event.source_url ? 'cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors' : ''}`}
+      onClick={openDetails}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openDetails();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
     >
       <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${cat.dot}`} />
       <div className="min-w-0 flex-1">
@@ -203,11 +239,9 @@ function MiniEventRow({ event }: { event: CommunityEvent }) {
           {event.location && <span className="text-gray-400"> · {event.location}</span>}
         </p>
       </div>
-      {event.source_url && (
-        <span className="text-[10px] font-medium flex-shrink-0 mt-1" style={{ color: PRIMARY }}>
-          →
-        </span>
-      )}
+      <span className="text-[10px] font-medium flex-shrink-0 mt-1" style={{ color: PRIMARY }}>
+        →
+      </span>
     </div>
   );
 }
@@ -252,7 +286,7 @@ function DayCellCarousel({ events, phase }: { events: CommunityEvent[]; phase: n
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
 
-function CalendarView({ events }: { events: CommunityEvent[] }) {
+function CalendarView({ events, onShowDetails }: { events: CommunityEvent[]; onShowDetails: (event: CommunityEvent) => void }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -360,12 +394,71 @@ function CalendarView({ events }: { events: CommunityEvent[] }) {
             <p className="text-sm text-gray-400 text-center py-6">No events on this day.</p>
           ) : (
             <div>
-              {selectedDayEvents.map(e => <MiniEventRow key={e.id} event={e} />)}
+              {selectedDayEvents.map(e => <MiniEventRow key={e.id} event={e} onShowDetails={onShowDetails} />)}
             </div>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function EventDetailsDialog({ event, onClose }: { event: CommunityEvent | null; onClose: () => void }) {
+  if (!event) return null;
+  const cat = getCategoryConfig(event.category);
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+        <EventThumb
+          event={event}
+          className="h-56 sm:h-72 rounded-t-lg"
+          imageClassName="object-contain bg-white"
+        />
+        <div className="p-6 space-y-4">
+          <DialogHeader className="pr-6">
+            <div className="flex items-center gap-2">
+              <Badge className={`text-xs rounded-full border-0 font-medium ${cat.color}`}>
+                {cat.label}
+              </Badge>
+            </div>
+            <DialogTitle className="font-serif text-2xl leading-tight text-gray-900">
+              {event.title}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Event details for {event.title}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 text-sm">
+            <p className="font-medium" style={{ color: PRIMARY }}>
+              {formatEventDate(event.start_date, event.end_date)}
+            </p>
+            {event.location && (
+              <p className="flex items-start gap-2 text-gray-600">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0" style={{ color: PRIMARY }} />
+                <span>{event.location}</span>
+              </p>
+            )}
+          </div>
+
+          {event.description && (
+            <p className="text-sm leading-6 text-gray-700 whitespace-pre-wrap break-words">
+              {event.description}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+            <ShareButton
+              url={`/events#event-${event.id}`}
+              title={event.title}
+              description={`${event.title} - ${formatEventDate(event.start_date, event.end_date)}${event.location ? ' at ' + event.location : ''}`}
+            />
+            <Button type="button" variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -380,6 +473,7 @@ export default function EventsPage() {
   const [listMode, setListMode] = useState<'upcoming' | 'recent' | 'all'>('upcoming');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedEvent, setSelectedEvent] = useState<CommunityEvent | null>(null);
 
   // Post Event modal state
   const [showPostForm, setShowPostForm] = useState(false);
@@ -630,15 +724,17 @@ export default function EventsPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {displayedEvents.map(event => (
-                  <EventCard key={event.id} event={event} />
+                  <EventCard key={event.id} event={event} onShowDetails={setSelectedEvent} />
                 ))}
               </div>
             )
           ) : (
-            <CalendarView events={events} />
+            <CalendarView events={events} onShowDetails={setSelectedEvent} />
           )}
         </div>
       </section>
+
+      <EventDetailsDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} />
 
       {/* Success toast */}
       {postSuccess && (

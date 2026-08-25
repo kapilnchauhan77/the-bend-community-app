@@ -30,6 +30,7 @@ function hueFromString(s: string): number {
 interface EventThumbProps {
   event: CommunityEvent;
   className?: string;
+  imageClassName?: string;
 }
 
 /**
@@ -38,7 +39,7 @@ interface EventThumbProps {
  * generated cover: a soft tile tinted by the event title, the category icon,
  * and a small "the bend" mark.
  */
-export function EventThumb({ event, className = '' }: EventThumbProps) {
+export function EventThumb({ event, className = '', imageClassName = 'object-cover' }: EventThumbProps) {
   const [broken, setBroken] = useState(false);
   const src = resolveAssetUrl(event.image_url);
 
@@ -49,7 +50,7 @@ export function EventThumb({ event, className = '' }: EventThumbProps) {
           src={src}
           alt={event.title}
           onError={() => setBroken(true)}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className={`w-full h-full ${imageClassName} group-hover:scale-105 transition-transform duration-300`}
         />
       </div>
     );
