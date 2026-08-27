@@ -131,6 +131,19 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('mobile home decorative square remains axis-aligned', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const transform = await page.locator('.home-mobile-menu__gold-square').evaluate((square) => (
+    new DOMMatrix(getComputedStyle(square).transform)
+  ));
+
+  expect(Math.abs(transform.b)).toBeLessThan(0.000001);
+  expect(Math.abs(transform.c)).toBeLessThan(0.000001);
+});
+
 test('desktop home shows the compact upcoming-events sidebar exactly once', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await stubHomeApi(page);
