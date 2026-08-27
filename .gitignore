@@ -36,6 +36,7 @@ Thumbs.db
 
 # Uploads (local dev only)
 uploads/
+releases/*.apk
 the-bend-backend/.playwright-cli
 
 # Local browser-test artifacts

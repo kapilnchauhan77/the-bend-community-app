@@ -31,6 +31,8 @@ services:
     restart: unless-stopped
     environment:
       PORT: 80
+    volumes:
+      - ./releases:/usr/share/nginx/html/downloads:ro
     networks: [bend]
 
   backend:
