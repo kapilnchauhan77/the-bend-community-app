@@ -1,5 +1,22 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningEnvironment = [
+    storeFile: System.getenv('BEND_ANDROID_KEYSTORE_PATH'),
+    storePassword: System.getenv('BEND_ANDROID_KEYSTORE_PASSWORD'),
+    keyAlias: System.getenv('BEND_ANDROID_KEY_ALIAS'),
+    keyPassword: System.getenv('BEND_ANDROID_KEY_PASSWORD'),
+]
+def missingReleaseSigningEnvironment = releaseSigningEnvironment.findAll { key, value -> !value }.keySet()
+def releaseBuildRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase().contains('release')
+}
+
+if (releaseBuildRequested && !missingReleaseSigningEnvironment.isEmpty()) {
+    throw new GradleException(
+        "Missing Android release signing environment variables: ${missingReleaseSigningEnvironment.join(', ')}"
+    )
+}
+
 android {
     namespace = "community.bend.westmoreland"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +33,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (missingReleaseSigningEnvironment.isEmpty()) {
+                storeFile file(releaseSigningEnvironment.storeFile)
+                storePassword releaseSigningEnvironment.storePassword
+                keyAlias releaseSigningEnvironment.keyAlias
+                keyPassword releaseSigningEnvironment.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
