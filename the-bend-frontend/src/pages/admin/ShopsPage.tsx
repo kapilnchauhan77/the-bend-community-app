@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Search, Eye, PauseCircle, PlayCircle, Loader2, Store } from 'lucide-react';
 
-type ShopStatus = 'active' | 'suspended' | 'pending';
+type ShopStatus = 'active' | 'suspended' | 'pending' | 'rejected';
 
 interface Shop {
   id: string;
@@ -56,6 +56,12 @@ const statusBadge = (status: ShopStatus) => {
       return (
         <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
           Suspended
+        </Badge>
+      );
+    case 'rejected':
+      return (
+        <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
+          Rejected
         </Badge>
       );
     case 'pending':

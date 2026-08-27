@@ -79,7 +79,7 @@ class AdminService:
         elif status == 'approved':
             query = query.where(Shop.status == ShopStatus.ACTIVE)
         elif status == 'rejected':
-            query = query.where(Shop.rejection_reason.isnot(None))
+            query = query.where(Shop.status == ShopStatus.REJECTED)
         elif status:
             query = query.where(Shop.status == status)
         query = query.limit(limit)
@@ -90,11 +90,7 @@ class AdminService:
             admin_result = await self.db.execute(select(User).where(User.id == s.admin_user_id))
             admin = admin_result.scalar_one_or_none()
             # Map backend status to frontend-friendly status
-            display_status = s.status.value
-            if s.rejection_reason:
-                display_status = "rejected"
-            elif s.status == ShopStatus.ACTIVE:
-                display_status = "approved"
+            display_status = "approved" if s.status == ShopStatus.ACTIVE else s.status.value
 
             items.append({
                 "id": str(s.id), "name": s.name, "business_type": s.business_type,
@@ -118,7 +114,7 @@ class AdminService:
             select(func.count()).select_from(Shop).where(Shop.status == ShopStatus.ACTIVE, self._tenant_filter(Shop))
         )
         rejected = await self.db.execute(
-            select(func.count()).select_from(Shop).where(Shop.rejection_reason.isnot(None), self._tenant_filter(Shop))
+            select(func.count()).select_from(Shop).where(Shop.status == ShopStatus.REJECTED, self._tenant_filter(Shop))
         )
         return {
             "pending": pending.scalar_one(),
@@ -132,6 +128,7 @@ class AdminService:
         if not shop:
             raise NotFoundError("Shop")
         shop.status = ShopStatus.ACTIVE
+        shop.rejection_reason = None
         await self.db.flush()
         try:
             notification_service = NotificationService(self.db)
@@ -159,6 +156,7 @@ class AdminService:
         shop = result.scalar_one_or_none()
         if not shop:
             raise NotFoundError("Shop")
+        shop.status = ShopStatus.REJECTED
         shop.rejection_reason = reason
         await self.db.flush()
         try:

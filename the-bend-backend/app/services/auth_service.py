@@ -152,6 +152,8 @@ class AuthService:
             if shop:
                 if shop.status == ShopStatus.PENDING:
                     raise ForbiddenError("Your registration is pending approval")
+                elif shop.status == ShopStatus.REJECTED:
+                    raise ForbiddenError("Your registration was not approved")
                 elif shop.status == ShopStatus.SUSPENDED:
                     raise ForbiddenError("Your shop has been suspended")
 
