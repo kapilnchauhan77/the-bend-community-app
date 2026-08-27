@@ -972,6 +972,50 @@ html.dark .home-mobile-service-tile:focus-visible {
   outline-color: hsl(40 20% 72%);
 }
 
+/* Talent cards become narrower at the two- and three-column breakpoints.
+   Keep primary and secondary actions together, then stack the groups when
+   the card itself no longer has room for every control. */
+.talent-card {
+  container-type: inline-size;
+}
+
+.talent-card-actions,
+.talent-card-actions-primary,
+.talent-card-actions-secondary {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.talent-card-actions {
+  align-items: center;
+}
+
+.talent-card-actions-primary {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.talent-card-actions-secondary {
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+@container (max-width: 420px) {
+  .talent-card-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .talent-card-actions-primary,
+  .talent-card-actions-secondary {
+    width: 100%;
+  }
+
+  .talent-card-actions-secondary {
+    justify-content: flex-end;
+  }
+}
+
 /* ── Date/time inputs ──
    The native WebKit calendar/clock picker icon sits flush against the right
    edge, where our rounded-xl inputs clip and crowd it. Inset it from the

@@ -26,6 +26,7 @@ class UserRole(str, enum.Enum):
 class ShopStatus(str, enum.Enum):
     PENDING = "pending"
     ACTIVE = "active"
+    REJECTED = "rejected"
     SUSPENDED = "suspended"
 
 
