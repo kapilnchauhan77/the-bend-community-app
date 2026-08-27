@@ -427,7 +427,7 @@ export default function TalentPage() {
                 const meta = categoryMeta[talent.category];
                 const CategoryIcon = meta.Icon;
                 return (
-                  <Card key={talent.id} id={`talent-${talent.id}`} className="border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group">
+                  <Card key={talent.id} id={`talent-${talent.id}`} className="talent-card border-0 shadow-md rounded-2xl hover:shadow-xl transition-all duration-200 group">
                     <CardContent className="p-6">
                       {/* Avatar + Name + Rate */}
                       <div className="flex items-center gap-3 mb-4">
@@ -496,116 +496,128 @@ export default function TalentPage() {
                             </div>
 
                             {isOwner ? (
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  onClick={() => openEditForm(talent)}
-                                  variant="outline"
-                                  className="flex-1 h-10 rounded-xl font-semibold text-sm cursor-pointer"
-                                  style={{ borderColor: PRIMARY, color: PRIMARY }}
-                                >
-                                  <Pencil className="w-4 h-4 mr-1.5" />
-                                  Edit
-                                </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() => handleDelete(talent)}
-                                  variant="outline"
-                                  disabled={deletingId === talent.id}
-                                  className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                                <ShareButton
-                                  url={`/talent#talent-${talent.id}`}
-                                  title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
-                                  description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
-                                />
-                                {talent.user_id && (
-                                  <ShareToMessageButton
-                                    refType="user"
-                                    refId={talent.user_id}
-                                    iconOnly
+                              <div className="talent-card-actions" data-testid="talent-card-actions">
+                                <div className="talent-card-actions-primary">
+                                  <Button
+                                    type="button"
+                                    onClick={() => openEditForm(talent)}
                                     variant="outline"
-                                    className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
-                                    label="Send in a message"
+                                    className="flex-1 h-10 rounded-xl font-semibold text-sm cursor-pointer"
+                                    style={{ borderColor: PRIMARY, color: PRIMARY }}
+                                  >
+                                    <Pencil className="w-4 h-4 mr-1.5" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    onClick={() => handleDelete(talent)}
+                                    variant="outline"
+                                    disabled={deletingId === talent.id}
+                                    className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                                <div className="talent-card-actions-secondary">
+                                  <ShareButton
+                                    url={`/talent#talent-${talent.id}`}
+                                    title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                                    description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
                                   />
-                                )}
+                                  {talent.user_id && (
+                                    <ShareToMessageButton
+                                      refType="user"
+                                      refId={talent.user_id}
+                                      iconOnly
+                                      variant="outline"
+                                      className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
+                                      label="Send in a message"
+                                    />
+                                  )}
+                                </div>
                               </div>
                             ) : canMessage ? (
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  onClick={() => handleMessage(talent.user_id!)}
-                                  disabled={messagingId === talent.user_id}
-                                  className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
-                                  style={{ backgroundColor: PRIMARY }}
-                                >
-                                  <MessageSquare className="w-4 h-4 mr-1.5" />
-                                  {messagingId === talent.user_id ? 'Starting...' : `Message ${talent.name.split(' ')[0]}`}
-                                </Button>
-                                {isAdmin && (
+                              <div className="talent-card-actions" data-testid="talent-card-actions">
+                                <div className="talent-card-actions-primary">
                                   <Button
                                     type="button"
-                                    onClick={() => handleDelete(talent)}
-                                    variant="outline"
-                                    disabled={deletingId === talent.id}
-                                    className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                    onClick={() => handleMessage(talent.user_id!)}
+                                    disabled={messagingId === talent.user_id}
+                                    className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
+                                    style={{ backgroundColor: PRIMARY }}
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <MessageSquare className="w-4 h-4 mr-1.5" />
+                                    {messagingId === talent.user_id ? 'Starting...' : `Message ${talent.name.split(' ')[0]}`}
                                   </Button>
-                                )}
-                                <ShareButton
-                                  url={`/talent#talent-${talent.id}`}
-                                  title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
-                                  description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
-                                />
-                                {talent.user_id && (
-                                  <ShareToMessageButton
-                                    refType="user"
-                                    refId={talent.user_id}
-                                    iconOnly
-                                    variant="outline"
-                                    className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
-                                    label="Send in a message"
+                                  {isAdmin && (
+                                    <Button
+                                      type="button"
+                                      onClick={() => handleDelete(talent)}
+                                      variant="outline"
+                                      disabled={deletingId === talent.id}
+                                      className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                                <div className="talent-card-actions-secondary">
+                                  <ShareButton
+                                    url={`/talent#talent-${talent.id}`}
+                                    title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                                    description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
                                   />
-                                )}
+                                  {talent.user_id && (
+                                    <ShareToMessageButton
+                                      refType="user"
+                                      refId={talent.user_id}
+                                      iconOnly
+                                      variant="outline"
+                                      className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
+                                      label="Send in a message"
+                                    />
+                                  )}
+                                </div>
                               </div>
                             ) : (
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => openBooking(talent)}
-                                  className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
-                                  style={{ backgroundColor: PRIMARY }}
-                                >
-                                  Book {talent.name.split(' ')[0]}
-                                </Button>
-                                {isAdmin && (
+                              <div className="talent-card-actions" data-testid="talent-card-actions">
+                                <div className="talent-card-actions-primary">
                                   <Button
-                                    type="button"
-                                    onClick={() => handleDelete(talent)}
-                                    variant="outline"
-                                    disabled={deletingId === talent.id}
-                                    className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                    onClick={() => openBooking(talent)}
+                                    className="flex-1 h-10 rounded-xl font-semibold text-white text-sm shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-pointer"
+                                    style={{ backgroundColor: PRIMARY }}
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    Book {talent.name.split(' ')[0]}
                                   </Button>
-                                )}
-                                <ShareButton
-                                  url={`/talent#talent-${talent.id}`}
-                                  title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
-                                  description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
-                                />
-                                {talent.user_id && (
-                                  <ShareToMessageButton
-                                    refType="user"
-                                    refId={talent.user_id}
-                                    iconOnly
-                                    variant="outline"
-                                    className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
-                                    label="Send in a message"
+                                  {isAdmin && (
+                                    <Button
+                                      type="button"
+                                      onClick={() => handleDelete(talent)}
+                                      variant="outline"
+                                      disabled={deletingId === talent.id}
+                                      className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                                <div className="talent-card-actions-secondary">
+                                  <ShareButton
+                                    url={`/talent#talent-${talent.id}`}
+                                    title={`${talent.name} - ${categoryMeta[talent.category].label} in the community`}
+                                    description={`${talent.name} is a ${categoryMeta[talent.category].label.toLowerCase()} available for booking: ${talent.skills}`}
                                   />
-                                )}
+                                  {talent.user_id && (
+                                    <ShareToMessageButton
+                                      refType="user"
+                                      refId={talent.user_id}
+                                      iconOnly
+                                      variant="outline"
+                                      className="h-10 w-10 rounded-xl border-[hsl(35,18%,84%)]"
+                                      label="Send in a message"
+                                    />
+                                  )}
+                                </div>
                               </div>
                             )}
                           </>
