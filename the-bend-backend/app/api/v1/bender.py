@@ -200,8 +200,9 @@ async def like_post(
     post_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    post = await service.like(post_id, current_user)
+    post = await service.like(post_id, current_user, tenant.id if tenant else None)
     return {
         "id": str(post.id),
         "like_count": post.like_count,
@@ -214,8 +215,9 @@ async def unlike_post(
     post_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    post = await service.unlike(post_id, current_user)
+    post = await service.unlike(post_id, current_user, tenant.id if tenant else None)
     return {
         "id": str(post.id),
         "like_count": post.like_count,
@@ -237,9 +239,11 @@ async def list_comments(
     cursor: str | None = Query(None),
     limit: int = Query(20, ge=1, le=50),
     service: BenderService = Depends(get_service),
+    tenant: Tenant | None = Depends(get_current_tenant),
+    viewer: User | None = Depends(get_current_user_optional),
 ):
     items, next_cursor, has_more = await service.list_comments(
-        post_id=post_id, cursor=cursor, limit=limit
+        post_id=post_id, cursor=cursor, limit=limit, tenant_id=tenant.id if tenant else None, current_user=viewer
     )
     return BenderCommentsResponse(
         items=items, next_cursor=next_cursor, has_more=has_more
@@ -256,14 +260,19 @@ async def create_comment(
     data: BenderCommentCreate,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    comment = await service.create_comment(post_id, data, current_user)
-    return BenderCommentResponse(
-        id=str(comment.id),
-        author=service._author_block(current_user, None),
-        content=comment.content,
-        created_at=comment.created_at,
-    )
+    return await service.create_comment(post_id, data, current_user, tenant.id if tenant else None)
+
+
+@router.get("/posts/{post_id}", response_model=BenderPostResponse)
+async def get_post(post_id: UUID, service: BenderService = Depends(get_service), tenant: Tenant | None = Depends(get_current_tenant), viewer: User | None = Depends(get_current_user_optional)):
+    return await service.get_post(post_id, tenant.id if tenant else None, viewer)
+
+
+@router.get("/posts/{post_id}/comments/{comment_id}", response_model=BenderCommentResponse)
+async def get_comment(post_id: UUID, comment_id: UUID, service: BenderService = Depends(get_service), tenant: Tenant | None = Depends(get_current_tenant), viewer: User | None = Depends(get_current_user_optional)):
+    return await service.get_comment(post_id, comment_id, tenant.id if tenant else None, viewer)
 
 
 @router.delete(
@@ -275,9 +284,7 @@ async def delete_comment(
     comment_id: UUID,
     service: BenderService = Depends(get_service),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
 ):
-    # `post_id` is a path parameter for REST shape; the service looks up the
-    # comment directly and resolves its post for the auth check, so we don't
-    # need to thread it through.
-    await service.delete_comment(comment_id, current_user)
+    await service.delete_comment(post_id, comment_id, current_user, tenant.id if tenant else None)
     return None

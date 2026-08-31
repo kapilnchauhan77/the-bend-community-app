@@ -60,10 +60,10 @@ class NotificationRepository:
         return result.scalar_one()
 
     async def create(
-        self, user_id: UUID, type: NotificationType, title: str, body: str, data: dict | None = None
+        self, user_id: UUID, type: NotificationType, title: str, body: str, data: dict | None = None, tenant_id: UUID | None = None
     ) -> Notification:
         notification = Notification(
-            id=uuid4(), user_id=user_id, type=type, title=title, body=body, data=data
+            id=uuid4(), user_id=user_id, type=type, title=title, body=body, data=data, tenant_id=tenant_id
         )
         self.session.add(notification)
         await self.session.flush()

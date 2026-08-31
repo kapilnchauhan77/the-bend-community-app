@@ -37,9 +37,9 @@ class NotificationService:
         return await self.repo.get_unread_count(user_id)
 
     async def notify(
-        self, user_id: UUID, type: NotificationType, title: str, body: str, data: dict | None = None
+        self, user_id: UUID, type: NotificationType, title: str, body: str, data: dict | None = None, tenant_id: UUID | None = None
     ):
-        notification = await self.repo.create(user_id, type, title, body, data)
+        notification = await self.repo.create(user_id, type, title, body, data, tenant_id=tenant_id)
         # TODO: WebSocket delivery if online
         # TODO: Queue push notification task
         return notification
