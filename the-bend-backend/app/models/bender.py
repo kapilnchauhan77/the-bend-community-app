@@ -141,7 +141,6 @@ class BenderComment(Base):
         "BenderComment",
         back_populates="parent",
         foreign_keys=[parent_comment_id],
-        cascade="all, delete-orphan",
     )
     likes: Mapped[list["BenderCommentLike"]] = relationship(
         "BenderCommentLike",

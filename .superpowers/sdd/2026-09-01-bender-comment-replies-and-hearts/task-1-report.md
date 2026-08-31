@@ -78,3 +78,58 @@ bender_reply_notification (head)
 
 - The full suite reports 17 pre-existing/dependency deprecation warnings. No new warning remains from the focused schema tests.
 - The service and API behavior for replies, hearts, notifications, and tombstones is intentionally deferred to later tasks.
+
+## Fix Round 1
+
+### What changed
+
+Removed `delete-orphan` and delete propagation from `BenderComment.replies`. SQLAlchemy parent deletion can no longer remove replies through this relationship, preserving reply rows for the service's tombstone behavior. Added a focused ORM relationship contract test.
+
+### TDD evidence
+
+RED command:
+
+```text
+$ .venv/bin/pytest -q tests/test_bender_comment_schema.py -k parent_comment_relationship
+F                                                                        [100%]
+AssertionError: 'delete-orphan' not in CascadeOptions('delete,delete-orphan,...')
+1 failed, 5 deselected in 0.39s
+```
+
+GREEN covering command:
+
+```text
+$ .venv/bin/pytest -q tests/test_bender_comment_schema.py tests/test_bender_comment_migrations.py
+........                                                                 [100%]
+8 passed in 0.26s
+```
+
+Full backend suite:
+
+```text
+$ .venv/bin/pytest -q
+........................................................................ [ 17%]
+........................................................................ [ 35%]
+........................................................................ [ 52%]
+........................................................................ [ 70%]
+........................................................................ [ 87%]
+..................................................                       [100%]
+410 passed, 17 warnings in 4.20s
+```
+
+### Files changed
+
+- `the-bend-backend/app/models/bender.py`
+- `the-bend-backend/tests/test_bender_comment_schema.py`
+- This report
+
+### Self-review
+
+- `git diff --check` passes.
+- The correction is limited to the unsafe relationship cascade and its regression test.
+- No `uv.lock` or out-of-scope files changed.
+
+### Concerns
+
+- The full suite still reports 17 existing/dependency deprecation warnings.
+- Later service code must explicitly tombstone parents with replies and hard-delete only eligible comments.

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.schemas.bender import BenderAuthor, BenderCommentCreate, BenderCommentHeartResponse, BenderCommentResponse
+from app.models.bender import BenderComment
 
 
 def _author():
@@ -40,3 +41,8 @@ def test_comment_heart_response_serializes_exactly():
     comment_id = uuid4()
     response = BenderCommentHeartResponse(id=comment_id, like_count=3, viewer_has_liked=True)
     assert response.model_dump() == {"id": str(comment_id), "like_count": 3, "viewer_has_liked": True}
+
+
+def test_parent_comment_relationship_does_not_delete_replies():
+    assert "delete-orphan" not in BenderComment.replies.property.cascade
+    assert "delete" not in BenderComment.replies.property.cascade
