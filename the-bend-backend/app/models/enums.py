@@ -72,6 +72,7 @@ class NotificationType(str, enum.Enum):
     NEW_URGENT_LISTING = "new_urgent_listing"
     SHOP_SUSPENDED = "shop_suspended"
     LISTING_REPORTED = "listing_reported"
+    BENDER_REPLY = "bender_reply"
 
 
 class EventCategory(str, enum.Enum):

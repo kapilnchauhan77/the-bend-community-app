@@ -123,6 +123,7 @@ class BenderPostResponse(BaseModel):
 
 class BenderCommentCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=1000)
+    parent_comment_id: UUID | None = None
 
 
 class BenderCommentResponse(BaseModel):
@@ -130,6 +131,22 @@ class BenderCommentResponse(BaseModel):
     author: BenderAuthor
     content: str
     created_at: datetime
+    parent_comment_id: str | None = None
+    reply_count: int = 0
+    like_count: int = 0
+    viewer_has_liked: bool = False
+    is_deleted: bool = False
+
+    @field_validator("id", "parent_comment_id", mode="before")
+    @classmethod
+    def stringify(cls, v):
+        return str(v) if v is not None else None
+
+
+class BenderCommentHeartResponse(BaseModel):
+    id: str
+    like_count: int
+    viewer_has_liked: bool
 
     @field_validator("id", mode="before")
     @classmethod

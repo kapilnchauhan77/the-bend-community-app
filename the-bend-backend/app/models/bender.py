@@ -121,10 +121,59 @@ class BenderComment(Base):
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+    parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("bender_comments.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     post: Mapped[BenderPost] = relationship("BenderPost", back_populates="comments")
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    parent: Mapped["BenderComment | None"] = relationship(
+        "BenderComment",
+        remote_side=[id],
+        back_populates="replies",
+        foreign_keys=[parent_comment_id],
+    )
+    replies: Mapped[list["BenderComment"]] = relationship(
+        "BenderComment",
+        back_populates="parent",
+        foreign_keys=[parent_comment_id],
+        cascade="all, delete-orphan",
+    )
+    likes: Mapped[list["BenderCommentLike"]] = relationship(
+        "BenderCommentLike",
+        back_populates="comment",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index("idx_bender_comments_post_created", "post_id", "created_at"),
+    )
+
+
+class BenderCommentLike(Base):
+    """A heart on a Bender comment, unique per viewer and comment."""
+
+    __tablename__ = "bender_comment_likes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    comment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("bender_comments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+
+    comment: Mapped[BenderComment] = relationship("BenderComment", back_populates="likes")
+
+    __table_args__ = (
+        Index("uq_bender_comment_likes_comment_user", "comment_id", "user_id", unique=True),
     )
