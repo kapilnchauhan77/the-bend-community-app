@@ -47,31 +47,13 @@ class Result:
     def __iter__(self): return iter(self.rows)
 
 
-class Savepoint:
-    async def commit(self): pass
-    async def rollback(self): pass
-
-
-class DuplicateCommentLikeViolation(Exception):
-    pgcode = "23505"
-
-    class diag:
-        constraint_name = "uq_bender_comment_likes_comment_user"
-
-
 class HeartSession:
-    def __init__(self, *, posts=(), comments=(), likes=(), fail_duplicate=False):
+    def __init__(self, *, posts=(), comments=(), likes=(), insert_returning=None):
         self.posts = {x.id: x for x in posts}; self.comments = {x.id: x for x in comments}
-        self.likes = list(likes); self.fail_duplicate = fail_duplicate; self.queries = []; self.delete_returning_seen = False
+        self.likes = list(likes); self.insert_returning = insert_returning; self.queries = []; self.insert_sql = []; self.delete_returning_seen = False
 
-    async def begin_nested(self): return Savepoint()
-    def add(self, obj): self.pending = obj
     async def flush(self):
-        if isinstance(getattr(self, "pending", None), BenderCommentLike):
-            if self.fail_duplicate or any(x.comment_id == self.pending.comment_id and x.user_id == self.pending.user_id for x in self.likes):
-                self.fail_duplicate = False
-                raise IntegrityError("duplicate", {}, DuplicateCommentLikeViolation())
-            self.likes.append(self.pending); self.pending = None
+        return None
     async def refresh(self, obj, attribute_names=None): pass
     async def delete(self, obj): self.likes.remove(obj)
     async def get(self, model, ident):
@@ -87,6 +69,17 @@ class HeartSession:
 
     async def execute(self, statement):
         sql, params = self._compile(statement); self.queries.append(sql)
+        if statement.is_insert and "bender_comment_likes" in sql:
+            self.insert_sql.append(sql)
+            returned_id = None
+            if self.insert_returning:
+                returned_id = self.insert_returning.pop(0)
+            elif not any(x.comment_id == params["comment_id"] and x.user_id == params["user_id"] for x in self.likes):
+                returned_id = params["id"]
+            if returned_id is not None:
+                self.likes.append(BenderCommentLike(id=returned_id, comment_id=params["comment_id"], user_id=params["user_id"]))
+                return Result(rows=[(returned_id,)])
+            return Result()
         if statement.is_select and "from bender_posts" in sql:
             tids = self._values(params, "tenant_id_"); ids = self._values(params, "id_")
             return Result(rows=[x for x in self.posts.values() if (not tids or x.tenant_id in tids) and (not ids or x.id in ids)])
@@ -216,19 +209,57 @@ async def test_concurrent_unhearts_decrement_only_after_conditional_delete_retur
 
 
 @pytest.mark.asyncio
-async def test_heart_and_unheart_lock_live_comment_rows_and_do_not_mask_non_duplicate_integrity_errors():
-    """Would fail if a heart races deletion or treats a foreign-key failure as a duplicate heart."""
+async def test_duplicate_heart_uses_empty_returning_result_and_authoritative_count():
+    """The database-native conflict path returns no id for an existing heart."""
+    tenant = uuid4(); actor = user(tenant_id=tenant); target = post(tenant_id=tenant)
+    row = comment(post_id=target.id, author=actor, like_count=7)
+    stored = BenderCommentLike(id=uuid4(), comment_id=row.id, user_id=actor.id)
+    db = HeartSession(posts=[target], comments=[row], likes=[stored], insert_returning=[None])
+    response = await BenderService(db).like_comment(target.id, row.id, actor, tenant)
+    assert response.like_count == 7
+    assert response.viewer_has_liked is True
+    assert row.like_count == 7
+    assert len(db.likes) == 1
+
+
+@pytest.mark.asyncio
+async def test_heart_insert_returning_id_increments_once():
+    tenant = uuid4(); actor = user(tenant_id=tenant); target = post(tenant_id=tenant)
+    row = comment(post_id=target.id, author=actor)
+    inserted_id = uuid4()
+    db = HeartSession(posts=[target], comments=[row], insert_returning=[inserted_id])
+    response = await BenderService(db).like_comment(target.id, row.id, actor, tenant)
+    assert response.like_count == 1
+    assert [like.id for like in db.likes] == [inserted_id]
+
+
+@pytest.mark.asyncio
+async def test_heart_insert_uses_named_postgresql_conflict_and_returning_clause():
+    tenant = uuid4(); actor = user(tenant_id=tenant); target = post(tenant_id=tenant)
+    row = comment(post_id=target.id, author=actor)
+    db = HeartSession(posts=[target], comments=[row], insert_returning=[uuid4()])
+
+    await BenderService(db).like_comment(target.id, row.id, actor, tenant)
+    sql = db.insert_sql[0]
+    assert "on conflict (comment_id, user_id) do nothing" in sql
+    assert "returning bender_comment_likes.id" in sql
+
+
+@pytest.mark.asyncio
+async def test_heart_and_unheart_lock_live_comment_rows_and_propagate_other_integrity_errors():
+    """Only PostgreSQL's ON CONFLICT handles duplicate hearts; other errors escape."""
     tenant = uuid4(); actor = user(tenant_id=tenant); target = post(tenant_id=tenant)
     row = comment(post_id=target.id, author=actor)
 
     class ForeignKeyFailureSession(HeartSession):
-        async def flush(self):
-            if isinstance(getattr(self, "pending", None), BenderCommentLike):
+        async def execute(self, statement):
+            sql, _ = self._compile(statement)
+            if statement.is_insert and "bender_comment_likes" in sql:
                 raise IntegrityError("insert", {}, Exception("foreign key violation"))
-            await super().flush()
+            return await super().execute(statement)
 
     failing = ForeignKeyFailureSession(posts=[target], comments=[row])
-    with pytest.raises(IntegrityError):
+    with pytest.raises(IntegrityError, match="insert"):
         await BenderService(failing).like_comment(target.id, row.id, actor, tenant)
 
     db = HeartSession(posts=[target], comments=[row])

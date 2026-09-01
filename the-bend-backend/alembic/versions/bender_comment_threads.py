@@ -57,16 +57,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Drop feature rows while all feature columns still exist. Remove hearts
-    # explicitly, then replies before their tombstone parents. Finally repair
-    # the cached count to match the flattened base comment table.
+    # The base application has no reply hierarchy or tombstone columns. Keep
+    # every stored row by flattening replies into ordinary comments. A deleted
+    # parent keeps its visible meaning as literal content before its marker is
+    # removed. This necessarily loses reply nesting, but it does not lose text.
     op.execute(
-        "DELETE FROM bender_comment_likes WHERE comment_id IN "
-        "(SELECT id FROM bender_comments WHERE parent_comment_id IS NOT NULL "
-        "OR deleted_at IS NOT NULL)"
+        "UPDATE bender_comments SET content = 'Comment deleted', deleted_at = NULL "
+        "WHERE deleted_at IS NOT NULL"
     )
-    op.execute("DELETE FROM bender_comments WHERE parent_comment_id IS NOT NULL")
-    op.execute("DELETE FROM bender_comments WHERE deleted_at IS NOT NULL")
+    op.execute(
+        "UPDATE bender_comments SET parent_comment_id = NULL "
+        "WHERE parent_comment_id IS NOT NULL"
+    )
+    # Recompute counts after flattening so the restored base app sees every
+    # preserved comment exactly once.
     op.execute(
         "UPDATE bender_posts SET comment_count = "
         "(SELECT count(*) FROM bender_comments "

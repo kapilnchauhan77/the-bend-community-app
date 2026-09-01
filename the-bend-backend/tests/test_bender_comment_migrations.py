@@ -53,10 +53,11 @@ def test_comment_threads_revision_extends_current_head(monkeypatch):
     calls.clear()
     migration.downgrade()
     cleanup = [call for call in calls if call[0] == "execute"]
-    assert [statement for _, statement in cleanup] == [
-        "DELETE FROM bender_comment_likes WHERE comment_id IN (SELECT id FROM bender_comments WHERE parent_comment_id IS NOT NULL OR deleted_at IS NOT NULL)",
-        "DELETE FROM bender_comments WHERE parent_comment_id IS NOT NULL",
-        "DELETE FROM bender_comments WHERE deleted_at IS NOT NULL",
+    statements = [statement for _, statement in cleanup]
+    assert not any(statement.lstrip().upper().startswith("DELETE") for statement in statements)
+    assert statements == [
+        "UPDATE bender_comments SET content = 'Comment deleted', deleted_at = NULL WHERE deleted_at IS NOT NULL",
+        "UPDATE bender_comments SET parent_comment_id = NULL WHERE parent_comment_id IS NOT NULL",
         "UPDATE bender_posts SET comment_count = (SELECT count(*) FROM bender_comments WHERE bender_comments.post_id = bender_posts.id)",
     ]
     assert calls.index(cleanup[-1]) < calls.index(("drop_index", "uq_bender_comment_likes_comment_user", {"table_name": "bender_comment_likes"}))
@@ -77,9 +78,11 @@ def test_reply_notification_revision_follows_comment_schema():
     assert statements == ["COMMIT", "ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'BENDER_REPLY'", "BEGIN"]
 
 
-def test_reply_notification_downgrade_deletes_feature_rows_before_base_enum_is_used():
+def test_reply_notification_downgrade_preserves_rows_with_base_enum_value():
     migration = _load("bender_reply_notification.py")
     statements = []
     migration.op.execute = statements.append
     migration.downgrade()
-    assert statements == ["DELETE FROM notifications WHERE type = 'BENDER_REPLY'"]
+    assert statements == [
+        "UPDATE notifications SET type = 'NEW_MESSAGE' WHERE type = 'BENDER_REPLY'"
+    ]

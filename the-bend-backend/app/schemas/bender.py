@@ -127,7 +127,9 @@ class BenderCommentCreate(BaseModel):
 
     @field_validator("content", mode="before")
     @classmethod
-    def trim_and_require_content(cls, value: str) -> str:
+    def trim_and_require_content(cls, value):
+        if not isinstance(value, str):
+            return value
         value = value.strip()
         if not value:
             raise ValueError("content must not be empty")

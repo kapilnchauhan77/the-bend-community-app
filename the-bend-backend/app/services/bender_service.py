@@ -7,6 +7,7 @@ from pydantic import ValidationError as PydanticValidationError
 from redis.exceptions import RedisError
 import asyncio
 from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -379,17 +380,6 @@ class BenderService:
             raise ConflictError("Cannot heart a deleted comment")
         return comment
 
-    @staticmethod
-    def _is_duplicate_comment_like(error: IntegrityError) -> bool:
-        """Only the comment-heart unique constraint is an idempotent no-op."""
-        original = error.orig
-        diagnostic = getattr(original, "diag", None)
-        constraint_name = getattr(diagnostic, "constraint_name", None)
-        return (
-            getattr(original, "pgcode", None) == "23505"
-            and constraint_name == "uq_bender_comment_likes_comment_user"
-        )
-
     async def like_comment(
         self,
         post_id: UUID,
@@ -399,19 +389,19 @@ class BenderService:
     ) -> BenderCommentHeartResponse:
         comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id, lock=True)
         self._bind_tenant(current_user, tenant_id)
-        like_row = BenderCommentLike(id=uuid4(), comment_id=comment.id, user_id=current_user.id)
-        savepoint = await self.db.begin_nested()
-        try:
-            self.db.add(like_row)
-            await self.db.flush()
-        except IntegrityError as error:
-            await savepoint.rollback()
-            if not self._is_duplicate_comment_like(error):
-                raise
+        inserted = await self.db.execute(
+            pg_insert(BenderCommentLike)
+            .values(id=uuid4(), comment_id=comment.id, user_id=current_user.id)
+            # The migration creates uq_bender_comment_likes_comment_user as a
+            # unique index, so infer it by its indexed key columns.
+            .on_conflict_do_nothing(index_elements=["comment_id", "user_id"])
+            .returning(BenderCommentLike.id)
+        )
+        if inserted.scalar_one_or_none() is None:
+            # The comment row lock serializes this refresh with deletion and
+            # counter updates. Return the database's authoritative count.
             await self.db.refresh(comment)
             return BenderCommentHeartResponse(id=comment.id, like_count=comment.like_count, viewer_has_liked=True)
-        else:
-            await savepoint.commit()
         await self.db.execute(
             update(BenderComment)
             .where(BenderComment.id == comment.id)
