@@ -17,6 +17,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.bender import (
     BenderCommentCreate,
+    BenderCommentHeartResponse,
     BenderCommentResponse,
     BenderCommentsResponse,
     BenderFeedResponse,
@@ -228,6 +229,34 @@ async def unlike_post(
 # ----------------------------------------------------------------------
 # comments
 # ----------------------------------------------------------------------
+
+
+@router.post(
+    "/posts/{post_id}/comments/{comment_id}/like",
+    response_model=BenderCommentHeartResponse,
+)
+async def like_comment(
+    post_id: UUID,
+    comment_id: UUID,
+    service: BenderService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    return await service.like_comment(post_id, comment_id, current_user, tenant.id if tenant else None)
+
+
+@router.delete(
+    "/posts/{post_id}/comments/{comment_id}/like",
+    response_model=BenderCommentHeartResponse,
+)
+async def unlike_comment(
+    post_id: UUID,
+    comment_id: UUID,
+    service: BenderService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    return await service.unlike_comment(post_id, comment_id, current_user, tenant.id if tenant else None)
 
 
 @router.get(

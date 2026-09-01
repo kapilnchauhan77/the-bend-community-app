@@ -20,6 +20,7 @@ from app.models.user import User
 from app.schemas.bender import (
     BenderAuthor,
     BenderCommentCreate,
+    BenderCommentHeartResponse,
     BenderCommentResponse,
     BenderLinkPreview,
     BenderLinkPreviewSnapshot,
@@ -353,6 +354,81 @@ class BenderService:
     # ------------------------------------------------------------------
     # comments
     # ------------------------------------------------------------------
+
+    async def _get_visible_comment_or_404(self, post_id: UUID, comment_id: UUID, tenant_id: UUID | None):
+        await self._get_visible_post_or_404(post_id, tenant_id)
+        result = await self.db.execute(
+            select(BenderComment).where(
+                BenderComment.id == comment_id,
+                BenderComment.post_id == post_id,
+            )
+        )
+        comment = result.scalar_one_or_none()
+        if comment is None:
+            raise NotFoundError("Comment")
+        if comment.deleted_at is not None:
+            raise ConflictError("Cannot heart a deleted comment")
+        return comment
+
+    async def like_comment(
+        self,
+        post_id: UUID,
+        comment_id: UUID,
+        current_user: User,
+        tenant_id: UUID | None,
+    ) -> BenderCommentHeartResponse:
+        comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id)
+        self._bind_tenant(current_user, tenant_id)
+        like_row = BenderCommentLike(id=uuid4(), comment_id=comment.id, user_id=current_user.id)
+        savepoint = await self.db.begin_nested()
+        try:
+            self.db.add(like_row)
+            await self.db.flush()
+        except IntegrityError:
+            await savepoint.rollback()
+            await self.db.refresh(comment)
+            return BenderCommentHeartResponse(id=comment.id, like_count=comment.like_count, viewer_has_liked=True)
+        else:
+            await savepoint.commit()
+        await self.db.execute(
+            update(BenderComment)
+            .where(BenderComment.id == comment.id)
+            .values(like_count=BenderComment.like_count + 1)
+        )
+        await self.db.flush()
+        await self.db.refresh(comment)
+        return BenderCommentHeartResponse(id=comment.id, like_count=comment.like_count, viewer_has_liked=True)
+
+    async def unlike_comment(
+        self,
+        post_id: UUID,
+        comment_id: UUID,
+        current_user: User,
+        tenant_id: UUID | None,
+    ) -> BenderCommentHeartResponse:
+        comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id)
+        self._bind_tenant(current_user, tenant_id)
+        deleted = await self.db.execute(
+            BenderCommentLike.__table__
+            .delete()
+            .where(
+                BenderCommentLike.comment_id == comment.id,
+                BenderCommentLike.user_id == current_user.id,
+            )
+            .returning(BenderCommentLike.id)
+        )
+        deleted_id = deleted.scalar_one_or_none()
+        if deleted_id is None:
+            return BenderCommentHeartResponse(id=comment.id, like_count=comment.like_count, viewer_has_liked=False)
+        await self.db.flush()
+        await self.db.execute(
+            update(BenderComment)
+            .where(BenderComment.id == comment.id, BenderComment.like_count > 0)
+            .values(like_count=BenderComment.like_count - 1)
+        )
+        await self.db.flush()
+        await self.db.refresh(comment)
+        return BenderCommentHeartResponse(id=comment.id, like_count=comment.like_count, viewer_has_liked=False)
 
     async def list_comments(
         self,
