@@ -5,7 +5,7 @@ const post = { id: 'post-1', author: author('u2', 'Poster'), caption: 'post', me
 const parent = { id: 'parent-1', author: author('u1', 'Parent'), content: 'parent body', created_at: '2026-08-20T10:00:00Z', parent_comment_id: null, reply_count: 1, like_count: 0, viewer_has_liked: false, is_deleted: false };
 const reply = { id: 'reply-1', author: author('u3', 'Reply'), content: 'reply body', created_at: '2026-08-20T10:01:00Z', parent_comment_id: 'parent-1', reply_count: 0, like_count: 0, viewer_has_liked: false, is_deleted: false };
 
-async function setup(page: Page, options: { feedPosts?: unknown[]; comments?: unknown[]; directPost?: unknown; directComment?: unknown; directParent?: unknown; post404?: boolean; comment404?: boolean; post500?: boolean; comment500?: boolean } = {}) {
+async function setup(page: Page, options: { feedPosts?: unknown[]; comments?: unknown[]; directPost?: unknown; directComment?: unknown; directParent?: unknown; post404?: boolean; comment404?: boolean; post500?: boolean; comment500?: boolean; parent500?: boolean } = {}) {
   const paths: string[] = [];
   await page.addInitScript(() => {
     localStorage.setItem('access_token', 'test-token');
@@ -25,7 +25,7 @@ async function setup(page: Page, options: { feedPosts?: unknown[]; comments?: un
     if (url.pathname.endsWith('/comments') && request.method() === 'GET') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: options.comments ?? [parent], next_cursor: null, has_more: false }) });
     if (url.pathname.match(/\/comments\/[^/]+$/) && request.method() === 'GET') {
       if (options.comment404) return route.fulfill({ status: 404, body: 'missing' });
-      if (options.comment500) return route.fulfill({ status: 500, body: 'failed' });
+      if (options.comment500 || (options.parent500 && url.pathname.endsWith('/comments/parent-1'))) return route.fulfill({ status: 500, body: 'failed' });
       const id = url.pathname.split('/').at(-1);
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(id === 'parent-1' ? (options.directParent ?? parent) : (options.directComment ?? reply)) });
     }
@@ -61,12 +61,17 @@ test('direct-loads a missing reply and its absent parent, then focuses the reply
   const paths = await setup(page, { comments: [], directComment: reply, directParent: parent });
   await page.goto('/bender?post=post-1&comment=reply-1');
   await expect(page.getByTestId('bender-comment-focus')).toBeVisible();
+  await expect(page.getByTestId('bender-comment-focus')).toHaveClass(/bg-amber-100/);
+  await expect(page.getByTestId('bender-comment-focus')).toHaveClass(/ring-2/);
+  await expect(page.getByTestId('bender-comment-focus')).toHaveAttribute('aria-current', 'true');
   await expect(page.getByTestId('bender-comment-parent-1')).toBeVisible();
   await expect.poll(() => paths.filter((path) => path === 'GET /api/v1/bender/posts/post-1/comments/reply-1').length).toBe(1);
   await expect.poll(() => paths.filter((path) => path === 'GET /api/v1/bender/posts/post-1/comments/parent-1').length).toBe(1);
   await expect(page.getByTestId('bender-comment-focus')).toHaveAttribute('data-focus-active', 'true');
   await page.waitForTimeout(2200);
   await expect(page.getByTestId('bender-comment-reply-1')).toHaveAttribute('data-focus-active', 'false');
+  await expect(page.getByTestId('bender-comment-reply-1')).not.toHaveClass(/bg-amber-100|ring-2/);
+  await expect(page.getByTestId('bender-comment-reply-1')).not.toHaveAttribute('aria-current', 'true');
 });
 
 test('does not direct-fetch a target comment already present in the first page', async ({ page }) => {
@@ -125,7 +130,18 @@ test('moves focus to a new target and removes the old marker', async ({ page }) 
   await setup(page, { comments: [parent, reply] });
   await page.goto('/bender?post=post-1&comment=reply-1');
   await expect(page.getByTestId('bender-comment-focus')).toContainText('reply body');
+  await expect(page.getByTestId('bender-comment-focus')).toHaveAttribute('aria-current', 'true');
   await page.goto('/bender?post=post-1&comment=parent-1');
   await expect(page.getByTestId('bender-comment-focus')).toContainText('parent body');
+  await expect(page.getByTestId('bender-comment-focus')).toHaveAttribute('aria-current', 'true');
   await expect(page.getByTestId('bender-comment-reply-1')).toHaveAttribute('data-focus-active', 'false');
+  await expect(page.getByTestId('bender-comment-reply-1')).not.toHaveClass(/bg-amber-100|ring-2/);
+  await expect(page.getByTestId('bender-comment-reply-1')).not.toHaveAttribute('aria-current', 'true');
+});
+
+test('surfaces an unexpected parent failure while keeping the target drawer usable', async ({ page }) => {
+  await setup(page, { comments: [], parent500: true });
+  await page.goto('/bender?post=post-1&comment=reply-1');
+  await expect(page.getByRole('alert')).toContainText('Could not load the linked comment thread');
+  await expect(page.getByTestId('bender-comments-drawer')).toBeVisible();
 });
