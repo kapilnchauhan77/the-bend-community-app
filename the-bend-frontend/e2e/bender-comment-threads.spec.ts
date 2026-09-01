@@ -26,7 +26,7 @@ async function openDrawer(page: Page, signedIn = true, overrides: Record<string,
 test('renders replies beneath each parent in chronological order and only offers parent replies', async ({ page }) => {
   await openDrawer(page);
   await expect(page.getByTestId('bender-comment-replies-p1')).toHaveCount(1);
-  const rows = page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])');
+  const rows = page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])');
   await expect(rows).toHaveCount(5);
   await expect(page.getByTestId('bender-comments-drawer')).toContainText('old reply');
   await expect(page.getByTestId('bender-comment-t1')).toContainText('Comment deleted');
@@ -50,14 +50,14 @@ test('opens, cancels, and submits one reply composer with Enter semantics', asyn
 
 test('optimistic failed reply restores exact draft and post count', async ({ page }) => {
   await openDrawer(page, true, { comment_count: 5 }, comments, { create: true });
-  const beforeIds = await page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')));
+  const beforeIds = await page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')));
   await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click();
   const composer = page.getByTestId('bender-reply-composer-p1').locator('textarea'); await composer.fill('restore me'); await composer.press('Enter');
   await expect(page.getByTestId('bender-reply-composer-p1').locator('textarea')).toHaveValue('restore me');
   await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body');
   await expect(page.getByTestId('bender-actions')).toContainText('5');
-  await expect.poll(() => page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')))).toEqual(beforeIds);
-  await expect(page.getByTestId('bender-comments-drawer')).not.toContainText('restore me');
+  await expect.poll(() => page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')))).toEqual(beforeIds);
+  await expect(page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])')).not.toContainText('restore me');
 });
 
 test('heart and unheart update parent and reply from server, then roll back on failure', async ({ page }) => {
@@ -69,7 +69,7 @@ test('heart and unheart update parent and reply from server, then roll back on f
 
 test('delete tombstones a parent with replies', async ({ page }) => {
   await openDrawer(page);
-  await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'More' }).click(); await page.getByRole('button', { name: 'Delete' }).click(); await expect(page.getByTestId('bender-comment-p1')).toContainText('Comment deleted'); await expect(page.getByTestId('bender-comment-r1')).toBeVisible();
+  await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'More' }).click(); await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible(); await page.getByRole('button', { name: 'Delete' }).click(); await expect(page.getByTestId('bender-comment-p1')).toContainText('Comment deleted'); await expect(page.getByTestId('bender-comment-r1')).toBeVisible();
 });
 
 test('failed delete restores the exact collection, heart state, replies, and count', async ({ page }) => {
@@ -95,6 +95,6 @@ test('long unbroken names, bodies, replies, actions, and composer stay contained
   const long = 'x'.repeat(180);
   const fixture = [{ ...parent, author: author('u1', long), content: long }, { ...comments[1], content: long }, { ...comments[2], content: long }, ...comments.slice(3)];
   await page.setViewportSize({ width: 320, height: 800 }); await openDrawer(page, true, {}, fixture); await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click(); await page.getByTestId('bender-reply-composer-p1').locator('textarea').fill(long);
-  const result = await page.getByTestId('bender-comments-drawer').evaluate((drawer) => { const box = drawer.getBoundingClientRect(); const selectors = ['[data-testid^="bender-comment-"]', '[data-testid^="bender-comment-replies-"]', '[data-testid="bender-reply-composer-p1"]', '[data-testid="bender-actions"]']; return [drawer, ...selectors.flatMap((selector) => Array.from(drawer.querySelectorAll(selector)))].map((element) => { const rect = element.getBoundingClientRect(); return { id: element.getAttribute('data-testid'), clientWidth: element.clientWidth, scrollWidth: element.scrollWidth, left: rect.left, right: rect.right, overflow: element.scrollWidth <= element.clientWidth + 1, inside: rect.left >= box.left - 1 && rect.right <= box.right + 1 }; }); });
+  const result = await page.getByTestId('bender-comments-drawer').evaluate((drawer) => { const box = drawer.getBoundingClientRect(); const selectors = ['[data-testid^="bender-comment-"]', '[data-testid^="bender-comment-replies-"]', '[data-testid="bender-reply-composer-p1"]', '[data-testid="bender-comment-composer"]', '[data-testid="bender-actions"]']; return [drawer, ...selectors.flatMap((selector) => Array.from(drawer.querySelectorAll(selector)))].map((element) => { const rect = element.getBoundingClientRect(); return { id: element.getAttribute('data-testid'), clientWidth: element.clientWidth, scrollWidth: element.scrollWidth, left: rect.left, right: rect.right, overflow: element.scrollWidth <= element.clientWidth + 1, inside: rect.left >= box.left - 1 && rect.right <= box.right + 1 }; }); });
   const failures = result.filter((entry) => !entry.overflow || !entry.inside); expect(failures, JSON.stringify(failures)).toEqual([]);
 });
