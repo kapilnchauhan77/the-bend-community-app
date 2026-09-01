@@ -145,3 +145,66 @@ Full verification:
 ```
 
 Self-review: no source-text assertions remain for the replaced contract checks. `git diff --check` passes. No production changes were needed in this round, and no `uv.lock` or deployment files changed. Remaining concern is deprecation warnings from existing and test fixture `utcnow` usage.
+
+## Fix Round 4
+
+### Test design
+
+Replaced the remaining weak thread tests with a stateful `CommentStoreSession`. It compiles each SQLAlchemy statement with the PostgreSQL dialect, identifies the table and operation from compiled SQL, and evaluates bound `id`, `post_id`, `tenant_id`, `parent_comment_id`, `deleted_at`, and comment-heart `user_id` predicates against stored posts, comments, and hearts. It models comment insertion and deletion, relationship refreshes, aggregate reply counts, heart deletion, notifications, and guarded post-counter updates without relying on query order.
+
+The real service now covers valid and self replies, exact notification fields, cross-post direct reads, flat reply counts, all delete roles, unauthorized deletion, tombstones, final-reply cleanup, hard-delete repeats, tombstone no-ops, and route context binding. The valid reply test uses the real response builder.
+
+The delete-role test exposed a production bug. A super admin with a non-null tenant id could not delete a visible comment in another tenant. `delete_comment` now allows a super admin directly while keeping the same-tenant requirement for community admins.
+
+### Mutation RED
+
+Each controlled production mutation was reverted before GREEN and was not committed.
+
+```text
+# Drop BenderComment.post_id from the direct-read query.
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k direct_read_binds_requested_post_and_comment_ids
+1 failed, 12 deselected
+Failed: DID NOT RAISE NotFoundError
+
+# Change reply counter update from +1 to -1.
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k valid_reply_stores_requested_parent
+1 failed, 12 deselected
+assert 3 == 5
+
+# Replace the exact tombstone response text.
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k parent_with_replies_becomes_tombstone
+1 failed, 12 deselected
+assert 'deleted' == 'Comment deleted'
+```
+
+The test-first RED for the super-admin branch also failed before the production correction:
+
+```text
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k 'valid_reply or self_reply or authorized_actors'
+1 failed, 5 passed, 7 deselected
+ForbiddenError: Not allowed to delete this comment
+```
+
+### GREEN and verification
+
+```text
+.venv/bin/pytest -q tests/test_bender_comment_threads.py
+16 passed, 49 warnings
+
+.venv/bin/pytest -q tests/test_bender_post_link_preview.py tests/test_bender_comment_schema.py tests/test_bender_comment_migrations.py
+23 passed
+
+.venv/bin/pytest -q
+426 passed, 66 warnings
+```
+
+`git diff --check` passed. No `uv.lock` or deployment files changed.
+
+### Files changed
+
+- `the-bend-backend/tests/test_bender_comment_threads.py`
+- `the-bend-backend/app/services/bender_service.py`
+
+### Concerns
+
+The focused tests use a behavioral in-memory session instead of a live PostgreSQL database. It deliberately compiles PostgreSQL SQL and evaluates the predicates these service paths issue, but it does not simulate database isolation under concurrent requests. The full suite still reports existing `utcnow` and Starlette deprecation warnings.

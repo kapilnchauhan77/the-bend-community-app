@@ -505,8 +505,9 @@ class BenderService:
 
         is_comment_owner = comment.user_id == current_user.id
         is_post_owner = post.author_user_id == current_user.id
-        is_admin = self._is_community_admin(current_user) and (
-            current_user.tenant_id is None or post.tenant_id == current_user.tenant_id
+        is_admin = current_user.role == UserRole.SUPER_ADMIN or (
+            current_user.role == UserRole.COMMUNITY_ADMIN
+            and (current_user.tenant_id is None or post.tenant_id == current_user.tenant_id)
         )
         if not (is_comment_owner or is_post_owner or is_admin):
             raise ForbiddenError("Not allowed to delete this comment")
