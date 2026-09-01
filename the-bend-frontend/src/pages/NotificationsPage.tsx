@@ -40,6 +40,11 @@ function getIconStyle(type: string): { bg: string; color: string } {
 // ─── Navigate target from notification data ───────────────────────────────────
 function getTargetRoute(n: Notification): string {
   const data = n.data ?? {};
+  if (data.bender_post_id) {
+    const params = new URLSearchParams({ post: String(data.bender_post_id) });
+    if (data.bender_comment_id) params.set('comment', String(data.bender_comment_id));
+    return `/bender?${params.toString()}`;
+  }
   // Report notifications land on the flagged-posts admin queue, where
   // admins review / dismiss / delete the reported listing. Legacy
   // report notifications (before LISTING_REPORTED existed) reused the

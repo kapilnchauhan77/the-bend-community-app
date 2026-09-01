@@ -136,6 +136,8 @@ function BenderPostCard({
   isCommunityAdmin,
   isAuthenticated,
   isHighlighted,
+  forceCommentsOpen,
+  focusCommentId,
   onDelete,
   onPatch,
   onCountChange,
@@ -145,12 +147,17 @@ function BenderPostCard({
   isCommunityAdmin: boolean;
   isAuthenticated: boolean;
   isHighlighted?: boolean;
+  forceCommentsOpen?: boolean;
+  focusCommentId?: string | null;
   onDelete: (id: string) => void;
   onPatch: (id: string, patch: Partial<BenderPost>) => void;
   onCountChange: (id: string, delta: number) => void;
 }) {
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
+  useEffect(() => {
+    if (forceCommentsOpen) setCommentsOpen(true);
+  }, [forceCommentsOpen]);
 
   const display = post.author.shop_name || post.author.name;
   const canDelete =
@@ -367,6 +374,7 @@ function BenderPostCard({
           onCountChange={(delta) =>
             onCountChange(post.id, delta)
           }
+          focusCommentId={focusCommentId}
         />
       )}
     </article>
@@ -710,6 +718,7 @@ export default function BenderPage() {
   // Tracks which `?post=` id we've already scrolled to, so re-renders (e.g.
   // more pages loading) don't keep re-scrolling once the target was found.
   const focusedPostRef = useRef<string | null>(null);
+  const attemptedPostIdsRef = useRef(new Set<string>());
 
   const isCommunityAdmin = user?.role === 'community_admin';
 
@@ -767,6 +776,16 @@ export default function BenderPage() {
   // If the id isn't in the loaded set (later page, or deleted), no-op — we
   // don't force-paginate to find it.
   const focusPostId = searchParams.get('post');
+  const focusCommentId = searchParams.get('comment');
+  useEffect(() => {
+    if (!focusPostId || loading || posts.some((post) => post.id === focusPostId) || attemptedPostIdsRef.current.has(focusPostId)) return;
+    attemptedPostIdsRef.current.add(focusPostId);
+    benderApi.getPost(focusPostId).then((response) => {
+      setPosts((previous) => previous.some((post) => post.id === response.data.id) ? previous : [...previous, response.data]);
+    }).catch(() => {
+      // A deleted or invisible deep-linked post must not replace the feed.
+    });
+  }, [focusPostId, loading, posts]);
   useEffect(() => {
     if (!focusPostId || loading) return;
     if (focusedPostRef.current === focusPostId) return;
@@ -888,6 +907,8 @@ export default function BenderPage() {
                   isCommunityAdmin={isCommunityAdmin}
                   isAuthenticated={isAuthenticated}
                   isHighlighted={post.id === highlightedPostId}
+                  forceCommentsOpen={post.id === focusPostId && Boolean(focusCommentId)}
+                  focusCommentId={post.id === focusPostId ? focusCommentId : null}
                   onDelete={handleDelete}
                   onPatch={handlePatch}
                   onCountChange={handleCountChange}

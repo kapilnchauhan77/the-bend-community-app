@@ -33,7 +33,7 @@ export interface BenderCommentsDrawerProps {
 
 const normalize = (comment: BenderComment): BenderComment => ({ parent_comment_id: null, reply_count: 0, like_count: 0, viewer_has_liked: false, is_deleted: false, ...comment });
 
-export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, onCountChange }: BenderCommentsDrawerProps) {
+export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, onCountChange, focusCommentId = null }: BenderCommentsDrawerProps) {
   const [comments, setComments] = useState<BenderComment[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -42,11 +42,48 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const attemptedCommentIdsRef = useRef(new Set<string>());
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (cursor?: string) => {
     try { const response = await benderApi.listComments(postId, cursor); setComments((previous) => cursor ? [...previous, ...response.data.items.map(normalize)] : response.data.items.map(normalize)); setNextCursor(response.data.next_cursor ?? null); setHasMore(response.data.has_more); } catch { /* keep the drawer usable on a soft read failure */ } finally { setLoading(false); }
   }, [postId]);
   useEffect(() => { setLoading(true); load(); }, [load]);
+
+  useEffect(() => {
+    if (!focusCommentId || loading || attemptedCommentIdsRef.current.has(`${postId}:${focusCommentId}`)) return;
+    const key = `${postId}:${focusCommentId}`;
+    const target = comments.find((comment) => comment.id === focusCommentId);
+    if (target) {
+      attemptedCommentIdsRef.current.add(key);
+      return;
+    }
+    attemptedCommentIdsRef.current.add(key);
+    benderApi.getComment(postId, focusCommentId).then(async (response) => {
+      const targetComment = normalize(response.data);
+      let parentComment: BenderComment | null = null;
+      if (targetComment.parent_comment_id && !comments.some((comment) => comment.id === targetComment.parent_comment_id)) {
+        try { parentComment = normalize((await benderApi.getComment(postId, targetComment.parent_comment_id)).data); } catch { /* parent may have been removed */ }
+      }
+      setComments((rows) => [...rows.filter((row) => row.id !== targetComment.id && (!parentComment || row.id !== parentComment.id)), ...(parentComment ? [parentComment] : []), targetComment]);
+    }).catch(() => {
+      // A deleted or invisible target should not prevent the ordinary list opening.
+    });
+  }, [comments, focusCommentId, loading, postId]);
+
+  useEffect(() => {
+    if (!focusCommentId || loading || !comments.some((comment) => comment.id === focusCommentId)) return;
+    const element = document.querySelector(`[data-testid="bender-comment-${CSS.escape(focusCommentId)}"]`) as HTMLElement | null;
+    if (!element) return;
+    element.setAttribute('data-testid', 'bender-comment-focus');
+    element.setAttribute('data-comment-id', focusCommentId);
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element.setAttribute('data-focus-active', 'true');
+    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+    focusTimeoutRef.current = setTimeout(() => element.setAttribute('data-focus-active', 'false'), 2000);
+  }, [comments, focusCommentId, loading]);
+
+  useEffect(() => () => { if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current); }, []);
 
   const parents = useMemo(() => comments.filter((comment) => comment.parent_comment_id === null), [comments]);
   const repliesByParent = useMemo(() => comments.reduce<Record<string, BenderComment[]>>((groups, comment) => { if (comment.parent_comment_id) (groups[comment.parent_comment_id] ??= []).push(comment); return groups; }, {}), [comments]);
@@ -81,6 +118,7 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
   const renderComment = (comment: BenderComment, reply = false) => {
     const display = comment.author.shop_name || comment.author.name;
     const canDelete = isCommunityAdmin || (currentUserId !== null && comment.author.id === currentUserId);
+    const focused = comment.id === focusCommentId;
     return <div key={comment.id} data-testid={`bender-comment-${comment.id}`} data-comment-row="true" className={`flex gap-2 items-start min-w-0 max-w-full ${reply ? 'ml-6 border-l border-[hsl(35,18%,84%)] pl-3' : ''}`}><AuthorAvatar author={comment.author} /><div className="flex-1 min-w-0 max-w-full overflow-hidden"><div className="text-[13px] leading-snug break-all"><span className="font-semibold text-[hsl(30,15%,18%)] break-words">{display}</span>{' '}<span className={comment.is_deleted ? 'text-[hsl(30,10%,55%)] italic' : 'text-[hsl(30,10%,30%)]'}>{comment.content}</span></div><div data-testid={`bender-comment-actions-${comment.id}`} className="flex flex-wrap items-center gap-3 max-w-full overflow-hidden text-[10px] text-[hsl(30,10%,55%)] mt-1"><span>{timeAgo(comment.created_at)}</span>{!comment.is_deleted && <>{!currentUserId && <span className="flex items-center gap-1"><Heart size={13} className={comment.viewer_has_liked ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]' : ''} />{comment.like_count > 0 && <span>{comment.like_count}</span>}</span>}{currentUserId && <><button type="button" data-testid={`bender-comment-heart-${comment.id}`} onClick={() => toggleHeart(comment)} className="flex items-center gap-1 cursor-pointer" aria-label={comment.viewer_has_liked ? 'Unlike comment' : 'Like comment'} aria-pressed={comment.viewer_has_liked}><Heart size={13} className={comment.viewer_has_liked ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]' : ''} />{comment.like_count > 0 && <span>{comment.like_count}</span>}</button>{!reply && <button type="button" onClick={() => { setReplyingToId(comment.id); setReplyDraft(''); }} className="cursor-pointer">Reply</button>}</>}</>}</div></div>{canDelete && !comment.is_deleted && <KebabMenu onDelete={() => deleteComment(comment)} />}</div>;
   };
 
