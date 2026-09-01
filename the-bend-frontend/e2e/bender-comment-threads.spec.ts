@@ -25,7 +25,7 @@ async function openDrawer(page: Page, signedIn = true, overrides: Record<string,
 test('renders replies beneath each parent in chronological order and only offers parent replies', async ({ page }) => {
   await openDrawer(page);
   await expect(page.getByTestId('bender-comment-replies-p1')).toHaveCount(1);
-  const rows = page.locator('li[data-testid^="bender-comment-"]');
+  const rows = page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"])');
   await expect(rows).toHaveCount(5);
   await expect(page.getByTestId('bender-comments-drawer')).toContainText('old reply');
   await expect(page.getByTestId('bender-comment-t1')).toContainText('Comment deleted');

@@ -6,7 +6,17 @@ const sharedFixtureRows = JSON.parse(
   readFileSync(new URL('../../test-fixtures/bender-link-url-cases.json', import.meta.url), 'utf8'),
 ) as FixtureRow[];
 const author = { id: 'u1', name: 'Alex', avatar_url: null, shop_id: null, shop_name: null };
-const comment = { id: 'c1', author, content: 'A comment', created_at: '2026-08-20T10:01:00Z' };
+const comment = {
+  id: 'c1',
+  author,
+  content: 'A comment',
+  created_at: '2026-08-20T10:01:00Z',
+  parent_comment_id: null,
+  reply_count: 0,
+  like_count: 0,
+  viewer_has_liked: false,
+  is_deleted: false,
+};
 const base = {
   id: 'p1',
   author,
