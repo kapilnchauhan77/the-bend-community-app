@@ -50,11 +50,14 @@ test('opens, cancels, and submits one reply composer with Enter semantics', asyn
 
 test('optimistic failed reply restores exact draft and post count', async ({ page }) => {
   await openDrawer(page, true, { comment_count: 5 }, comments, { create: true });
+  const beforeIds = await page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')));
   await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click();
   const composer = page.getByTestId('bender-reply-composer-p1').locator('textarea'); await composer.fill('restore me'); await composer.press('Enter');
   await expect(page.getByTestId('bender-reply-composer-p1').locator('textarea')).toHaveValue('restore me');
   await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body');
   await expect(page.getByTestId('bender-actions')).toContainText('5');
+  await expect.poll(() => page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')))).toEqual(beforeIds);
+  await expect(page.getByTestId('bender-comments-drawer')).not.toContainText('restore me');
 });
 
 test('heart and unheart update parent and reply from server, then roll back on failure', async ({ page }) => {
@@ -71,9 +74,9 @@ test('delete tombstones a parent with replies', async ({ page }) => {
 
 test('failed delete restores the exact collection, heart state, replies, and count', async ({ page }) => {
   await openDrawer(page, true, { comment_count: 5 }, comments, { delete: true });
-  const before = await page.getByTestId('bender-comment-p1').innerText();
+  const beforeIds = await page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')));
   await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'More' }).click(); await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body'); await expect(page.getByTestId('bender-comment-p1')).not.toContainText('Comment deleted'); await expect(page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Like comment' })).toHaveAttribute('aria-label', 'Like comment'); await expect(page.getByTestId('bender-comment-r1')).toBeVisible(); await expect(page.getByTestId('bender-actions')).toContainText('5');
+  await expect.poll(() => page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')))).toEqual(beforeIds); await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body'); await expect(page.getByTestId('bender-comment-p1')).not.toContainText('Comment deleted'); await expect(page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Like comment' })).toHaveAttribute('aria-label', 'Like comment'); await expect(page.getByTestId('bender-comment-actions-p1')).toContainText('1'); await expect(page.getByTestId('bender-comment-r1')).toBeVisible(); await expect(page.getByTestId('bender-comment-r2')).toBeVisible(); await expect(page.getByTestId('bender-actions')).toContainText('5');
 });
 
 test('signed-out readers see comments and heart counts without controls', async ({ page }) => {
