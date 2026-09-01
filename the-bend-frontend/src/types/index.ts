@@ -357,6 +357,17 @@ export interface BenderComment {
   author: BenderAuthor;
   content: string;
   created_at: string;
+  parent_comment_id: string | null;
+  reply_count: number;
+  like_count: number;
+  viewer_has_liked: boolean;
+  is_deleted: boolean;
+}
+
+export interface BenderCommentHeartResponse {
+  id: string;
+  like_count: number;
+  viewer_has_liked: boolean;
 }
 
 // Discount codes — either personally owned (community member) or shop-owned.

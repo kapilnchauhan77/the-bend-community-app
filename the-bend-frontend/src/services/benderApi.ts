@@ -1,5 +1,5 @@
 import api from './api';
-import type { BenderPost, BenderComment, BenderLinkPreview, PaginatedResponse } from '@/types';
+import type { BenderPost, BenderComment, BenderCommentHeartResponse, BenderLinkPreview, PaginatedResponse } from '@/types';
 
 export interface BenderLinkPreviewResponse {
   preview_token: string;
@@ -31,6 +31,8 @@ export const benderApi = {
   createPost: (payload: CreatePostPayload) =>
     api.post<BenderPost>('/bender/posts', payload),
 
+  getPost: (postId: string) => api.get<BenderPost>(`/bender/posts/${postId}`),
+
   generateLinkPreview: (url: string, signal?: AbortSignal) =>
     api.post<BenderLinkPreviewResponse>('/bender/link-preview', { url }, { signal }),
 
@@ -44,8 +46,20 @@ export const benderApi = {
       params: { cursor, limit },
     }),
 
-  createComment: (postId: string, content: string) =>
-    api.post<BenderComment>(`/bender/posts/${postId}/comments`, { content }),
+  createComment: (postId: string, content: string, parentCommentId?: string) =>
+    api.post<BenderComment>(`/bender/posts/${postId}/comments`, {
+      content,
+      parent_comment_id: parentCommentId ?? null,
+    }),
+
+  getComment: (postId: string, commentId: string) =>
+    api.get<BenderComment>(`/bender/posts/${postId}/comments/${commentId}`),
+
+  likeComment: (postId: string, commentId: string) =>
+    api.post<BenderCommentHeartResponse>(`/bender/posts/${postId}/comments/${commentId}/like`),
+
+  unlikeComment: (postId: string, commentId: string) =>
+    api.delete<BenderCommentHeartResponse>(`/bender/posts/${postId}/comments/${commentId}/like`),
 
   deleteComment: (postId: string, commentId: string) =>
     api.delete(`/bender/posts/${postId}/comments/${commentId}`),

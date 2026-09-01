@@ -28,6 +28,7 @@ import { extractFirstHttpUrl, isSafeHttpUrl } from '@/lib/benderLinks';
 import { isVideoUrl, timeAgo } from '@/lib/utils';
 import { BenderCaption } from '@/components/features/bender/BenderCaption';
 import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPreviewCard';
+import { BenderCommentsDrawer } from '@/components/features/bender/BenderCommentsDrawer';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
 import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
 import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
@@ -130,7 +131,7 @@ function KebabMenu({
 // portal) so the post card itself grows. This avoids covering the next post.
 // Comments are ASC; new optimistic appends sit at the bottom — natural.
 // ============================================================================
-function CommentsDrawer({
+function LegacyCommentsDrawer({
   postId,
   currentUserId,
   isCommunityAdmin,
@@ -550,7 +551,7 @@ function BenderPostCard({
       )}
 
       {commentsOpen && (
-        <CommentsDrawer
+        <BenderCommentsDrawer
           postId={post.id}
           currentUserId={currentUserId}
           isCommunityAdmin={isCommunityAdmin}
