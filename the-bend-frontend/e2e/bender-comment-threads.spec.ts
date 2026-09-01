@@ -57,7 +57,7 @@ test('optimistic failed reply restores exact draft and post count', async ({ pag
   await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body');
   await expect(page.getByTestId('bender-actions')).toContainText('5');
   await expect.poll(() => page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')))).toEqual(beforeIds);
-  await expect(page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])')).not.toContainText('restore me');
+  const rowsAfterFailure = page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"]):not([data-testid="bender-comment-composer"])'); await expect(rowsAfterFailure).toHaveCount(5); await expect(rowsAfterFailure.filter({ hasText: 'restore me' })).toHaveCount(0);
 });
 
 test('heart and unheart update parent and reply from server, then roll back on failure', async ({ page }) => {
