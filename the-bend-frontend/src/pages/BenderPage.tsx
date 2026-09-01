@@ -30,6 +30,7 @@ import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPr
 import { BenderCommentsDrawer } from '@/components/features/bender/BenderCommentsDrawer';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
 import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
+import axios from 'axios';
 import type { BenderPost, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -712,6 +713,7 @@ export default function BenderPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const feedTopRef = useRef<HTMLDivElement>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -782,8 +784,8 @@ export default function BenderPage() {
     attemptedPostIdsRef.current.add(focusPostId);
     benderApi.getPost(focusPostId).then((response) => {
       setPosts((previous) => previous.some((post) => post.id === response.data.id) ? previous : [...previous, response.data]);
-    }).catch(() => {
-      // A deleted or invisible deep-linked post must not replace the feed.
+    }).catch((error: unknown) => {
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) setDeepLinkError('Could not load the linked post.');
     });
   }, [focusPostId, loading, posts]);
   useEffect(() => {
@@ -861,6 +863,7 @@ export default function BenderPage() {
 
         {/* Feed */}
         <div className="md:p-0 pt-2">
+          {deepLinkError && <p role="alert" className="mx-3 mb-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{deepLinkError}</p>}
           {loading ? (
             <div className="space-y-3 px-0 md:px-0">
               {[0, 1, 2].map((i) => (

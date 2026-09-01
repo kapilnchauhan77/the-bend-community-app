@@ -7,6 +7,7 @@ import { resolveAssetUrl } from '@/lib/constants';
 import { timeAgo } from '@/lib/utils';
 import { benderApi } from '@/services/benderApi';
 import type { BenderAuthor, BenderComment } from '@/types';
+import axios from 'axios';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
 
@@ -42,6 +43,8 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
+  const [activeFocusId, setActiveFocusId] = useState<string | null>(null);
   const attemptedCommentIdsRef = useRef(new Set<string>());
   const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -63,25 +66,34 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
       const targetComment = normalize(response.data);
       let parentComment: BenderComment | null = null;
       if (targetComment.parent_comment_id && !comments.some((comment) => comment.id === targetComment.parent_comment_id)) {
-        try { parentComment = normalize((await benderApi.getComment(postId, targetComment.parent_comment_id)).data); } catch { /* parent may have been removed */ }
+        try { parentComment = normalize((await benderApi.getComment(postId, targetComment.parent_comment_id)).data); } catch (error: unknown) { if (!axios.isAxiosError(error) || error.response?.status !== 404) setDeepLinkError('Could not load the linked comment thread.'); }
       }
       setComments((rows) => [...rows.filter((row) => row.id !== targetComment.id && (!parentComment || row.id !== parentComment.id)), ...(parentComment ? [parentComment] : []), targetComment]);
-    }).catch(() => {
-      // A deleted or invisible target should not prevent the ordinary list opening.
+    }).catch((error: unknown) => {
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) setDeepLinkError('Could not load the linked comment.');
     });
   }, [comments, focusCommentId, loading, postId]);
 
   useEffect(() => {
     if (!focusCommentId || loading || !comments.some((comment) => comment.id === focusCommentId)) return;
-    const element = document.querySelector(`[data-testid="bender-comment-${CSS.escape(focusCommentId)}"]`) as HTMLElement | null;
-    if (!element) return;
-    element.setAttribute('data-testid', 'bender-comment-focus');
-    element.setAttribute('data-comment-id', focusCommentId);
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    element.setAttribute('data-focus-active', 'true');
-    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
-    focusTimeoutRef.current = setTimeout(() => element.setAttribute('data-focus-active', 'false'), 2000);
+    setActiveFocusId(focusCommentId);
   }, [comments, focusCommentId, loading]);
+
+  useEffect(() => {
+    if (!activeFocusId) return;
+    const element = document.querySelector(`[data-comment-id="${CSS.escape(activeFocusId)}"]`) as HTMLElement | null;
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+    focusTimeoutRef.current = setTimeout(() => setActiveFocusId(null), 2000);
+  }, [activeFocusId]);
+
+  useEffect(() => {
+    if (focusCommentId !== activeFocusId) {
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+      setActiveFocusId(null);
+    }
+  }, [activeFocusId, focusCommentId]);
 
   useEffect(() => () => { if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current); }, []);
 
@@ -118,9 +130,8 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
   const renderComment = (comment: BenderComment, reply = false) => {
     const display = comment.author.shop_name || comment.author.name;
     const canDelete = isCommunityAdmin || (currentUserId !== null && comment.author.id === currentUserId);
-    const focused = comment.id === focusCommentId;
-    return <div key={comment.id} data-testid={`bender-comment-${comment.id}`} data-comment-row="true" className={`flex gap-2 items-start min-w-0 max-w-full ${reply ? 'ml-6 border-l border-[hsl(35,18%,84%)] pl-3' : ''}`}><AuthorAvatar author={comment.author} /><div className="flex-1 min-w-0 max-w-full overflow-hidden"><div className="text-[13px] leading-snug break-all"><span className="font-semibold text-[hsl(30,15%,18%)] break-words">{display}</span>{' '}<span className={comment.is_deleted ? 'text-[hsl(30,10%,55%)] italic' : 'text-[hsl(30,10%,30%)]'}>{comment.content}</span></div><div data-testid={`bender-comment-actions-${comment.id}`} className="flex flex-wrap items-center gap-3 max-w-full overflow-hidden text-[10px] text-[hsl(30,10%,55%)] mt-1"><span>{timeAgo(comment.created_at)}</span>{!comment.is_deleted && <>{!currentUserId && <span className="flex items-center gap-1"><Heart size={13} className={comment.viewer_has_liked ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]' : ''} />{comment.like_count > 0 && <span>{comment.like_count}</span>}</span>}{currentUserId && <><button type="button" data-testid={`bender-comment-heart-${comment.id}`} onClick={() => toggleHeart(comment)} className="flex items-center gap-1 cursor-pointer" aria-label={comment.viewer_has_liked ? 'Unlike comment' : 'Like comment'} aria-pressed={comment.viewer_has_liked}><Heart size={13} className={comment.viewer_has_liked ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]' : ''} />{comment.like_count > 0 && <span>{comment.like_count}</span>}</button>{!reply && <button type="button" onClick={() => { setReplyingToId(comment.id); setReplyDraft(''); }} className="cursor-pointer">Reply</button>}</>}</>}</div></div>{canDelete && !comment.is_deleted && <KebabMenu onDelete={() => deleteComment(comment)} />}</div>;
+    return <div key={comment.id} data-testid={activeFocusId === comment.id ? "bender-comment-focus" : `bender-comment-${comment.id}`} data-comment-id={comment.id} aria-current={activeFocusId === comment.id ? "true" : undefined} data-focus-active={activeFocusId === comment.id ? "true" : "false"} data-comment-row="true" className={`flex gap-2 items-start min-w-0 max-w-full ${reply ? 'ml-6 border-l border-[hsl(35,18%,84%)] pl-3' : ''} ${activeFocusId === comment.id ? 'rounded bg-amber-100 ring-2 ring-amber-500 shadow-sm' : ''}`}><AuthorAvatar author={comment.author} /><div className="flex-1 min-w-0 max-w-full overflow-hidden"><div className="text-[13px] leading-snug break-all"><span className="font-semibold text-[hsl(30,15%,18%)] break-words">{display}</span>{' '}<span className={comment.is_deleted ? 'text-[hsl(30,10%,55%)] italic' : 'text-[hsl(30,10%,30%)]'}>{comment.content}</span></div><div data-testid={`bender-comment-actions-${comment.id}`} className="flex flex-wrap items-center gap-3 max-w-full overflow-hidden text-[10px] text-[hsl(30,10%,55%)] mt-1"><span>{timeAgo(comment.created_at)}</span>{!comment.is_deleted && <>{!currentUserId && <span className="flex items-center gap-1"><Heart size={13} className={comment.viewer_has_liked ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]' : ''} />{comment.like_count > 0 && <span>{comment.like_count}</span>}</span>}{currentUserId && <><button type="button" data-testid={`bender-comment-heart-${comment.id}`} onClick={() => toggleHeart(comment)} className="flex items-center gap-1 cursor-pointer" aria-label={comment.viewer_has_liked ? 'Unlike comment' : 'Like comment'} aria-pressed={comment.viewer_has_liked}><Heart size={13} className={comment.viewer_has_liked ? 'fill-[hsl(0,75%,55%)] text-[hsl(0,75%,55%)]' : ''} />{comment.like_count > 0 && <span>{comment.like_count}</span>}</button>{!reply && <button type="button" onClick={() => { setReplyingToId(comment.id); setReplyDraft(''); }} className="cursor-pointer">Reply</button>}</>}</>}</div></div>{canDelete && !comment.is_deleted && <KebabMenu onDelete={() => deleteComment(comment)} />}</div>;
   };
 
-  return <div data-testid="bender-comments-drawer" className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)] min-w-0"><div className="max-h-80 overflow-y-auto px-3 py-2 min-w-0">{loading ? <div className="space-y-2 py-2">{[0, 1, 2].map((i) => <div key={i} className="flex gap-2"><Skeleton className="h-6 w-6 rounded-full" /><Skeleton className="h-4 flex-1" /></div>)}</div> : comments.length === 0 ? <p className="text-center text-xs text-[hsl(30,10%,50%)] py-4">No comments yet. Be the first.</p> : <ul className="space-y-3 py-1 min-w-0">{parents.map((parent) => <li key={parent.id} className="space-y-2 min-w-0">{renderComment(parent)}{!parent.is_deleted && replyingToId === parent.id && currentUserId && <div data-testid={`bender-reply-composer-${parent.id}`} className="ml-6 pl-3 flex flex-wrap items-end gap-2 min-w-0 w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)]"><div className="text-xs text-[hsl(30,10%,50%)] w-full min-w-0 max-w-full break-all overflow-hidden">Replying to {parent.author.shop_name || parent.author.name}</div><Textarea value={replyDraft} onChange={(event) => setReplyDraft(event.target.value.slice(0, 1000))} placeholder="Write a reply…" className="min-w-0 flex-1 basis-0 min-h-8 max-w-full overflow-hidden break-all h-8 text-[13px]" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(parent.id); } }} /><Button type="button" disabled={!replyDraft.trim() || sending} onClick={() => send(parent.id)} className="h-8 text-white" style={{ backgroundColor: PRIMARY }}> <Send size={14} /> Send Reply</Button><Button type="button" variant="ghost" onClick={() => { setReplyingToId(null); setReplyDraft(''); }} className="h-8">Cancel</Button></div>}<div data-testid={`bender-comment-replies-${parent.id}`} className="space-y-2">{(repliesByParent[parent.id] ?? []).map((reply) => renderComment(reply, true))}</div></li>)}{hasMore && <li className="text-center"><button type="button" onClick={() => load(nextCursor || undefined)} className="text-[11px] text-[hsl(35,45%,42%)] cursor-pointer">Load more</button></li>}</ul>}</div>{currentUserId && <div data-testid="bender-comment-composer" className="flex flex-wrap items-end gap-2 px-3 py-2 border-t border-[hsl(35,18%,90%)] bg-white min-w-0"><Textarea value={draft} onChange={(event) => setDraft(event.target.value.slice(0, 1000))} placeholder="Add a comment…" className="min-w-0 flex-1 min-h-8 h-8 text-[13px]" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(null); } }} /><Button type="button" disabled={!draft.trim() || sending} onClick={() => send(null)} className="h-8 w-8 text-white" style={{ backgroundColor: PRIMARY }} aria-label="Send comment"><Send size={14} /></Button></div>}</div>;
+  return <div data-testid="bender-comments-drawer" role="region" aria-label="Bender comments" className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)] min-w-0">{deepLinkError && <p role="alert" className="border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{deepLinkError}</p>}<div className="max-h-80 overflow-y-auto px-3 py-2 min-w-0">{loading ? <div className="space-y-2 py-2">{[0, 1, 2].map((i) => <div key={i} className="flex gap-2"><Skeleton className="h-6 w-6 rounded-full" /><Skeleton className="h-4 flex-1" /></div>)}</div> : comments.length === 0 ? <p className="text-center text-xs text-[hsl(30,10%,50%)] py-4">No comments yet. Be the first.</p> : <ul className="space-y-3 py-1 min-w-0">{parents.map((parent) => <li key={parent.id} className="space-y-2 min-w-0">{renderComment(parent)}{!parent.is_deleted && replyingToId === parent.id && currentUserId && <div data-testid={`bender-reply-composer-${parent.id}`} className="ml-6 pl-3 flex flex-wrap items-end gap-2 min-w-0 w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)]"><div className="text-xs text-[hsl(30,10%,50%)] w-full min-w-0 max-w-full break-all overflow-hidden">Replying to {parent.author.shop_name || parent.author.name}</div><Textarea value={replyDraft} onChange={(event) => setReplyDraft(event.target.value.slice(0, 1000))} placeholder="Write a reply…" className="min-w-0 flex-1 basis-0 min-h-8 max-w-full overflow-hidden break-all h-8 text-[13px]" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(parent.id); } }} /><Button type="button" disabled={!replyDraft.trim() || sending} onClick={() => send(parent.id)} className="h-8 text-white" style={{ backgroundColor: PRIMARY }}> <Send size={14} /> Send Reply</Button><Button type="button" variant="ghost" onClick={() => { setReplyingToId(null); setReplyDraft(''); }} className="h-8">Cancel</Button></div>}<div data-testid={`bender-comment-replies-${parent.id}`} className="space-y-2">{(repliesByParent[parent.id] ?? []).map((reply) => renderComment(reply, true))}</div></li>)}{hasMore && <li className="text-center"><button type="button" onClick={() => load(nextCursor || undefined)} className="text-[11px] text-[hsl(35,45%,42%)] cursor-pointer">Load more</button></li>}</ul>}</div>{currentUserId && <div data-testid="bender-comment-composer" className="flex flex-wrap items-end gap-2 px-3 py-2 border-t border-[hsl(35,18%,90%)] bg-white min-w-0"><Textarea value={draft} onChange={(event) => setDraft(event.target.value.slice(0, 1000))} placeholder="Add a comment…" className="min-w-0 flex-1 min-h-8 h-8 text-[13px]" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(null); } }} /><Button type="button" disabled={!draft.trim() || sending} onClick={() => send(null)} className="h-8 w-8 text-white" style={{ backgroundColor: PRIMARY }} aria-label="Send comment"><Send size={14} /></Button></div>}</div>;
 }
