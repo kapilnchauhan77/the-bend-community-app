@@ -187,8 +187,81 @@ export default function ShopsPage() {
             No businesses found.
           </div>
         ) : (
-          <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
-            <Table>
+          <>
+            <div className="space-y-3 md:hidden">
+              {shops.map((shop) => (
+                <article key={shop.id} className="rounded-xl border bg-white p-4 shadow-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="break-words font-semibold text-gray-900">{shop.name}</h2>
+                      <p className="mt-1 break-words text-sm capitalize text-muted-foreground">
+                        {shop.business_type}
+                      </p>
+                    </div>
+                    {statusBadge(shop.status)}
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div className="min-w-0">
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Admin</dt>
+                      <dd className="mt-0.5 break-words font-medium">{shop.admin_name}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Listings</dt>
+                      <dd className="mt-0.5 font-medium tabular-nums">{shop.listing_count}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Joined</dt>
+                      <dd className="mt-0.5 font-medium">{formatDate(shop.created_at)}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setViewShop(shop)}
+                      className="min-h-10 gap-1.5"
+                    >
+                      <Eye size={14} />
+                      View
+                    </Button>
+                    {shop.status === 'active' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-10 gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => openSuspend(shop)}
+                        disabled={actionLoading === shop.id}
+                      >
+                        {actionLoading === shop.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <PauseCircle size={14} />
+                        )}
+                        Suspend
+                      </Button>
+                    )}
+                    {shop.status === 'suspended' && (
+                      <Button
+                        size="sm"
+                        className="min-h-10 gap-1.5 text-white"
+                        style={{ backgroundColor: PRIMARY }}
+                        onClick={() => handleReactivate(shop)}
+                        disabled={actionLoading === shop.id}
+                      >
+                        {actionLoading === shop.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <PlayCircle size={14} />
+                        )}
+                        Reactivate
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden rounded-xl border bg-white overflow-hidden shadow-sm md:block">
+              <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/60">
                   <TableHead className="pl-4">Business Name</TableHead>
@@ -263,8 +336,9 @@ export default function ShopsPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          </div>
+              </Table>
+            </div>
+          </>
         )}
       </div>
 

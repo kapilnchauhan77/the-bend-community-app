@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AdminLayout } from '@/components/layout/AdminLayout';
@@ -81,41 +82,59 @@ export default function DashboardPage() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="pt-6 pb-5">
-              <div
-                className="text-3xl font-bold tabular-nums"
-                style={{ color: 'hsl(160, 25%, 24%)' }}
-              >
-                {data.pending_registrations}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">Pending Registrations</p>
-              <div
-                className="mt-3 h-1 w-12 rounded-full"
-                style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
-              />
-            </CardContent>
-          </Card>
+          <Link
+            to="/admin/registrations"
+            aria-label={`${data.pending_registrations} Pending Registrations`}
+            className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(160,25%,24%)] focus-visible:ring-offset-2"
+          >
+            <Card className="h-full border-0 shadow-sm transition-shadow hover:shadow-md">
+              <CardContent className="pt-6 pb-5">
+                <div
+                  className="text-3xl font-bold tabular-nums"
+                  style={{ color: 'hsl(160, 25%, 24%)' }}
+                >
+                  {data.pending_registrations}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">Pending Registrations</p>
+                <div
+                  className="mt-3 h-1 w-12 rounded-full"
+                  style={{ backgroundColor: 'hsl(160, 25%, 24%)' }}
+                />
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border-0 shadow-sm">
-            <CardContent className="pt-6 pb-5">
-              <div className="text-3xl font-bold tabular-nums text-blue-600">
-                {data.active_shops}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">Active Businesses</p>
-              <div className="mt-3 h-1 w-12 rounded-full bg-blue-500" />
-            </CardContent>
-          </Card>
+          <Link
+            to="/admin/shops"
+            aria-label={`${data.active_shops} Active Businesses`}
+            className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          >
+            <Card className="h-full border-0 shadow-sm transition-shadow hover:shadow-md">
+              <CardContent className="pt-6 pb-5">
+                <div className="text-3xl font-bold tabular-nums text-blue-600">
+                  {data.active_shops}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">Active Businesses</p>
+                <div className="mt-3 h-1 w-12 rounded-full bg-blue-500" />
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border-0 shadow-sm">
-            <CardContent className="pt-6 pb-5">
-              <div className="text-3xl font-bold tabular-nums text-amber-600">
-                {data.active_listings}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">Active Listings</p>
-              <div className="mt-3 h-1 w-12 rounded-full bg-amber-500" />
-            </CardContent>
-          </Card>
+          <Link
+            to="/admin/listings"
+            aria-label={`${data.active_listings} Active Listings`}
+            className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+          >
+            <Card className="h-full border-0 shadow-sm transition-shadow hover:shadow-md">
+              <CardContent className="pt-6 pb-5">
+                <div className="text-3xl font-bold tabular-nums text-amber-600">
+                  {data.active_listings}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">Active Listings</p>
+                <div className="mt-3 h-1 w-12 rounded-full bg-amber-500" />
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Recent tables */}

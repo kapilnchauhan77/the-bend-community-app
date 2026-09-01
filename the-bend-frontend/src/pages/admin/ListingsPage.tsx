@@ -217,8 +217,54 @@ export default function ListingsPage() {
             No listings found matching your filters.
           </div>
         ) : (
-          <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
-            <Table>
+          <>
+            <div className="space-y-3 md:hidden">
+              {listings.map((listing) => (
+                <article key={listing.id} className="rounded-xl border bg-white p-4 shadow-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="break-words font-semibold text-gray-900">{listing.title}</h2>
+                      <p className="mt-1 break-words text-sm text-muted-foreground">
+                        {listing.shop_name}
+                      </p>
+                    </div>
+                    {statusBadge(listing.status)}
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Category</dt>
+                      <dd className="mt-0.5 capitalize font-medium">{listing.category}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Urgency</dt>
+                      <dd className="mt-1">{urgencyBadge(listing.urgency)}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Posted</dt>
+                      <dd className="mt-0.5 font-medium">{formatDate(listing.created_at)}</dd>
+                    </div>
+                  </dl>
+                  {listing.status !== 'removed' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-4 min-h-10 w-full gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={() => openRemove(listing)}
+                      disabled={actionLoading === listing.id}
+                    >
+                      {actionLoading === listing.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Remove
+                    </Button>
+                  )}
+                </article>
+              ))}
+            </div>
+            <div className="hidden rounded-xl border bg-white overflow-hidden shadow-sm md:block">
+              <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/60">
                   <TableHead className="pl-4">Title</TableHead>
@@ -268,8 +314,9 @@ export default function ListingsPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          </div>
+              </Table>
+            </div>
+          </>
         )}
       </div>
 

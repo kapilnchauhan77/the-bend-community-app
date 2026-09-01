@@ -206,8 +206,73 @@ export default function RegistrationsPage() {
                   No {status} registrations found.
                 </div>
               ) : (
-                <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
-                  <Table>
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {registrations.map((reg) => (
+                      <article key={reg.id} className="rounded-xl border bg-white p-4 shadow-sm">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h2 className="break-words font-semibold text-gray-900">{reg.name}</h2>
+                            <p className="mt-1 break-words text-sm capitalize text-muted-foreground">
+                              {reg.business_type}
+                            </p>
+                          </div>
+                          {statusBadge(reg.status)}
+                        </div>
+                        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div className="min-w-0">
+                            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Contact</dt>
+                            <dd className="mt-0.5 break-words font-medium">{reg.admin_name}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Submitted</dt>
+                            <dd className="mt-0.5 font-medium">{formatDate(reg.created_at)}</dd>
+                          </div>
+                        </dl>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setViewReg(reg)}
+                            className="col-span-2 min-h-10 gap-1.5"
+                          >
+                            <Eye size={14} />
+                            View
+                          </Button>
+                          {status === 'pending' && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="min-h-10 gap-1.5 text-white"
+                                style={{ backgroundColor: PRIMARY }}
+                                onClick={() => handleApprove(reg)}
+                                disabled={actionLoading === reg.id}
+                              >
+                                {actionLoading === reg.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <CheckCircle size={14} />
+                                )}
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="min-h-10 gap-1.5"
+                                onClick={() => openReject(reg)}
+                                disabled={actionLoading === reg.id}
+                              >
+                                <XCircle size={14} />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="hidden rounded-xl border bg-white overflow-hidden shadow-sm md:block">
+                    <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50/60">
                         <TableHead className="pl-4">Business Name</TableHead>
@@ -276,8 +341,9 @@ export default function RegistrationsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
-                </div>
+                    </Table>
+                  </div>
+                </>
               )}
             </TabsContent>
           ))}
