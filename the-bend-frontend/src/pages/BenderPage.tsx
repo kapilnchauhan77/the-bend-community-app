@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,7 +30,7 @@ import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPr
 import { BenderCommentsDrawer } from '@/components/features/bender/BenderCommentsDrawer';
 import { benderApi, type CreatePostPayload } from '@/services/benderApi';
 import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
-import type { BenderPost, BenderComment, BenderAuthor } from '@/types';
+import type { BenderPost, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 const PRIMARY = 'hsl(160, 25%, 24%)';
@@ -126,198 +125,6 @@ function KebabMenu({
   );
 }
 
-// ============================================================================
-// CommentsDrawer — inline (slides in below the post via display toggle, not a
-// portal) so the post card itself grows. This avoids covering the next post.
-// Comments are ASC; new optimistic appends sit at the bottom — natural.
-// ============================================================================
-function LegacyCommentsDrawer({
-  postId,
-  currentUserId,
-  isCommunityAdmin,
-  onCountChange,
-}: {
-  postId: string;
-  currentUserId: string | null;
-  isCommunityAdmin: boolean;
-  onCountChange: (delta: number) => void;
-}) {
-  const [comments, setComments] = useState<BenderComment[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-
-  const load = useCallback(
-    async (cursor?: string) => {
-      try {
-        const res = await benderApi.listComments(postId, cursor);
-        const items = res.data.items;
-        setComments((prev) => (cursor ? [...prev, ...items] : items));
-        setNextCursor(res.data.next_cursor ?? null);
-        setHasMore(res.data.has_more);
-      } catch {
-        // Soft-fail — drawer just shows empty state.
-      } finally {
-        setLoading(false);
-      }
-    },
-    [postId]
-  );
-
-  useEffect(() => {
-    setLoading(true);
-    load();
-  }, [load]);
-
-  const handleSend = useCallback(async () => {
-    const content = draft.trim();
-    if (!content || sending) return;
-    setSending(true);
-    // Optimistic insert with a transient id; replaced on server response.
-    const tempId = `tmp-${Date.now()}`;
-    const optimistic: BenderComment = {
-      id: tempId,
-      author: {
-        id: currentUserId || 'self',
-        name: 'You',
-        avatar_url: null,
-        shop_id: null,
-        shop_name: null,
-      },
-      content,
-      created_at: new Date().toISOString(),
-    };
-    setComments((prev) => [...prev, optimistic]);
-    setDraft('');
-    onCountChange(1);
-    try {
-      const res = await benderApi.createComment(postId, content);
-      setComments((prev) =>
-        prev.map((c) => (c.id === tempId ? res.data : c))
-      );
-    } catch {
-      // Roll back on failure.
-      setComments((prev) => prev.filter((c) => c.id !== tempId));
-      setDraft(content);
-      onCountChange(-1);
-    } finally {
-      setSending(false);
-    }
-  }, [draft, sending, postId, currentUserId, onCountChange]);
-
-  const handleDelete = useCallback(
-    async (commentId: string) => {
-      const previous = comments;
-      setComments((prev) => prev.filter((c) => c.id !== commentId));
-      onCountChange(-1);
-      try {
-        await benderApi.deleteComment(postId, commentId);
-      } catch {
-        // Restore on failure.
-        setComments(previous);
-        onCountChange(1);
-      }
-    },
-    [comments, postId, onCountChange]
-  );
-
-  return (
-    <div data-testid="bender-comments-drawer" className="border-t border-[hsl(35,18%,90%)] bg-[hsl(40,20%,98%)]">
-      <div className="max-h-80 overflow-y-auto px-3 py-2">
-        {loading ? (
-          <div className="space-y-2 py-2">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <Skeleton className="h-6 w-6 rounded-full" />
-                <Skeleton className="h-4 flex-1" />
-              </div>
-            ))}
-          </div>
-        ) : comments.length === 0 ? (
-          <p className="text-center text-xs text-[hsl(30,10%,50%)] py-4">
-            No comments yet. Be the first.
-          </p>
-        ) : (
-          <ul className="space-y-2 py-1">
-            {comments.map((c) => {
-              const canDelete =
-                isCommunityAdmin ||
-                (currentUserId !== null && c.author.id === currentUserId);
-              const display = c.author.shop_name || c.author.name;
-              return (
-                <li key={c.id} className="flex gap-2 items-start group">
-                  <AuthorAvatar author={c.author} size={24} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] leading-snug">
-                      <span className="font-semibold text-[hsl(30,15%,18%)]">
-                        {display}
-                      </span>{' '}
-                      <span className="text-[hsl(30,10%,30%)]">{c.content}</span>
-                    </div>
-                    <div className="text-[10px] text-[hsl(30,10%,55%)] mt-0.5">
-                      {timeAgo(c.created_at)}
-                    </div>
-                  </div>
-                  {canDelete && (
-                    <KebabMenu
-                      iconSize={14}
-                      items={[
-                        {
-                          label: 'Delete',
-                          onClick: () => handleDelete(c.id),
-                          destructive: true,
-                        },
-                      ]}
-                    />
-                  )}
-                </li>
-              );
-            })}
-            {hasMore && (
-              <li className="text-center">
-                <button
-                  onClick={() => load(nextCursor || undefined)}
-                  className="text-[11px] text-[hsl(35,45%,42%)] hover:underline cursor-pointer"
-                >
-                  Load more
-                </button>
-              </li>
-            )}
-          </ul>
-        )}
-      </div>
-      {currentUserId && (
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-[hsl(35,18%,90%)] bg-white">
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.slice(0, 1000))}
-            placeholder="Add a comment…"
-            className="flex-1 h-8 text-[13px]"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            size="icon"
-            disabled={!draft.trim() || sending}
-            onClick={handleSend}
-            className="h-8 w-8 text-white"
-            style={{ backgroundColor: PRIMARY }}
-            aria-label="Send comment"
-          >
-            <Send size={14} />
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ============================================================================
 // BenderPostCard — single Instagram-style post.
