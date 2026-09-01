@@ -208,3 +208,62 @@ ForbiddenError: Not allowed to delete this comment
 ### Concerns
 
 The focused tests use a behavioral in-memory session instead of a live PostgreSQL database. It deliberately compiles PostgreSQL SQL and evaluates the predicates these service paths issue, but it does not simulate database isolation under concurrent requests. The full suite still reports existing `utcnow` and Starlette deprecation warnings.
+
+## Fix Round 5
+
+### Test corrections
+
+- The cross-post direct-read test now stores target comment X under post B and decoy comment Y under requested post A. It requests X through A, so omitting either the post-id predicate or the comment-id predicate returns a row and fails the test.
+- `CommentStoreSession` no longer floors post counters at zero. It inspects the compiled `bender_posts.comment_count >` predicate and applies the update only when the stored value satisfies the bound guard.
+- A real `BenderService.delete_comment` test now starts with a live comment and `comment_count == 0`. The comment is deleted while the post count stays at zero.
+- Existing repeated hard-delete and tombstone no-op tests remain unchanged.
+
+### Mutation RED evidence
+
+Each production mutation was uncommitted and restored before the next run.
+
+```text
+# Remove BenderComment.post_id == post_id from the direct-read query.
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k direct_read_binds_requested_post_and_comment_ids
+FAILED tests/test_bender_comment_threads.py::test_direct_read_binds_requested_post_and_comment_ids
+Failed: DID NOT RAISE NotFoundError
+1 failed, 16 deselected, 4 warnings in 1.32s
+
+# Restore post-id and remove BenderComment.id == comment_id.
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k direct_read_binds_requested_post_and_comment_ids
+FAILED tests/test_bender_comment_threads.py::test_direct_read_binds_requested_post_and_comment_ids
+Failed: DID NOT RAISE NotFoundError
+1 failed, 16 deselected, 4 warnings in 1.34s
+
+# Remove BenderPost.comment_count > 0 from the deletion update.
+.venv/bin/pytest -q tests/test_bender_comment_threads.py -k delete_live_comment_does_not_decrement_zero_post_count
+FAILED tests/test_bender_comment_threads.py::test_delete_live_comment_does_not_decrement_zero_post_count
+AssertionError: assert -1 == 0
+1 failed, 16 deselected, 2 warnings in 0.71s
+```
+
+### GREEN and verification
+
+```text
+.venv/bin/pytest -q tests/test_bender_comment_threads.py
+17 passed, 52 warnings in 0.64s
+
+.venv/bin/pytest -q tests/test_bender_post_link_preview.py tests/test_bender_comment_schema.py tests/test_bender_comment_migrations.py
+23 passed in 0.40s
+
+.venv/bin/pytest -q
+427 passed, 69 warnings in 4.25s
+```
+
+### Files changed
+
+- `the-bend-backend/tests/test_bender_comment_threads.py`
+- `.superpowers/sdd/2026-09-01-bender-comment-replies-and-hearts/task-2-report.md`
+
+### Self-review
+
+`git diff --check` passed. The production service has no committed or uncommitted change from this round. The fake evaluates the compiled count guard instead of duplicating the production floor behavior. Both direct-read predicates have separate mutation proof. No existing test was weakened, and no `uv.lock` or deployment file changed.
+
+### Concerns
+
+The focused tests still use the compiled-SQL in-memory session described in Fix Round 4, so they do not model PostgreSQL transaction isolation. The full suite still reports existing `utcnow`, FastAPI, and Starlette deprecation warnings.

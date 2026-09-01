@@ -115,10 +115,15 @@ class CommentStoreSession:
             return Result()
         if statement.is_update and "update bender_posts" in sql and "comment_count" in sql:
             post_ids = self._values(params, "id_")
-            amount = self._values(params, "comment_count_")[0]
+            count_values = self._values(params, "comment_count_")
+            amount = count_values[0]
             delta = -amount if "comment_count -" in sql else amount
             self.counter_updates.append((post_ids, delta))
-            for post_id in post_ids: self.posts[post_id].comment_count = max(0, self.posts[post_id].comment_count + delta)
+            guard = count_values[1] if "bender_posts.comment_count >" in sql else None
+            for post_id in post_ids:
+                stored_post = self.posts[post_id]
+                if guard is None or stored_post.comment_count > guard:
+                    stored_post.comment_count += delta
         return Result()
 
 
@@ -186,11 +191,13 @@ async def test_cross_tenant_post_is_not_visible():
 
 @pytest.mark.asyncio
 async def test_direct_read_binds_requested_post_and_comment_ids():
-    """Would fail if direct reads fetch a comment by id without binding its post id."""
+    """Would fail if direct reads omit either the requested post or comment id."""
     tenant = uuid4(); post_a = post(tenant_id=tenant); post_b = post(tenant_id=tenant)
-    other_post_comment = comment(post_id=post_b.id, author=user(tenant_id=tenant))
-    db = CommentStoreSession(posts=[post_a, post_b], comments=[other_post_comment])
-    with pytest.raises(NotFoundError): await BenderService(db).get_comment(post_a.id, other_post_comment.id, tenant, None)
+    target_comment = comment(post_id=post_b.id, author=user(tenant_id=tenant))
+    decoy_comment = comment(post_id=post_a.id, author=user(tenant_id=tenant))
+    db = CommentStoreSession(posts=[post_a, post_b], comments=[target_comment, decoy_comment])
+    with pytest.raises(NotFoundError):
+        await BenderService(db).get_comment(post_a.id, target_comment.id, tenant, None)
 
 
 @pytest.mark.asyncio
@@ -281,6 +288,22 @@ async def test_repeated_hard_delete_changes_count_once_and_tombstone_repeat_is_a
     await tombstone_service.delete_comment(tombstone_post.id, tombstone.id, author, tenant)
     assert tombstone_post.comment_count == 1
     assert len(tombstone_db.counter_updates) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_live_comment_does_not_decrement_zero_post_count():
+    """Would fail if deletion omits the positive-count guard."""
+    tenant = uuid4(); author = user(tenant_id=tenant)
+    target_post = post(tenant_id=tenant, comment_count=0)
+    live_comment = comment(post_id=target_post.id, author=author)
+    db = CommentStoreSession(posts=[target_post], comments=[live_comment])
+
+    await BenderService(db).delete_comment(
+        target_post.id, live_comment.id, author, tenant
+    )
+
+    assert live_comment.id not in db.comments
+    assert target_post.comment_count == 0
 
 
 @pytest.mark.asyncio
