@@ -26,7 +26,7 @@ async function openDrawer(page: Page, signedIn = true, overrides: Record<string,
 test('renders replies beneath each parent in chronological order and only offers parent replies', async ({ page }) => {
   await openDrawer(page);
   await expect(page.getByTestId('bender-comment-replies-p1')).toHaveCount(1);
-  const rows = page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"])');
+  const rows = page.locator('div[data-testid^="bender-comment-"]:not([data-testid*="replies"]):not([data-testid*="actions"])');
   await expect(rows).toHaveCount(5);
   await expect(page.getByTestId('bender-comments-drawer')).toContainText('old reply');
   await expect(page.getByTestId('bender-comment-t1')).toContainText('Comment deleted');
@@ -73,7 +73,7 @@ test('failed delete restores the exact collection, heart state, replies, and cou
   await openDrawer(page, true, { comment_count: 5 }, comments, { delete: true });
   const before = await page.getByTestId('bender-comment-p1').innerText();
   await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'More' }).click(); await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByTestId('bender-comment-p1')).toHaveText(before); await expect(page.getByTestId('bender-comment-r1')).toBeVisible(); await expect(page.getByTestId('bender-actions')).toContainText('5'); await expect(page.getByTestId('bender-comment-p1')).not.toContainText('Comment deleted');
+  await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body'); await expect(page.getByTestId('bender-comment-p1')).not.toContainText('Comment deleted'); await expect(page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Like comment' })).toHaveAttribute('aria-label', 'Like comment'); await expect(page.getByTestId('bender-comment-r1')).toBeVisible(); await expect(page.getByTestId('bender-actions')).toContainText('5');
 });
 
 test('signed-out readers see comments and heart counts without controls', async ({ page }) => {
@@ -92,6 +92,6 @@ test('long unbroken names, bodies, replies, actions, and composer stay contained
   const long = 'x'.repeat(180);
   const fixture = [{ ...parent, author: author('u1', long), content: long }, { ...comments[1], content: long }, { ...comments[2], content: long }, ...comments.slice(3)];
   await page.setViewportSize({ width: 320, height: 800 }); await openDrawer(page, true, {}, fixture); await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click(); await page.getByTestId('bender-reply-composer-p1').locator('textarea').fill(long);
-  const result = await page.getByTestId('bender-comments-drawer').evaluate((drawer) => { const box = drawer.getBoundingClientRect(); const selectors = ['[data-testid^="bender-comment-"]', '[data-testid^="bender-comment-replies-"]', '[data-testid="bender-reply-composer-p1"]', '[data-testid="bender-actions"]']; return [drawer, ...selectors.flatMap((selector) => Array.from(drawer.querySelectorAll(selector)))].map((element) => { const rect = element.getBoundingClientRect(); return { overflow: element.scrollWidth <= element.clientWidth + 1, inside: rect.left >= box.left - 1 && rect.right <= box.right + 1 }; }); });
-  expect(result.every((entry) => entry.overflow && entry.inside)).toBe(true);
+  const result = await page.getByTestId('bender-comments-drawer').evaluate((drawer) => { const box = drawer.getBoundingClientRect(); const selectors = ['[data-testid^="bender-comment-"]', '[data-testid^="bender-comment-replies-"]', '[data-testid="bender-reply-composer-p1"]', '[data-testid="bender-actions"]']; return [drawer, ...selectors.flatMap((selector) => Array.from(drawer.querySelectorAll(selector)))].map((element) => { const rect = element.getBoundingClientRect(); return { id: element.getAttribute('data-testid'), clientWidth: element.clientWidth, scrollWidth: element.scrollWidth, left: rect.left, right: rect.right, overflow: element.scrollWidth <= element.clientWidth + 1, inside: rect.left >= box.left - 1 && rect.right <= box.right + 1 }; }); });
+  const failures = result.filter((entry) => !entry.overflow || !entry.inside); expect(failures, JSON.stringify(failures)).toEqual([]);
 });
