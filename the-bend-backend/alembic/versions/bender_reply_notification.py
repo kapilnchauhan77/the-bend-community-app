@@ -16,4 +16,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pass
+    # PostgreSQL enum labels cannot be removed safely here. Remove rows that
+    # use the feature-only label before the base application is deployed.
+    op.execute("DELETE FROM notifications WHERE type = 'BENDER_REPLY'")

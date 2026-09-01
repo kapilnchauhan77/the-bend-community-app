@@ -35,6 +35,8 @@ async function setup(page: Page, options: { feedPosts?: unknown[]; comments?: un
 }
 
 test('routes a Bender reply notification to the exact post and comment query string', async ({ page }) => {
+  const runtimeErrors: string[] = [];
+  page.on('pageerror', (error) => runtimeErrors.push(error.message));
   await page.addInitScript(() => { localStorage.setItem('access_token', 'test-token'); localStorage.setItem('user', JSON.stringify({ id: 'u1', name: 'Me', role: 'individual' })); });
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
@@ -46,6 +48,7 @@ test('routes a Bender reply notification to the exact post and comment query str
   await page.goto('/notifications');
   await page.getByText('Reply').click();
   await expect(page).toHaveURL('/bender?post=post+1&comment=reply%2F1');
+  expect(runtimeErrors).toEqual([]);
 });
 
 test('loads a missing focused post once and opens its comments without looping', async ({ page }) => {

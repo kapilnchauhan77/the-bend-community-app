@@ -8,7 +8,6 @@ import {
   Plus,
   X,
   Camera,
-  Send,
   ImageIcon,
   Trash2,
   Play,
@@ -157,7 +156,9 @@ function BenderPostCard({
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
   useEffect(() => {
-    if (forceCommentsOpen) setCommentsOpen(true);
+    if (!forceCommentsOpen) return;
+    const openTimer = window.setTimeout(() => setCommentsOpen(true), 0);
+    return () => window.clearTimeout(openTimer);
   }, [forceCommentsOpen]);
 
   const display = post.author.shop_name || post.author.name;

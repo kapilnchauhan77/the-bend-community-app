@@ -25,6 +25,7 @@ def test_comment_threads_revision_extends_current_head(monkeypatch):
         def drop_index(self, name, **kwargs): calls.append(("drop_index", name, kwargs))
         def drop_table(self, name): calls.append(("drop_table", name))
         def drop_column(self, table, name): calls.append(("drop_column", table, name))
+        def execute(self, statement): calls.append(("execute", statement))
     monkeypatch.setattr(migration, "op", Op())
     migration.upgrade()
     parent = calls[0][2]
@@ -51,10 +52,15 @@ def test_comment_threads_revision_extends_current_head(monkeypatch):
 
     calls.clear()
     migration.downgrade()
-    assert calls == [
-        ("drop_index", "uq_bender_comment_likes_comment_user", {"table_name": "bender_comment_likes"}),
-        ("drop_table", "bender_comment_likes"),
-        ("drop_index", "idx_bender_comments_parent_created", {"table_name": "bender_comments"}),
+    cleanup = [call for call in calls if call[0] == "execute"]
+    assert [statement for _, statement in cleanup] == [
+        "DELETE FROM bender_comment_likes WHERE comment_id IN (SELECT id FROM bender_comments WHERE parent_comment_id IS NOT NULL OR deleted_at IS NOT NULL)",
+        "DELETE FROM bender_comments WHERE parent_comment_id IS NOT NULL",
+        "DELETE FROM bender_comments WHERE deleted_at IS NOT NULL",
+        "UPDATE bender_posts SET comment_count = (SELECT count(*) FROM bender_comments WHERE bender_comments.post_id = bender_posts.id)",
+    ]
+    assert calls.index(cleanup[-1]) < calls.index(("drop_index", "uq_bender_comment_likes_comment_user", {"table_name": "bender_comment_likes"}))
+    assert calls[-3:] == [
         ("drop_column", "bender_comments", "deleted_at"),
         ("drop_column", "bender_comments", "like_count"),
         ("drop_column", "bender_comments", "parent_comment_id"),
@@ -69,3 +75,11 @@ def test_reply_notification_revision_follows_comment_schema():
     migration.op.execute = statements.append
     migration.upgrade()
     assert statements == ["COMMIT", "ALTER TYPE notification_type ADD VALUE IF NOT EXISTS 'BENDER_REPLY'", "BEGIN"]
+
+
+def test_reply_notification_downgrade_deletes_feature_rows_before_base_enum_is_used():
+    migration = _load("bender_reply_notification.py")
+    statements = []
+    migration.op.execute = statements.append
+    migration.downgrade()
+    assert statements == ["DELETE FROM notifications WHERE type = 'BENDER_REPLY'"]

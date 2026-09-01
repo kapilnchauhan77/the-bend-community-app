@@ -15,6 +15,7 @@ from app.core.exceptions import BusinessRuleViolation, ConflictError, ForbiddenE
 from app.core.pagination import decode_cursor, encode_cursor
 from app.models.bender import BenderComment, BenderCommentLike, BenderLike, BenderPost
 from app.models.enums import NotificationType, UserRole
+from app.models.shop import Shop
 from app.repositories.notification_repo import NotificationRepository
 from app.models.user import User
 from app.schemas.bender import (
@@ -355,20 +356,39 @@ class BenderService:
     # comments
     # ------------------------------------------------------------------
 
-    async def _get_visible_comment_or_404(self, post_id: UUID, comment_id: UUID, tenant_id: UUID | None):
+    async def _get_visible_comment_or_404(
+        self,
+        post_id: UUID,
+        comment_id: UUID,
+        tenant_id: UUID | None,
+        *,
+        lock: bool = False,
+    ):
         await self._get_visible_post_or_404(post_id, tenant_id)
-        result = await self.db.execute(
-            select(BenderComment).where(
-                BenderComment.id == comment_id,
-                BenderComment.post_id == post_id,
-            )
+        query = select(BenderComment).where(
+            BenderComment.id == comment_id,
+            BenderComment.post_id == post_id,
         )
+        if lock:
+            query = query.with_for_update()
+        result = await self.db.execute(query)
         comment = result.scalar_one_or_none()
         if comment is None:
             raise NotFoundError("Comment")
         if comment.deleted_at is not None:
             raise ConflictError("Cannot heart a deleted comment")
         return comment
+
+    @staticmethod
+    def _is_duplicate_comment_like(error: IntegrityError) -> bool:
+        """Only the comment-heart unique constraint is an idempotent no-op."""
+        original = error.orig
+        diagnostic = getattr(original, "diag", None)
+        constraint_name = getattr(diagnostic, "constraint_name", None)
+        return (
+            getattr(original, "pgcode", None) == "23505"
+            and constraint_name == "uq_bender_comment_likes_comment_user"
+        )
 
     async def like_comment(
         self,
@@ -377,15 +397,17 @@ class BenderService:
         current_user: User,
         tenant_id: UUID | None,
     ) -> BenderCommentHeartResponse:
-        comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id)
+        comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id, lock=True)
         self._bind_tenant(current_user, tenant_id)
         like_row = BenderCommentLike(id=uuid4(), comment_id=comment.id, user_id=current_user.id)
         savepoint = await self.db.begin_nested()
         try:
             self.db.add(like_row)
             await self.db.flush()
-        except IntegrityError:
+        except IntegrityError as error:
             await savepoint.rollback()
+            if not self._is_duplicate_comment_like(error):
+                raise
             await self.db.refresh(comment)
             return BenderCommentHeartResponse(id=comment.id, like_count=comment.like_count, viewer_has_liked=True)
         else:
@@ -406,7 +428,7 @@ class BenderService:
         current_user: User,
         tenant_id: UUID | None,
     ) -> BenderCommentHeartResponse:
-        comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id)
+        comment = await self._get_visible_comment_or_404(post_id, comment_id, tenant_id, lock=True)
         self._bind_tenant(current_user, tenant_id)
         deleted = await self.db.execute(
             BenderCommentLike.__table__
@@ -560,7 +582,14 @@ class BenderService:
         # Preload user for the response builder.
         await self.db.refresh(comment, attribute_names=["user"])
         if parent and parent.user_id != current_user.id:
-            display_name = getattr(getattr(current_user, "shop", None), "name", None) or current_user.name
+            shop_name = None
+            if current_user.shop_id:
+                shop_name = (
+                    await self.db.execute(
+                        select(Shop.name).where(Shop.id == current_user.shop_id)
+                    )
+                ).scalar_one_or_none()
+            display_name = shop_name or current_user.name
             await NotificationRepository(self.db).create(parent.user_id, NotificationType.BENDER_REPLY, f"{display_name} replied to your comment", comment.content[:240], {"bender_post_id": str(post.id), "bender_parent_comment_id": str(parent.id), "bender_comment_id": str(comment.id)}, tenant_id=post.tenant_id)
         return (await self._comment_rows_response([comment], tenant_id, current_user))[0]
 
@@ -573,8 +602,39 @@ class BenderService:
     ) -> None:
         await self._get_visible_post_or_404(post_id, tenant_id)
         self._bind_tenant(current_user, tenant_id)
-        result = await self.db.execute(select(BenderComment).where(BenderComment.id == comment_id, BenderComment.post_id == post_id).with_for_update())
-        comment = result.scalar_one_or_none()
+        candidate = (
+            await self.db.execute(
+                select(BenderComment).where(
+                    BenderComment.id == comment_id,
+                    BenderComment.post_id == post_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if candidate is None:
+            raise NotFoundError("Comment")
+
+        parent = None
+        if candidate.parent_comment_id is not None:
+            parent = (
+                await self.db.execute(
+                    select(BenderComment)
+                    .where(
+                        BenderComment.id == candidate.parent_comment_id,
+                        BenderComment.post_id == post_id,
+                    )
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if parent is None:
+                raise NotFoundError("Comment")
+
+        comment = (
+            await self.db.execute(
+                select(BenderComment)
+                .where(BenderComment.id == comment_id, BenderComment.post_id == post_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
         if comment is None:
             raise NotFoundError("Comment")
         post = await self._get_visible_post_or_404(comment.post_id, tenant_id)
@@ -590,7 +650,14 @@ class BenderService:
 
         if comment.deleted_at is not None:
             return
-        reply_count = (await self.db.execute(select(func.count(BenderComment.id)).where(BenderComment.parent_comment_id == comment.id, BenderComment.deleted_at.is_(None)))).scalar_one()
+        reply_count = (
+            await self.db.execute(
+                select(func.count(BenderComment.id)).where(
+                    BenderComment.parent_comment_id == comment.id,
+                    BenderComment.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one()
         if comment.parent_comment_id is None and reply_count:
             comment.content = ""
             comment.deleted_at = datetime.utcnow()
@@ -598,12 +665,10 @@ class BenderService:
             await self.db.execute(BenderCommentLike.__table__.delete().where(BenderCommentLike.comment_id == comment.id))
             await self.db.flush()
         else:
-            parent_id = comment.parent_comment_id
             await self.db.delete(comment)
             await self.db.flush()
-            if parent_id:
-                parent = await self.db.get(BenderComment, parent_id)
-                if parent and parent.deleted_at is not None:
+            if parent is not None:
+                if parent.deleted_at is not None:
                     remaining = (await self.db.execute(select(func.count(BenderComment.id)).where(BenderComment.parent_comment_id == parent.id, BenderComment.deleted_at.is_(None)))).scalar_one()
                     if remaining == 0:
                         await self.db.delete(parent)

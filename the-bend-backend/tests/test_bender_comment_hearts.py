@@ -52,6 +52,13 @@ class Savepoint:
     async def rollback(self): pass
 
 
+class DuplicateCommentLikeViolation(Exception):
+    pgcode = "23505"
+
+    class diag:
+        constraint_name = "uq_bender_comment_likes_comment_user"
+
+
 class HeartSession:
     def __init__(self, *, posts=(), comments=(), likes=(), fail_duplicate=False):
         self.posts = {x.id: x for x in posts}; self.comments = {x.id: x for x in comments}
@@ -63,7 +70,7 @@ class HeartSession:
         if isinstance(getattr(self, "pending", None), BenderCommentLike):
             if self.fail_duplicate or any(x.comment_id == self.pending.comment_id and x.user_id == self.pending.user_id for x in self.likes):
                 self.fail_duplicate = False
-                raise IntegrityError("duplicate", {}, Exception())
+                raise IntegrityError("duplicate", {}, DuplicateCommentLikeViolation())
             self.likes.append(self.pending); self.pending = None
     async def refresh(self, obj, attribute_names=None): pass
     async def delete(self, obj): self.likes.remove(obj)
@@ -206,6 +213,29 @@ async def test_concurrent_unhearts_decrement_only_after_conditional_delete_retur
     assert len(sessions[0].likes) + len(sessions[1].likes) == 0
     assert row.like_count == 0
     assert all(db.delete_returning_seen for db in sessions)
+
+
+@pytest.mark.asyncio
+async def test_heart_and_unheart_lock_live_comment_rows_and_do_not_mask_non_duplicate_integrity_errors():
+    """Would fail if a heart races deletion or treats a foreign-key failure as a duplicate heart."""
+    tenant = uuid4(); actor = user(tenant_id=tenant); target = post(tenant_id=tenant)
+    row = comment(post_id=target.id, author=actor)
+
+    class ForeignKeyFailureSession(HeartSession):
+        async def flush(self):
+            if isinstance(getattr(self, "pending", None), BenderCommentLike):
+                raise IntegrityError("insert", {}, Exception("foreign key violation"))
+            await super().flush()
+
+    failing = ForeignKeyFailureSession(posts=[target], comments=[row])
+    with pytest.raises(IntegrityError):
+        await BenderService(failing).like_comment(target.id, row.id, actor, tenant)
+
+    db = HeartSession(posts=[target], comments=[row])
+    await BenderService(db).like_comment(target.id, row.id, actor, tenant)
+    await BenderService(db).unlike_comment(target.id, row.id, actor, tenant)
+    locks = [query for query in db.queries if "from bender_comments" in query and "for update" in query]
+    assert len(locks) >= 2
 
 
 def test_heart_http_routes_require_auth_and_serialize_exact_shape():

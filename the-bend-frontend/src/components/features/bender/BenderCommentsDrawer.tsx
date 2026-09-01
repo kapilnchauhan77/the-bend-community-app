@@ -101,7 +101,8 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
   const repliesByParent = useMemo(() => comments.reduce<Record<string, BenderComment[]>>((groups, comment) => { if (comment.parent_comment_id) (groups[comment.parent_comment_id] ??= []).push(comment); return groups; }, {}), [comments]);
 
   const send = useCallback(async (parentCommentId: string | null) => {
-    const value = (parentCommentId ? replyDraft : draft).trim();
+    const rawValue = parentCommentId ? replyDraft : draft;
+    const value = rawValue.trim();
     if (!value || sending) return;
     const snapshot = comments;
     const tempId = `tmp-${Date.now()}`;
@@ -111,7 +112,7 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
     if (parentCommentId && parent) setComments((rows) => rows.map((row) => row.id === parentCommentId ? { ...row, reply_count: row.reply_count + 1 } : row));
     if (parentCommentId) setReplyDraft(''); else setDraft('');
     onCountChange(1);
-    try { const response = await benderApi.createComment(postId, value, parentCommentId || undefined); setComments((rows) => rows.map((row) => row.id === tempId ? normalize(response.data) : row)); setReplyingToId(null); } catch { setComments(snapshot); if (parentCommentId) setReplyDraft(value); else setDraft(value); onCountChange(-1); } finally { setSending(false); }
+    try { const response = await benderApi.createComment(postId, value, parentCommentId || undefined); setComments((rows) => rows.map((row) => row.id === tempId ? normalize(response.data) : row)); setReplyingToId(null); } catch { setComments(snapshot); if (parentCommentId) setReplyDraft(rawValue); else setDraft(rawValue); onCountChange(-1); } finally { setSending(false); }
   }, [comments, currentUserId, draft, onCountChange, postId, replyDraft, sending]);
 
   const toggleHeart = useCallback(async (comment: BenderComment) => {
@@ -122,7 +123,26 @@ export function BenderCommentsDrawer({ postId, currentUserId, isCommunityAdmin, 
 
   const deleteComment = useCallback(async (comment: BenderComment) => {
     const snapshot = comments;
-    const next = comment.reply_count > 0 ? comments.map((row) => row.id === comment.id ? { ...row, content: 'Comment deleted', like_count: 0, viewer_has_liked: false, is_deleted: true } : row) : comments.filter((row) => row.id !== comment.id);
+    const parent = comment.parent_comment_id
+      ? comments.find((row) => row.id === comment.parent_comment_id)
+      : null;
+    const removesEmptyTombstone = Boolean(
+      parent?.is_deleted && parent.reply_count === 1,
+    );
+    let next: BenderComment[];
+    if (comment.reply_count > 0) {
+      next = comments.map((row) => row.id === comment.id
+        ? { ...row, content: 'Comment deleted', like_count: 0, viewer_has_liked: false, is_deleted: true }
+        : row);
+    } else if (comment.parent_comment_id) {
+      next = comments
+        .filter((row) => row.id !== comment.id && !(removesEmptyTombstone && row.id === parent?.id))
+        .map((row) => row.id === parent?.id
+          ? { ...row, reply_count: Math.max(0, row.reply_count - 1) }
+          : row);
+    } else {
+      next = comments.filter((row) => row.id !== comment.id);
+    }
     setComments(next); onCountChange(-1);
     try { await benderApi.deleteComment(postId, comment.id); } catch { setComments(snapshot); onCountChange(1); }
   }, [comments, onCountChange, postId]);

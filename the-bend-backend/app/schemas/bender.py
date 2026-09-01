@@ -125,6 +125,14 @@ class BenderCommentCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=1000)
     parent_comment_id: UUID | None = None
 
+    @field_validator("content", mode="before")
+    @classmethod
+    def trim_and_require_content(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("content must not be empty")
+        return value
+
 
 class BenderCommentResponse(BaseModel):
     id: str

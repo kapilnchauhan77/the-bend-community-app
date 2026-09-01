@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+from pydantic import ValidationError
 from app.schemas.bender import BenderAuthor, BenderCommentCreate, BenderCommentHeartResponse, BenderCommentResponse
 from app.models.bender import BenderComment
 
@@ -19,6 +21,16 @@ def test_reply_request_accepts_parent_uuid():
     parent_id = uuid4()
     payload = BenderCommentCreate.model_validate({"content": "Reply", "parent_comment_id": str(parent_id)})
     assert payload.parent_comment_id == parent_id
+
+
+def test_comment_content_is_trimmed_and_rejects_whitespace_only_input():
+    """Would fail if API validation accepts an empty comment after normalizing it."""
+    assert BenderCommentCreate.model_validate({"content": "  hello  "}).content == "hello"
+    assert BenderCommentCreate.model_validate({"content": f" {'x' * 1000} "}).content == "x" * 1000
+    with pytest.raises(ValidationError):
+        BenderCommentCreate.model_validate({"content": " \n\t "})
+    with pytest.raises(ValidationError):
+        BenderCommentCreate.model_validate({"content": "x" * 1001})
 
 
 def test_comment_response_defaults_keep_older_builders_valid():
@@ -46,3 +58,9 @@ def test_comment_heart_response_serializes_exactly():
 def test_parent_comment_relationship_does_not_delete_replies():
     assert "delete-orphan" not in BenderComment.replies.property.cascade
     assert "delete" not in BenderComment.replies.property.cascade
+
+
+def test_comment_model_declares_the_reply_grouping_index():
+    assert "idx_bender_comments_parent_created" in {
+        index.name for index in BenderComment.__table__.indexes
+    }

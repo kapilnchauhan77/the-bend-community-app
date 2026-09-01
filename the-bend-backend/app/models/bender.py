@@ -150,6 +150,7 @@ class BenderComment(Base):
 
     __table_args__ = (
         Index("idx_bender_comments_post_created", "post_id", "created_at"),
+        Index("idx_bender_comments_parent_created", "parent_comment_id", "created_at"),
     )
 
 

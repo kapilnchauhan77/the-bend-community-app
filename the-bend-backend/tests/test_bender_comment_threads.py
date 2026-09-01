@@ -55,6 +55,7 @@ class CommentStoreSession:
         self.users = {row.user.id: row.user for row in comments}
         self.users.update({row.author.id: row.author for row in posts})
         self.users.update({row.id: row for row in users})
+        self.queries = []
 
     def add(self, obj):
         if isinstance(obj, BenderComment):
@@ -88,6 +89,7 @@ class CommentStoreSession:
 
     async def execute(self, statement):
         sql, params = self._compile(statement)
+        self.queries.append((sql, params))
         if statement.is_select:
             if "from bender_posts" in sql:
                 post_ids, tenant_ids = self._values(params, "id_"), self._values(params, "tenant_id_")
@@ -159,6 +161,45 @@ async def test_self_reply_selects_requested_parent_and_never_notifies():
     assert len(replies) == 1
     assert replies[0].parent_comment_id == requested_parent.id
     assert db.notifications == []
+
+
+@pytest.mark.asyncio
+async def test_shop_reply_notification_uses_an_explicit_shop_query_not_lazy_user_shop():
+    """Would fail if reply notification formatting accesses AsyncSession's unloaded user.shop."""
+    tenant = uuid4()
+
+    class ReplyAuthor:
+        def __init__(self):
+            self.id = uuid4(); self.tenant_id = tenant; self.role = UserRole.INDIVIDUAL
+            self.name = "Individual name"; self.avatar_url = None; self.shop_id = uuid4()
+
+        @property
+        def shop(self):
+            raise RuntimeError("lazy shop access is forbidden in AsyncSession")
+
+    class ShopAwareSession(CommentStoreSession):
+        async def execute(self, statement):
+            sql, _ = self._compile(statement)
+            if "from shops" in sql:
+                self.queries.append((sql, {}))
+                return Result(value="Shop display")
+            return await super().execute(statement)
+
+    parent_author = user(tenant_id=tenant)
+    target_post = post(tenant_id=tenant, comment_count=1)
+    parent = comment(post_id=target_post.id, author=parent_author)
+    actor = ReplyAuthor()
+    db = ShopAwareSession(posts=[target_post], comments=[parent], users=[actor])
+
+    await BenderService(db).create_comment(
+        target_post.id,
+        BenderCommentCreate(content="reply", parent_comment_id=parent.id),
+        actor,
+        tenant,
+    )
+
+    assert db.notifications[0].title == "Shop display replied to your comment"
+    assert any("from shops" in sql for sql, _ in db.queries)
 
 
 @pytest.mark.asyncio
@@ -272,6 +313,41 @@ async def test_deleting_final_reply_removes_tombstone_without_second_count_decre
     assert reply.id not in db.comments
     assert target_post.comment_count == 0
     assert len(db.counter_updates) == 1
+
+
+@pytest.mark.asyncio
+async def test_final_reply_cleanup_locks_parent_before_reply_to_serialize_competing_deletes():
+    """Would fail if reply cleanup locks the child first and races another final-reply cleanup."""
+    tenant = uuid4(); target_post = post(tenant_id=tenant, comment_count=1); author = user(tenant_id=tenant)
+    parent = comment(post_id=target_post.id, author=author, deleted_at=datetime.utcnow(), content="", like_count=0)
+    reply = comment(post_id=target_post.id, author=author, parent=parent.id)
+    db = CommentStoreSession(posts=[target_post], comments=[parent, reply])
+
+    await BenderService(db).delete_comment(target_post.id, reply.id, author, tenant)
+
+    lock_params = [params for sql, params in db.queries if "from bender_comments" in sql and "for update" in sql]
+    locked_ids = [value for params in lock_params for key, value in params.items() if key.startswith("id_")]
+    assert locked_ids[:2] == [parent.id, reply.id]
+    assert parent.id not in db.comments and reply.id not in db.comments
+
+
+@pytest.mark.asyncio
+async def test_parent_and_final_reply_deletions_converge_in_either_serialized_order():
+    """Would fail if either parent-delete/final-reply interleaving leaves an empty tombstone."""
+    tenant = uuid4(); author = user(tenant_id=tenant)
+    for parent_first in (True, False):
+        target_post = post(tenant_id=tenant, comment_count=2)
+        parent = comment(post_id=target_post.id, author=author, content="parent")
+        reply = comment(post_id=target_post.id, author=author, parent=parent.id)
+        db = CommentStoreSession(posts=[target_post], comments=[parent, reply])
+        service = BenderService(db)
+        first, second = ((parent, reply) if parent_first else (reply, parent))
+        await service.delete_comment(target_post.id, first.id, author, tenant)
+        if second.id in db.comments:
+            await service.delete_comment(target_post.id, second.id, author, tenant)
+        assert parent.id not in db.comments
+        assert reply.id not in db.comments
+        assert target_post.comment_count == 0
 
 
 @pytest.mark.asyncio
