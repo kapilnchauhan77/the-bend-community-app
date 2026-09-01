@@ -25,12 +25,12 @@ async function openDrawer(page: Page, signedIn = true, overrides: Record<string,
 test('renders replies beneath each parent in chronological order and only offers parent replies', async ({ page }) => {
   await openDrawer(page);
   await expect(page.getByTestId('bender-comment-replies-p1')).toHaveCount(1);
-  const rows = page.locator('[data-testid^="bender-comment-"]:not([data-testid*="replies"])');
+  const rows = page.locator('li[data-testid^="bender-comment-"]');
   await expect(rows).toHaveCount(5);
   await expect(page.getByTestId('bender-comments-drawer')).toContainText('old reply');
   await expect(page.getByTestId('bender-comment-t1')).toContainText('Comment deleted');
-  await expect(page.getByTestId('bender-comment-t1').getByText('Reply')).toHaveCount(0);
-  await expect(page.getByTestId('bender-comment-r1').getByText('Reply')).toHaveCount(0);
+  await expect(page.getByTestId('bender-comment-t1').getByRole('button', { name: 'Reply' })).toHaveCount(0);
+  await expect(page.getByTestId('bender-comment-r1').getByRole('button', { name: 'Reply' })).toHaveCount(0);
 });
 
 test('opens, cancels, and submits one reply composer with Enter semantics', async ({ page }) => {
