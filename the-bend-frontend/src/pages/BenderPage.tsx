@@ -138,6 +138,7 @@ function BenderPostCard({
   isHighlighted,
   onDelete,
   onPatch,
+  onCountChange,
 }: {
   post: BenderPost;
   currentUserId: string | null;
@@ -146,6 +147,7 @@ function BenderPostCard({
   isHighlighted?: boolean;
   onDelete: (id: string) => void;
   onPatch: (id: string, patch: Partial<BenderPost>) => void;
+  onCountChange: (id: string, delta: number) => void;
 }) {
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -363,7 +365,7 @@ function BenderPostCard({
           currentUserId={currentUserId}
           isCommunityAdmin={isCommunityAdmin}
           onCountChange={(delta) =>
-            onPatch(post.id, { comment_count: Math.max(0, post.comment_count + delta) })
+            onCountChange(post.id, delta)
           }
         />
       )}
@@ -811,6 +813,10 @@ export default function BenderPage() {
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }, []);
 
+  const handleCountChange = useCallback((id: string, delta: number) => {
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, comment_count: Math.max(0, p.comment_count + delta) } : p)));
+  }, []);
+
   return (
     <PageLayout showFooter={false}>
       <div ref={feedTopRef} />
@@ -884,6 +890,7 @@ export default function BenderPage() {
                   isHighlighted={post.id === highlightedPostId}
                   onDelete={handleDelete}
                   onPatch={handlePatch}
+                  onCountChange={handleCountChange}
                 />
               ))}
               {hasMore && (

@@ -5,14 +5,15 @@ const parent = { id: 'p1', author: author('u1', 'Parent'), content: 'parent body
 const comments = [parent, { id: 'r1', author: author('u3', 'Reply one'), content: 'old reply', created_at: '2026-08-20T10:01:00Z', parent_comment_id: 'p1', reply_count: 0, like_count: 0, viewer_has_liked: false, is_deleted: false }, { id: 'r2', author: author('u4', 'Reply two'), content: 'new reply', created_at: '2026-08-20T10:02:00Z', parent_comment_id: 'p1', reply_count: 0, like_count: 2, viewer_has_liked: false, is_deleted: false }, { id: 't1', author: author('u5', 'Deleted parent'), content: 'Comment deleted', created_at: '2026-08-20T10:03:00Z', parent_comment_id: null, reply_count: 1, like_count: 0, viewer_has_liked: false, is_deleted: true }, { id: 'u1', author: author('u6', 'Unrelated'), content: 'top level', created_at: '2026-08-20T10:04:00Z', parent_comment_id: null, reply_count: 0, like_count: 0, viewer_has_liked: false, is_deleted: false }];
 const post = { id: 'post-1', author: author('u2', 'Poster'), caption: 'post', media_url: null, media_thumbnail_url: null, media_type: null, like_count: 0, comment_count: 5, viewer_has_liked: false, created_at: '2026-08-20T09:00:00Z', link_preview: null };
 
-async function openDrawer(page: Page, signedIn = true, overrides: Record<string, unknown> = {}) {
+async function openDrawer(page: Page, signedIn = true, overrides: Record<string, unknown> = {}, fixtureComments = comments, failures: { create?: boolean; delete?: boolean } = {}) {
   await page.addInitScript(({ signedIn: logged }) => { if (logged) { localStorage.setItem('access_token', 'token'); localStorage.setItem('user', JSON.stringify({ id: 'u1', name: 'Me' })); } else localStorage.clear(); }, { signedIn });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request(); const url = new URL(request.url());
     if (url.pathname === '/api/v1/tenant/current') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend' }) });
     if (url.pathname === '/api/v1/bender/posts' && request.method() === 'GET') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [{ ...post, ...overrides }], next_cursor: null, has_more: false }) });
-    if (url.pathname.endsWith('/comments') && request.method() === 'GET') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: comments, next_cursor: null, has_more: false }) });
-    if (request.method() === 'POST' && url.pathname.endsWith('/comments')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...comments[1], id: 'server-reply', content: (request.postDataJSON() as { content: string }).content, parent_comment_id: (request.postDataJSON() as { parent_comment_id: string | null }).parent_comment_id }) });
+    if (url.pathname.endsWith('/comments') && request.method() === 'GET') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: fixtureComments, next_cursor: null, has_more: false }) });
+    if (request.method() === 'POST' && url.pathname.endsWith('/comments')) { if (failures.create) return route.fulfill({ status: 500, body: 'failed' }); return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...fixtureComments[1], id: 'server-reply', content: (request.postDataJSON() as { content: string }).content, parent_comment_id: (request.postDataJSON() as { parent_comment_id: string | null }).parent_comment_id }) }); }
+    if (request.method() === 'DELETE' && url.pathname.endsWith('/comments/p1') && failures.delete) return route.fulfill({ status: 500, body: 'failed' });
     if (request.method() === 'POST' && url.pathname.includes('/like')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ id: url.pathname.split('/').at(-2), like_count: 9, viewer_has_liked: true }) });
     if (request.method() === 'DELETE' && url.pathname.includes('/like')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ id: url.pathname.split('/').at(-2), like_count: 1, viewer_has_liked: false }) });
     return route.fulfill({ status: 204, body: '' });
@@ -48,13 +49,12 @@ test('opens, cancels, and submits one reply composer with Enter semantics', asyn
 });
 
 test('optimistic failed reply restores exact draft and post count', async ({ page }) => {
-  await openDrawer(page, true, { comment_count: 5 });
-  await page.unroute('**/api/v1/bender/posts/post-1/comments');
-  await page.route('**/api/v1/bender/posts/post-1/comments', async (route) => route.fulfill({ status: 500, body: 'failed' }));
+  await openDrawer(page, true, { comment_count: 5 }, comments, { create: true });
   await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click();
   const composer = page.getByTestId('bender-reply-composer-p1').locator('textarea'); await composer.fill('restore me'); await composer.press('Enter');
   await expect(page.getByTestId('bender-reply-composer-p1').locator('textarea')).toHaveValue('restore me');
   await expect(page.getByTestId('bender-comment-p1')).toContainText('parent body');
+  await expect(page.getByTestId('bender-actions')).toContainText('5');
 });
 
 test('heart and unheart update parent and reply from server, then roll back on failure', async ({ page }) => {
@@ -64,9 +64,16 @@ test('heart and unheart update parent and reply from server, then roll back on f
   await page.unroute('**/api/v1/bender/posts/post-1/comments/r1/like'); await page.route('**/api/v1/bender/posts/post-1/comments/r1/like', async (route) => route.fulfill({ status: 500, body: 'failed' })); await replyHeart.click(); await expect(replyHeart).toHaveAttribute('aria-label', 'Unlike comment');
 });
 
-test('delete tombstones a parent with replies and failed delete restores it', async ({ page }) => {
+test('delete tombstones a parent with replies', async ({ page }) => {
   await openDrawer(page);
   await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'More' }).click(); await page.getByRole('button', { name: 'Delete' }).click(); await expect(page.getByTestId('bender-comment-p1')).toContainText('Comment deleted'); await expect(page.getByTestId('bender-comment-r1')).toBeVisible();
+});
+
+test('failed delete restores the exact collection, heart state, replies, and count', async ({ page }) => {
+  await openDrawer(page, true, { comment_count: 5 }, comments, { delete: true });
+  const before = await page.getByTestId('bender-comment-p1').innerText();
+  await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'More' }).click(); await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByTestId('bender-comment-p1')).toHaveText(before); await expect(page.getByTestId('bender-comment-r1')).toBeVisible(); await expect(page.getByTestId('bender-actions')).toContainText('5'); await expect(page.getByTestId('bender-comment-p1')).not.toContainText('Comment deleted');
 });
 
 test('signed-out readers see comments and heart counts without controls', async ({ page }) => {
@@ -79,4 +86,12 @@ test('thread rows and composer remain contained at 320px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 }); await openDrawer(page); await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click();
   const overflow = await page.getByTestId('bender-comments-drawer').evaluate((element) => ({ right: element.getBoundingClientRect().right, width: element.getBoundingClientRect().width, scroll: element.scrollWidth }));
   expect(overflow.scroll).toBeLessThanOrEqual(overflow.width + 1); await expect(page.getByTestId('bender-reply-composer-p1')).toBeVisible();
+});
+
+test('long unbroken names, bodies, replies, actions, and composer stay contained at 320px', async ({ page }) => {
+  const long = 'x'.repeat(180);
+  const fixture = [{ ...parent, author: author('u1', long), content: long }, { ...comments[1], content: long }, { ...comments[2], content: long }, ...comments.slice(3)];
+  await page.setViewportSize({ width: 320, height: 800 }); await openDrawer(page, true, {}, fixture); await page.getByTestId('bender-comment-p1').getByRole('button', { name: 'Reply' }).click(); await page.getByTestId('bender-reply-composer-p1').locator('textarea').fill(long);
+  const result = await page.getByTestId('bender-comments-drawer').evaluate((drawer) => { const box = drawer.getBoundingClientRect(); const selectors = ['[data-testid^="bender-comment-"]', '[data-testid^="bender-comment-replies-"]', '[data-testid="bender-reply-composer-p1"]', '[data-testid="bender-actions"]']; return [drawer, ...selectors.flatMap((selector) => Array.from(drawer.querySelectorAll(selector)))].map((element) => { const rect = element.getBoundingClientRect(); return { overflow: element.scrollWidth <= element.clientWidth + 1, inside: rect.left >= box.left - 1 && rect.right <= box.right + 1 }; }); });
+  expect(result.every((entry) => entry.overflow && entry.inside)).toBe(true);
 });
