@@ -1,13 +1,16 @@
 import io
 import warnings
+import asyncio
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Request
+from redis.exceptions import RedisError
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4
 
 from app.api.deps import get_db
-from app.core.permissions import Permission, get_current_user
+from app.core.permissions import Permission, get_current_user, get_current_tenant
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.guideline import Guideline
 from app.services.file_service import (
@@ -18,10 +21,50 @@ from app.services.file_service import (
     FileService,
 )
 from sqlalchemy import select, update
+from app.models.event import Event
+from app.services.nonprofit_document_service import DocumentQuotaError, DocumentValidationError, store_document
+from app.core.rate_limit import check_rate_limit
+from app.core.exceptions import AppException
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
 file_service = FileService()
+
+
+async def enforce_nonprofit_upload_rate_limit(request: Request) -> None:
+    try:
+        identifier = request.client.host if request.client else "unknown"
+        await check_rate_limit(request, identifier, max_requests=5, window_seconds=3600)
+    except (RedisError, asyncio.TimeoutError) as exc:
+        raise AppException(status.HTTP_503_SERVICE_UNAVAILABLE, "UPLOAD_UNAVAILABLE", "Document upload is temporarily unavailable") from exc
+
+
+@router.post("/nonprofit-document", dependencies=[Depends(enforce_nonprofit_upload_rate_limit)])
+async def upload_nonprofit_document(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant | None = Depends(get_current_tenant),
+):
+    if tenant is None:
+        raise HTTPException(status_code=400, detail="Tenant is required")
+    try:
+        claimed = []
+        if db is not None:
+            result = await db.execute(
+                select(Event.nonprofit_doc_url).where(
+                    Event.tenant_id == tenant.id,
+                    Event.nonprofit_doc_url.is_not(None),
+                )
+            )
+            claimed = [row[0] for row in result.all()]
+        document_ref = await store_document(file, tenant.id, claimed_references=claimed)
+    except DocumentQuotaError as exc:
+        raise HTTPException(status_code=status.HTTP_507_INSUFFICIENT_STORAGE, detail=str(exc)) from exc
+    except DocumentValidationError as exc:
+        detail = str(exc)
+        code = status.HTTP_413_CONTENT_TOO_LARGE if "10 MB" in detail else status.HTTP_422_UNPROCESSABLE_CONTENT
+        raise HTTPException(status_code=code, detail=detail) from exc
+    return {"document_ref": document_ref}
 
 MAX_SPONSOR_LOGO_BYTES = 5 * 1024 * 1024
 MAX_SPONSOR_LOGO_EDGE = 10_000

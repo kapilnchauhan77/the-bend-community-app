@@ -935,8 +935,8 @@ export default function EventsPage() {
                               if (!file) return;
                               setDocUploading(true);
                               try {
-                                const { data } = await uploadApi.uploadPhoto(file);
-                                setNonprofitDocUrl(data.photo_url);
+                                const { data } = await uploadApi.uploadNonprofitDocument(file);
+                                setNonprofitDocUrl(data.document_ref);
                               } catch (err: unknown) {
                                 const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
                                 setPostError(typeof detail === 'string' ? detail : 'Document upload failed. Please try again.');

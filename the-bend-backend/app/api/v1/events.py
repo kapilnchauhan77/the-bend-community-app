@@ -14,6 +14,10 @@ from app.services.event_service import EventService
 from app.models.event import Event
 from app.models.enums import EventCategory, EventStatus
 from app.middleware.tenant import get_frontend_url as _frontend_url
+from app.services.nonprofit_document_service import (
+    DocumentReferenceError,
+    resolve_managed_reference,
+)
 
 router = APIRouter(prefix="/events", tags=["Events"])
 settings = get_settings()
@@ -126,6 +130,8 @@ async def submit_event(
         organization_type = "verified_nonprofit" if data.is_nonprofit else "for_profit"
     if organization_type not in {"for_profit", "verified_nonprofit", "community_faith"}:
         raise HTTPException(status_code=400, detail="Invalid organization type")
+    if organization_type == "verified_nonprofit" and tenant is None:
+        raise HTTPException(status_code=422, detail="A resolved tenant is required for nonprofit documentation")
     if organization_type == "verified_nonprofit" and not data.nonprofit_doc_url:
         raise HTTPException(status_code=400, detail="Not-for-profit documentation is required for the nonprofit rate")
     if organization_type == "community_faith" and data.nonprofit_doc_url:
@@ -134,6 +140,19 @@ async def submit_event(
         nonprofit_doc_url = None
     else:
         nonprofit_doc_url = data.nonprofit_doc_url
+
+    if nonprofit_doc_url:
+        if tenant is None:
+            raise HTTPException(status_code=422, detail="A resolved tenant is required for nonprofit documentation")
+        try:
+            if nonprofit_doc_url.startswith("nonprofit-documents/"):
+                path = resolve_managed_reference(nonprofit_doc_url, tenant.id)
+            else:
+                raise DocumentReferenceError("Legacy references are not accepted for new submissions")
+        except DocumentReferenceError as exc:
+            raise HTTPException(status_code=422, detail="Invalid nonprofit document reference") from exc
+        if not path.is_file():
+            raise HTTPException(status_code=422, detail="Nonprofit document does not exist")
 
     price_cents = EVENT_PRICE_NONPROFIT if organization_type == "verified_nonprofit" else EVENT_PRICE_FORPROFIT
     price_label = "Not-for-Profit" if organization_type == "verified_nonprofit" else (

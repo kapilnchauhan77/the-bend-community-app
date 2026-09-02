@@ -1,10 +1,12 @@
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.permissions import Permission
+from app.core.exceptions import ForbiddenError
 from app.models.user import User
 from app.models.enums import UserRole, EventStatus
 from app.services.admin_service import AdminService
@@ -12,6 +14,13 @@ from app.schemas.admin import RejectRequest, SuspendRequest, AdminListingDeleteR
 from app.services.event_service import EventService
 from app.schemas.event import EventCreate, EventUpdate, ConnectorCreate, ConnectorUpdate
 from app.services.connector_service import ConnectorService
+from app.services.nonprofit_document_service import (
+    DocumentReferenceError,
+    detect_document,
+    resolve_flat_managed_reference,
+    resolve_legacy_reference,
+    resolve_managed_reference,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -19,6 +28,49 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 def get_admin_service(db: AsyncSession = Depends(get_db)):
     # tenant_id is set per-request from current_user in route handlers
     return AdminService(db)
+
+
+def get_event_service(db: AsyncSession = Depends(get_db)):
+    return EventService(db)
+
+
+@router.get("/events/{event_id}/nonprofit-document")
+async def download_nonprofit_document(
+    event_id: UUID,
+    event_service: EventService = Depends(get_event_service),
+    current_user: User = Depends(Permission.require_community_admin()),
+):
+    if current_user.role == UserRole.COMMUNITY_ADMIN and not current_user.tenant_id:
+        raise ForbiddenError("Community admin tenant is required")
+    event_service.tenant_id = getattr(current_user, "tenant_id", None)
+    event = await event_service.get_event(event_id)
+    reference = event.nonprofit_doc_url
+    if not reference:
+        raise HTTPException(status_code=404, detail="Nonprofit document not found")
+    try:
+        if reference.startswith("nonprofit-documents/"):
+            try:
+                if event.tenant_id is None:
+                    raise DocumentReferenceError("Tenant-bound reference requires event tenant")
+                path = resolve_managed_reference(reference, event.tenant_id)
+            except DocumentReferenceError:
+                path = resolve_flat_managed_reference(reference)
+        else:
+            path = resolve_legacy_reference(reference)
+    except DocumentReferenceError as exc:
+        raise HTTPException(status_code=404, detail="Nonprofit document not found") from exc
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Nonprofit document not found")
+    try:
+        mime, _ = detect_document(path.read_bytes())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Nonprofit document is invalid") from exc
+    return FileResponse(
+        path,
+        media_type=mime,
+        content_disposition_type="inline",
+        headers={"Content-Disposition": "inline", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/dashboard")
@@ -167,10 +219,6 @@ async def get_reports(
 ):
     service.tenant_id = current_user.tenant_id
     return await service.get_reports(period)
-
-
-def get_event_service(db: AsyncSession = Depends(get_db)):
-    return EventService(db)
 
 
 # --- Event Admin Routes ---

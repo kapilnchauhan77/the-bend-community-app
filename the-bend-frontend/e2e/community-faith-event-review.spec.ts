@@ -22,8 +22,8 @@ async function stubPublic(page: Page, submit: (payload: Record<string, unknown>)
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ free: true }) });
       return;
     }
-    if (url.pathname.endsWith('/upload/photo')) {
-      await route.fulfill(uploadSucceeds ? { contentType: 'application/json', body: JSON.stringify({ photo_url: '/uploads/proof.pdf' }) } : { status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Upload service unavailable' }) });
+    if (url.pathname.endsWith('/upload/nonprofit-document')) {
+      await route.fulfill(uploadSucceeds ? { contentType: 'application/json', body: JSON.stringify({ document_ref: 'nonprofit-documents/doc-1.pdf' }) } : { status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Upload service unavailable' }) });
       return;
     }
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
@@ -104,7 +104,7 @@ test('verified nonprofit submission sends exact payload after document upload', 
   await expect(page.getByText('Document uploaded')).toBeVisible();
   await fillRequired(page);
   await page.getByRole('button', { name: /Submit/ }).click();
-  await expect.poll(() => payload).toEqual({ title: 'Community Fair', description: '', start_date: '2026-09-03T18:00', end_date: '', location: '', category: 'community', submitted_by_name: 'Jane Smith', submitted_by_email: 'jane@example.com', is_nonprofit: true, organization_type: 'verified_nonprofit', nonprofit_doc_url: '/uploads/proof.pdf' });
+  await expect.poll(() => payload).toEqual({ title: 'Community Fair', description: '', start_date: '2026-09-03T18:00', end_date: '', location: '', category: 'community', submitted_by_name: 'Jane Smith', submitted_by_email: 'jane@example.com', is_nonprofit: true, organization_type: 'verified_nonprofit', nonprofit_doc_url: 'nonprofit-documents/doc-1.pdf' });
 });
 
 test('for-profit submission sends exact payload and retains optional coupon', async ({ page }) => {
@@ -157,6 +157,7 @@ test('admin pending reviews expose private details and approve refreshes', async
   });
   let pending = true;
   const calls: string[] = [];
+  const documentRequests: { url: string; authorization: string | undefined; tenant: string | undefined }[] = [];
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/tenant/current')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend' }) });
@@ -165,6 +166,10 @@ test('admin pending reviews expose private details and approve refreshes', async
       if (isPending) expect(url.searchParams.get('limit')).toBe('50');
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: isPending && pending ? [{ ...event, status: 'pending', submitted_by_name: 'Jane Smith', submitted_by_email: 'jane@example.com', organization_type: 'community_faith', nonprofit_doc_url: '/uploads/proof.pdf', paid: false, coupon_code_id: 'coupon-1' }] : [event] }) });
     }
+    if (url.pathname.endsWith('/admin/events/event-1/nonprofit-document')) {
+      documentRequests.push({ url: url.pathname, authorization: route.request().headers().authorization, tenant: route.request().headers()['x-tenant-slug'] });
+      return route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-1.4 test' });
+    }
     if (url.pathname.endsWith('/approve')) { calls.push(url.pathname); pending = false; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ status: 'active' }) }); }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
   });
@@ -172,10 +177,56 @@ test('admin pending reviews expose private details and approve refreshes', async
   await expect(page.getByText('Jane Smith')).toBeVisible();
   await expect(page.getByText('jane@example.com')).toBeVisible();
   await expect(page.getByText('community_faith')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'View nonprofit document' })).toHaveAttribute('href', /proof\.pdf/);
+  await page.getByRole('button', { name: 'View nonprofit document' }).click();
+  await expect.poll(() => documentRequests).toEqual([{ url: '/api/v1/admin/events/event-1/nonprofit-document', authorization: 'Bearer test-token', tenant: 'westmoreland' }]);
   await page.getByRole('button', { name: 'Approve' }).click();
   await expect.poll(() => calls.length).toBe(1);
   await expect(page.getByText('Jane Smith')).toHaveCount(0);
+});
+
+test('admin document preview opens a tab before the authenticated download completes', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('access_token', 'test-token');
+    localStorage.setItem('user', JSON.stringify({ id: 'admin-1', role: 'community_admin' }));
+  });
+  let releaseDownload: (() => void) | undefined;
+  const downloadReleased = new Promise<void>((resolve) => { releaseDownload = resolve; });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/tenant/current')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend' }) });
+    if (url.pathname.endsWith('/admin/events') && route.request().method() === 'GET') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [{ ...event, status: 'pending', nonprofit_doc_url: 'nonprofit-documents/doc-1.pdf' }] }) });
+    if (url.pathname.endsWith('/admin/events/event-1/nonprofit-document')) {
+      await downloadReleased;
+      return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4 test' });
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
+  });
+  await page.goto('/admin/events');
+  await expect(page.getByRole('heading', { name: 'Existing Event' })).toBeVisible();
+  const popupPromise = page.waitForEvent('popup');
+  const requestPromise = page.waitForRequest('**/api/v1/admin/events/event-1/nonprofit-document');
+  await page.getByRole('button', { name: 'View nonprofit document' }).click();
+  const popup = await popupPromise;
+  expect(await popup.url()).toBe('about:blank');
+  releaseDownload?.();
+  await requestPromise;
+});
+
+test('admin document preview reports download failures on the pending card', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('access_token', 'test-token');
+    localStorage.setItem('user', JSON.stringify({ id: 'admin-1', role: 'community_admin' }));
+  });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/tenant/current')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend' }) });
+    if (url.pathname.endsWith('/admin/events') && route.request().method() === 'GET') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [{ ...event, status: 'pending', nonprofit_doc_url: 'nonprofit-documents/doc-1.pdf' }] }) });
+    if (url.pathname.endsWith('/admin/events/event-1/nonprofit-document')) return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Unavailable' }) });
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
+  });
+  await page.goto('/admin/events');
+  await page.getByRole('button', { name: 'View nonprofit document' }).click();
+  await expect(page.getByText(/Nonprofit document could not be opened/i)).toBeVisible();
 });
 
 test('admin reject uses exact endpoint and refreshes pending reviews', async ({ page }) => {

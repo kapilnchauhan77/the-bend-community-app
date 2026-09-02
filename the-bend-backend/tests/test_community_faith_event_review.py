@@ -1,3 +1,4 @@
+import io
 from types import SimpleNamespace
 from pathlib import Path
 from uuid import uuid4
@@ -123,6 +124,24 @@ def _request(**kwargs):
     return EventSubmitRequest(**values)
 
 
+def _managed_pdf_reference(tmp_path, monkeypatch):
+    from pypdf import PdfWriter
+    import app.services.nonprofit_document_service as document_service
+
+    tenant = SimpleNamespace(id=uuid4())
+    document_id = uuid4()
+    private_root = tmp_path / "private_uploads"
+    document = private_root / "nonprofit_documents" / str(tenant.id) / f"{document_id}.pdf"
+    document.parent.mkdir(parents=True)
+    output = io.BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.write(output)
+    document.write_bytes(output.getvalue())
+    monkeypatch.setattr(document_service, "PRIVATE_DOCUMENT_DIR", private_root / "nonprofit_documents")
+    return tenant, f"nonprofit-documents/{tenant.id}/{document_id}.pdf"
+
+
 @pytest.mark.asyncio
 async def test_valid_community_coupon_creates_pending_paid_event_once(monkeypatch):
     coupon = SimpleNamespace(id=uuid4(), code="FREE100", discount_type="percentage", discount_value=100)
@@ -181,27 +200,30 @@ async def test_discount_service_lookup_rejects_missing_community_code_and_applie
 
 
 @pytest.mark.asyncio
-async def test_verified_nonprofit_requires_document_and_is_free(monkeypatch):
+async def test_verified_nonprofit_requires_document_and_is_free(tmp_path, monkeypatch):
     _CouponService.coupon = None
     _CouponService.used = 0
     monkeypatch.setattr("app.services.discount_code_service.DiscountCodeService", _CouponService)
     db = _SubmissionDB()
+    tenant = SimpleNamespace(id=uuid4())
     with pytest.raises(Exception) as error:
-        await submit_event(_request(organization_type="verified_nonprofit", coupon_code=None), db=db, tenant=None)
+        await submit_event(_request(organization_type="verified_nonprofit", coupon_code=None), db=db, tenant=tenant)
     assert error.value.status_code == 400
     assert db.events == []
+    tenant, reference = _managed_pdf_reference(tmp_path, monkeypatch)
     db = _SubmissionDB()
-    await submit_event(_request(organization_type="verified_nonprofit", coupon_code=None, nonprofit_doc_url="https://docs.example/nonprofit.pdf"), db=db, tenant=None)
+    await submit_event(_request(organization_type="verified_nonprofit", coupon_code=None, nonprofit_doc_url=reference), db=db, tenant=tenant)
     assert db.events[0].paid is True
     assert db.events[0].is_nonprofit is True
 
 
 @pytest.mark.asyncio
-async def test_legacy_nonprofit_request_derives_verified_nonprofit(monkeypatch):
+async def test_legacy_nonprofit_request_derives_verified_nonprofit(tmp_path, monkeypatch):
     _CouponService.coupon = None
     monkeypatch.setattr("app.services.discount_code_service.DiscountCodeService", _CouponService)
+    tenant, reference = _managed_pdf_reference(tmp_path, monkeypatch)
     db = _SubmissionDB()
-    await submit_event(_request(organization_type=None, is_nonprofit=True, coupon_code=None, nonprofit_doc_url="doc"), db=db, tenant=None)
+    await submit_event(_request(organization_type=None, is_nonprofit=True, coupon_code=None, nonprofit_doc_url=reference), db=db, tenant=tenant)
     assert db.events[0].organization_type == "verified_nonprofit"
 
 

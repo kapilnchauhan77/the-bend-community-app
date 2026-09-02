@@ -32,6 +32,8 @@ export const eventApi = {
   // Admin - Events
   adminList: (params?: Record<string, string>) =>
     api.get('/admin/events', { params }),
+  downloadNonprofitDocument: (id: string) =>
+    api.get(`/admin/events/${id}/nonprofit-document`, { responseType: 'blob' }),
   create: (data: {
     title: string; description?: string; start_date: string;
     end_date?: string; location?: string; category?: string;

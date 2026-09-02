@@ -77,15 +77,11 @@ function statusBadge(status: string) {
   }
 }
 
-function safeDocumentUrl(url?: string | null): string | undefined {
+function safeDocumentReference(url?: string | null): string | undefined {
   if (!url) return undefined;
-  if (url.startsWith('/uploads/')) return resolveAssetUrl(url);
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : undefined;
-  } catch {
-    return undefined;
-  }
+  if (url.startsWith('nonprofit-documents/')) return url;
+  if (url.startsWith('/uploads/')) return url;
+  return undefined;
 }
 
 function safePhotoUrl(url?: string | null): string | undefined {
@@ -143,6 +139,7 @@ export default function EventsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [reviewError, setReviewError] = useState('');
+  const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({});
 
   // Create/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -193,6 +190,25 @@ export default function EventsAdminPage() {
       await Promise.all([fetchPendingEvents(), fetchEvents()]);
     } catch {
       setReviewError(`Failed to ${action} event. Please try again.`);
+    }
+  };
+
+  const openNonprofitDocument = async (event: CommunityEvent) => {
+    const preview = window.open('about:blank', '_blank');
+    if (!preview) {
+      setDocumentErrors((current) => ({ ...current, [event.id]: 'Preview could not be opened. Please allow pop-ups and try again.' }));
+      return;
+    }
+    preview.opener = null;
+    setDocumentErrors((current) => ({ ...current, [event.id]: '' }));
+    try {
+      const { data } = await eventApi.downloadNonprofitDocument(event.id);
+      const objectUrl = URL.createObjectURL(data);
+      preview.location.href = objectUrl;
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      preview.close();
+      setDocumentErrors((current) => ({ ...current, [event.id]: 'Nonprofit document could not be opened. Please try again.' }));
     }
   };
 
@@ -335,7 +351,10 @@ export default function EventsAdminPage() {
                       <p className="text-sm text-muted-foreground">{formatDate(event.start_date)} · {event.location || 'No location'}</p>
                       <p className="text-sm break-words">Submitted by: <span className="font-medium">{event.submitted_by_name || 'Unknown'}</span> · {event.submitted_by_email || 'No email'}</p>
                       <p className="text-sm">Organization type: <span className="font-medium">{event.organization_type || (event.is_nonprofit ? 'verified_nonprofit' : 'for_profit')}</span></p>
-                      {event.nonprofit_doc_url && (safeDocumentUrl(event.nonprofit_doc_url) ? <a className="text-sm text-blue-700 underline break-all" href={safeDocumentUrl(event.nonprofit_doc_url)} target="_blank" rel="noopener noreferrer">View nonprofit document</a> : <span className="text-sm text-muted-foreground">Nonprofit document unavailable</span>)}
+                      {event.nonprofit_doc_url && (safeDocumentReference(event.nonprofit_doc_url) ? <>
+                        <Button type="button" size="sm" variant="link" className="h-auto p-0 text-sm text-blue-700 underline" onClick={() => openNonprofitDocument(event)}>View nonprofit document</Button>
+                        {documentErrors[event.id] && <p role="alert" className="text-sm text-red-700">{documentErrors[event.id]}</p>}
+                      </> : <span className="text-sm text-muted-foreground">Nonprofit document unavailable</span>)}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button size="sm" onClick={() => reviewEvent(event, 'approve')} style={{ backgroundColor: PRIMARY }} className="text-white">Approve</Button>

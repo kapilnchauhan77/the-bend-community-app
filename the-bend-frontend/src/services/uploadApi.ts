@@ -1,6 +1,14 @@
 import api from './api';
 
 export const uploadApi = {
+  uploadNonprofitDocument: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ document_ref: string }>('/upload/nonprofit-document', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   uploadSponsorLogo: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
