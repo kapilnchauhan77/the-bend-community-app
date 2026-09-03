@@ -25,7 +25,7 @@ from app.models.listing import Listing
 router = APIRouter(prefix="/share", tags=["Share"])
 
 _WS_RE = re.compile(r"\s+")
-_DEFAULT_IMAGE_PATH = "/images/the-bend-community-preview-v3.png"
+_DEFAULT_IMAGE_PATH = "/images/the-bend-community-preview-v4.png"
 _DEFAULT_SITE_NAME = "The Bend Community"
 _DEFAULT_DESCRIPTION = "Share staff, materials & equipment with your neighbors."
 
