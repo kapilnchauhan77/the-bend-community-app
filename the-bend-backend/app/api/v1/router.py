@@ -70,11 +70,13 @@ async def community_stats(
     from sqlalchemy import func, select
     from app.models.shop import Shop
     from app.models.listing import Listing
-    from app.models.enums import ShopStatus, ListingStatus
+    from app.models.user import User
+    from app.models.enums import ShopStatus, ListingStatus, UserRole
 
     tenant = getattr(request.state, "tenant", None) if request else None
     tenant_filter_shop = Shop.tenant_id == tenant.id if tenant else True
     tenant_filter_listing = Listing.tenant_id == tenant.id if tenant else True
+    tenant_filter_user = User.tenant_id == tenant.id if tenant else True
 
     active_shops = (await db.execute(
         select(func.count()).select_from(Shop).where(Shop.status == ShopStatus.ACTIVE, tenant_filter_shop)
@@ -88,8 +90,17 @@ async def community_stats(
         select(func.count()).select_from(Listing).where(Listing.status == ListingStatus.FULFILLED, tenant_filter_listing)
     )).scalar_one()
 
+    active_individuals = (await db.execute(
+        select(func.count()).select_from(User).where(
+            User.role == UserRole.INDIVIDUAL,
+            User.is_active.is_(True),
+            tenant_filter_user,
+        )
+    )).scalar_one()
+
     return {
         "active_shops": active_shops,
         "active_listings": active_listings,
         "items_shared": items_shared,
+        "active_individuals": active_individuals,
     }

@@ -71,6 +71,7 @@ export default function HomePage() {
     { value: '—', label: 'Active Businesses' },
     { value: '—', label: 'Active Listings' },
     { value: '—', label: 'Items Shared' },
+    { value: '—', label: 'Individuals' },
   ]);
 
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function HomePage() {
           { value: String(d.active_shops ?? 0), label: 'Active Businesses' },
           { value: String(d.active_listings ?? 0), label: 'Active Listings' },
           { value: String(d.items_shared ?? 0), label: 'Items Shared' },
+          { value: String(d.active_individuals ?? 0), label: 'Individuals' },
         ]);
       })
       .catch(() => {});
@@ -532,7 +534,7 @@ export default function HomePage() {
             <div className="w-12 h-[2px] mx-auto mb-3" style={{ backgroundColor: 'hsl(35,45%,55%)' }} />
             <h2 className="text-lg font-bold font-serif text-[hsl(40,20%,90%)] tracking-wide">Our Community in Numbers</h2>
           </div>
-          <div className="grid grid-cols-3 gap-6 max-w-xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto">
             {stats.map(({ value, label }) => (
               <div key={label} className="text-center">
                 <div className="text-3xl md:text-4xl font-bold font-serif text-[hsl(40,20%,95%)] tabular-nums">{value}</div>

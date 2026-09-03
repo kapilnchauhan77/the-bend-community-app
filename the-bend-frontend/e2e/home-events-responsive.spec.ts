@@ -47,6 +47,7 @@ async function stubHomeApi(page: Page, upcomingEvents = [upcomingEvent]) {
           active_shops: 0,
           active_listings: 0,
           items_shared: 0,
+          active_individuals: 42,
         }),
       });
       return;
@@ -58,6 +59,22 @@ async function stubHomeApi(page: Page, upcomingEvents = [upcomingEvent]) {
     });
   });
 }
+
+test('home statistics shows individuals in a responsive four-item grid', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  const statsHeading = page.getByRole('heading', { name: 'Our Community in Numbers' });
+  const statsGrid = statsHeading.locator('xpath=../following-sibling::div[1]');
+  await expect(statsGrid.getByText('Individuals', { exact: true })).toBeVisible();
+  await expect(statsGrid.getByText('42', { exact: true })).toBeVisible();
+  await expect(statsGrid.locator(':scope > div')).toHaveCount(4);
+  expect((await statsGrid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length))).toBe(2);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  expect((await statsGrid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length))).toBe(4);
+});
 
 test('mobile home shows the full upcoming-events section exactly once', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
