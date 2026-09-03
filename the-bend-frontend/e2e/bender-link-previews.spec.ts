@@ -83,15 +83,34 @@ test('published preview omits only its source and renders a safe card', async ({
   await expect(page.getByRole('link', { name: 'Event title, Example' })).toHaveAttribute('href', 'https://example.org/canonical');
 });
 
-test('legacy posts retain caption and render no card', async ({ page }) => {
-  await stubFeed(page, { ...base, media_url: '/uploads/post.jpg', comment_count: 1, caption: 'https://example.org/a and https://example.org/b', link_preview: null });
-  await expect(page.getByRole('link', { name: 'https://example.org/a' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'https://example.org/b' })).toBeVisible();
-  await expect(page.locator('[data-testid="bender-link-preview"]')).toHaveCount(0);
-  await expect(page.getByTestId('bender-comments-link')).toHaveCount(1);
-  await page.getByRole('button', { name: 'View all 1 comment' }).click();
-  const order = await page.locator('[data-testid="bender-post"] > *').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')).filter(Boolean));
-  expect(order).toEqual(['bender-post-header', 'bender-media', 'bender-actions', 'bender-caption', 'bender-comments-drawer']);
+test('legacy post content precedes its actions on desktop and mobile', async ({ page }) => {
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await stubFeed(page, { ...base, media_url: '/uploads/post.jpg', comment_count: 1, caption: 'https://example.org/a and https://example.org/b', link_preview: null });
+    await expect(page.getByRole('link', { name: 'https://example.org/a' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'https://example.org/b' })).toBeVisible();
+    await expect(page.locator('[data-testid="bender-link-preview"]')).toHaveCount(0);
+    await expect(page.getByTestId('bender-comments-link')).toHaveCount(1);
+    await page.getByRole('button', { name: 'View all 1 comment' }).click();
+    const order = await page.locator('[data-testid="bender-post"] > *').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')).filter(Boolean));
+    expect(order).toEqual(['bender-post-header', 'bender-caption', 'bender-media', 'bender-actions', 'bender-comments-drawer']);
+  }
+});
+
+test('comment and message actions are visually distinct with mobile touch targets', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  await stubFeed(page, { ...base, caption: 'A text-only post', link_preview: null });
+  const actions = page.getByTestId('bender-actions');
+  const comment = actions.getByRole('button', { name: 'Comments' });
+  const message = actions.getByRole('button', { name: 'Send in a message' });
+  await expect(comment.locator('svg.lucide-message-circle')).toHaveCount(1);
+  await expect(message.locator('svg.lucide-send')).toHaveCount(1);
+  await expect(message.locator('svg.lucide-message-circle')).toHaveCount(0);
+  const sizes = await actions.getByRole('button').evaluateAll((buttons) => buttons.map((button) => {
+    const rect = button.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }));
+  expect(sizes.every(({ width, height }) => width >= 40 && height >= 40), JSON.stringify(sizes)).toBe(true);
 });
 
 test('text-only card has no image wrapper', async ({ page }) => {

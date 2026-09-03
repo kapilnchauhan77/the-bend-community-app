@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Search } from 'lucide-react';
+import { MessageCircle, Search, type LucideIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,8 @@ interface ShareToMessageButtonProps {
   /** Render as a bare icon (no text), for icon-only action rows like BenderPage's post actions. */
   iconOnly?: boolean;
   iconSize?: number;
+  /** Optional icon override when the surrounding UI already uses a speech bubble for comments. */
+  icon?: LucideIcon;
 }
 
 // Row for an existing thread in the picker — same info density as the
@@ -136,6 +138,7 @@ export function ShareToMessageButton({
   label = 'Send in a message',
   iconOnly = false,
   iconSize,
+  icon: Icon = MessageCircle,
 }: ShareToMessageButtonProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -238,7 +241,7 @@ export function ShareToMessageButton({
         onClick={() => setOpen(true)}
         aria-label={iconOnly ? label : undefined}
       >
-        <MessageCircle size={iconOnly ? iconSize ?? 18 : 16} className={iconOnly ? undefined : 'mr-1.5'} />
+        <Icon size={iconOnly ? iconSize ?? 18 : 16} className={iconOnly ? undefined : 'mr-1.5'} />
         {!iconOnly && label}
       </Button>
 

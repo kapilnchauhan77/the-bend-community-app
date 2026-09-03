@@ -11,6 +11,7 @@ import {
   ImageIcon,
   Trash2,
   Play,
+  Send,
 } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Button } from '@/components/ui/button';
@@ -272,7 +273,7 @@ function BenderPostCard({
         )}
       </div>
 
-      {visiblePreview && captionBlock}
+      {captionBlock}
       {visiblePreview && (
         <div data-testid="bender-preview-slot" className="px-3 pb-1 min-w-0">
           <BenderLinkPreviewCard mode="feed" state="ready" preview={visiblePreview} />
@@ -303,11 +304,13 @@ function BenderPostCard({
       )}
 
       {/* Action row */}
-      <div data-testid="bender-actions" className="flex items-center gap-3 px-3 pt-2 pb-1">
+      <div data-testid="bender-actions" className="flex items-center gap-1 border-t border-[hsl(35,18%,90%)] px-2 py-1">
         <button
+          type="button"
           onClick={handleLikeToggle}
-          className="flex items-center gap-1 cursor-pointer transition-transform active:scale-90"
+          className="flex min-h-10 min-w-10 items-center justify-center gap-1 rounded-md px-2 cursor-pointer transition-colors hover:bg-[hsl(35,15%,94%)]"
           aria-label={post.viewer_has_liked ? 'Unlike' : 'Like'}
+          aria-pressed={post.viewer_has_liked}
         >
           <Heart
             size={22}
@@ -324,9 +327,11 @@ function BenderPostCard({
           )}
         </button>
         <button
+          type="button"
           onClick={() => setCommentsOpen((v) => !v)}
-          className="flex items-center gap-1 cursor-pointer"
+          className="flex min-h-10 min-w-10 items-center justify-center gap-1 rounded-md px-2 cursor-pointer transition-colors hover:bg-[hsl(35,15%,94%)]"
           aria-label="Comments"
+          aria-expanded={commentsOpen}
         >
           <MessageCircle size={22} className="text-[hsl(30,15%,18%)]" />
           {post.comment_count > 0 && (
@@ -341,21 +346,21 @@ function BenderPostCard({
             refId={post.id}
             iconOnly
             iconSize={20}
+            icon={Send}
             variant="ghost"
-            className="ml-auto h-auto w-auto p-0 text-[hsl(30,15%,18%)] hover:bg-transparent hover:text-[hsl(160,25%,24%)]"
+            className="ml-auto h-10 w-10 p-0 text-[hsl(30,15%,18%)] hover:bg-[hsl(35,15%,94%)] hover:text-[hsl(160,25%,24%)]"
             label="Send in a message"
           />
         )}
         <button
+          type="button"
           onClick={handleShare}
-          className={isAuthenticated ? 'cursor-pointer' : 'ml-auto cursor-pointer'}
+          className={`flex h-10 w-10 items-center justify-center rounded-md cursor-pointer transition-colors hover:bg-[hsl(35,15%,94%)] ${isAuthenticated ? '' : 'ml-auto'}`}
           aria-label="Share"
         >
           <Share2 size={20} className="text-[hsl(30,15%,18%)]" />
         </button>
       </div>
-
-      {!visiblePreview && captionBlock}
 
       {/* View comments link */}
       {post.comment_count > 0 && !commentsOpen && (
