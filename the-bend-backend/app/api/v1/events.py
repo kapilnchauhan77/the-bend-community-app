@@ -218,7 +218,8 @@ async def submit_event(
     # so the existing community-admin review queue picks it up like any other
     # paid submission — the only difference is no money changed hands.
     if price_cents == 0:
-        event.paid = True
+        from app.services.event_submission_service import mark_event_paid_and_notify
+        await mark_event_paid_and_notify(db, event)
         if applied_coupon is not None:
             # We've already validated this row above; mark_used does its own
             # SELECT FOR UPDATE + bounds re-check before bumping.
@@ -232,7 +233,6 @@ async def submit_event(
                 if organization_type == "community_faith" and isinstance(exc, AppException):
                     raise HTTPException(status_code=400, detail="Coupon is no longer available") from exc
                 raise
-        await db.flush()
         return {
             "checkout_url": None, "session_id": None,
             "price_cents": 0, "free": True,

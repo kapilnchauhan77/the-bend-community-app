@@ -64,6 +64,7 @@ class PricingType(str, enum.Enum):
 
 class NotificationType(str, enum.Enum):
     REGISTRATION_SUBMITTED = "registration_submitted"
+    EVENT_SUBMITTED = "event_submitted"
     REGISTRATION_APPROVED = "registration_approved"
     REGISTRATION_REJECTED = "registration_rejected"
     LISTING_INTEREST = "listing_interest"

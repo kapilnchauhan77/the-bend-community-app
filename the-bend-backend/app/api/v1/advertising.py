@@ -284,11 +284,11 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         # Handle event posting payment
         if payment_type == "event_posting" and event_id:
             from app.models.event import Event
-            result = await db.execute(select(Event).where(Event.id == event_id))
+            result = await db.execute(select(Event).where(Event.id == event_id).with_for_update())
             evt = result.scalar_one_or_none()
             if evt:
-                evt.paid = True
-                await db.flush()
+                from app.services.event_submission_service import mark_event_paid_and_notify
+                await mark_event_paid_and_notify(db, evt)
 
         if sponsor_id:
             result = await db.execute(select(Sponsor).where(Sponsor.id == sponsor_id))

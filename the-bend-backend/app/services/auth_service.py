@@ -129,6 +129,7 @@ class AuthService:
                     title="New Registration",
                     body=f"'{data.shop_name}' has submitted a registration for review.",
                     data={"shop_id": str(shop.id)},
+                    tenant_id=shop.tenant_id,
                 )
         except Exception:
             pass

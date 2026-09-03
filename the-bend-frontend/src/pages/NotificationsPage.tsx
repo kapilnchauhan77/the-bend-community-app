@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
+  Calendar,
   MessageSquare,
   Package,
   CheckCircle,
@@ -21,6 +22,7 @@ const PRIMARY = 'hsl(160, 25%, 24%)';
 
 // ─── Icon map by notification type ───────────────────────────────────────────
 function getNotificationIcon(type: string) {
+  if (type.includes('event_submitted')) return Calendar;
   if (type.includes('message')) return MessageSquare;
   if (type.includes('interest') || type.includes('listing')) return Package;
   if (type.includes('fulfilled')) return CheckCircle;
@@ -29,6 +31,7 @@ function getNotificationIcon(type: string) {
 }
 
 function getIconStyle(type: string): { bg: string; color: string } {
+  if (type.includes('event_submitted')) return { bg: 'bg-[hsl(160,20%,90%)]', color: 'text-[hsl(160,25%,28%)]' };
   if (type.includes('message')) return { bg: 'bg-blue-100', color: 'text-blue-600' };
   if (type.includes('fulfilled')) return { bg: 'bg-[hsl(35,15%,90%)]', color: 'text-[hsl(160,25%,28%)]' };
   if (type.includes('urgent'))
@@ -52,6 +55,7 @@ function getTargetRoute(n: Notification): string {
   // still route correctly.
   if (n.type.includes('listing_reported') || n.type.includes('reported')) return '/admin/flagged';
   if (n.title && /report/i.test(n.title)) return '/admin/flagged';
+  if (n.type.includes('event_submitted')) return '/admin/events';
   // Sponsor-approval notifications reuse the REGISTRATION_SUBMITTED type but
   // carry a sponsor_id — route them to the sponsor queue, not shop registrations.
   if (data.sponsor_id) return '/admin/sponsors';
