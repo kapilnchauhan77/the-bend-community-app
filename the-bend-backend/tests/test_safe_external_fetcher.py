@@ -311,6 +311,25 @@ async def test_peer_must_match_validated_address_and_missing_peer_fails_closed()
 
 
 @pytest.mark.asyncio
+async def test_html_fetch_stops_after_head_before_oversized_page_body():
+    first = b'<html><head><meta property="og:title" content="Beach Paws Boutique"></he'
+    second = b'ad><body>' + (b"x" * 64)
+    response = _FakeResponse(
+        content_type="text/html",
+        chunks=(first, second, *([b"x" * 65536] * 9)),
+        content_length="700000",
+    )
+    fetcher, _ = _fetcher_for(response)
+
+    result = await fetcher.fetch_html(
+        "https://www.facebook.com/share/p/example/",
+        deadline=time.monotonic() + 1,
+    )
+
+    assert result.body == first + b"ad>"
+
+
+@pytest.mark.asyncio
 async def test_decoded_body_cannot_exceed_html_limit():
     response = _FakeResponse(content_type="text/html", chunks=(b"x" * 524288, b"y"))
     fetcher, _ = _fetcher_for(response)
@@ -339,8 +358,8 @@ async def test_image_limit_and_mime_allowlist():
 
 
 @pytest.mark.asyncio
-async def test_content_length_is_rejected_before_streaming():
-    for content_length in ("not-a-number", "524289", "+1", " 1", "1 ", "1_0", "１２３"):
+async def test_invalid_content_length_is_rejected_before_streaming():
+    for content_length in ("not-a-number", "+1", " 1", "1 ", "1_0", "１２３"):
         response = _FakeResponse(content_length=content_length)
         fetcher, _ = _fetcher_for(response)
         with pytest.raises(LinkPreviewResponseTooLarge):

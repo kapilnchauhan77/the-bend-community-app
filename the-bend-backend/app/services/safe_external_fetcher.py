@@ -29,6 +29,7 @@ HTML_LIMIT = 512 * 1024
 IMAGE_LIMIT = 3 * 1024 * 1024
 MAX_REDIRECTS = 3
 USER_AGENT = "TheBendLinkPreview/1.0"
+_HTML_HEAD_END = re.compile(br"</head[\t\n\f\r ]*>", re.IGNORECASE)
 
 Resolver = Callable[[str, int], Awaitable[tuple[str, ...]]]
 
@@ -217,8 +218,16 @@ class SafeExternalFetcher:
                             )
                             if content_type not in allowed:
                                 raise LinkPreviewUpstreamFailure("invalid_content")
-                            self._check_content_length(response.headers.get("Content-Length"), limit)
-                            body = await self._read_body(response, limit)
+                            content_length = response.headers.get("Content-Length")
+                            self._check_content_length(
+                                content_length,
+                                None if kind == "html" else limit,
+                            )
+                            body = (
+                                await self._read_html_head(response, limit)
+                                if kind == "html"
+                                else await self._read_body(response, limit)
+                            )
                             return SafeFetchResponse(target.normalized_url, body, content_type)
         except (LinkPreviewURLRejected, LinkPreviewResponseTooLarge, LinkPreviewUpstreamFailure):
             raise
@@ -241,14 +250,31 @@ class SafeExternalFetcher:
             raise LinkPreviewUpstreamFailure("peer_mismatch")
 
     @staticmethod
-    def _check_content_length(value: str | None, limit: int) -> None:
+    def _check_content_length(value: str | None, limit: int | None) -> None:
         if value is None:
             return
         if not isinstance(value, str) or re.fullmatch(r"[0-9]+", value) is None:
             raise LinkPreviewResponseTooLarge("invalid_content_length")
         length = int(value, 10)
-        if length < 0 or length > limit:
+        if length < 0 or (limit is not None and length > limit):
             raise LinkPreviewResponseTooLarge("response_too_large")
+
+    @staticmethod
+    async def _read_html_head(response: ClientResponseLike, limit: int) -> bytes:
+        chunks: list[bytes] = []
+        content = response.content
+        iterator = content.iter_chunked(65536) if hasattr(content, "iter_chunked") else content
+        async for chunk in iterator:
+            chunks.append(chunk)
+            body = b"".join(chunks)
+            match = _HTML_HEAD_END.search(body)
+            if match is not None:
+                if match.end() > limit:
+                    raise LinkPreviewResponseTooLarge("response_too_large")
+                return body[: match.end()]
+            if len(body) > limit:
+                raise LinkPreviewResponseTooLarge("response_too_large")
+        return b"".join(chunks)
 
     @staticmethod
     async def _read_body(response: ClientResponseLike, limit: int) -> bytes:
