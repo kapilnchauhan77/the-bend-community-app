@@ -114,7 +114,7 @@ export default function HomePage() {
       .finally(() => setLoadingUrgent(false));
 
     listingApi
-      .browse({ limit: 5 })
+      .browse({ urgency: 'normal', limit: 5 })
       .then((res) => setRecentListings(res.data.items))
       .catch(() => setRecentListings([]))
       .finally(() => setLoadingRecent(false));
