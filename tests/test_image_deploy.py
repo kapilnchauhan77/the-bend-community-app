@@ -43,7 +43,7 @@ elif a[0] == 'compose':
 ''')
     docker.chmod(0o755)
     for name, body in {
-        "git": 'if [ "$1" = rev-parse ]; then printf "%s\\n" ' + REVISION + '; fi',
+        "git": 'if [ "$1" = -c ]; then shift 2; fi; if [ "$1" = rev-parse ]; then printf "%s\\n" ' + REVISION + '; fi',
         "flock": "exit 0",
         "sleep": "exit 0",
     }.items():

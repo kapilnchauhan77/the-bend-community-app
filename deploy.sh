@@ -13,8 +13,8 @@ for image in "$backend" "$frontend"; do
     [[ $image =~ ^[a-zA-Z0-9./_-]+@sha256:[0-9a-f]{64}$ ]] || fail "Images must use immutable sha256 digests"
 done
 [[ -f .env ]] || fail "Production .env is missing"
-[[ $(git rev-parse HEAD) == "$revision" ]] || fail "Checkout does not match the image revision"
-[[ -z $(git status --porcelain --untracked-files=no) ]] || fail "Tracked checkout changes must be resolved first"
+[[ $(git -c safe.directory="$PWD" rev-parse HEAD) == "$revision" ]] || fail "Checkout does not match the image revision"
+[[ -z $(git -c safe.directory="$PWD" status --porcelain --untracked-files=no) ]] || fail "Tracked checkout changes must be resolved first"
 exec 9>.deploy.lock
 flock -n 9 || fail "Another deployment is running"
 
