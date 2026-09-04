@@ -1,10 +1,14 @@
+import logging
+
 from fastapi import APIRouter, Depends, Request, status
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.permissions import get_current_tenant
 from app.models.tenant import Tenant
 from app.services.auth_service import AuthService
+from app.services.email_service import email_service
 from app.schemas.auth import (
     RegisterRequest, RegisterResponse, LoginRequest, TokenResponse,
     RefreshRequest, RefreshResponse, ForgotPasswordRequest,
@@ -12,6 +16,7 @@ from app.schemas.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
@@ -26,7 +31,21 @@ async def register(
 ):
     """Register a new shop and its admin user."""
     service.tenant_id = tenant.id if tenant else None
-    return await service.register(data)
+    result = await service.register(data)
+    if data.user_type == "business":
+        # Persist before sending: a failed transaction must not produce a
+        # confirmation for a registration that does not exist.
+        await service.db.commit()
+        try:
+            sent = await run_in_threadpool(
+                email_service.send_registration_confirmation, data.email, data.shop_name,
+            )
+            if not sent:
+                logger.warning("Registration confirmation email failed for shop %s", result["shop_id"])
+        except Exception:
+            # Mail delivery must not turn a saved signup into a failed signup.
+            logger.warning("Registration confirmation email failed for shop %s", result["shop_id"])
+    return result
 
 
 @router.post("/login", response_model=TokenResponse)
