@@ -18,7 +18,7 @@ steps:
           --cache-from=type=registry,ref=gcr.io/$PROJECT_ID/bend-backend-cache:build \
           --cache-to=type=registry,ref=gcr.io/$PROJECT_ID/bend-backend-cache:build,mode=max \
           the-bend-backend
-        docker run --rm bend-backend-test
+        docker run --rm -v /workspace:/repo -w /repo/the-bend-backend bend-backend-test
         docker run --rm -v /workspace:/repo -w /repo bend-backend-test \
           python -m pytest tests/test_image_deploy.py -q
         docker buildx build --progress=plain --platform=linux/amd64 \
