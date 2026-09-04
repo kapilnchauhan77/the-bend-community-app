@@ -97,6 +97,15 @@ def test_pull_failure_leaves_running_release_alone(deployment):
     assert not (path / ".release.env").exists()
 
 
+def test_frontend_health_uses_nginx_ipv4_listener(deployment):
+    _, run = deployment
+    result, calls = run(REVISION, BACKEND, FRONTEND)
+    assert result.returncode == 0, result.stderr
+    checks = [c["args"] for c in calls if "exec" in c["args"] and "wget" in c["args"]]
+    assert len(checks) == 1
+    assert checks[0][-1] == "http://127.0.0.1/"
+
+
 def test_failed_health_restores_previous_images(deployment):
     path, run = deployment
     (path / ".release.env").write_text("PREVIOUS_RELEASE=untouched\n")

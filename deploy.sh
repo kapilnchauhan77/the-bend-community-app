@@ -49,7 +49,7 @@ export BEND_WORKER_IMAGE="$backend" BEND_BEAT_IMAGE="$backend"
 health() {
     "${compose[@]}" exec -T backend python -c \
       'import json,urllib.request; r=json.load(urllib.request.urlopen("http://localhost:8000/api/v1/health",timeout=5)); assert r["status"]=="healthy" and r["db"]=="ok"' >/dev/null 2>&1 &&
-    "${compose[@]}" exec -T frontend wget -q -O /dev/null http://localhost/ &&
+    "${compose[@]}" exec -T frontend wget -q -O /dev/null http://127.0.0.1/ &&
     "${compose[@]}" exec -T celery-worker python -c \
       'import os; assert os.path.exists("/proc/1")' >/dev/null 2>&1 &&
     "${compose[@]}" exec -T celery-beat python -c \
