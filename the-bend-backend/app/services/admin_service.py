@@ -2,13 +2,14 @@ import logging
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import and_, func, or_, select
 
 from app.models.shop import Shop
 from app.models.listing import Listing
 from app.models.user import User
 from app.models.enums import ShopStatus, ListingStatus, UrgencyLevel, ListingCategory, NotificationType, UserRole
 from app.core.exceptions import NotFoundError
+from app.core.pagination import decode_cursor, encode_cursor
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -181,15 +182,33 @@ class AdminService:
         return shop
 
     async def get_shops(self, status=None, search=None, cursor=None, limit=20):
-        query = select(Shop).where(self._tenant_filter(Shop)).order_by(Shop.created_at.desc())
+        query = select(Shop).where(self._tenant_filter(Shop))
         if status:
             query = query.where(Shop.status == status)
         if search:
             query = query.where(Shop.name.ilike(f"%{search}%"))
-        query = query.limit(limit)
+        if cursor:
+            cursor_data = decode_cursor(cursor)
+            try:
+                cursor_time = datetime.fromisoformat(cursor_data["created_at"])
+                cursor_id = UUID(str(cursor_data["id"]))
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                query = query.where(
+                    or_(
+                        Shop.created_at < cursor_time,
+                        and_(Shop.created_at == cursor_time, Shop.id < cursor_id),
+                    )
+                )
+        query = query.order_by(Shop.created_at.desc(), Shop.id.desc()).limit(limit + 1)
         result = await self.db.execute(query)
+        shop_rows = list(result.scalars().all())
+        has_more = len(shop_rows) > limit
+        if has_more:
+            shop_rows = shop_rows[:limit]
         shops = []
-        for s in result.scalars().all():
+        for s in shop_rows:
             admin = None
             if s.admin_user_id:
                 admin_result = await self.db.execute(
@@ -208,7 +227,11 @@ class AdminService:
                 "contact_phone": s.contact_phone,
                 "listing_count": count_result.scalar_one(),
             })
-        return {"items": shops, "next_cursor": None, "has_more": False}
+        next_cursor = None
+        if has_more and shop_rows:
+            last_shop = shop_rows[-1]
+            next_cursor = encode_cursor({"created_at": last_shop.created_at, "id": last_shop.id})
+        return {"items": shops, "next_cursor": next_cursor, "has_more": has_more}
 
     async def suspend_shop(self, shop_id: UUID, reason: str):
         result = await self.db.execute(select(Shop).where(Shop.id == shop_id))
