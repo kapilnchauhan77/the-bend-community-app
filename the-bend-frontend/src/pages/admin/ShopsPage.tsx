@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { adminApi } from '@/services/adminApi';
 import {
@@ -23,6 +23,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Search, Eye, PauseCircle, PlayCircle, Loader2, Store } from 'lucide-react';
+import { fetchAllPages } from '@/lib/fetchAllPages';
 
 type ShopStatus = 'active' | 'suspended' | 'pending' | 'rejected';
 
@@ -78,6 +79,7 @@ export default function ShopsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const fetchRequest = useRef(0);
 
   // View dialog
   const [viewShop, setViewShop] = useState<Shop | null>(null);
@@ -88,16 +90,19 @@ export default function ShopsPage() {
   const [suspendError, setSuspendError] = useState('');
 
   const fetchShops = useCallback(async (q?: string) => {
+    const requestId = ++fetchRequest.current;
     setLoading(true);
     try {
       const params: Record<string, string> = {};
       if (q) params.search = q;
-      const res = await adminApi.getShops(params);
-      setShops(res.data?.items ?? res.data?.shops ?? res.data ?? []);
+      const allShops = await fetchAllPages<Shop>((cursor) =>
+        adminApi.getShops({ ...params, limit: '50', ...(cursor ? { cursor } : {}) }),
+      );
+      if (requestId === fetchRequest.current) setShops(allShops);
     } catch {
-      setShops([]);
+      if (requestId === fetchRequest.current) setShops([]);
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequest.current) setLoading(false);
     }
   }, []);
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Store, MapPin, Package, Award } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { shopApi } from '@/services/shopApi';
 import { resolveAssetUrl } from '@/lib/constants';
+import { fetchAllPages } from '@/lib/fetchAllPages';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LABELS, businessTypeLabel } from '@/lib/businessTypes';
 import type { Shop } from '@/types';
 
@@ -32,6 +33,7 @@ export default function DirectoryPage() {
   const [search, setSearch] = useState('');
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchRequest = useRef(0);
 
   const category = searchParams.get('type') ?? '';
 
@@ -41,20 +43,23 @@ export default function DirectoryPage() {
 
   const debouncedSearch = useDebounce(search, 350);
 
-  const fetchShops = useCallback(() => {
+  const fetchShops = useCallback(async () => {
+    const requestId = ++fetchRequest.current;
     setLoading(true);
     const params: Record<string, string> = {};
     if (debouncedSearch) params.search = debouncedSearch;
     if (category) params.business_type = category;
 
-    shopApi
-      .directory(params)
-      .then((res) => {
-        const data = res.data;
-        setShops(Array.isArray(data) ? data : (data.items ?? []));
-      })
-      .catch(() => setShops([]))
-      .finally(() => setLoading(false));
+    try {
+      const allShops = await fetchAllPages<Shop>((cursor) =>
+        shopApi.directory({ ...params, limit: '50', ...(cursor ? { cursor } : {}) }),
+      );
+      if (requestId === fetchRequest.current) setShops(allShops);
+    } catch {
+      if (requestId === fetchRequest.current) setShops([]);
+    } finally {
+      if (requestId === fetchRequest.current) setLoading(false);
+    }
   }, [debouncedSearch, category]);
 
   useEffect(() => {

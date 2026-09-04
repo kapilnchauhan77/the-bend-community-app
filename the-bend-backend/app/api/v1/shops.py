@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.pagination import decode_cursor, encode_cursor
 from app.core.permissions import get_current_user, get_current_user_optional, get_current_tenant, Permission
 from app.core.privacy import mask_phone
 from app.models.user import User
@@ -45,7 +46,7 @@ async def list_shops(
     current_user: User | None = Depends(get_current_user_optional),
 ):
     """Public directory of active businesses, sorted by endorsement count."""
-    from sqlalchemy import select, func, desc
+    from sqlalchemy import and_, desc, func, or_, select
     from app.models.shop import Shop
     from app.models.listing import Listing
     from app.models.endorsement import Endorsement
@@ -69,7 +70,28 @@ async def list_shops(
     if business_type:
         query = query.where(Shop.business_type == business_type)
 
-    query = query.order_by(desc("endorsement_count"), Shop.name)
+    if cursor:
+        cursor_data = decode_cursor(cursor)
+        try:
+            cursor_count = int(cursor_data["endorsement_count"])
+            cursor_name = str(cursor_data["name"])
+            cursor_id = UUID(str(cursor_data["id"]))
+        except (KeyError, TypeError, ValueError):
+            pass
+        else:
+            query = query.where(
+                or_(
+                    endorsement_count < cursor_count,
+                    and_(endorsement_count == cursor_count, Shop.name > cursor_name),
+                    and_(
+                        endorsement_count == cursor_count,
+                        Shop.name == cursor_name,
+                        Shop.id > cursor_id,
+                    ),
+                )
+            )
+
+    query = query.order_by(desc(endorsement_count), Shop.name.asc(), Shop.id.asc())
     query = query.limit(limit + 1)
 
     result = await db.execute(query)
@@ -103,7 +125,16 @@ async def list_shops(
             "member_since": str(shop.created_at),
         })
 
-    return {"items": shop_data, "has_more": has_more}
+    next_cursor = None
+    if has_more and rows:
+        last_shop, last_endorsement_count = rows[-1]
+        next_cursor = encode_cursor({
+            "endorsement_count": last_endorsement_count or 0,
+            "name": last_shop.name,
+            "id": last_shop.id,
+        })
+
+    return {"items": shop_data, "next_cursor": next_cursor, "has_more": has_more}
 
 
 # Shop endpoints
