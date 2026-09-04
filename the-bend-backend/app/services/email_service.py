@@ -6,6 +6,7 @@ with the provider's response body so failures are never silent — a dead
 provider previously returned False and callers proceeded as if the mail sent.
 """
 import logging
+from html import escape
 import httpx
 from app.config import get_settings
 
@@ -79,9 +80,9 @@ class EmailService:
             logger.error(f"SendGrid error sending to {to_email}: {e}")
             return False
 
-    def send_registration_confirmation(self, to_email: str, shop_name: str):
-        self._send(to_email, "Registration Received — The Bend",
-            f"<h2>Welcome to The Bend!</h2><p>Your registration for <strong>{shop_name}</strong> has been received. The community admin will review your application shortly.</p>")
+    def send_registration_confirmation(self, to_email: str, shop_name: str) -> bool:
+        return self._send(to_email, "Registration Received — The Bend",
+            f"<h2>Welcome to The Bend!</h2><p>Your registration for <strong>{escape(shop_name)}</strong> has been received. The community admin will review your application shortly.</p>")
 
     def send_approval_email(self, to_email: str, shop_name: str):
         self._send(to_email, "You're In! — The Bend",

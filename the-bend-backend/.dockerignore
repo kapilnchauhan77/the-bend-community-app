@@ -8,3 +8,8 @@ venv
 node_modules
 .pytest_cache
 uploads/
+private_uploads/
+output/
+*.egg-info/
+build/
+dist/

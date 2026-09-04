@@ -133,7 +133,7 @@ class AuthService:
                 )
         except Exception:
             pass
-        # TODO: Send confirmation email (Phase 6)
+        # The registration endpoint sends confirmation after committing.
 
         return {"message": "Registration submitted for review", "shop_id": str(shop.id)}
 
