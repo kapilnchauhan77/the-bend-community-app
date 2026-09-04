@@ -30,7 +30,7 @@ with open('commands.jsonl', 'a') as f:
 if a[0] == 'pull' and os.environ.get('FAIL_PULL'):
     sys.exit(1)
 if a[:2] == ['image', 'inspect']:
-    print('a' * 40)
+    print(('e' if os.environ.get('WRONG_REVISION') else 'a') * 40)
 elif a[0] == 'inspect':
     print('sha256:' + 'd' * 64)
 elif a[0] == 'compose':
@@ -107,3 +107,21 @@ def test_failed_health_restores_previous_images(deployment):
     assert starts[-1]["backend"].startswith("bend-rollback/backend:")
     assert starts[-1]["frontend"].startswith("bend-rollback/frontend:")
     assert (path / ".release.env").read_text() == "PREVIOUS_RELEASE=untouched\n"
+
+
+def test_wrong_image_revision_does_not_restart_services(deployment):
+    _, run = deployment
+    result, calls = run(REVISION, BACKEND, FRONTEND, WRONG_REVISION="1")
+    assert result.returncode != 0
+    assert not any("up" in c["args"] for c in calls)
+
+
+def test_repeating_deployment_keeps_the_same_release(deployment):
+    path, run = deployment
+    first, _ = run(REVISION, BACKEND, FRONTEND)
+    assert first.returncode == 0, first.stderr
+    release = (path / ".release.env").read_text()
+    second, calls = run(REVISION, BACKEND, FRONTEND)
+    assert second.returncode == 0, second.stderr
+    assert (path / ".release.env").read_text() == release
+    assert not any("build" in c["args"] for c in calls)
