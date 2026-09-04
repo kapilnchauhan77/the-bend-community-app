@@ -169,6 +169,8 @@ class ListingDetailResponse(ListingResponse):
     shop: "ShopDetailSummary | None" = None
     viewer_has_interest: bool = False
     views_count: int = 0
+    viewer_can_manage: bool = False
+    viewer_can_fulfill: bool = False
 
 
 class ListingListResponse(BaseModel):

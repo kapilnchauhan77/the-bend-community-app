@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.listing_repo import ListingRepository
 from app.models.user import User
-from app.models.enums import ListingStatus, UrgencyLevel
+from app.models.enums import ListingStatus, UrgencyLevel, UserRole
 from app.core.exceptions import NotFoundError, ForbiddenError, BusinessRuleViolation
 from app.schemas.listing import ListingCreate, ListingUpdate
 
@@ -21,6 +21,30 @@ def _user_owns_listing(listing, current_user: User) -> bool:
     if listing.posted_by_user_id is not None and listing.posted_by_user_id == current_user.id:
         return True
     return False
+
+
+def can_manage_listing(listing, current_user: User | None) -> bool:
+    """Whether a user may edit or delete this listing."""
+    if current_user is None or listing.status == ListingStatus.DELETED:
+        return False
+    if current_user.role == UserRole.SUPER_ADMIN:
+        return True
+    if current_user.role == UserRole.COMMUNITY_ADMIN:
+        return (
+            current_user.tenant_id is not None
+            and listing.tenant_id is not None
+            and current_user.tenant_id == listing.tenant_id
+        )
+    return _user_owns_listing(listing, current_user)
+
+
+def can_fulfill_listing(listing, current_user: User | None) -> bool:
+    """Fulfillment is available only to an owner while the listing is active."""
+    return (
+        current_user is not None
+        and listing.status == ListingStatus.ACTIVE
+        and _user_owns_listing(listing, current_user)
+    )
 
 
 class ListingService:
@@ -134,7 +158,7 @@ class ListingService:
         # Ownership check: community admins can moderate; otherwise the
         # caller must either own the listing's shop OR have personally posted
         # it (posted_by_user_id == user.id).
-        if current_user.role.value != "community_admin" and not _user_owns_listing(listing, current_user):
+        if not can_manage_listing(listing, current_user):
             raise ForbiddenError("Cannot modify another shop's listing")
 
         update_data = data.model_dump(exclude_unset=True)
@@ -193,7 +217,7 @@ class ListingService:
         listing = await self.listing_repo.get_by_id(listing_id)
         if not listing:
             raise NotFoundError("Listing")
-        if not _user_owns_listing(listing, current_user):
+        if not can_fulfill_listing(listing, current_user):
             raise ForbiddenError("Can only fulfill your own listings")
 
         return await self.listing_repo.update(listing_id, {
@@ -205,7 +229,7 @@ class ListingService:
         listing = await self.listing_repo.get_by_id(listing_id)
         if not listing:
             raise NotFoundError("Listing")
-        if current_user.role.value != "community_admin" and not _user_owns_listing(listing, current_user):
+        if not can_manage_listing(listing, current_user):
             raise ForbiddenError("Cannot delete another shop's listing")
 
         return await self.listing_repo.update(listing_id, {"status": ListingStatus.DELETED})

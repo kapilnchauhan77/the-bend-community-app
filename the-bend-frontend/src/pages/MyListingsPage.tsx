@@ -1,22 +1,44 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Plus, Package } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { ListingCard } from '@/components/shared/ListingCard';
 import { listingApi } from '@/services/listingApi';
 import type { Listing } from '@/types';
 
+const apiError = (error: unknown, fallback: string) =>
+  axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string'
+    ? error.response.data.detail
+    : fallback;
+
 export default function MyListingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     listingApi.getMyListings()
-      .then((res) => setListings(res.data?.items ?? []))
-      .catch(() => setListings([]))
+      .then((res) => setListings((res.data?.items ?? []).filter((listing: Listing) => listing.status !== 'deleted')))
+      .catch(() => { setListings([]); setError('Could not load your listings.'); })
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDelete(listing: Listing) {
+    setActionLoading(listing.id);
+    setError(null);
+    try {
+      await listingApi.delete(listing.id);
+      setListings((current) => current.filter((item) => item.id !== listing.id));
+    } catch (err: unknown) {
+      setError(apiError(err, 'Failed to delete listing. Please try again.'));
+    } finally {
+      setActionLoading(null);
+    }
+  }
 
   return (
     <PageLayout>
@@ -37,6 +59,8 @@ export default function MyListingsPage() {
             </Link>
           </Button>
         </div>
+
+        {error && <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -63,7 +87,25 @@ export default function MyListingsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {listings.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
+              <div key={listing.id} className="space-y-2">
+                <ListingCard listing={listing} />
+                <div className="flex gap-2">
+                  <Button asChild size="sm" variant="outline" className="flex-1 gap-1.5" disabled={actionLoading === listing.id}>
+                    <Link to={`/listing/${listing.id}/edit`}><Edit size={14} /> Edit</Link>
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-red-600 border-red-200 hover:bg-red-50" disabled={actionLoading === listing.id}>
+                        {actionLoading === listing.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader><AlertDialogTitle>Delete "{listing.title}"?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                      <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-red-600 hover:bg-red-700" disabled={actionLoading === listing.id} onClick={() => handleDelete(listing)}>Yes, Delete</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
             ))}
           </div>
         )}

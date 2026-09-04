@@ -329,7 +329,13 @@ class AdminService:
         return user
 
     async def get_all_listings(self, status=None, category=None, urgency=None, shop_id=None, search=None, cursor=None, limit=20):
-        query = select(Listing).where(self._tenant_filter(Listing)).order_by(Listing.created_at.desc())
+        from sqlalchemy.orm import selectinload
+        query = (
+            select(Listing)
+            .options(selectinload(Listing.shop), selectinload(Listing.posted_by))
+            .where(self._tenant_filter(Listing))
+            .order_by(Listing.created_at.desc())
+        )
         if status: query = query.where(Listing.status == status)
         if category: query = query.where(Listing.category == category)
         if urgency: query = query.where(Listing.urgency == urgency)
@@ -337,11 +343,22 @@ class AdminService:
         if search: query = query.where(Listing.title.ilike(f"%{search}%"))
         query = query.limit(limit)
         result = await self.db.execute(query)
-        listings = [{"id": str(l.id), "title": l.title, "category": l.category.value, "urgency": l.urgency.value, "status": l.status.value, "created_at": str(l.created_at)} for l in result.scalars().all()]
+        listings = [
+            {
+                "id": str(l.id), "title": l.title,
+                "category": l.category.value, "urgency": l.urgency.value,
+                "status": l.status.value, "created_at": str(l.created_at),
+                "shop_name": l.shop.name if l.shop else None,
+                "posted_by_name": l.posted_by.name if l.posted_by else None,
+            }
+            for l in result.scalars().all()
+        ]
         return {"items": listings, "next_cursor": None, "has_more": False}
 
     async def remove_listing(self, listing_id: UUID, reason: str):
-        result = await self.db.execute(select(Listing).where(Listing.id == listing_id))
+        result = await self.db.execute(
+            select(Listing).where(Listing.id == listing_id, self._tenant_filter(Listing))
+        )
         listing = result.scalar_one_or_none()
         if not listing:
             raise NotFoundError("Listing")

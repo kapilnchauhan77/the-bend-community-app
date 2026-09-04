@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,6 +23,12 @@ import { uploadApi } from '@/services/uploadApi';
 import { resolveAssetUrl, CREATE_LISTING_CATEGORY_OPTIONS, CATEGORY_GUIDANCE } from '@/lib/constants';
 import { isVideoUrl } from '@/lib/utils';
 import { CameraCapture } from '@/components/shared/CameraCapture';
+import { useAuthStore } from '@/stores/authStore';
+
+const apiError = (error: unknown, fallback: string) =>
+  axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string'
+    ? error.response.data.detail
+    : fallback;
 
 const schema = z
   .object({
@@ -90,6 +97,7 @@ export default function CreateListingPage() {
   const [searchParams] = useSearchParams();
   const presetCategory = searchParams.get('category');
   const isEdit = Boolean(editId);
+  const { user, shop } = useAuthStore();
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -97,6 +105,8 @@ export default function CreateListingPage() {
   const [uploading, setUploading] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEdit);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [canManage, setCanManage] = useState(!isEdit);
+  const [actingOnBehalf, setActingOnBehalf] = useState(false);
 
   const initialCategory: FormData['category'] =
     presetCategory === 'volunteer' || presetCategory === 'staff' || presetCategory === 'materials' || presetCategory === 'equipment'
@@ -124,10 +134,29 @@ export default function CreateListingPage() {
 
   // Load existing listing for edit mode
   useEffect(() => {
-    if (!editId) return;
+    if (!editId) {
+      setCanManage(true);
+      setLoadingExisting(false);
+      setActingOnBehalf(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingExisting(true);
+    setCanManage(false);
+    setActingOnBehalf(false);
+    setServerError(null);
     listingApi.getDetail(editId)
       .then((res) => {
+        if (cancelled) return;
         const l = res.data;
+        const isOwner = (l.shop && shop?.id === l.shop.id) || (!!user && l.posted_by?.id === user.id);
+        const allowed = l.viewer_can_manage ?? isOwner;
+        setCanManage(!!allowed);
+        setActingOnBehalf(!!allowed && !isOwner && (user?.role === 'community_admin' || user?.role === 'super_admin'));
+        if (!allowed) {
+          setServerError('You do not have permission to edit this listing.');
+          return;
+        }
         // Derive pricing_type for older listings that pre-date the upgrade.
         const fallbackType = l.pricing_type
           ? l.pricing_type
@@ -160,9 +189,10 @@ export default function CreateListingPage() {
           );
         }
       })
-      .catch(() => setServerError('Failed to load listing.'))
-      .finally(() => setLoadingExisting(false));
-  }, [editId, reset]);
+      .catch((err: unknown) => { if (!cancelled) setServerError(apiError(err, 'Failed to load listing.')); })
+      .finally(() => { if (!cancelled) setLoadingExisting(false); });
+    return () => { cancelled = true; };
+  }, [editId, reset, shop?.id, user]);
 
   const watchedType = watch('type');
   const watchedUrgency = watch('urgency');
@@ -202,6 +232,7 @@ export default function CreateListingPage() {
   };
 
   async function onSubmit(data: FormData) {
+    if (submitting || (isEdit && (!canManage || loadingExisting))) return;
     setSubmitting(true);
     setServerError(null);
     try {
@@ -277,8 +308,10 @@ export default function CreateListingPage() {
             Loading listing...
           </div>
         )}
+        {actingOnBehalf && <p className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">You are editing this listing on behalf of its owner.</p>}
+        {!loadingExisting && isEdit && !canManage && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{serverError || 'You do not have permission to edit this listing.'}</div>}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        {(!isEdit || (canManage && !loadingExisting)) && <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Offer / Request toggle — hidden for volunteer opportunities (always "request") */}
           {!isVolunteer && (
             <Card>
@@ -711,7 +744,7 @@ export default function CreateListingPage() {
               )}
             </Button>
           </div>
-        </form>
+        </form>}
       </div>
       <CameraCapture
         open={cameraOpen}

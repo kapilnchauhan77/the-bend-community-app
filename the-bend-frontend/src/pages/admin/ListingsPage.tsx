@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { adminApi } from '@/services/adminApi';
 import {
@@ -23,13 +24,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Trash2, Loader2, FileText, Filter } from 'lucide-react';
 
-type ListingStatus = 'active' | 'expired' | 'removed' | 'draft';
+type ListingStatus = 'active' | 'fulfilled' | 'expired' | 'deleted';
 type ListingUrgency = 'urgent' | 'normal';
 
 interface Listing {
   id: string;
   title: string;
-  shop_name: string;
+  shop_name: string | null;
+  posted_by_name?: string | null;
   category: string;
   urgency: ListingUrgency;
   status: ListingStatus;
@@ -71,16 +73,16 @@ const statusBadge = (status: ListingStatus) => {
           Expired
         </Badge>
       );
-    case 'removed':
+    case 'fulfilled':
       return (
-        <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
-          Removed
+        <Badge variant="outline" className="text-gray-600 border-gray-200 bg-gray-50">
+          Fulfilled
         </Badge>
       );
-    case 'draft':
+    case 'deleted':
       return (
-        <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-          Draft
+        <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
+          Deleted
         </Badge>
       );
   }
@@ -91,8 +93,8 @@ const STATUSES: Array<{ value: string; label: string }> = [
   { value: '', label: 'All Status' },
   { value: 'active', label: 'Active' },
   { value: 'expired', label: 'Expired' },
-  { value: 'removed', label: 'Removed' },
-  { value: 'draft', label: 'Draft' },
+  { value: 'fulfilled', label: 'Fulfilled' },
+  { value: 'deleted', label: 'Deleted' },
 ];
 const URGENCIES: Array<{ value: string; label: string }> = [
   { value: '', label: 'All Urgency' },
@@ -225,7 +227,7 @@ export default function ListingsPage() {
                     <div className="min-w-0">
                       <h2 className="break-words font-semibold text-gray-900">{listing.title}</h2>
                       <p className="mt-1 break-words text-sm text-muted-foreground">
-                        {listing.shop_name}
+                        {listing.shop_name || listing.posted_by_name || 'Community member'}
                       </p>
                     </div>
                     {statusBadge(listing.status)}
@@ -244,21 +246,15 @@ export default function ListingsPage() {
                       <dd className="mt-0.5 font-medium">{formatDate(listing.created_at)}</dd>
                     </div>
                   </dl>
-                  {listing.status !== 'removed' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-4 min-h-10 w-full gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
-                      onClick={() => openRemove(listing)}
-                      disabled={actionLoading === listing.id}
-                    >
-                      {actionLoading === listing.id ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={14} />
-                      )}
-                      Remove
-                    </Button>
+                  {listing.status !== 'deleted' && (
+                    <div className="mt-4 flex gap-2">
+                      <Button asChild size="sm" variant="outline" className="min-h-10 flex-1">
+                        <Link to={`/listing/${listing.id}/edit`}>Edit</Link>
+                      </Button>
+                      <Button size="sm" variant="outline" className="min-h-10 flex-1 gap-1.5 text-red-600 border-red-200 hover:bg-red-50" onClick={() => openRemove(listing)} disabled={actionLoading === listing.id}>
+                        {actionLoading === listing.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Remove
+                      </Button>
+                    </div>
                   )}
                 </article>
               ))}
@@ -283,7 +279,7 @@ export default function ListingsPage() {
                       {listing.title}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {listing.shop_name}
+                      {listing.shop_name || listing.posted_by_name || 'Community member'}
                     </TableCell>
                     <TableCell className="text-sm capitalize text-muted-foreground">
                       {listing.category}
@@ -294,8 +290,10 @@ export default function ListingsPage() {
                       {formatDate(listing.created_at)}
                     </TableCell>
                     <TableCell className="text-right pr-4">
-                      {listing.status !== 'removed' && (
-                        <Button
+                      {listing.status !== 'deleted' && (
+                        <div className="flex justify-end gap-2">
+                          <Button asChild size="sm" variant="outline"><Link to={`/listing/${listing.id}/edit`}>Edit</Link></Button>
+                          <Button
                           size="sm"
                           variant="outline"
                           className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
@@ -308,7 +306,8 @@ export default function ListingsPage() {
                             <Trash2 size={14} />
                           )}
                           Remove
-                        </Button>
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -327,8 +326,8 @@ export default function ListingsPage() {
             <DialogTitle>Remove Listing</DialogTitle>
             <DialogDescription>
               Provide a reason for removing{' '}
-              <span className="font-semibold text-foreground">"{removeTarget?.title}"</span>. The
-              business owner will be notified.
+              <span className="font-semibold text-foreground">"{removeTarget?.title}"</span>.
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

@@ -84,6 +84,8 @@ export interface ListingDetail extends Listing {
   viewer_has_interest: boolean;
   viewer_has_saved: boolean;
   views_count: number;
+  viewer_can_manage?: boolean;
+  viewer_can_fulfill?: boolean;
 }
 
 export interface MessageThread {
