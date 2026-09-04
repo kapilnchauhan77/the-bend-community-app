@@ -22,12 +22,7 @@ services:
     networks: [bend]
 
   frontend:
-    build:
-      context: ./the-bend-frontend
-      args:
-        VITE_API_URL: ${VITE_API_URL}
-        VITE_BASE_DOMAIN: ${VITE_BASE_DOMAIN}
-        VITE_CF_ANALYTICS_TOKEN: ${VITE_CF_ANALYTICS_TOKEN:-}
+    image: ${BEND_FRONTEND_IMAGE:-bend-frontend:latest}
     restart: unless-stopped
     environment:
       PORT: 80
@@ -36,9 +31,7 @@ services:
     networks: [bend]
 
   backend:
-    build:
-      context: ./the-bend-backend
-    image: bend-backend:latest
+    image: ${BEND_BACKEND_IMAGE:-bend-backend:latest}
     restart: unless-stopped
     command: ["./railway-start.sh"]
     env_file: .env
@@ -88,7 +81,7 @@ services:
     networks: [bend]
 
   celery-worker:
-    image: bend-backend:latest
+    image: ${BEND_WORKER_IMAGE:-${BEND_BACKEND_IMAGE:-bend-backend:latest}}
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
     env_file: .env
@@ -107,7 +100,7 @@ services:
     networks: [bend]
 
   celery-beat:
-    image: bend-backend:latest
+    image: ${BEND_BEAT_IMAGE:-${BEND_BACKEND_IMAGE:-bend-backend:latest}}
     restart: unless-stopped
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info"]
     env_file: .env

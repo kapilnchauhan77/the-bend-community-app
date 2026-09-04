@@ -41,3 +41,6 @@ the-bend-backend/.playwright-cli
 
 # Local browser-test artifacts
 output/
+.release.env*
+.release.previous.env*
+.deploy.lock

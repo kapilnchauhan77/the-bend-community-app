@@ -1,10 +1,12 @@
-FROM node:20-alpine AS builder
+# syntax=docker/dockerfile:1
+FROM node:20-alpine AS dependencies
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
+FROM dependencies AS builder
 COPY . .
 
 ARG VITE_API_URL
@@ -16,7 +18,9 @@ ENV VITE_CF_ANALYTICS_TOKEN=${VITE_CF_ANALYTICS_TOKEN}
 
 RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:alpine AS production
+ARG REVISION
+LABEL org.opencontainers.image.revision=${REVISION}
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
