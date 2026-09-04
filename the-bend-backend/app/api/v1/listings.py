@@ -8,9 +8,9 @@ from app.core.permissions import get_current_user, get_current_user_optional, ge
 from app.core.privacy import mask_phone
 from app.models.user import User
 from app.models.tenant import Tenant
-from app.models.enums import UserRole
+from app.models.enums import UserRole, ListingStatus
 from app.models.saved_listing import SavedListing
-from app.services.listing_service import ListingService
+from app.services.listing_service import ListingService, can_manage_listing, can_fulfill_listing
 from app.schemas.listing import (
     ListingCreate, ListingUpdate, ListingResponse, ListingDetailResponse,
     ListingListResponse, ShopSummary, ShopDetailSummary, ImageResponse,
@@ -141,10 +141,12 @@ async def my_listings(
     query = (
         select(Listing)
         .options(selectinload(Listing.shop), selectinload(Listing.images), selectinload(Listing.posted_by))
-        .where(or_(*conditions))
+        .where(or_(*conditions), Listing.status != ListingStatus.DELETED)
         .order_by(Listing.created_at.desc())
         .limit(100)
     )
+    if current_user.tenant_id is not None:
+        query = query.where(Listing.tenant_id == current_user.tenant_id)
     result = await db.execute(query)
     items = [_serialize_listing(l) for l in result.scalars().unique().all()]
     return ListingListResponse(items=items, next_cursor=None, has_more=False)
@@ -273,6 +275,8 @@ async def get_listing(
         "viewer_has_interest": viewer_has_interest,
         "viewer_has_saved": viewer_has_saved,
         "views_count": listing.views_count,
+        "viewer_can_manage": can_manage_listing(listing, current_user),
+        "viewer_can_fulfill": can_fulfill_listing(listing, current_user),
     }
 
 

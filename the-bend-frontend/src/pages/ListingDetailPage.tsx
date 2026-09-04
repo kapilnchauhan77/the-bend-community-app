@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { CATEGORY_LABELS, resolveAssetUrl } from '@/lib/constants';
 import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -48,6 +49,11 @@ import { DiscountCodesList } from '@/components/shared/DiscountCodesList';
 import { useAuthStore } from '@/stores/authStore';
 import type { ListingDetail, DiscountCode } from '@/types';
 
+const apiError = (error: unknown, fallback: string) =>
+  axios.isAxiosError(error) && typeof error.response?.data?.detail === 'string'
+    ? error.response.data.detail
+    : fallback;
+
 const urgencyStyles = {
   normal: { badge: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400', label: 'Normal' },
   urgent: { badge: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Urgent' },
@@ -82,6 +88,7 @@ export default function ListingDetailPage() {
   const [interestSuccess, setInterestSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('inappropriate');
   const [reportDetails, setReportDetails] = useState('');
@@ -89,7 +96,10 @@ export default function ListingDetailPage() {
   const [reported, setReported] = useState(false);
   const [posterDiscountCodes, setPosterDiscountCodes] = useState<DiscountCode[]>([]);
 
-  const isOwner = !!(listing && shop && listing.shop && listing.shop.id === shop.id);
+  const isOwner = !!(listing && ((shop && listing.shop && listing.shop.id === shop.id) || (user && listing.posted_by?.id === user.id)));
+  const isCommunityAdmin = user?.role === 'community_admin' || user?.role === 'super_admin';
+  const canManage = listing?.viewer_can_manage ?? (isOwner && listing?.status !== 'deleted');
+  const canFulfill = listing?.viewer_can_fulfill ?? (isOwner && listing?.status === 'active');
   const isVolunteer = listing?.category === 'volunteer';
 
   useEffect(() => {
@@ -167,20 +177,24 @@ export default function ListingDetailPage() {
 
   async function handleFulfill() {
     setActionLoading(true);
+    setActionError(null);
     try {
       await listingApi.fulfill(id!);
-      navigate('/my-shop');
-    } catch {
+      navigate(listing?.shop ? '/my-shop' : '/my-listings');
+    } catch (err: unknown) {
+      setActionError(apiError(err, 'Failed to fulfill listing. Please try again.'));
       setActionLoading(false);
     }
   }
 
   async function handleDelete() {
     setActionLoading(true);
+    setActionError(null);
     try {
       await listingApi.delete(id!);
-      navigate('/my-shop');
-    } catch {
+      navigate(isCommunityAdmin ? '/admin/listings' : (listing?.shop ? '/my-shop' : '/my-listings'));
+    } catch (err: unknown) {
+      setActionError(apiError(err, 'Failed to delete listing. Please try again.'));
       setActionLoading(false);
     }
   }
@@ -525,19 +539,22 @@ export default function ListingDetailPage() {
             Interest expressed! The business will be notified.
           </div>
         )}
+        {actionError && <div role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</div>}
 
         {/* Action buttons */}
-        {isOwner ? (
-          <div className="flex flex-col sm:flex-row gap-3">
+        {canManage ? (
+          <div>
+            <div className="flex flex-col sm:flex-row gap-3">
             <Button
               variant="outline"
               className="flex-1 gap-2"
               onClick={() => navigate(`/listing/${id}/edit`)}
+              disabled={actionLoading}
             >
               <Edit size={16} />
               Edit Listing
             </Button>
-            <AlertDialog>
+            {canFulfill && <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
@@ -565,7 +582,7 @@ export default function ListingDetailPage() {
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
-            </AlertDialog>
+            </AlertDialog>}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -595,6 +612,8 @@ export default function ListingDetailPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            </div>
+            {isCommunityAdmin && !isOwner && <p className="mt-2 text-xs text-muted-foreground">You are managing this listing on behalf of its owner.</p>}
           </div>
         ) : !isAuthenticated ? (
           <div className="p-4 rounded-xl border-2 border-dashed border-gray-200 text-center">

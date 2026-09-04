@@ -207,6 +207,9 @@ async def remove_listing(
     service: AdminService = Depends(get_admin_service),
     current_user: User = Depends(Permission.require_community_admin()),
 ):
+    if current_user.role == UserRole.COMMUNITY_ADMIN and current_user.tenant_id is None:
+        raise ForbiddenError("Community admin tenant is required")
+    service.tenant_id = None if current_user.role == UserRole.SUPER_ADMIN else current_user.tenant_id
     await service.remove_listing(listing_id, data.reason)
     return {"status": "deleted"}
 
