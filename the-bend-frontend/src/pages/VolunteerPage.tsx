@@ -504,7 +504,7 @@ export default function VolunteerPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] relative flex flex-col animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={closeForm}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
+              className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
               aria-label="Close dialog"
             >
               <X size={18} />
