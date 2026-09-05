@@ -14,6 +14,11 @@ export type CreatePostPayload = {
   media_type?: 'image' | 'video';
 };
 
+export type UpdatePostPayload = {
+  caption: string | null;
+  preview_token?: string;
+};
+
 /**
  * Bender (Instagram-style community feed) API wrapper.
  * - Lists are cursor-paginated; pass `next_cursor` from the previous page to
@@ -30,6 +35,9 @@ export const benderApi = {
 
   createPost: (payload: CreatePostPayload) =>
     api.post<BenderPost>('/bender/posts', payload),
+
+  updatePost: (postId: string, payload: UpdatePostPayload) =>
+    api.patch<BenderPost>(`/bender/posts/${postId}`, payload),
 
   getPost: (postId: string) => api.get<BenderPost>(`/bender/posts/${postId}`),
 

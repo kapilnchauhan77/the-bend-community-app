@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class VolunteerCreate(BaseModel):
@@ -8,6 +8,7 @@ class VolunteerCreate(BaseModel):
     skills: str
     available_time: str
     photo_url: str | None = None
+    about_me: str | None = Field(default=None, max_length=2000)
 
     @field_validator("name", "skills", "available_time")
     @classmethod
@@ -27,6 +28,11 @@ class VolunteerCreate(BaseModel):
             raise ValueError("Field cannot be empty")
         return v.strip()
 
+    @field_validator("about_me")
+    @classmethod
+    def trim_about_me(cls, v):
+        return v.strip() or None if v is not None else None
+
     @model_validator(mode='after')
     def require_email_or_phone(self):
         if not self.phone and not self.email:
@@ -44,6 +50,7 @@ class VolunteerResponse(BaseModel):
     photo_url: str | None = None
     user_id: str | None = None
     created_at: str
+    about_me: str | None = None
 
     @field_validator("id", mode="before")
     @classmethod
@@ -68,6 +75,7 @@ class VolunteerUpdate(BaseModel):
     skills: str | None = None
     available_time: str | None = None
     photo_url: str | None = None
+    about_me: str | None = Field(default=None, max_length=2000)
 
     @field_validator("name", "skills", "available_time")
     @classmethod
@@ -85,3 +93,8 @@ class VolunteerUpdate(BaseModel):
             return v
         v = v.strip()
         return v or None
+
+    @field_validator("about_me")
+    @classmethod
+    def trim_about_me(cls, v):
+        return v.strip() or None if v is not None else None

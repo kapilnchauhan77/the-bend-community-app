@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Star, ChevronLeft, ChevronRight, ChevronDown, Calendar, List, Search, Plus, X, CheckCircle, Upload } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -474,6 +474,16 @@ export default function EventsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<CommunityEvent | null>(null);
+  const controlsRef = useRef<HTMLElement | null>(null);
+  const calendarContentRef = useRef<HTMLDivElement | null>(null);
+  const shouldAlignCalendarRef = useRef(false);
+
+  const changeView = (nextView: 'list' | 'calendar') => {
+    if (view === 'list' && nextView === 'calendar') {
+      shouldAlignCalendarRef.current = true;
+    }
+    setView(nextView);
+  };
 
   // Post Event modal state
   const [showPostForm, setShowPostForm] = useState(false);
@@ -545,6 +555,24 @@ export default function EventsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (view !== 'calendar' || !shouldAlignCalendarRef.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const calendarContent = calendarContentRef.current;
+      const controls = controlsRef.current;
+      if (!calendarContent || !controls) return;
+
+      calendarContent.scrollIntoView({ behavior: 'auto', block: 'start' });
+      const toolbarBottom = controls.getBoundingClientRect().bottom;
+      const topGap = 16;
+      window.scrollBy({ top: -(toolbarBottom + topGap), behavior: 'auto' });
+      shouldAlignCalendarRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, view]);
+
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
@@ -605,14 +633,14 @@ export default function EventsPage() {
       </section>
 
       {/* ── Controls Bar ── */}
-      <section className="border-b border-gray-100 bg-white sticky top-14 z-30">
+      <section ref={controlsRef} className="border-b border-gray-100 bg-white sticky top-14 z-30">
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-3">
           <div className="flex flex-col gap-2.5">
             {/* Row 1 — view toggle + search */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 bg-gray-100 rounded-full p-1 shrink-0">
                 <button
-                  onClick={() => setView('list')}
+                  onClick={() => changeView('list')}
                   className={[
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer',
                     view === 'list' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -622,7 +650,7 @@ export default function EventsPage() {
                   List
                 </button>
                 <button
-                  onClick={() => setView('calendar')}
+                  onClick={() => changeView('calendar')}
                   className={[
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer',
                     view === 'calendar' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700',
@@ -729,7 +757,9 @@ export default function EventsPage() {
               </div>
             )
           ) : (
-            <CalendarView events={events} onShowDetails={setSelectedEvent} />
+            <div ref={calendarContentRef} className="calendar-content">
+              <CalendarView events={events} onShowDetails={setSelectedEvent} />
+            </div>
           )}
         </div>
       </section>

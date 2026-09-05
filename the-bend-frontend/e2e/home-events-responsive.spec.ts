@@ -93,6 +93,8 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   await expect(mobileGrid.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/events');
   await expect(mobileGrid.getByRole('link', { name: 'Business Directory' })).toHaveAttribute('href', '/directory');
   await expect(mobileGrid.getByRole('link', { name: 'Bender' })).toHaveAttribute('href', '/bender');
+  const mobileBenderTile = mobileGrid.getByRole('link', { name: 'Bender' });
+  await expect(mobileBenderTile.locator('svg')).toHaveAttribute('aria-hidden', 'true');
   await expect(mobileGrid.getByRole('link').evaluateAll((links) => links.map((link) => link.getAttribute('href')))).resolves.toEqual([
     '/browse?category=staff',
     '/browse?category=materials',
@@ -172,7 +174,27 @@ test('desktop home shows the compact upcoming-events sidebar exactly once', asyn
   await expect(page.getByRole('link', { name: 'All', exact: true })).toBeVisible();
   await expect(page.getByText('JAN', { exact: true })).toBeVisible();
   await expect(page.getByText('Thu, Jan 15 · Library', { exact: true })).toBeHidden();
-  await expect(page.getByTestId('desktop-service-grid').getByRole('link')).toHaveCount(6);
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link')).toHaveCount(9);
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Events' })).toHaveAttribute('href', '/events');
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Business Directory' })).toHaveAttribute('href', '/directory');
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Bender' })).toHaveAttribute('href', '/bender');
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Bender' }).locator('svg')).toHaveAttribute('aria-label', 'Bender');
+  await expect(page.getByTestId('desktop-service-grid')).toBeVisible();
+  await expect(page.getByTestId('desktop-service-grid').locator('xpath=ancestor::div[contains(@class, "home-hero-content")]')).toBeVisible();
+  const heroContent = page.locator('.home-hero-content');
+  const welcomeSearchColumn = heroContent.locator(':scope > div').first();
+  const heroBox = await heroContent.boundingBox();
+  const welcomeSearchBox = await welcomeSearchColumn.boundingBox();
+  const desktopGridBox = await page.getByTestId('desktop-service-grid').boundingBox();
+  expect(heroBox).not.toBeNull();
+  expect(welcomeSearchBox).not.toBeNull();
+  expect(desktopGridBox).not.toBeNull();
+  expect(desktopGridBox!.x).toBeGreaterThan(welcomeSearchBox!.x + welcomeSearchBox!.width);
+  expect(desktopGridBox!.y).toBeLessThan(welcomeSearchBox!.y + welcomeSearchBox!.height);
+  expect(desktopGridBox!.y + desktopGridBox!.height).toBeGreaterThan(welcomeSearchBox!.y);
+  expect(desktopGridBox!.x + desktopGridBox!.width).toBeLessThanOrEqual(heroBox!.x + heroBox!.width + 0.5);
+  const desktopBenderNav = page.locator('header').getByRole('link', { name: 'Bender' });
+  await expect(desktopBenderNav.locator('svg')).toHaveAttribute('aria-label', 'Bender');
   await expect(page.getByTestId('mobile-service-grid')).toBeHidden();
 });
 

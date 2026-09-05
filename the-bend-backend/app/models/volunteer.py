@@ -16,6 +16,7 @@ class Volunteer(Base):
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255))
     skills: Mapped[str] = mapped_column(Text, nullable=False)
+    about_me: Mapped[str | None] = mapped_column(Text, nullable=True)
     available_time: Mapped[str] = mapped_column(String(255), nullable=False)
     photo_url: Mapped[str | None] = mapped_column(String(500))
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))

@@ -102,6 +102,18 @@ class BenderPostCreate(BaseModel):
         return self
 
 
+class BenderPostUpdate(BaseModel):
+    """Editable post fields. Media and ownership are never client-editable."""
+
+    caption: str | None = Field(..., max_length=2000)
+    preview_token: str | None = None
+
+    @field_validator("caption", mode="before")
+    @classmethod
+    def trim_caption(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 class BenderPostResponse(BaseModel):
     id: str
     author: BenderAuthor

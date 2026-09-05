@@ -7,6 +7,7 @@ export interface VolunteerPayload {
   skills: string;
   available_time: string;
   photo_url?: string;
+  about_me?: string;
 }
 
 export const volunteerApi = {

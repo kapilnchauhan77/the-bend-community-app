@@ -16,6 +16,7 @@ class VolunteerService:
             "phone": data.phone,
             "email": data.email,
             "skills": data.skills,
+            "about_me": data.about_me,
             "available_time": data.available_time,
             "tenant_id": self.tenant_id,
         })
