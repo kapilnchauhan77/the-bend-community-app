@@ -77,7 +77,10 @@ test('switching from a deep list scroll shows the calendar below its sticky cont
   expect(bounds!.gridBottom).toBeLessThanOrEqual(bounds!.viewportHeight);
 
   const alignedScrollY = bounds!.scrollY;
+  const currentMonthDate = new Date(`${expectedMonth} 1`);
+  currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
+  const expectedNextMonth = currentMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   await page.getByRole('button', { name: 'Next month' }).click();
-  await expect(page.getByRole('heading', { name: /20\d\d$/, exact: false })).toBeVisible();
+  await expect(page.getByRole('heading', { name: expectedNextMonth, exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.scrollY)).toBeCloseTo(alignedScrollY, 0);
 });
