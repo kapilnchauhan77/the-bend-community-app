@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api.deps import get_db
-from app.api.v1.volunteers import _serialize_volunteer, router
+from app.api.v1.volunteers import _serialize_volunteer, get_service, router
 from app.core.permissions import get_current_tenant, get_current_user, get_current_user_optional
 from app.schemas.volunteer import VolunteerCreate, VolunteerUpdate
 from app.services.volunteer_service import VolunteerService
@@ -43,6 +43,7 @@ def _payload(about_me):
 def test_about_me_is_trimmed_and_capped_in_create_and_update_schema():
     assert VolunteerCreate(**_payload("  helps neighbours  ")).about_me == "helps neighbours"
     assert VolunteerUpdate(about_me="  knows the town  ").about_me == "knows the town"
+    assert VolunteerUpdate(about_me="   ").about_me is None
     with pytest.raises(ValidationError):
         VolunteerCreate(**_payload("x" * 2001))
     with pytest.raises(ValidationError):
@@ -70,6 +71,41 @@ def test_shared_serializer_and_list_shape_include_about_me():
     )
     result = _serialize_volunteer(row, is_authed=False)
     assert result["about_me"] == "I help locally."
+
+
+def test_list_route_includes_about_me_in_its_duplicate_mapping():
+    row = SimpleNamespace(id=uuid4(), name="Alex", phone=None, email=None, skills="Gardening", about_me="I help", available_time="Weekends", photo_url=None, user_id=None, created_at=datetime(2026, 1, 1))
+    class Service:
+        tenant_id = None
+        async def list_volunteers(self, cursor, limit):
+            return SimpleNamespace(items=[row], next_cursor=None, has_more=False)
+    app = _app()
+    app.dependency_overrides[get_service] = lambda: Service()
+    response = TestClient(app).get("/volunteers")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["about_me"] == "I help"
+
+
+def test_authenticated_post_returns_persisted_about_me_from_real_route():
+    user = SimpleNamespace(id=uuid4())
+    class Result:
+        def scalar_one_or_none(self):
+            return None
+    class DB:
+        def __init__(self): self.row = None
+        async def execute(self, _query): return Result()
+        def add(self, row): self.row = row
+        async def flush(self): return None
+        async def refresh(self, _row): return None
+    db = DB()
+    app = _app(user=user)
+    async def db_override():
+        yield db
+    app.dependency_overrides[get_db] = db_override
+    response = TestClient(app).post("/volunteers", json={**_payload("About me"), "phone": None})
+    assert response.status_code == 200
+    assert response.json()["about_me"] == "About me"
+    assert db.row.about_me == "About me"
 
 
 @pytest.mark.asyncio

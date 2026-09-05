@@ -31,7 +31,7 @@ class VolunteerCreate(BaseModel):
     @field_validator("about_me")
     @classmethod
     def trim_about_me(cls, v):
-        return v.strip() if v is not None else None
+        return v.strip() or None if v is not None else None
 
     @model_validator(mode='after')
     def require_email_or_phone(self):
@@ -97,4 +97,4 @@ class VolunteerUpdate(BaseModel):
     @field_validator("about_me")
     @classmethod
     def trim_about_me(cls, v):
-        return v.strip() if v is not None else None
+        return v.strip() or None if v is not None else None

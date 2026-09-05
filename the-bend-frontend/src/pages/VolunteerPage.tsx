@@ -501,7 +501,7 @@ export default function VolunteerPage() {
           aria-modal="true"
           aria-label="Sign up to volunteer"
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] relative flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div data-testid="volunteer-modal-panel" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] relative flex flex-col animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={closeForm}
               className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
@@ -510,7 +510,7 @@ export default function VolunteerPage() {
               <X size={18} />
             </button>
 
-            <div className="p-6 md:p-8 overflow-y-auto min-h-0">
+            <div data-testid="volunteer-modal-body" className="p-6 md:p-8 overflow-y-auto min-h-0">
               <div className="sticky top-0 z-10 bg-white pb-4">
                 <h2 className="font-serif text-xl font-bold text-gray-900 mb-1">
                   {editingId ? 'Edit Your Volunteer Profile' : 'Sign Up to Volunteer'}
