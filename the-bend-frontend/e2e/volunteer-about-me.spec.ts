@@ -21,8 +21,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 
         return;
       }
       if (url.pathname.endsWith('/volunteers') && route.request().method() === 'POST') {
-        created = { id: 'vol-1', name: 'Alex', skills: 'Gardening, custom help', about_me: 'Local helper', available_time: 'Weekends' };
-        requests.push(route.request().postDataJSON());
+        const submitted = route.request().postDataJSON();
+        requests.push(submitted);
+        created = { ...submitted, id: 'vol-1', name: 'Alex', about_me: 'Local helper', available_time: 'Weekends' };
         await route.fulfill({ json: created });
         return;
       }
@@ -71,7 +72,11 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 
     await expect.poll(() => requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ skills: `${standardSkills.join(', ')}, custom help`, about_me: 'Local helper' });
     await expect(page.getByText('Local helper')).toBeVisible();
-    await expect(page.getByText('custom help')).toBeVisible();
+    for (const skill of standardSkills) await expect(page.getByText(skill, { exact: true })).toBeVisible();
+    const customCardText = page.getByText('custom help', { exact: true });
+    await expect(customCardText).toBeVisible();
+    await expect(customCardText).toHaveClass(/break-words/);
+    await expect(customCardText).not.toHaveClass(/rounded-full/);
   });
 }
 
