@@ -1,0 +1,83 @@
+import { expect, test, type Page } from '@playwright/test';
+
+const tenant = {
+  slug: 'westmoreland',
+  display_name: 'The Bend - Westmoreland',
+  tagline: 'Find opportunity within your neighborhood',
+  primary_color: 'hsl(160,25%,24%)',
+  footer_text: 'Preserving community, one connection at a time',
+};
+
+const events = Array.from({ length: 24 }, (_, index) => ({
+  id: `calendar-event-${index + 1}`,
+  title: `Community event ${index + 1}`,
+  category: 'community',
+  start_date: `2099-01-${String((index % 28) + 1).padStart(2, '0')} 18:00:00`,
+  created_at: '2098-12-01 10:00:00',
+  location: 'Westmoreland Library',
+  description: 'A community gathering.',
+  source: 'manual',
+  is_featured: false,
+}));
+
+async function stubEventsApi(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url();
+    if (url.includes('/tenant/current')) {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(tenant) });
+      return;
+    }
+    if (url.includes('/events')) {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: events }) });
+      return;
+    }
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
+  });
+}
+
+test('switching from a deep list scroll shows the calendar below its sticky controls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubEventsApi(page);
+  await page.goto('/events');
+
+  await expect(page.getByRole('heading', { name: 'Community Events' })).toBeVisible();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const listScrollY = await page.evaluate(() => window.scrollY);
+  expect(listScrollY).toBeGreaterThanOrEqual(2 * 844);
+
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
+  const expectedMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthHeading = page.getByRole('heading', { name: expectedMonth, exact: true });
+  await expect(monthHeading).toBeVisible();
+
+  const bounds = await page.evaluate((month) => {
+    const heading = Array.from(document.querySelectorAll('h2')).find((element) => element.textContent?.trim() === month);
+    const card = heading?.closest('div.rounded-2xl');
+    const grid = card?.querySelectorAll('div.grid.grid-cols-7').item(1);
+    const controls = document.querySelector('section.sticky');
+    if (!heading || !grid || !controls) return null;
+    const headingRect = heading.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const controlsRect = controls.getBoundingClientRect();
+    return {
+      headingTop: headingRect.top,
+      gridTop: gridRect.top,
+      gridBottom: gridRect.bottom,
+      controlsBottom: controlsRect.bottom,
+      viewportHeight: window.innerHeight,
+      scrollY: window.scrollY,
+    };
+  }, expectedMonth);
+
+  expect(bounds).not.toBeNull();
+  expect(bounds!.scrollY).toBeGreaterThan(0);
+  expect(bounds!.headingTop).toBeGreaterThanOrEqual(bounds!.controlsBottom);
+  expect(bounds!.gridTop).toBeGreaterThanOrEqual(bounds!.controlsBottom);
+  expect(bounds!.gridBottom).toBeLessThanOrEqual(bounds!.viewportHeight);
+
+  const alignedScrollY = bounds!.scrollY;
+  await page.getByRole('button', { name: 'Next month' }).click();
+  await expect(page.getByRole('heading', { name: /20\d\d$/, exact: false })).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBeCloseTo(alignedScrollY, 0);
+});
