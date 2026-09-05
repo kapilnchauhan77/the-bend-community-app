@@ -61,6 +61,7 @@ async function stubFeed(page: Page, post: Record<string, unknown>) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], next_cursor: null, has_more: false }) });
   });
   await page.goto('/bender');
+  await expect(page.getByTestId('bender-post')).toBeVisible();
   return paths;
 }
 
