@@ -27,9 +27,11 @@ from app.schemas.bender import (
     BenderLinkPreview,
     BenderLinkPreviewSnapshot,
     BenderPostCreate,
+    BenderPostUpdate,
     BenderPostResponse,
 )
 from app.services.bender_link_preview_store import BenderLinkPreviewStore
+from app.services.bender_link_urls import first_http_url
 
 
 class BenderService:
@@ -177,6 +179,56 @@ class BenderService:
             comment_count=0,
         )
         self.db.add(post)
+        await self.db.flush()
+        await self.db.refresh(post)
+        return post
+
+    async def update_post(
+        self, post_id: UUID, data: BenderPostUpdate, current_user: User
+    ) -> BenderPost:
+        """Update only an author's caption, scoped to the author's tenant."""
+        post = await self._get_visible_post_or_404(post_id, current_user.tenant_id)
+        if post.author_user_id != current_user.id:
+            raise ForbiddenError("Not allowed to edit this post")
+
+        caption = data.caption
+        new_source_url = first_http_url(caption)
+        old_source_url = None
+        if isinstance(post.link_preview, dict):
+            old_source_url = post.link_preview.get("source_url")
+
+        preview = None
+        token = data.preview_token
+        if (
+            self.link_preview_store is not None
+            and token
+            and len(token) <= BenderLinkPreviewStore.MAX_DRAFT_TOKEN_LENGTH
+        ):
+            try:
+                snapshot = await asyncio.wait_for(
+                    self.link_preview_store.resolve_draft(
+                        token,
+                        user_id=current_user.id,
+                        tenant_id=current_user.tenant_id,
+                        caption=caption,
+                    ),
+                    timeout=self.preview_draft_timeout_seconds,
+                )
+            except (RedisError, asyncio.TimeoutError):
+                snapshot = None
+            if snapshot is not None:
+                preview = snapshot.model_dump(mode="json")
+
+        # A caption edit with no token keeps an existing preview only when its
+        # first URL is unchanged. Any other URL change drops stale metadata.
+        if preview is None and not token and new_source_url == old_source_url:
+            preview = post.link_preview
+
+        if not (caption and caption.strip()) and not post.media_url:
+            raise BusinessRuleViolation("Provide a caption or media")
+
+        post.caption = caption
+        post.link_preview = preview
         await self.db.flush()
         await self.db.refresh(post)
         return post

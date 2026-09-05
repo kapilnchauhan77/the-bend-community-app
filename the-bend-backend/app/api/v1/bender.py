@@ -22,6 +22,7 @@ from app.schemas.bender import (
     BenderCommentsResponse,
     BenderFeedResponse,
     BenderPostCreate,
+    BenderPostUpdate,
     BenderPostResponse,
     BenderLinkPreviewRequest,
     BenderLinkPreviewResponse,
@@ -179,6 +180,17 @@ async def create_post(
         created_at=post.created_at,
         link_preview=service._preview_block(post.link_preview),
     )
+
+
+@router.patch("/posts/{post_id}", response_model=BenderPostResponse)
+async def update_post(
+    post_id: UUID,
+    data: BenderPostUpdate,
+    service: BenderService = Depends(get_create_post_service),
+    current_user: User = Depends(get_current_user),
+):
+    await service.update_post(post_id, data, current_user)
+    return await service.get_post(post_id, current_user.tenant_id, current_user)
 
 
 @router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)

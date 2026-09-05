@@ -28,7 +28,7 @@ import { isVideoUrl, timeAgo } from '@/lib/utils';
 import { BenderCaption } from '@/components/features/bender/BenderCaption';
 import { BenderLinkPreviewCard } from '@/components/features/bender/BenderLinkPreviewCard';
 import { BenderCommentsDrawer } from '@/components/features/bender/BenderCommentsDrawer';
-import { benderApi, type CreatePostPayload } from '@/services/benderApi';
+import { benderApi, type CreatePostPayload, type UpdatePostPayload } from '@/services/benderApi';
 import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
 import axios from 'axios';
 import type { BenderPost, BenderAuthor } from '@/types';
@@ -156,6 +156,11 @@ function BenderPostCard({
 }) {
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editCaption, setEditCaption] = useState(post.caption || '');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editPreview = useBenderLinkPreview(editCaption, editing);
   useEffect(() => {
     if (!forceCommentsOpen) return;
     const openTimer = window.setTimeout(() => setCommentsOpen(true), 0);
@@ -166,6 +171,7 @@ function BenderPostCard({
   const canDelete =
     isCommunityAdmin ||
     (currentUserId !== null && post.author.id === currentUserId);
+  const canEdit = currentUserId !== null && post.author.id === currentUserId;
 
   // Detect video either via the explicit media_type (preferred) or by the URL
   // suffix when the backend didn't fill in media_type (older records).
@@ -230,6 +236,47 @@ function BenderPostCard({
     }
   }, [post.id, onDelete]);
 
+  const handleStartEdit = useCallback(() => {
+    setEditCaption(post.caption || '');
+    setEditError(null);
+    setEditing(true);
+  }, [post.caption]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (editSubmitting) return;
+    setEditing(false);
+    setEditError(null);
+  }, [editSubmitting]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (editSubmitting) return;
+    const caption = editCaption.trim();
+    if (!caption && !post.media_url) {
+      setEditError('Add a caption or keep media on the post.');
+      return;
+    }
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      const oldUrl = extractFirstHttpUrl(post.caption);
+      const newUrl = extractFirstHttpUrl(caption);
+      const payload: UpdatePostPayload = {
+        caption: caption || null,
+      };
+      if (newUrl !== oldUrl) {
+        const token = await editPreview.waitForPreviewToken(newUrl, 5000);
+        if (token) payload.preview_token = token;
+      }
+      const response = await benderApi.updatePost(post.id, payload);
+      onPatch(post.id, response.data);
+      setEditing(false);
+    } catch {
+      setEditError('Could not save this edit. Please try again.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  }, [editCaption, editPreview, editSubmitting, onPatch, post.caption, post.id, post.media_url]);
+
   const visiblePreview = post.link_preview && isSafeHttpUrl(post.link_preview.url) ? post.link_preview : null;
   const captionBlock = post.caption ? (
     <BenderCaption
@@ -260,21 +307,36 @@ function BenderPostCard({
         <span className="text-[11px] text-[hsl(30,10%,55%)] shrink-0">
           {timeAgo(post.created_at)}
         </span>
-        {canDelete && (
+        {(canDelete || canEdit) && (
           <KebabMenu
             items={[
-              {
-                label: 'Delete',
-                onClick: handleDeletePost,
-                destructive: true,
-              },
+              ...(canEdit ? [{ label: 'Edit', onClick: handleStartEdit }] : []),
+              ...(canDelete ? [{ label: 'Delete', onClick: handleDeletePost, destructive: true }] : []),
             ]}
           />
         )}
       </div>
 
-      {captionBlock}
-      {visiblePreview && (
+      {editing ? (
+        <div data-testid="bender-post-editor" className="px-3 py-3 space-y-2">
+          <Textarea
+            value={editCaption}
+            onChange={(event) => setEditCaption(event.target.value.slice(0, MAX_CAPTION))}
+            disabled={editSubmitting}
+            maxLength={MAX_CAPTION}
+            aria-label="Edit caption"
+            className="min-h-[88px] resize-none"
+          />
+          {editError && <p role="alert" className="text-[12px] text-[hsl(0,55%,45%)]">{editError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleCancelEdit} disabled={editSubmitting}>Cancel</Button>
+            <Button type="button" size="sm" onClick={handleSaveEdit} disabled={editSubmitting} style={{ backgroundColor: BRONZE }} className="text-white">
+              {editSubmitting ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      ) : captionBlock}
+      {!editing && visiblePreview && (
         <div data-testid="bender-preview-slot" className="px-3 pb-1 min-w-0">
           <BenderLinkPreviewCard mode="feed" state="ready" preview={visiblePreview} />
         </div>
