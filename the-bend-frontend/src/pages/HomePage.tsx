@@ -47,8 +47,9 @@ const mobileServices = [
   ...services,
   { icon: CalendarDays, label: 'Events', desc: '', href: '/events' },
   { icon: Building2, label: 'Business Directory', desc: '', href: '/directory' },
-  { icon: BenderLogo, label: 'Bender', desc: '', href: '/bender' },
 ];
+
+const benderService = { label: 'Bender', href: '/bender' };
 
 // Stats fetched from API — see useEffect below
 
@@ -218,6 +219,14 @@ export default function HomePage() {
                   {desc && <p className="text-[11px] text-[hsl(30,10%,50%)] leading-tight">{desc}</p>}
                 </Link>
               ))}
+              <Link
+                to={benderService.href}
+                aria-label={benderService.label}
+                className="group bg-[hsl(40,20%,98%)]/95 border border-[hsl(35,18%,84%)] p-3 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md min-h-[105px] flex flex-col items-center justify-center"
+              >
+                <BenderLogo className="w-16 h-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
+                <h3 className="text-sm font-semibold text-[hsl(30,15%,20%)] mb-0.5 font-serif">{benderService.label}</h3>
+              </Link>
             </div>
           </div>
         </div>
@@ -245,6 +254,10 @@ export default function HomePage() {
                 )}
               </Link>
             ))}
+            <Link key={benderService.label} to={benderService.href} aria-label={benderService.label} className="home-mobile-service-tile">
+              <BenderLogo aria-hidden={true} className="home-mobile-service-icon" />
+              <span className="home-mobile-service-label">{benderService.label}</span>
+            </Link>
           </div>
         </div>
       </section>
