@@ -250,7 +250,7 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
           }`}
           style={isOwn ? { backgroundColor: 'hsl(160, 25%, 24%)' } : {}}
         >
-          <p className="text-sm leading-relaxed break-words">{message.content}</p>
+          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{message.content}</p>
           <p
             className={`text-[10px] mt-1 ${
               isOwn ? 'text-[hsl(35,15%,90%)] text-right' : 'text-gray-400'

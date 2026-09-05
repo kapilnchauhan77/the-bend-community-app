@@ -101,7 +101,10 @@ test('explicit Send sends one request with multiline content and preserves contr
   await page.getByRole('button', { name: 'Send' }).click();
   await expect.poll(() => sends).toEqual(['line one\nline two']);
   await page.reload();
-  await expect(page.getByText('line one', { exact: false }).last()).toBeVisible();
+  const persistedMessage = page.locator('p.text-sm.leading-relaxed.break-words:visible').filter({ hasText: 'line one' }).first();
+  await expect(persistedMessage).toBeVisible();
+  await expect(persistedMessage).toHaveText('line one\nline two');
+  await expect(persistedMessage).toHaveCSS('white-space', 'pre-wrap');
   await expect(page.getByRole('button', { name: 'Attach reference' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open camera' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Record voice note' })).toBeVisible();
