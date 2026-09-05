@@ -571,7 +571,7 @@ export default function EventsPage() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [view]);
+  }, [loading, view]);
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
