@@ -221,7 +221,7 @@ class BenderService:
 
         # A caption edit with no token keeps an existing preview only when its
         # first URL is unchanged. Any other URL change drops stale metadata.
-        if preview is None and not token and new_source_url == old_source_url:
+        if preview is None and new_source_url == old_source_url:
             preview = post.link_preview
 
         if not (caption and caption.strip()) and not post.media_url:
