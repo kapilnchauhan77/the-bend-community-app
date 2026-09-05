@@ -21,6 +21,10 @@ from app.schemas.volunteer import VolunteerCreate, VolunteerUpdate
 router = APIRouter(prefix="/volunteers", tags=["Volunteers"])
 
 
+def _validation_detail(exc: ValidationError) -> list[dict]:
+    return [{"loc": error.get("loc", ()), "msg": error.get("msg", "Invalid value"), "type": error.get("type", "value_error")} for error in exc.errors()]
+
+
 def get_service(db: AsyncSession = Depends(get_db)):
     return VolunteerService(db)
 
@@ -65,7 +69,7 @@ async def enroll_volunteer(
         try:
             data = VolunteerCreate(**payload)
         except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()) from exc
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=_validation_detail(exc)) from exc
         v = await service.enroll(data)
         return _serialize_volunteer(v, is_authed=False)
 
@@ -73,7 +77,7 @@ async def enroll_volunteer(
     try:
         update = VolunteerUpdate(**payload)
     except ValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=_validation_detail(exc)) from exc
     if not update.name or not update.skills or not update.available_time:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

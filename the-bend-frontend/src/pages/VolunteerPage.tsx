@@ -165,7 +165,7 @@ export default function VolunteerPage() {
         skills: [...selectedSkills, customSkills.trim()].filter(Boolean).join(', '),
         available_time: availableTime,
         photo_url: photo || undefined,
-        about_me: aboutMe.trim() || undefined,
+        about_me: editingId ? aboutMe.trim() : (aboutMe.trim() || undefined),
       };
       if (editingId) {
         await volunteerApi.update(editingId, payload);
@@ -338,7 +338,7 @@ export default function VolunteerPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                      {v.skills.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 9).map((skill) => {
+                      {v.skills.split(',').map((s) => s.trim()).filter(Boolean).map((skill) => {
                         const isStandard = STANDARD_SKILLS.includes(skill as typeof STANDARD_SKILLS[number]);
                         return isStandard ? (
                           <Badge key={skill} variant="secondary" className="text-xs rounded-full border-0"

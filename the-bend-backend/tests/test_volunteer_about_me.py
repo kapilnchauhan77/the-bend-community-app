@@ -56,6 +56,14 @@ def test_post_over_limit_returns_422_for_both_manual_validation_paths(user):
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("user", [None, SimpleNamespace(id=uuid4())], ids=["anonymous", "authenticated"])
+def test_post_combined_invalid_fields_returns_json_safe_422(user):
+    response = TestClient(_app(user=user)).post("/volunteers", json={**_payload("x" * 2001), "name": "   "})
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], list)
+    assert all("msg" in error and "ctx" not in error for error in response.json()["detail"])
+
+
 def test_put_over_limit_returns_422_before_route_execution():
     response = TestClient(_app(user=SimpleNamespace(id=uuid4()))).put(
         f"/volunteers/{uuid4()}", json={"about_me": "x" * 2001}
