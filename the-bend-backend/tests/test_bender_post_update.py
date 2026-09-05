@@ -3,10 +3,15 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy.sql import Select
 
 from app.core.exceptions import BusinessRuleViolation, ForbiddenError, NotFoundError
-from app.api.v1.bender import router
-from app.core.permissions import get_current_user
+from app.api.deps import get_db
+from app.api.v1.bender import get_create_post_service, router
+from app.core.permissions import get_current_tenant, get_current_user
+from app.models.enums import UserRole
 from app.schemas.bender import BenderLinkPreviewSnapshot, BenderPostUpdate
 from app.services.bender_service import BenderService
 
@@ -34,6 +39,26 @@ class LookupDB(RecordingDB):
 
         return Result()
 
+
+class RouteDB(RecordingDB):
+    def __init__(self, target, tenant_id):
+        self.target = target
+        self.tenant_id = tenant_id
+        self.tenant_params = []
+
+    async def execute(self, statement: Select):
+        params = statement.compile().params
+        self.tenant_params.extend(value for key, value in params.items() if "tenant" in key)
+        target = self.target if self.target.tenant_id in self.tenant_params else None
+        if "bender_likes" in str(statement):
+            target = None
+
+        class Result:
+            def scalar_one_or_none(self):
+                return target
+
+        return Result()
+
 class PreviewStore:
     def __init__(self, snapshot=None):
         self.snapshot = snapshot
@@ -45,7 +70,7 @@ class PreviewStore:
 
 
 def user(tenant_id, user_id=None):
-    return SimpleNamespace(id=user_id or uuid4(), tenant_id=tenant_id, shop_id=None)
+    return SimpleNamespace(id=user_id or uuid4(), tenant_id=tenant_id, shop_id=None, role=UserRole.INDIVIDUAL, name="Author", avatar_url=None)
 
 
 def post(author_id, tenant_id, preview=None):
@@ -149,3 +174,64 @@ async def test_blank_caption_without_media_is_rejected():
     service = BenderService(LookupDB(target))
     with pytest.raises(BusinessRuleViolation, match="Provide a caption or media"):
         await service.update_post(target.id, BenderPostUpdate(caption="   "), author)
+
+
+def route_app(actor, db, *, authenticate=True):
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_create_post_service] = lambda: BenderService(db)
+    app.dependency_overrides[get_current_tenant] = lambda: SimpleNamespace(id=actor.tenant_id)
+    if authenticate:
+        app.dependency_overrides[get_current_user] = lambda: actor
+    return app
+
+
+def test_patch_requires_authentication_at_http_boundary():
+    tenant_id = uuid4()
+    target = post(uuid4(), tenant_id)
+    with TestClient(route_app(user(tenant_id), RouteDB(target, tenant_id), authenticate=False)) as client:
+        response = client.patch(f"/api/v1/bender/posts/{target.id}", json={"caption": "Nope"})
+    assert response.status_code == 401
+
+
+def test_patch_http_success_uses_real_service_and_serializes_preserved_state():
+    tenant_id = uuid4()
+    actor = user(tenant_id)
+    target = post(actor.id, tenant_id)
+    target.author = actor
+    db = RouteDB(target, tenant_id)
+    with TestClient(route_app(actor, db)) as client:
+        response = client.patch(f"/api/v1/bender/posts/{target.id}", json={"caption": "Updated"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["caption"] == "Updated"
+    assert body["author"]["id"] == str(actor.id)
+    assert body["media_url"] == "/uploads/photo.jpg"
+    assert body["media_thumbnail_url"] == "/uploads/thumb.jpg"
+    assert body["like_count"] == 4
+    assert body["comment_count"] == 2
+    assert body["link_preview"] is None
+    assert tenant_id in db.tenant_params
+
+
+def test_patch_http_rejects_non_author_and_cross_tenant_as_expected():
+    tenant_id = uuid4()
+    target = post(uuid4(), tenant_id)
+    with TestClient(route_app(user(tenant_id), RouteDB(target, tenant_id))) as client:
+        same_tenant = client.patch(f"/api/v1/bender/posts/{target.id}", json={"caption": "Nope"})
+    assert same_tenant.status_code == 403
+
+    foreign_actor = user(uuid4())
+    with TestClient(route_app(foreign_actor, RouteDB(target, foreign_actor.tenant_id))) as client:
+        cross_tenant = client.patch(f"/api/v1/bender/posts/{target.id}", json={"caption": "Nope"})
+    assert cross_tenant.status_code == 404
+
+
+def test_patch_http_rejects_overlong_caption():
+    tenant_id = uuid4()
+    actor = user(tenant_id)
+    target = post(actor.id, tenant_id)
+    with TestClient(route_app(actor, RouteDB(target, tenant_id))) as client:
+        response = client.patch(f"/api/v1/bender/posts/{target.id}", json={"caption": "x" * 2001})
+    assert response.status_code == 422
