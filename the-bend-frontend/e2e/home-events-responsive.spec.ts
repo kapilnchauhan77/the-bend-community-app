@@ -172,7 +172,15 @@ test('desktop home shows the compact upcoming-events sidebar exactly once', asyn
   await expect(page.getByRole('link', { name: 'All', exact: true })).toBeVisible();
   await expect(page.getByText('JAN', { exact: true })).toBeVisible();
   await expect(page.getByText('Thu, Jan 15 · Library', { exact: true })).toBeHidden();
-  await expect(page.getByTestId('desktop-service-grid').getByRole('link')).toHaveCount(6);
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link')).toHaveCount(9);
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Events' })).toHaveAttribute('href', '/events');
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Business Directory' })).toHaveAttribute('href', '/directory');
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Bender' })).toHaveAttribute('href', '/bender');
+  await expect(page.getByTestId('desktop-service-grid').getByRole('link', { name: 'Bender' }).locator('svg')).toHaveAttribute('aria-label', 'Bender');
+  await expect(page.getByTestId('desktop-service-grid')).toBeVisible();
+  await expect(page.getByTestId('desktop-service-grid').locator('xpath=ancestor::div[contains(@class, "home-hero-content")]')).toBeVisible();
+  const desktopBenderNav = page.locator('header').getByRole('link', { name: 'Bender' });
+  await expect(desktopBenderNav.locator('svg')).toHaveAttribute('aria-label', 'Bender');
   await expect(page.getByTestId('mobile-service-grid')).toBeHidden();
 });
 

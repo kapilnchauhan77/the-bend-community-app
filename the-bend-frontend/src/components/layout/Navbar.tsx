@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useTenant } from '@/context/TenantContext';
+import { BenderLogo } from '@/components/shared/BenderLogo';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 
@@ -85,8 +86,8 @@ export function Navbar() {
             <Link to="/browse" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
               Browse
             </Link>
-            <Link to="/bender" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
-              Bender
+            <Link to="/bender" aria-label="Bender" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
+              <BenderLogo className="h-4 w-auto" />
             </Link>
             <Link to="/events" className="px-3 py-2 text-[13px] font-medium text-[hsl(30,10%,40%)] hover:text-[hsl(35,45%,35%)] transition-colors tracking-wide uppercase">
               Events

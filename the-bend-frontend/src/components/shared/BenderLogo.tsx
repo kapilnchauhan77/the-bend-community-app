@@ -16,15 +16,17 @@ const WIDTH = LETTERS.length * BOX + (LETTERS.length - 1) * GAP;
 interface BenderLogoProps {
   className?: string;
   title?: string;
+  'aria-hidden'?: boolean;
 }
 
-export function BenderLogo({ className = '', title = 'Bender' }: BenderLogoProps) {
+export function BenderLogo({ className = '', title = 'Bender', 'aria-hidden': ariaHidden }: BenderLogoProps) {
   return (
     <svg
       viewBox={`0 0 ${WIDTH} ${BOX}`}
       className={className}
-      role="img"
-      aria-label={title}
+      role={ariaHidden ? undefined : 'img'}
+      aria-label={ariaHidden ? undefined : title}
+      aria-hidden={ariaHidden}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >

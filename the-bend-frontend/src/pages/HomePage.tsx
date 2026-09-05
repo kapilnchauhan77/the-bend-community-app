@@ -16,7 +16,6 @@ import {
   Music,
   CalendarDays,
   Building2,
-  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +30,7 @@ import { useAuthStore } from '@/stores/authStore';
 import type { Listing, CommunityEvent, SuccessStory } from '@/types';
 import { SponsorBanner } from '@/components/shared/SponsorBanner';
 import { useTenant } from '@/context/TenantContext';
+import { BenderLogo } from '@/components/shared/BenderLogo';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 
@@ -47,7 +47,7 @@ const mobileServices = [
   ...services,
   { icon: CalendarDays, label: 'Events', desc: '', href: '/events' },
   { icon: Building2, label: 'Business Directory', desc: '', href: '/directory' },
-  { icon: Sparkles, label: 'Bender', desc: '', href: '/bender' },
+  { icon: BenderLogo, label: 'Bender', desc: '', href: '/bender' },
 ];
 
 // Stats fetched from API — see useEffect below
@@ -165,6 +165,7 @@ export default function HomePage() {
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")" }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 w-full">
+          <div className="home-hero-content grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 lg:gap-14 items-center">
           <div className="max-w-2xl">
             <div className="hidden md:block w-12 h-[2px] mb-4" style={{ backgroundColor: BRONZE }} />
             <p className="hidden md:block text-xs tracking-[0.35em] uppercase text-[hsl(35,45%,65%)] mb-2 font-medium">
@@ -200,6 +201,25 @@ export default function HomePage() {
               </button>
             </form>
           </div>
+            <div data-testid="desktop-service-grid" className="hidden md:grid desktop-service-grid grid-cols-3 gap-3">
+              {mobileServices.map(({ icon: Icon, label, desc, href }) => (
+                <Link
+                  key={label}
+                  to={href}
+                  aria-label={label}
+                  className="group bg-[hsl(40,20%,98%)]/95 border border-[hsl(35,18%,84%)] p-3 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md min-h-[105px] flex flex-col items-center justify-center"
+                >
+                  {label === 'Bender' ? (
+                    <BenderLogo className="w-16 h-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
+                  ) : (
+                    <Icon aria-hidden="true" className="w-5 h-5 mx-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
+                  )}
+                  <h3 className="text-sm font-semibold text-[hsl(30,15%,20%)] mb-0.5 font-serif">{label}</h3>
+                  {desc && <p className="text-[11px] text-[hsl(30,10%,50%)] leading-tight">{desc}</p>}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -226,19 +246,6 @@ export default function HomePage() {
               </Link>
             ))}
           </div>
-        </div>
-        <div data-testid="desktop-service-grid" className="hidden md:grid md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {services.map(({ icon: Icon, label, desc, href }) => (
-            <Link
-              key={label}
-              to={href}
-              className="group bg-[hsl(40,20%,98%)] border border-[hsl(35,18%,84%)] p-4 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md"
-            >
-              <Icon className="w-5 h-5 mx-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
-              <h3 className="text-sm font-semibold text-[hsl(30,15%,20%)] mb-0.5 font-serif">{label}</h3>
-              <p className="text-[11px] text-[hsl(30,10%,50%)] leading-tight">{desc}</p>
-            </Link>
-          ))}
         </div>
       </section>
 
