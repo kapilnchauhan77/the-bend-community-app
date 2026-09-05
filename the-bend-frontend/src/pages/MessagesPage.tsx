@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Send, MessageCircle, Tag, Camera, Paperclip, X, Play, Mic, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -313,7 +313,7 @@ function ChatView({
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const grouped = groupMessagesByDate(messages);
 
@@ -322,6 +322,14 @@ function ChatView({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+    input.style.overflowY = input.scrollHeight > 160 ? 'auto' : 'hidden';
+  }, [inputValue]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -364,8 +372,8 @@ function ChatView({
   }, [initialPendingReference]);
 
   async function handleSend() {
-    const content = inputValue.trim();
-    const hasText = content.length > 0;
+    const content = inputValue;
+    const hasText = content.trim().length > 0;
     const hasAttachment = !!pendingAttachment;
     const hasReference = !!pendingReference;
     if ((!hasText && !hasAttachment && !hasReference) || sending) return;
@@ -397,13 +405,6 @@ function ChatView({
     setPendingReference(card);
     setPendingAttachment(null);
     setAttachmentError(null);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
   }
 
   const handleCameraCaptured = useCallback((result: CameraResult) => {
@@ -646,7 +647,21 @@ function ChatView({
           <p className="mb-2 text-xs text-red-500">{attachmentError}</p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="mb-2 w-full">
+          <Textarea
+            ref={inputRef}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder={
+              attachmentUploading ? 'Uploading attachment…' : 'Type a message...'
+            }
+            rows={1}
+            className="w-full min-h-[40px] max-h-40 resize-none rounded-xl bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-[hsl(35,45%,42%)] text-sm"
+            disabled={sending}
+          />
+        </div>
+
+        <div className="flex w-full items-center gap-2">
           {/* Reference button — opens the search modal. Disabled while a
               media attachment is pending (mutual exclusion). */}
           <button
@@ -702,22 +717,12 @@ function ChatView({
             onChange={handlePickFile}
           />
 
-          <Input
-            ref={inputRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              attachmentUploading ? 'Uploading attachment…' : 'Type a message...'
-            }
-            className="flex-1 rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1 focus-visible:ring-[hsl(35,45%,42%)] text-sm"
-            disabled={sending}
-          />
           <Button
+            type="button"
             onClick={handleSend}
             disabled={!sendEnabled}
-            size="icon"
-            className="rounded-full w-10 h-10 flex-shrink-0 transition-all"
+            className="h-10 px-4 flex-shrink-0 transition-all"
+            aria-label="Send"
             style={{
               backgroundColor: sendEnabled
                 ? 'hsl(160, 25%, 24%)'
@@ -725,6 +730,7 @@ function ChatView({
             }}
           >
             <Send size={16} />
+            <span>Send</span>
           </Button>
         </div>
       </div>
@@ -980,7 +986,7 @@ export default function MessagesPage() {
 
       try {
         const { data } = await messageApi.sendMessage(activeThread.id, {
-          content: hasText ? content!.trim() : undefined,
+          content: hasText ? content : undefined,
           attachment_url: attachment?.url ?? null,
           attachment_type: attachment?.type ?? null,
           attachment_thumbnail_url: attachment?.thumbnail_url ?? null,
@@ -1018,7 +1024,7 @@ export default function MessagesPage() {
 
   return (
     <PageLayout showFooter={false}>
-      <div className="max-w-7xl mx-auto h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
+      <div className="max-w-7xl mx-auto h-[calc(100dvh-8rem)] md:h-[calc(100vh-4rem)]">
         {/* ── Desktop: side-by-side ──────────────────────────────────────────── */}
         <div className="hidden md:flex h-full border-x border-gray-200 bg-white shadow-sm overflow-hidden">
           {/* Left: thread list (1/3) */}
