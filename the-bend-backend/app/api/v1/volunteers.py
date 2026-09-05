@@ -1,5 +1,6 @@
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,7 @@ def _serialize_volunteer(v: Volunteer, *, is_authed: bool) -> dict:
         "phone": mask_phone(v.phone, is_authed) if v.phone else None,
         "email": mask_email(v.email, is_authed) if v.email else None,
         "skills": v.skills,
+        "about_me": v.about_me,
         "available_time": v.available_time,
         "photo_url": v.photo_url,
         "user_id": str(v.user_id) if v.user_id else None,
@@ -60,12 +62,18 @@ async def enroll_volunteer(
 
     if current_user is None:
         # Strict validation for anonymous posts.
-        data = VolunteerCreate(**payload)
+        try:
+            data = VolunteerCreate(**payload)
+        except ValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()) from exc
         v = await service.enroll(data)
         return _serialize_volunteer(v, is_authed=False)
 
     # Authed path: contact fields optional. Reject empty name/skills/time only.
-    update = VolunteerUpdate(**payload)
+    try:
+        update = VolunteerUpdate(**payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()) from exc
     if not update.name or not update.skills or not update.available_time:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -89,6 +97,7 @@ async def enroll_volunteer(
         skills=update.skills,
         available_time=update.available_time,
         photo_url=update.photo_url,
+        about_me=update.about_me,
         tenant_id=service.tenant_id,
         user_id=current_user.id,
     )
@@ -115,6 +124,7 @@ async def list_volunteers(
         "phone": mask_phone(v.phone, is_authed) if v.phone else None,
         "email": mask_email(v.email, is_authed) if v.email else None,
         "skills": v.skills,
+        "about_me": v.about_me,
         "available_time": v.available_time,
         "photo_url": v.photo_url,
         "user_id": str(v.user_id) if v.user_id else None,

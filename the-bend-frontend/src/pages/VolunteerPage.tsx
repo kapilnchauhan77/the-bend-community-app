@@ -15,6 +15,11 @@ import { resolveAssetUrl } from '@/lib/constants';
 import type { Volunteer } from '@/types/index';
 
 const PRIMARY = 'hsl(160, 25%, 24%)';
+const STANDARD_SKILLS = [
+  'Event support', 'Gardening', 'Administrative help', 'Home repairs',
+  'Cooking and baking', 'Customer service', 'Driving and moving',
+  'Tutoring and childcare', 'Cleaning and organizing',
+] as const;
 
 export default function VolunteerPage() {
   const navigate = useNavigate();
@@ -28,7 +33,9 @@ export default function VolunteerPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [skills, setSkills] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [customSkills, setCustomSkills] = useState('');
+  const [aboutMe, setAboutMe] = useState('');
   const [availableTime, setAvailableTime] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -102,7 +109,9 @@ export default function VolunteerPage() {
     setName('');
     setPhone('');
     setEmail('');
-    setSkills('');
+    setSelectedSkills([]);
+    setCustomSkills('');
+    setAboutMe('');
     setAvailableTime('');
     setPhoto(null);
     setEditingId(null);
@@ -120,7 +129,10 @@ export default function VolunteerPage() {
     setName(v.name);
     setPhone(v.phone ?? '');
     setEmail(v.email ?? '');
-    setSkills(v.skills);
+    const legacySkills = v.skills.split(',').map((skill) => skill.trim()).filter(Boolean);
+    setSelectedSkills(legacySkills.filter((skill) => STANDARD_SKILLS.includes(skill as typeof STANDARD_SKILLS[number])));
+    setCustomSkills(legacySkills.filter((skill) => !STANDARD_SKILLS.includes(skill as typeof STANDARD_SKILLS[number])).join(', '));
+    setAboutMe(v.about_me ?? '');
     setAvailableTime(v.available_time);
     setPhoto(v.photo_url ?? null);
     setShowForm(true);
@@ -136,6 +148,10 @@ export default function VolunteerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    if (!selectedSkills.length && !customSkills.trim()) {
+      setFormError('Please select at least one skill or add a custom skill.');
+      return;
+    }
     if (!isAuthenticated && !phone && !email) {
       setFormError('Please provide at least an email or phone number.');
       return;
@@ -146,9 +162,10 @@ export default function VolunteerPage() {
         name,
         phone: phone || undefined,
         email: email || undefined,
-        skills,
+        skills: [...selectedSkills, customSkills.trim()].filter(Boolean).join(', '),
         available_time: availableTime,
         photo_url: photo || undefined,
+        about_me: aboutMe.trim() || undefined,
       };
       if (editingId) {
         await volunteerApi.update(editingId, payload);
@@ -320,20 +337,25 @@ export default function VolunteerPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {v.skills.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 5).map((skill) => (
-                        <Badge key={skill} variant="secondary" className="text-xs rounded-full border-0"
-                          style={{ backgroundColor: 'hsl(35, 15%, 88%)', color: 'hsl(160, 25%, 18%)' }}
-                        >
-                          {skill}
-                        </Badge>
-                      ))}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                      {v.skills.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 9).map((skill) => {
+                        const isStandard = STANDARD_SKILLS.includes(skill as typeof STANDARD_SKILLS[number]);
+                        return isStandard ? (
+                          <Badge key={skill} variant="secondary" className="text-xs rounded-full border-0"
+                            style={{ backgroundColor: 'hsl(35, 15%, 88%)', color: 'hsl(160, 25%, 18%)' }}
+                          >{skill}</Badge>
+                        ) : (
+                          <span key={skill} className="text-sm text-gray-600 break-words">{skill}</span>
+                        );
+                      })}
                     </div>
 
                     <div className="flex items-start gap-1.5 text-sm text-gray-500 mb-4">
                       <Clock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: PRIMARY }} />
                       <span>{v.available_time}</span>
                     </div>
+
+                    {v.about_me && <p className="text-sm text-gray-600 whitespace-pre-wrap break-words mb-4">{v.about_me}</p>}
 
                     {(() => {
                       const isOwner = isAuthenticated && user?.id && v.user_id === user.id;
@@ -472,14 +494,14 @@ export default function VolunteerPage() {
       {/* Sign Up Modal */}
       {showForm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-sm"
           style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}
           role="dialog"
           aria-modal="true"
           aria-label="Sign up to volunteer"
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-2rem)] relative flex flex-col animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={closeForm}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
@@ -488,15 +510,17 @@ export default function VolunteerPage() {
               <X size={18} />
             </button>
 
-            <div className="p-6 md:p-8">
-              <h2 className="font-serif text-xl font-bold text-gray-900 mb-1">
-                {editingId ? 'Edit Your Volunteer Profile' : 'Sign Up to Volunteer'}
-              </h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                {editingId
-                  ? 'Update your details below. Changes go live immediately.'
-                  : "Fill in your details and you'll appear on the board for businesses to find you."}
-              </p>
+            <div className="p-6 md:p-8 overflow-y-auto min-h-0">
+              <div className="sticky top-0 z-10 bg-white pb-4">
+                <h2 className="font-serif text-xl font-bold text-gray-900 mb-1">
+                  {editingId ? 'Edit Your Volunteer Profile' : 'Sign Up to Volunteer'}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {editingId
+                    ? 'Update your details below. Changes go live immediately.'
+                    : "Fill in your details and you'll appear on the board for businesses to find you."}
+                </p>
+              </div>
 
               {isAuthenticated && (
                 <div
@@ -567,18 +591,44 @@ export default function VolunteerPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="vol-skills" className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700">
                     Skills <span className="text-red-400">*</span>
                   </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Volunteer skills">
+                    {STANDARD_SKILLS.map((skill) => (
+                      <label key={skill} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedSkills.includes(skill)}
+                          onChange={() => setSelectedSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill])}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        {skill}
+                      </label>
+                    ))}
+                  </div>
                   <textarea
-                    id="vol-skills"
-                    value={skills}
-                    onChange={(e) => setSkills(e.target.value)}
-                    required
-                    rows={3}
-                    placeholder="e.g., Cooking, cleaning, customer service, inventory management"
+                    id="vol-custom-skills"
+                    value={customSkills}
+                    onChange={(e) => setCustomSkills(e.target.value)}
+                    rows={2}
+                    placeholder="Other skills or a sentence about what you can help with"
                     className="w-full px-3 py-2.5 text-sm border border-input bg-background rounded-xl ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="vol-about-me" className="block text-sm font-medium text-gray-700">About me <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <textarea
+                    id="vol-about-me"
+                    value={aboutMe}
+                    onChange={(e) => setAboutMe(e.target.value.slice(0, 2000))}
+                    maxLength={2000}
+                    rows={3}
+                    placeholder="Tell the community a little about yourself"
+                    className="w-full px-3 py-2.5 text-sm border border-input bg-background rounded-xl ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                  />
+                  <p className="text-xs text-gray-500 text-right">{aboutMe.length}/2000</p>
                 </div>
 
                 <div className="space-y-1.5">

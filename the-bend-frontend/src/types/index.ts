@@ -172,6 +172,7 @@ export interface Volunteer {
   skills: string;
   available_time: string;
   photo_url?: string;
+  about_me?: string | null;
   user_id?: string | null;
   created_at: string;
 }
