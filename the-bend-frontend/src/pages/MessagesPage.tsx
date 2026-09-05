@@ -986,7 +986,7 @@ export default function MessagesPage() {
 
       try {
         const { data } = await messageApi.sendMessage(activeThread.id, {
-          content: hasText ? content : undefined,
+          content: hasText ? content.trim() : undefined,
           attachment_url: attachment?.url ?? null,
           attachment_type: attachment?.type ?? null,
           attachment_thumbnail_url: attachment?.thumbnail_url ?? null,

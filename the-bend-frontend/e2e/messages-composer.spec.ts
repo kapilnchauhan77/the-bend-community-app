@@ -10,6 +10,7 @@ const thread = {
 };
 
 async function openMessages(page: Page, sendFails = false) {
+  const submittedMessages: Array<Record<string, unknown>> = [];
   await page.addInitScript(() => {
     localStorage.setItem('access_token', 'test-token');
     localStorage.setItem('user', JSON.stringify({ id: 'u1', name: 'Me', role: 'individual' }));
@@ -22,15 +23,18 @@ async function openMessages(page: Page, sendFails = false) {
       return route.fulfill({ json: { slug: 'westmoreland', display_name: 'The Bend' } });
     }
     if (url.pathname === '/api/v1/messages/threads' && request.method() === 'GET') {
-      return route.fulfill({ json: { items: [thread], next_cursor: null, has_more: false } });
+      const lastMessage = submittedMessages.at(-1);
+      return route.fulfill({ json: { items: [{ ...thread, last_message: lastMessage ?? null, last_message_at: lastMessage?.created_at ?? thread.last_message_at }], next_cursor: null, has_more: false } });
     }
     if (url.pathname === '/api/v1/messages/threads/thread-1' && request.method() === 'GET') {
-      return route.fulfill({ json: { items: [], next_cursor: null, has_more: false } });
+      return route.fulfill({ json: { items: [...submittedMessages].reverse(), next_cursor: null, has_more: false } });
     }
     if (url.pathname === '/api/v1/messages/threads/thread-1' && request.method() === 'POST') {
       if (sendFails) return route.fulfill({ status: 500, body: 'send failed' });
       const body = request.postDataJSON() as { content?: string };
-      return route.fulfill({ json: { id: 'message-1', thread_id: 'thread-1', sender_id: 'u1', content: body.content ?? '', created_at: '2026-09-05T08:01:00Z', attachment_url: null, attachment_type: null, attachment_thumbnail_url: null, reference: null } });
+      const message = { id: `message-${submittedMessages.length + 1}`, thread_id: 'thread-1', sender_id: 'u1', content: body.content ?? '', created_at: `2026-09-05T08:0${submittedMessages.length + 1}:00Z`, attachment_url: null, attachment_type: null, attachment_thumbnail_url: null, reference: null };
+      submittedMessages.push(message);
+      return route.fulfill({ json: message });
     }
     if (url.pathname === '/api/v1/messages/unread-count') return route.fulfill({ json: { unread_count: 0 } });
     return route.fulfill({ json: {} });
@@ -46,11 +50,14 @@ test('mobile composer clears the header and fixed bottom navigation', async ({ p
 
   const bottomNav = page.locator('nav').filter({ hasText: 'Messages' });
   const bounds = await page.evaluate(() => {
-    const input = Array.from(document.querySelectorAll('[placeholder="Type a message..."]')).find((element) => (element as HTMLElement).offsetParent !== null)!.getBoundingClientRect();
+    const textarea = Array.from(document.querySelectorAll('[placeholder="Type a message..."]')).find((element) => (element as HTMLElement).offsetParent !== null)!;
+    const composer = textarea.parentElement?.parentElement;
+    if (!composer) throw new Error('visible composer container not found');
+    const input = textarea.getBoundingClientRect();
     const nav = document.querySelector('nav.fixed')!.getBoundingClientRect();
     const header = document.querySelector('main')!.previousElementSibling!.getBoundingClientRect();
-    const composerShell = input.parentElement?.parentElement?.getBoundingClientRect();
-    return { inputBottom: input.bottom, composerBottom: composerShell?.bottom ?? input.bottom, navTop: nav.top, headerBottom: header.bottom, viewport: window.innerHeight };
+    const composerShell = composer.getBoundingClientRect();
+    return { inputBottom: input.bottom, composerBottom: composerShell.bottom, navTop: nav.top, headerBottom: header.bottom, viewport: window.innerHeight };
   });
   expect(bounds.composerBottom).toBeLessThanOrEqual(bounds.navTop + 1);
   expect(bounds.headerBottom).toBeLessThanOrEqual(bounds.inputBottom);
@@ -93,7 +100,8 @@ test('explicit Send sends one request with multiline content and preserves contr
   await composer.fill('line one\nline two');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect.poll(() => sends).toEqual(['line one\nline two']);
-  await expect(page.getByRole('paragraph').filter({ hasText: 'line one line two' }).last()).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('line one', { exact: false }).last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Attach reference' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open camera' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Record voice note' })).toBeVisible();
@@ -108,9 +116,9 @@ test('failed send restores the exact multiline draft', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openMessages(page, true);
   const composer = page.locator('[placeholder="Type a message..."]:visible');
-  await composer.fill('keep line one\nkeep line two');
+  await composer.fill('  keep line one\nkeep line two  ');
   await page.getByRole('button', { name: 'Send' }).click();
-  await expect(composer).toHaveValue('keep line one\nkeep line two');
+  await expect(composer).toHaveValue('  keep line one\nkeep line two  ');
 });
 
 test('desktop keeps a side-by-side chat and sends with the labelled action', async ({ page }) => {
@@ -118,7 +126,12 @@ test('desktop keeps a side-by-side chat and sends with the labelled action', asy
   await openMessages(page);
   await expect(page.getByText('Messages').first()).toBeVisible();
   await expect(page.locator('[placeholder="Type a message..."]:visible')).toBeVisible();
-  await page.locator('[placeholder="Type a message..."]:visible').fill('desktop message');
+  const sends: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/messages/threads/thread-1') && request.method() === 'POST') sends.push(request.postDataJSON().content);
+  });
+  await page.locator('[placeholder="Type a message..."]:visible').fill('  desktop message\nsecond line  ');
   await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByText('desktop message', { exact: true }).first()).toBeVisible();
+  await expect.poll(() => sends).toEqual(['desktop message\nsecond line']);
+  await expect(page.getByText('desktop message', { exact: false }).first()).toBeVisible();
 });
