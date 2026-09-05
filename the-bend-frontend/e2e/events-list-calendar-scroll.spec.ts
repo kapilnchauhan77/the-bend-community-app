@@ -35,6 +35,23 @@ async function stubEventsApi(page: Page) {
   });
 }
 
+async function expectCalendarAligned(page: Page, expectedMonth: string) {
+  await expect.poll(async () => page.evaluate((month) => {
+    const heading = Array.from(document.querySelectorAll('h2')).find((element) => element.textContent?.trim() === month);
+    const card = heading?.closest('div.rounded-2xl');
+    const grid = card?.querySelectorAll('div.grid.grid-cols-7').item(1);
+    const controls = document.querySelector('section.sticky');
+    if (!heading || !grid || !controls) return false;
+    const headingRect = heading.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const controlsRect = controls.getBoundingClientRect();
+    return window.scrollY > 0
+      && headingRect.top >= controlsRect.bottom
+      && gridRect.top >= controlsRect.bottom
+      && gridRect.bottom <= window.innerHeight;
+  }, expectedMonth), { timeout: 5000 }).toBe(true);
+}
+
 test('switching from a deep list scroll shows the calendar below its sticky controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await stubEventsApi(page);
@@ -50,33 +67,8 @@ test('switching from a deep list scroll shows the calendar below its sticky cont
   const expectedMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const monthHeading = page.getByRole('heading', { name: expectedMonth, exact: true });
   await expect(monthHeading).toBeVisible();
-
-  const bounds = await page.evaluate((month) => {
-    const heading = Array.from(document.querySelectorAll('h2')).find((element) => element.textContent?.trim() === month);
-    const card = heading?.closest('div.rounded-2xl');
-    const grid = card?.querySelectorAll('div.grid.grid-cols-7').item(1);
-    const controls = document.querySelector('section.sticky');
-    if (!heading || !grid || !controls) return null;
-    const headingRect = heading.getBoundingClientRect();
-    const gridRect = grid.getBoundingClientRect();
-    const controlsRect = controls.getBoundingClientRect();
-    return {
-      headingTop: headingRect.top,
-      gridTop: gridRect.top,
-      gridBottom: gridRect.bottom,
-      controlsBottom: controlsRect.bottom,
-      viewportHeight: window.innerHeight,
-      scrollY: window.scrollY,
-    };
-  }, expectedMonth);
-
-  expect(bounds).not.toBeNull();
-  expect(bounds!.scrollY).toBeGreaterThan(0);
-  expect(bounds!.headingTop).toBeGreaterThanOrEqual(bounds!.controlsBottom);
-  expect(bounds!.gridTop).toBeGreaterThanOrEqual(bounds!.controlsBottom);
-  expect(bounds!.gridBottom).toBeLessThanOrEqual(bounds!.viewportHeight);
-
-  const alignedScrollY = bounds!.scrollY;
+  await expectCalendarAligned(page, expectedMonth);
+  const alignedScrollY = await page.evaluate(() => window.scrollY);
   const currentMonthDate = new Date(`${expectedMonth} 1`);
   currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
   const expectedNextMonth = currentMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -119,24 +111,8 @@ test('switching while a filtered list is loading aligns after the response rende
 
   const expectedMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   await expect(page.getByRole('heading', { name: expectedMonth, exact: true })).toBeVisible();
-  const bounds = await page.evaluate((month) => {
-    const heading = Array.from(document.querySelectorAll('h2')).find((element) => element.textContent?.trim() === month);
-    const card = heading?.closest('div.rounded-2xl');
-    const grid = card?.querySelectorAll('div.grid.grid-cols-7').item(1);
-    const controls = document.querySelector('section.sticky');
-    if (!heading || !grid || !controls) return null;
-    const headingRect = heading.getBoundingClientRect();
-    const gridRect = grid.getBoundingClientRect();
-    const controlsRect = controls.getBoundingClientRect();
-    return { headingTop: headingRect.top, gridTop: gridRect.top, gridBottom: gridRect.bottom, controlsBottom: controlsRect.bottom, viewportHeight: window.innerHeight, scrollY: window.scrollY };
-  }, expectedMonth);
-  expect(bounds).not.toBeNull();
-  expect(bounds!.scrollY).toBeGreaterThan(0);
-  expect(bounds!.headingTop).toBeGreaterThanOrEqual(bounds!.controlsBottom);
-  expect(bounds!.gridTop).toBeGreaterThanOrEqual(bounds!.controlsBottom);
-  expect(bounds!.gridBottom).toBeLessThanOrEqual(bounds!.viewportHeight);
-
-  const alignedScrollY = bounds!.scrollY;
+  await expectCalendarAligned(page, expectedMonth);
+  const alignedScrollY = await page.evaluate(() => window.scrollY);
   const nextMonthDate = new Date(`${expectedMonth} 1`);
   nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
   const expectedNextMonth = nextMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
