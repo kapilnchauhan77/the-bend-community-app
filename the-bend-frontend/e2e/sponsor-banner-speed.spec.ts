@@ -89,6 +89,24 @@ test('horizontal sponsor banner uses three seconds per partner', async ({ page }
   const partnerLogo = marquee.getByRole('img', { name: 'Partner One' }).first();
   await expect(partnerLogo).toBeVisible();
   await expect.poll(() => partnerLogo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  const label = page.getByText('Community Partners', { exact: true });
+  const cta = page.getByRole('link', { name: 'Partner with us', exact: true });
+  await expect(label).toBeVisible();
+  await expect(cta).toBeVisible();
+  const labelBox = await label.boundingBox();
+  const ctaBox = await cta.boundingBox();
+  expect(labelBox).not.toBeNull();
+  expect(ctaBox).not.toBeNull();
+  expect(labelBox!.x + labelBox!.width).toBeLessThanOrEqual(ctaBox!.x);
+  const heroBox = await page.locator('.home-hero-content').boundingBox();
+  const rowBox = await label.locator('xpath=..').boundingBox();
+  const reelBox = await page.locator('.sponsor-marquee').boundingBox();
+  expect(heroBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  expect(reelBox).not.toBeNull();
+  expect(rowBox!.y).toBeGreaterThan(heroBox!.y + heroBox!.height);
+  expect(reelBox!.y).toBeGreaterThan(rowBox!.y + rowBox!.height);
+  await page.screenshot({ path: '../.superpowers/sdd/2026-09-10-bend-jira-release/task-1-screenshots/sponsor-banner-1280x900.png', fullPage: false });
 });
 
 test('horizontal sponsor reel traverses every partner before repeating', async ({ page }) => {

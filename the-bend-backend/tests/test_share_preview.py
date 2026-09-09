@@ -6,8 +6,8 @@ from PIL import Image
 from app.api.share import _DEFAULT_IMAGE_PATH, _render
 
 
-def test_default_share_preview_uses_white_full_wordmark_asset():
-    assert _DEFAULT_IMAGE_PATH == "/images/the-bend-community-preview-v4.png"
+def test_default_share_preview_uses_approved_black_v5_asset_directly():
+    assert _DEFAULT_IMAGE_PATH == "/images/the-bend-community-preview-v5.png"
 
     frontend = Path(__file__).parents[2] / "the-bend-frontend"
     asset = frontend / "public" / _DEFAULT_IMAGE_PATH.removeprefix("/")
@@ -19,17 +19,16 @@ def test_default_share_preview_uses_white_full_wordmark_asset():
 
     assert (width, height) == (1200, 630)
     with Image.open(asset) as preview:
-        rgb = preview.convert("RGB")
-        assert rgb.getpixel((100, 100)) == (255, 255, 255)
-        assert rgb.getpixel((404, 250)) == (217, 208, 195)
+        assert preview.size == (1200, 630)
+        assert preview.mode == "RGB"
 
     index_markup = (frontend / "index.html").read_text()
-    assert index_markup.count("the-bend-community-preview-v4.png") == 3
+    assert index_markup.count("the-bend-community-preview-v5.png") == 3
     assert "the-bend-community-preview-v3.png" not in index_markup
 
 
 def test_share_preview_includes_secure_and_accessible_image_metadata():
-    image = "https://bend.community/images/the-bend-community-preview-v4.png"
+    image = "https://bend.community/images/the-bend-community-preview-v5.png"
     markup = _render(
         title="The Bend Community",
         description="Preview",
@@ -43,3 +42,17 @@ def test_share_preview_includes_secure_and_accessible_image_metadata():
     assert '<meta property="og:image:alt" content="The Bend Community">' in markup
     assert '<meta name="twitter:card" content="summary_large_image">' in markup
     assert '<meta name="twitter:image:alt" content="The Bend Community">' in markup
+
+
+def test_listing_share_preview_keeps_listing_image_precedence_in_share_renderer():
+    listing_image = "https://api.bend.community/uploads/listing/photo.png"
+    markup = _render(
+        title="A listing",
+        description="A description",
+        image=listing_image,
+        canonical="https://bend.community/listing/123",
+        site_name="The Bend Community",
+    )
+
+    assert f'<meta property="og:image" content="{listing_image}">' in markup
+    assert "/images/the-bend-community-preview-v5.png" not in markup

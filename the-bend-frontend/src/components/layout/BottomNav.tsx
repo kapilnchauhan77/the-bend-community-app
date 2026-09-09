@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Plus, Sparkles, MessageCircle, Store, Shield, User } from 'lucide-react';
+import { Home, Plus, MessageCircle, Store, Shield, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { BenderLogo } from '@/components/shared/BenderLogo';
 
 export function BottomNav() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export function BottomNav() {
 
   const leftTabs = [
     { icon: Home, label: 'Home', path: '/' },
-    { icon: Sparkles, label: 'Bender', path: '/bender' },
+    { icon: BenderLogo, label: 'Bender', path: '/bender' },
   ];
 
   const rightTabs = [
@@ -41,7 +42,7 @@ export function BottomNav() {
                   isActive ? 'text-[hsl(160,25%,28%)]' : 'text-gray-400'
                 }`}
               >
-                <tab.icon size={20} />
+                {tab.label === 'Bender' ? <tab.icon className="w-14 h-auto text-[hsl(35,45%,42%)]" /> : <tab.icon size={20} />}
                 <span>{tab.label}</span>
               </button>
             );

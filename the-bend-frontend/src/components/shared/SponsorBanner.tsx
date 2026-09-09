@@ -86,8 +86,8 @@ export function SponsorBanner({ placement, variant = 'inline' }: SponsorBannerPr
 
 function SponsorInlineCarousel({ sponsors }: { sponsors: Sponsor[] }) {
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 my-8">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+    <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 mb-8 pt-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[hsl(30,10%,55%)]">
           Community Partners
         </p>
