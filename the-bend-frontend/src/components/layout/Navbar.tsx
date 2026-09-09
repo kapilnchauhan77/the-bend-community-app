@@ -59,7 +59,7 @@ export function Navbar() {
         <div className="max-w-7xl mx-auto flex items-center justify-between h-14 px-4 md:px-8">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 md:gap-3 min-w-0 group">
-            <img src="/images/the-bend-community-logo-black.png" alt="The Bend Community" className="h-12 w-auto max-w-[150px] shrink-0" />
+            <img src={isDark ? "/images/the-bend-community-logo-white.png" : "/images/the-bend-community-logo-black.png"} alt="The Bend Community" className="h-12 w-auto max-w-[150px] shrink-0" />
             {cityName && (
               <>
                 <span className="hidden md:block w-px h-7 bg-[hsl(35,18%,80%)] mx-0.5 shrink-0" aria-hidden="true" />

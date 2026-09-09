@@ -109,6 +109,22 @@ test('horizontal sponsor banner uses three seconds per partner', async ({ page }
   await page.screenshot({ path: '../.superpowers/sdd/2026-09-10-bend-jira-release/task-1-screenshots/sponsor-banner-1280x900.png', fullPage: false });
 });
 
+test('sponsor label and reel have positive separation on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubHomeApi(page);
+  await page.goto('/');
+  const hero = await page.locator('.home-hero-content').boundingBox();
+  const label = page.getByText('Community Partners', { exact: true });
+  const row = await label.locator('xpath=..').boundingBox();
+  const reel = await page.locator('.sponsor-marquee').boundingBox();
+  expect(hero).not.toBeNull();
+  expect(row).not.toBeNull();
+  expect(reel).not.toBeNull();
+  expect(row!.y).toBeGreaterThan(hero!.y + hero!.height);
+  expect(reel!.y).toBeGreaterThan(row!.y + row!.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('horizontal sponsor reel traverses every partner before repeating', async ({ page }) => {
   await stubHomeApi(page);
   await page.goto('/');

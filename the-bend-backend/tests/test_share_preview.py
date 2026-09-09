@@ -21,6 +21,21 @@ def test_default_share_preview_uses_approved_black_v5_asset_directly():
     with Image.open(asset) as preview:
         assert preview.size == (1200, 630)
         assert preview.mode == "RGB"
+        pixels = preview.load()
+        artwork = [
+            (x, y)
+            for y in range(preview.height)
+            for x in range(preview.width)
+            if pixels[x, y] != (255, 255, 255)
+        ]
+        assert artwork
+        left = min(x for x, _ in artwork)
+        right = max(x for x, _ in artwork)
+        top = min(y for _, y in artwork)
+        bottom = max(y for _, y in artwork)
+        assert (right - left, bottom - top) == (899, 287)
+        assert left > 0 and right < preview.width - 1
+        assert top > 0 and bottom < preview.height - 1
 
     index_markup = (frontend / "index.html").read_text()
     assert index_markup.count("the-bend-community-preview-v5.png") == 3

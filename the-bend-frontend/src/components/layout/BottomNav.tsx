@@ -42,7 +42,7 @@ export function BottomNav() {
                   isActive ? 'text-[hsl(160,25%,28%)]' : 'text-gray-400'
                 }`}
               >
-                {tab.label === 'Bender' ? <tab.icon className="w-14 h-auto text-[hsl(35,45%,42%)]" /> : <tab.icon size={20} />}
+                {tab.path === '/bender' ? <tab.icon className="w-14 h-auto text-[hsl(35,45%,42%)]" /> : <tab.icon size={20} />}
                 <span>{tab.label}</span>
               </button>
             );

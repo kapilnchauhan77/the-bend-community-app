@@ -915,6 +915,12 @@ html.dark [role="checkbox"][data-state="checked"] {
   color: hsl(35 45% 42%);
 }
 
+.home-mobile-bender-mark {
+  width: 3rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+}
+
 .home-mobile-event-preview {
   display: -webkit-box;
   flex: 0 0 auto;
