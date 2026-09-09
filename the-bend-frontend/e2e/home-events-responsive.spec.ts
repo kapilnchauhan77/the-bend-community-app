@@ -95,6 +95,8 @@ test('mobile home shows the full upcoming-events section exactly once', async ({
   await expect(mobileGrid.getByRole('link', { name: 'Bender' })).toHaveAttribute('href', '/bender');
   const mobileBenderTile = mobileGrid.getByRole('link', { name: 'Bender' });
   await expect(mobileBenderTile.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  const mobileBenderMark = await mobileBenderTile.locator('svg').boundingBox();
+  expect(mobileBenderMark?.width ?? 0).toBeGreaterThanOrEqual(48);
   await expect(mobileGrid.getByRole('link').evaluateAll((links) => links.map((link) => link.getAttribute('href')))).resolves.toEqual([
     '/browse?category=staff',
     '/browse?category=materials',
@@ -190,12 +192,41 @@ test('desktop home shows the compact upcoming-events sidebar exactly once', asyn
   expect(welcomeSearchBox).not.toBeNull();
   expect(desktopGridBox).not.toBeNull();
   expect(desktopGridBox!.x).toBeGreaterThan(welcomeSearchBox!.x + welcomeSearchBox!.width);
-  expect(desktopGridBox!.y).toBeLessThan(welcomeSearchBox!.y + welcomeSearchBox!.height);
+  expect(desktopGridBox!.y).toBeGreaterThanOrEqual(welcomeSearchBox!.y);
   expect(desktopGridBox!.y + desktopGridBox!.height).toBeGreaterThan(welcomeSearchBox!.y);
   expect(desktopGridBox!.x + desktopGridBox!.width).toBeLessThanOrEqual(heroBox!.x + heroBox!.width + 0.5);
   const desktopBenderNav = page.locator('header').getByRole('link', { name: 'Bender' });
   await expect(desktopBenderNav.locator('svg')).toHaveAttribute('aria-label', 'Bender');
   await expect(page.getByTestId('mobile-service-grid')).toBeHidden();
+});
+
+test('desktop home uses approved hero order and normal Community Board urgency', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const listingRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = request.url();
+    if (url.includes('/listings')) listingRequests.push(url);
+  });
+  await stubHomeApi(page);
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Welcome to', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /Westmoreland Community/ })).toHaveCount(0);
+  await expect(page.getByText('Find opportunity within your neighborhood', { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').locator('img[src="/images/the-bend-community-logo-white.png"]')).toBeVisible();
+  const heroText = page.locator('.home-hero-content').locator(':scope > div').first();
+  const logo = heroText.locator('img[src="/images/the-bend-community-logo-white.png"]');
+  const search = heroText.getByRole('textbox', { name: /search listings/i });
+  expect((await logo.boundingBox())!.y).toBeLessThan((await search.boundingBox())!.y);
+  const boardRequest = listingRequests.find((url) => url.includes('limit=5'));
+  expect(boardRequest).toContain('urgency=normal');
+
+  const tiles = page.getByTestId('desktop-service-grid').getByRole('link');
+  await expect(tiles).toHaveCount(9);
+  await expect(tiles.first()).toHaveClass(/rounded/);
+  const benderBox = await tiles.filter({ hasText: 'Bender' }).locator('svg').boundingBox();
+  expect(benderBox?.width ?? 0).toBeGreaterThan(64);
+  await page.screenshot({ path: '../.superpowers/sdd/2026-09-10-bend-jira-release/task-1-screenshots/desktop-home-1440x900.png', fullPage: false });
 });
 
 test('mobile Events tile rotates through upcoming event titles every five seconds', async ({ page }) => {

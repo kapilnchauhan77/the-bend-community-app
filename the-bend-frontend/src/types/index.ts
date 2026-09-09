@@ -169,6 +169,8 @@ export interface Volunteer {
   name: string;
   phone?: string | null;
   email?: string | null;
+  show_phone: boolean;
+  show_email: boolean;
   skills: string;
   available_time: string;
   photo_url?: string;

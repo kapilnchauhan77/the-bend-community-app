@@ -77,7 +77,7 @@ def test_shared_serializer_and_list_shape_include_about_me():
         about_me="I help locally.", available_time="Weekends", photo_url=None,
         user_id=None, created_at=datetime(2026, 1, 1),
     )
-    result = _serialize_volunteer(row, is_authed=False)
+    result = _serialize_volunteer(row, viewer=None)
     assert result["about_me"] == "I help locally."
 
 

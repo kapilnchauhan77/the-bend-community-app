@@ -1,8 +1,14 @@
 import api from './api';
 
+export interface RegistrationPageParams {
+  status?: string;
+  cursor?: string;
+  limit?: string;
+}
+
 export const adminApi = {
   getDashboard: () => api.get('/admin/dashboard'),
-  getRegistrations: (params?: Record<string, string>) => api.get('/admin/registrations', { params }),
+  getRegistrations: (params?: RegistrationPageParams) => api.get('/admin/registrations', { params }),
   approveRegistration: (shopId: string) => api.post(`/admin/registrations/${shopId}/approve`),
   rejectRegistration: (shopId: string, reason: string) => api.post(`/admin/registrations/${shopId}/reject`, { reason }),
   getShops: (params?: Record<string, string>) => api.get('/admin/shops', { params }),

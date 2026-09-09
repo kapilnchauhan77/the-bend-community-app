@@ -31,6 +31,7 @@ import { BenderCommentsDrawer } from '@/components/features/bender/BenderComment
 import { benderApi, type CreatePostPayload, type UpdatePostPayload } from '@/services/benderApi';
 import { useBenderLinkPreview } from '@/hooks/useBenderLinkPreview';
 import axios from 'axios';
+import { extractUploadError, validateVideoFile } from '@/services/uploadApi';
 import type { BenderPost, BenderAuthor } from '@/types';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
@@ -549,6 +550,13 @@ export function BenderComposer({
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
+      if (file.type.startsWith('video/')) {
+        const validationError = await validateVideoFile(file);
+        if (validationError) {
+          if (isCurrentSession(operationSession)) setError(validationError);
+          return;
+        }
+      }
       // Reuse /upload/media via the existing CameraCapture upload path. Since
       // the composer file picker accepts both images + videos and the camera
       // modal handles both modes, we just submit to /upload/media directly.
@@ -567,9 +575,9 @@ export function BenderComposer({
           thumbnail_url: (data.thumbnail_url as string | null | undefined) ?? null,
           type: (data.type as 'image' | 'video' | undefined) ?? (file.type.startsWith('video/') ? 'video' : 'image'),
         });
-      } catch {
+      } catch (error) {
         if (!isCurrentSession(operationSession)) return;
-        setError('Could not upload that file. Try a smaller one.');
+        setError(extractUploadError(error, 'Could not upload that file. Check your connection and try again.'));
       }
     },
     [isCurrentSession]
@@ -746,7 +754,7 @@ export function BenderComposer({
             )}
 
             {error && (
-              <p className="text-[12px] text-[hsl(0,55%,45%)]">{error}</p>
+              <p role="alert" className="text-[12px] text-[hsl(0,55%,45%)]">{error}</p>
             )}
 
             <p className="text-[11px] text-[hsl(30,10%,55%)] text-right">

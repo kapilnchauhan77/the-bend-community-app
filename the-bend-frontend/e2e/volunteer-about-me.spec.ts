@@ -58,7 +58,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 
     for (const skill of standardSkills) await expect(dialog.getByLabel(skill)).toBeVisible();
     for (const skill of standardSkills) await dialog.getByLabel(skill).check();
     await dialog.getByLabel('Name').fill('Alex');
-    await dialog.getByLabel('Phone').fill('555-0100');
+    await dialog.locator('#vol-phone').fill('555-0100');
+    await dialog.getByLabel('Show my phone number on the public board').check();
     await dialog.getByLabel('Available Time').fill('Weekends');
     await dialog.getByPlaceholder('Other skills or a sentence about what you can help with').fill('custom help');
     const aboutMeField = dialog.getByLabel('About me');
@@ -140,4 +141,102 @@ test('authenticated edit can clear About me with an explicit PUT value', async (
   await page.getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByLabel('About me')).toHaveValue('');
   await expect(page.getByText('Old about me')).toHaveCount(0);
+});
+
+test('private contact values are not rendered as actionable links', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/tenant/current')) return route.fulfill({ json: { display_name: 'The Bend - Westmoreland' } });
+    if (url.pathname.endsWith('/volunteers')) {
+      return route.fulfill({ json: { items: [{ id: 'vol-private', name: 'Private Alex', phone: null, email: null, show_phone: false, show_email: false, skills: 'Gardening', available_time: 'Weekends' }], has_more: false } });
+    }
+    return route.fulfill({ json: {} });
+  });
+  await page.goto('/volunteers');
+  await expect(page.getByText('Private Alex')).toBeVisible();
+  await expect(page.locator('a[href^="tel:"]')).toHaveCount(0);
+  await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+});
+
+test('owner can control phone and email visibility independently', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('access_token', 'test-token');
+    localStorage.setItem('user', JSON.stringify({ id: 'owner-1', name: 'Alex', role: 'individual' }));
+  });
+  const updates: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/tenant/current')) return route.fulfill({ json: { display_name: 'The Bend - Westmoreland' } });
+    if (url.pathname.endsWith('/volunteers') && route.request().method() === 'GET') return route.fulfill({ json: { items: [{ id: 'vol-owner', name: 'Alex', user_id: 'owner-1', phone: '555-0100', email: 'alex@example.com', show_phone: false, show_email: false, skills: 'Gardening', available_time: 'Weekends' }], has_more: false } });
+    if (url.pathname.endsWith('/volunteers/vol-owner') && route.request().method() === 'PUT') {
+      updates.push(route.request().postDataJSON());
+      return route.fulfill({ json: { id: 'vol-owner', name: 'Alex', user_id: 'owner-1', phone: '555-0100', email: 'alex@example.com', show_phone: true, show_email: false, skills: 'Gardening', available_time: 'Weekends' } });
+    }
+    return route.fulfill({ json: {} });
+  });
+  await page.goto('/volunteers');
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Show my phone number on the public board').check();
+  await dialog.getByRole('button', { name: 'Save changes' }).click();
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ show_phone: true, show_email: false });
+});
+
+test('long opted-in email beside Message stays within a narrow card', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('access_token', 'test-token');
+    localStorage.setItem('user', JSON.stringify({ id: 'viewer-1', name: 'Viewer', role: 'individual' }));
+  });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/tenant/current')) return route.fulfill({ json: { display_name: 'The Bend - Westmoreland' } });
+    if (url.pathname.endsWith('/volunteers')) return route.fulfill({ json: { items: [{ id: 'vol-long', name: 'Public Alex', user_id: 'owner-2', phone: null, email: 'a-very-long-public-address-for-testing@example-community.example', show_phone: false, show_email: true, skills: 'Gardening', available_time: 'Weekends' }], has_more: false } });
+    return route.fulfill({ json: {} });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/volunteers');
+  await expect(page.getByRole('button', { name: 'Message', exact: true })).toBeVisible();
+  await expect(page.locator('a[href^="mailto:"]')).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBeFalsy();
+});
+
+test('anonymous long opted-in email stays within a narrow card', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/tenant/current')) return route.fulfill({ json: { display_name: 'The Bend - Westmoreland' } });
+    if (url.pathname.endsWith('/volunteers')) return route.fulfill({ json: { items: [{ id: 'vol-unlinked', name: 'Unlinked Alex', user_id: null, phone: null, email: 'a-very-long-public-address-for-testing@example-community.example', show_phone: false, show_email: true, skills: 'Gardening', available_time: 'Weekends' }], has_more: false } });
+    return route.fulfill({ json: {} });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/volunteers');
+  const link = page.locator('a[href^="mailto:"]');
+  await expect(link).toBeVisible();
+  expect(await link.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBeTruthy();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+});
+
+test('admin viewer keeps private legacy card contained beside controls', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('access_token', 'test-token');
+    localStorage.setItem('user', JSON.stringify({ id: 'admin-1', name: 'Admin', role: 'community_admin' }));
+  });
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/tenant/current')) return route.fulfill({ json: { display_name: 'The Bend - Westmoreland' } });
+    if (url.pathname.endsWith('/volunteers')) return route.fulfill({ json: { items: [{ id: 'vol-legacy-private', name: 'Legacy Private', user_id: null, phone: null, email: null, show_phone: false, show_email: false, skills: 'Gardening', available_time: 'Weekends' }], has_more: false } });
+    return route.fulfill({ json: {} });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/volunteers');
+  await expect(page.getByText('Contact information is private or unavailable.')).toBeVisible();
+  await expect(page.getByRole('button', { name: /delete/i })).toBeVisible();
+  const card = page.locator('div.border-0.shadow-md').first();
+  await expect(card).toBeVisible();
+  const placeholder = page.getByText('Contact information is private or unavailable.', { exact: true });
+  expect(await placeholder.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBeTruthy();
+  expect(await placeholder.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBeTruthy();
+  await card.screenshot({ path: 'output/task-3-screenshots/admin-legacy-private-card-390.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });

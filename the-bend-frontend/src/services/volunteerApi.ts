@@ -4,6 +4,8 @@ export interface VolunteerPayload {
   name: string;
   phone?: string;
   email?: string;
+  show_phone?: boolean;
+  show_email?: boolean;
   skills: string;
   available_time: string;
   photo_url?: string;

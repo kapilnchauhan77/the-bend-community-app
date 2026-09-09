@@ -115,7 +115,7 @@ export default function HomePage() {
       .finally(() => setLoadingUrgent(false));
 
     listingApi
-      .browse({ limit: 5 })
+      .browse({ urgency: 'normal', limit: 5 })
       .then((res) => setRecentListings(res.data.items))
       .catch(() => setRecentListings([]))
       .finally(() => setLoadingRecent(false));
@@ -166,15 +166,9 @@ export default function HomePage() {
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")" }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 w-full">
-          <div className="home-hero-content grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 lg:gap-14 items-center">
+          <div className="home-hero-content grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 lg:gap-14 items-start">
           <div className="max-w-2xl">
             <div className="hidden md:block w-12 h-[2px] mb-4" style={{ backgroundColor: BRONZE }} />
-            <p className="hidden md:block text-xs tracking-[0.35em] uppercase text-[hsl(35,45%,65%)] mb-2 font-medium">
-              Welcome to
-            </p>
-            <h1 className="text-2xl md:text-6xl font-bold font-serif text-[hsl(40,20%,95%)] leading-[1.1] mb-2 md:mb-4" style={{ letterSpacing: '-0.01em' }}>
-              {tenant.display_name.split('\u2014')[0].trim()}<br />Community
-            </h1>
             <p className="text-base md:text-xl text-[hsl(40,15%,75%)] mb-4 max-w-md leading-relaxed">
               {tenant.tagline || 'Find opportunity within your neighborhood'}
             </p>
@@ -183,6 +177,7 @@ export default function HomePage() {
               {tenant.about_text}
             </p>
             )}
+            <img src="/images/the-bend-community-logo-white.png" alt="The Bend Community" className="w-40 md:w-52 h-auto mb-6" />
             <form onSubmit={handleSearch} className="flex max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
@@ -202,16 +197,16 @@ export default function HomePage() {
               </button>
             </form>
           </div>
-            <div data-testid="desktop-service-grid" className="hidden md:grid desktop-service-grid grid-cols-3 gap-3">
+            <div data-testid="desktop-service-grid" className="hidden md:grid desktop-service-grid grid-cols-3 gap-3 mt-10">
               {mobileServices.map(({ icon: Icon, label, desc, href }) => (
                 <Link
                   key={label}
                   to={href}
                   aria-label={label}
-                  className="group bg-[hsl(40,20%,98%)]/95 border border-[hsl(35,18%,84%)] p-3 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md min-h-[105px] flex flex-col items-center justify-center"
+                  className="group rounded-lg bg-[hsl(40,20%,98%)]/95 border border-[hsl(35,18%,84%)] p-3 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md min-h-[105px] flex flex-col items-center justify-center"
                 >
                   {label === 'Bender' ? (
-                    <BenderLogo className="w-16 h-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
+                    <BenderLogo className="w-28 h-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
                   ) : (
                     <Icon aria-hidden="true" className="w-5 h-5 mx-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
                   )}
@@ -222,9 +217,9 @@ export default function HomePage() {
               <Link
                 to={benderService.href}
                 aria-label={benderService.label}
-                className="group bg-[hsl(40,20%,98%)]/95 border border-[hsl(35,18%,84%)] p-3 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md min-h-[105px] flex flex-col items-center justify-center"
+                className="group rounded-lg bg-[hsl(40,20%,98%)]/95 border border-[hsl(35,18%,84%)] p-3 text-center transition-all duration-200 cursor-pointer hover:border-[hsl(35,45%,42%)] hover:shadow-md min-h-[105px] flex flex-col items-center justify-center"
               >
-                <BenderLogo className="w-16 h-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
+                <BenderLogo className="w-28 h-auto mb-2 text-[hsl(35,45%,42%)] transition-transform group-hover:scale-110" />
                 <h3 className="text-sm font-semibold text-[hsl(30,15%,20%)] mb-0.5 font-serif">{benderService.label}</h3>
               </Link>
             </div>
@@ -255,7 +250,7 @@ export default function HomePage() {
               </Link>
             ))}
             <Link key={benderService.label} to={benderService.href} aria-label={benderService.label} className="home-mobile-service-tile">
-              <BenderLogo aria-hidden={true} className="home-mobile-service-icon" />
+              <BenderLogo aria-hidden={true} className="home-mobile-service-icon home-mobile-bender-mark" />
               <span className="home-mobile-service-label">{benderService.label}</span>
             </Link>
           </div>

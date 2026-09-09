@@ -14,6 +14,7 @@ and clips longer than the configured ceiling are rejected.
 """
 import io
 import logging
+import math
 import os
 import uuid
 from pathlib import Path
@@ -40,7 +41,7 @@ JPEG_QUALITY = 82
 
 # Media upload limits (shared by the unified /upload/media endpoint).
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # 25 MB hard ceiling for any single file
-MAX_VIDEO_DURATION_SECONDS = 10.0     # frontend caps at 9s; allow 1s of slop
+MAX_VIDEO_DURATION_SECONDS = 60.0     # library/server policy; recorder uses 59s headroom
 MAX_AUDIO_DURATION_SECONDS = 10.0     # voice notes capped at 9s on the client
 
 ALLOWED_IMAGE_MIME_TYPES = frozenset({
@@ -53,6 +54,13 @@ ALLOWED_VIDEO_MIME_TYPES = frozenset({
     "video/webm",
     "video/quicktime",  # iOS .mov
 })
+# The upload is stored verbatim, so only combinations with dependable browser
+# playback are accepted. MIME headers alone cannot distinguish HEVC or AV1.
+_BROWSER_PLAYABLE_VIDEO_CODECS = {
+    "mp4": frozenset({"h264"}),
+    "webm": frozenset({"vp8", "vp9"}),
+}
+_VIDEO_METADATA_ERROR = "Video must be a browser-playable MP4/H.264 or WebM/VP8/VP9 format with a valid duration"
 # Voice notes recorded in the messenger. iOS Safari sometimes labels an .m4a
 # recording as "audio/mp4" — we accept that variant so iPhone users aren't
 # blocked. "audio/mpeg" covers .mp3 uploads from the file picker.
@@ -200,8 +208,18 @@ class FileService:
         with open(video_path, "wb") as f:
             f.write(content)
 
-        # Probe duration. If probing fails we treat the upload as invalid
-        # rather than silently accepting an unbounded clip.
+        def reject(detail: str) -> None:
+            try:
+                video_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=detail,
+            )
+
+        # Probe duration and codecs. If probing fails we treat the upload as
+        # invalid rather than silently accepting an unbounded or unplayable clip.
         try:
             probe = ffmpeg.probe(str(video_path))
             duration_str = probe.get("format", {}).get("duration")
@@ -217,15 +235,23 @@ class FileService:
                 detail="Could not read video metadata",
             ) from exc
 
+        if not math.isfinite(duration) or duration <= 0:
+            reject(_VIDEO_METADATA_ERROR)
         if duration > MAX_VIDEO_DURATION_SECONDS:
-            try:
-                video_path.unlink(missing_ok=True)
-            except Exception:
-                pass
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Video must be 9 seconds or less",
-            )
+            reject("Video must be 60 seconds or less")
+
+        format_name = str(probe.get("format", {}).get("format_name", "")).lower()
+        streams = probe.get("streams", [])
+        video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+        codec_name = str((video_stream or {}).get("codec_name", "")).lower()
+        if "mp4" in format_name or "mov" in format_name:
+            playable_codecs = _BROWSER_PLAYABLE_VIDEO_CODECS["mp4"]
+        elif "webm" in format_name or "matroska" in format_name:
+            playable_codecs = _BROWSER_PLAYABLE_VIDEO_CODECS["webm"]
+        else:
+            playable_codecs = frozenset()
+        if codec_name not in playable_codecs:
+            reject(_VIDEO_METADATA_ERROR)
 
         # Poster frame: ~0.5s in, scaled so the long edge is 1280px while
         # preserving aspect ratio. We snap height to even values to keep

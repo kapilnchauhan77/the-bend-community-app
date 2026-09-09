@@ -248,7 +248,7 @@ function MiniEventRow({ event, onShowDetails }: { event: CommunityEvent; onShowD
 
 // ─── Day Cell Thumbnail Carousel ──────────────────────────────────────────────
 
-function DayCellCarousel({ events, phase }: { events: CommunityEvent[]; phase: number }) {
+function DayCellCarousel({ events, phase, titleId }: { events: CommunityEvent[]; phase: number; titleId: string }) {
   const [idx, setIdx] = useState(0);
 
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -273,10 +273,13 @@ function DayCellCarousel({ events, phase }: { events: CommunityEvent[]; phase: n
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <EventThumb event={current} className="absolute inset-0 h-full w-full" />
+      <EventThumb key={current.id} event={current} className="absolute inset-0 h-full w-full" />
       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/55 to-transparent" />
+      <span id={titleId} className="absolute inset-x-1 bottom-1 z-10 pr-1 text-[9px] font-medium leading-tight text-white line-clamp-2 drop-shadow-sm">
+        {current.title}
+      </span>
       {events.length > 1 && (
-        <span className="absolute bottom-0.5 right-0.5 text-[9px] text-white px-1.5 rounded-full bg-black/45 leading-tight">
+        <span className="absolute top-0.5 right-0.5 z-10 text-[9px] text-white px-1.5 rounded-full bg-black/45 leading-tight">
           {events.length}
         </span>
       )}
@@ -350,20 +353,24 @@ function CalendarView({ events, onShowDetails }: { events: CommunityEvent[]; onS
             const isSelected = selectedDay && isSameDay(date, selectedDay);
 
             const showCarousel = inMonth && dayEvents.length > 0;
+            const dayLabel = date.toLocaleDateString();
+            const accessibleLabel = `${dayLabel}${dayEvents.length > 0 ? `, ${dayEvents.length} events` : ''}`;
+            const titleDescriptionId = `calendar-day-title-${year}-${month}-${idx}`;
 
             return (
               <button
                 key={idx}
                 onClick={() => setSelectedDay(date)}
                 className={[
-                  'relative overflow-hidden min-h-[60px] md:min-h-[80px] p-1.5 border-b border-r border-gray-50 text-left transition-colors cursor-pointer',
+                  'relative overflow-hidden min-h-[72px] md:min-h-[80px] p-1.5 border-b border-r border-gray-50 text-left transition-colors cursor-pointer',
                   !inMonth ? 'bg-gray-50' : 'hover:bg-[hsl(160,25%,97%)]',
                   isSelected ? 'bg-[hsl(160,25%,95%)]' : '',
                 ].join(' ')}
-                aria-label={date.toLocaleDateString()}
+                aria-label={accessibleLabel}
+                aria-describedby={showCarousel ? titleDescriptionId : undefined}
               >
                 {showCarousel && (
-                  <DayCellCarousel events={dayEvents} phase={idx} />
+                  <DayCellCarousel events={dayEvents} phase={idx} titleId={titleDescriptionId} />
                 )}
 
                 <span

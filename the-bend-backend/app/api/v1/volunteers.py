@@ -10,7 +10,6 @@ from app.core.permissions import (
     get_current_user,
     get_current_user_optional,
 )
-from app.core.privacy import mask_phone, mask_email
 from app.models.enums import UserRole
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -29,12 +28,22 @@ def get_service(db: AsyncSession = Depends(get_db)):
     return VolunteerService(db)
 
 
-def _serialize_volunteer(v: Volunteer, *, is_authed: bool) -> dict:
+def _serialize_volunteer(
+    v: Volunteer,
+    *,
+    viewer: User | None = None,
+    reveal_contact: bool = False,
+) -> dict:
+    is_owner = viewer is not None and v.user_id is not None and viewer.id == v.user_id
+    can_see_phone = reveal_contact or is_owner or bool(getattr(v, "show_phone", False))
+    can_see_email = reveal_contact or is_owner or bool(getattr(v, "show_email", False))
     return {
         "id": str(v.id),
         "name": v.name,
-        "phone": mask_phone(v.phone, is_authed) if v.phone else None,
-        "email": mask_email(v.email, is_authed) if v.email else None,
+        "phone": v.phone if v.phone and can_see_phone else None,
+        "email": v.email if v.email and can_see_email else None,
+        "show_phone": bool(getattr(v, "show_phone", False)),
+        "show_email": bool(getattr(v, "show_email", False)),
         "skills": v.skills,
         "about_me": v.about_me,
         "available_time": v.available_time,
@@ -70,8 +79,15 @@ async def enroll_volunteer(
             data = VolunteerCreate(**payload)
         except ValidationError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=_validation_detail(exc)) from exc
+        has_reachable_phone = data.show_phone and bool(data.phone and data.phone.strip())
+        has_reachable_email = data.show_email and bool(data.email and data.email.strip())
+        if not (has_reachable_phone or has_reachable_email):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="At least one contact field must be public",
+            )
         v = await service.enroll(data)
-        return _serialize_volunteer(v, is_authed=False)
+        return _serialize_volunteer(v, viewer=current_user, reveal_contact=True)
 
     # Authed path: contact fields optional. Reject empty name/skills/time only.
     try:
@@ -91,13 +107,15 @@ async def enroll_volunteer(
     result = await db.execute(existing_query)
     existing = result.scalar_one_or_none()
     if existing:
-        return _serialize_volunteer(existing, is_authed=True)
+        return _serialize_volunteer(existing, viewer=current_user)
 
     row = Volunteer(
         id=uuid4(),
         name=update.name,
         phone=update.phone,
         email=update.email,
+        show_phone=update.show_phone if update.show_phone is not None else False,
+        show_email=update.show_email if update.show_email is not None else False,
         skills=update.skills,
         available_time=update.available_time,
         photo_url=update.photo_url,
@@ -108,7 +126,7 @@ async def enroll_volunteer(
     db.add(row)
     await db.flush()
     await db.refresh(row)
-    return _serialize_volunteer(row, is_authed=True)
+    return _serialize_volunteer(row, viewer=current_user)
 
 
 @router.get("")
@@ -121,19 +139,7 @@ async def list_volunteers(
 ):
     service.tenant_id = tenant.id if tenant else None
     result = await service.list_volunteers(cursor, limit)
-    is_authed = current_user is not None
-    items = [{
-        "id": str(v.id),
-        "name": v.name,
-        "phone": mask_phone(v.phone, is_authed) if v.phone else None,
-        "email": mask_email(v.email, is_authed) if v.email else None,
-        "skills": v.skills,
-        "about_me": v.about_me,
-        "available_time": v.available_time,
-        "photo_url": v.photo_url,
-        "user_id": str(v.user_id) if v.user_id else None,
-        "created_at": str(v.created_at),
-    } for v in result.items]
+    items = [_serialize_volunteer(v, viewer=current_user) for v in result.items]
     return {"items": items, "next_cursor": result.next_cursor, "has_more": result.has_more}
 
 
@@ -165,11 +171,17 @@ async def update_volunteer(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
 
     updates = data.model_dump(exclude_unset=True)
+    is_owner = row.user_id is not None and current_user.id == row.user_id
+    if not is_owner and {"show_phone", "show_email"}.intersection(updates):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the volunteer owner can change contact visibility",
+        )
     for key, value in updates.items():
         setattr(row, key, value)
     await db.flush()
     await db.refresh(row)
-    return _serialize_volunteer(row, is_authed=True)
+    return _serialize_volunteer(row, viewer=current_user)
 
 
 @router.delete("/{volunteer_id}", status_code=status.HTTP_204_NO_CONTENT)

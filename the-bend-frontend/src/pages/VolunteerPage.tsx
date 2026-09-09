@@ -33,6 +33,8 @@ export default function VolunteerPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [showPhone, setShowPhone] = useState(false);
+  const [showEmail, setShowEmail] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [customSkills, setCustomSkills] = useState('');
   const [aboutMe, setAboutMe] = useState('');
@@ -109,6 +111,8 @@ export default function VolunteerPage() {
     setName('');
     setPhone('');
     setEmail('');
+    setShowPhone(false);
+    setShowEmail(false);
     setSelectedSkills([]);
     setCustomSkills('');
     setAboutMe('');
@@ -129,6 +133,8 @@ export default function VolunteerPage() {
     setName(v.name);
     setPhone(v.phone ?? '');
     setEmail(v.email ?? '');
+    setShowPhone(v.show_phone ?? false);
+    setShowEmail(v.show_email ?? false);
     const legacySkills = v.skills.split(',').map((skill) => skill.trim()).filter(Boolean);
     setSelectedSkills(legacySkills.filter((skill) => STANDARD_SKILLS.includes(skill as typeof STANDARD_SKILLS[number])));
     setCustomSkills(legacySkills.filter((skill) => !STANDARD_SKILLS.includes(skill as typeof STANDARD_SKILLS[number])).join(', '));
@@ -156,12 +162,18 @@ export default function VolunteerPage() {
       setFormError('Please provide at least an email or phone number.');
       return;
     }
+    if (!isAuthenticated && !((showPhone && phone.trim()) || (showEmail && email.trim()))) {
+      setFormError('Enable phone or email so people can contact you.');
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
         name,
         phone: phone || undefined,
         email: email || undefined,
+        show_phone: showPhone,
+        show_email: showEmail,
         skills: [...selectedSkills, customSkills.trim()].filter(Boolean).join(', '),
         available_time: availableTime,
         photo_url: photo || undefined,
@@ -361,6 +373,8 @@ export default function VolunteerPage() {
                       const isOwner = isAuthenticated && user?.id && v.user_id === user.id;
                       const canMessage = isAuthenticated && !!v.user_id && !isOwner;
                       const isAdmin = user?.role === 'community_admin';
+                      const publicPhone = v.show_phone && v.phone ? v.phone : null;
+                      const publicEmail = v.show_email && v.email ? v.email : null;
                       if (isOwner) {
                         return (
                           <div className="flex gap-2">
@@ -377,6 +391,7 @@ export default function VolunteerPage() {
                             <Button
                               type="button"
                               onClick={() => handleDelete(v)}
+                              aria-label="Delete volunteer"
                               variant="outline"
                               disabled={deletingId === v.id}
                               className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
@@ -393,7 +408,7 @@ export default function VolunteerPage() {
                       }
                       if (canMessage) {
                         return (
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <Button
                               type="button"
                               onClick={() => handleMessage(v.user_id!)}
@@ -404,10 +419,13 @@ export default function VolunteerPage() {
                               <MessageSquare className="w-4 h-4 mr-1.5" />
                               {messagingId === v.user_id ? 'Starting...' : 'Message'}
                             </Button>
+                            {publicPhone && <a href={`tel:${publicPhone}`} className="flex min-w-0 min-h-10 items-center justify-center gap-2 h-auto px-3 py-2 rounded-xl border-2 text-sm font-semibold break-all whitespace-normal" style={{ borderColor: PRIMARY, color: PRIMARY }}><Phone className="w-4 h-4 flex-shrink-0" />{publicPhone}</a>}
+                            {publicEmail && <a href={`mailto:${publicEmail}`} className="flex min-w-0 min-h-10 items-center justify-center gap-2 h-auto px-3 py-2 rounded-xl border-2 text-sm font-semibold break-all whitespace-normal" style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}><Mail className="w-4 h-4 flex-shrink-0" />{publicEmail}</a>}
                             {isAdmin && (
                               <Button
                                 type="button"
                                 onClick={() => handleDelete(v)}
+                                aria-label="Delete volunteer"
                                 variant="outline"
                                 disabled={deletingId === v.id}
                                 className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
@@ -423,40 +441,41 @@ export default function VolunteerPage() {
                           </div>
                         );
                       }
-                      // Anonymous viewer OR row without user_id — show masked phone/email as today
+                      // Anonymous viewer OR unlinked row. Only opted-in values become links.
                       return (
                         <>
                           <div className="flex gap-2">
-                            {v.phone ? (
+                            {publicPhone ? (
                               <a
-                                href={`tel:${v.phone}`}
-                                className="flex items-center justify-center gap-2 flex-1 h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
+                                href={`tel:${publicPhone}`}
+                                className="flex min-w-0 min-h-10 items-center justify-center gap-2 flex-1 h-auto px-2 py-2 rounded-xl border-2 text-sm font-semibold break-all whitespace-normal transition-all duration-200 cursor-pointer hover:shadow-md"
                                 style={{ borderColor: PRIMARY, color: PRIMARY }}
                               >
                                 <Phone className="w-4 h-4" />
-                                {v.phone}
+                                {publicPhone}
                               </a>
-                            ) : v.email ? (
+                            ) : publicEmail ? (
                               <a
-                                href={`mailto:${v.email}`}
-                                className="flex items-center justify-center gap-2 flex-1 h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md"
+                                href={`mailto:${publicEmail}`}
+                                className="flex min-w-0 min-h-10 items-center justify-center gap-2 flex-1 h-auto px-2 py-2 rounded-xl border-2 text-sm font-semibold break-all whitespace-normal transition-all duration-200 cursor-pointer hover:shadow-md"
                                 style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}
                               >
                                 <Mail className="w-4 h-4" />
-                                {v.email}
+                                {publicEmail}
                               </a>
                             ) : (
                               <div
-                                className="flex-1 h-10 rounded-xl border-2 text-sm flex items-center justify-center"
+                                className="flex min-w-0 min-h-10 h-auto flex-1 px-2 py-2 rounded-xl border-2 text-sm text-center break-words whitespace-normal items-center justify-center"
                                 style={{ borderColor: 'hsl(35,18%,84%)', color: 'hsl(30,10%,55%)' }}
                               >
-                                Contact via in-app messages
+                                Contact information is private or unavailable.
                               </div>
                             )}
                             {isAdmin && (
                               <Button
                                 type="button"
                                 onClick={() => handleDelete(v)}
+                                aria-label="Delete volunteer"
                                 variant="outline"
                                 disabled={deletingId === v.id}
                                 className="h-10 rounded-xl text-sm font-semibold cursor-pointer border-red-200 text-red-600 hover:bg-red-50"
@@ -470,14 +489,14 @@ export default function VolunteerPage() {
                               description={`${v.name} is volunteering: ${v.skills}`}
                             />
                           </div>
-                          {v.phone && v.email && (
+                          {publicPhone && publicEmail && (
                             <a
-                              href={`mailto:${v.email}`}
-                              className="flex items-center justify-center gap-2 w-full h-10 rounded-xl border-2 text-sm font-semibold transition-all duration-200 cursor-pointer hover:shadow-md mt-2"
+                              href={`mailto:${publicEmail}`}
+                              className="flex min-w-0 min-h-10 items-center justify-center gap-2 w-full h-auto px-2 py-2 rounded-xl border-2 text-sm font-semibold break-all whitespace-normal cursor-pointer hover:shadow-md mt-2"
                               style={{ borderColor: 'hsl(35, 45%, 42%)', color: 'hsl(35, 45%, 42%)' }}
                             >
                               <Mail className="w-4 h-4" />
-                              {v.email}
+                              {publicEmail}
                             </a>
                           )}
                         </>
@@ -588,6 +607,16 @@ export default function VolunteerPage() {
                   {!isAuthenticated && (
                     <p className="text-xs text-gray-500">Email or phone is required</p>
                   )}
+                  <div className="space-y-2 pt-2" role="group" aria-label="Contact visibility">
+                    <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                      <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} className="h-4 w-4 rounded border-gray-300" />
+                      Show my phone number on the public board
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                      <input type="checkbox" checked={showEmail} onChange={(e) => setShowEmail(e.target.checked)} className="h-4 w-4 rounded border-gray-300" />
+                      Show my email address on the public board
+                    </label>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
