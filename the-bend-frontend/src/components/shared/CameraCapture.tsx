@@ -282,6 +282,7 @@ export function CameraCapture({
   const handleFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadError(null);
     const isVideo = file.type.startsWith('video/');
     if (isVideo) {
       const validationError = await validateVideoFile(file);

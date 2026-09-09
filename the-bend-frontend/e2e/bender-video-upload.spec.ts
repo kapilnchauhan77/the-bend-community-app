@@ -117,6 +117,11 @@ test('camera upload shows the server detail and keeps retry controls after failu
   await expect(camera.getByRole('alert')).toContainText(uploadDetail);
   await expect(camera.getByRole('button', { name: 'Retake' })).toBeVisible();
   await expect(camera.getByRole('button', { name: 'Use this' })).toBeVisible();
+  await camera.getByRole('button', { name: 'Retake' }).click();
+  await setVideoDuration(page, 45);
+  await camera.locator('input[type="file"]').setInputFiles(videoFile);
+  await expect(camera.getByRole('alert')).toHaveCount(0);
+  await expect(camera.getByRole('button', { name: 'Use this' })).toBeVisible();
 });
 
 test('hung video metadata shows a bounded preflight error without uploading', async ({ page }) => {
