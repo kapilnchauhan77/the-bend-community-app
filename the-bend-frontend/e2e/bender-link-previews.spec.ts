@@ -155,13 +155,13 @@ test('invalid image values stay text-only and never request a remote image', asy
   }
 });
 
-test('shared fixture rows render exactly the accepted URLs', async ({ page }) => {
-  for (const [index, row] of sharedFixtureRows.entries()) {
+for (const [index, row] of sharedFixtureRows.entries()) {
+  test(`shared fixture row ${index + 1} renders exactly the accepted URLs`, async ({ page }) => {
     await stubFeed(page, { ...base, id: `fixture-${index}`, caption: row.caption, link_preview: null });
     const links = await page.getByTestId('bender-caption').locator('a').evaluateAll((anchors) => anchors.map((anchor) => ({ text: anchor.textContent, href: anchor.getAttribute('href') })));
     expect(links).toEqual(row.urls.map((url) => ({ text: url, href: url })));
-  }
-});
+  });
+}
 
 test('mixed-case HTTP(S), queries, fragments, and multiple links preserve exact text', async ({ page }) => {
   const caption = 'HTTP://Example.ORG/a?q=Town#Results then https://second.example/x';
@@ -177,26 +177,28 @@ test('invalid HTTP-looking candidates remain text', async ({ page }) => {
   await expect(page.getByTestId('bender-caption')).toContainText('Bad https:// and malformed https://example.org/%zz');
 });
 
-test('source omission handles same-line spaces, punctuation, and newlines', async ({ page }) => {
-  await stubFeed(page, { ...base, caption: 'Join https://example.org today', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexJoin today');
-  await stubFeed(page, { ...base, id: 'p2', caption: 'Before https://example.org. After', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore. After');
-  await stubFeed(page, { ...base, id: 'p3', caption: 'Before\nhttps://example.org\nAfter', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore\nAfter');
-  await stubFeed(page, { ...base, id: 'p4', caption: 'https://example.org today', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('Alextoday');
-  await stubFeed(page, { ...base, id: 'p5', caption: 'today https://example.org ', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('Alextoday');
-  await stubFeed(page, { ...base, id: 'p6', caption: 'https://example.org and https://example.org', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByRole('link', { name: 'https://example.org' })).toHaveCount(1);
-  await stubFeed(page, { ...base, id: 'p7', caption: '\nhttps://example.org\nAfter', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexAfter');
-  await stubFeed(page, { ...base, id: 'p8', caption: 'Before\nhttps://example.org\n', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore');
-  await stubFeed(page, { ...base, id: 'p9', caption: 'Before\n\nhttps://example.org\nAfter', link_preview: preview({ source_url: 'https://example.org' }) });
-  await expect(page.getByTestId('bender-caption')).toHaveText('AlexBefore\n\nAfter');
-});
+const sourceOmissionCases = [
+  { id: 'p1', caption: 'Join https://example.org today', expected: 'AlexJoin today' },
+  { id: 'p2', caption: 'Before https://example.org. After', expected: 'AlexBefore. After' },
+  { id: 'p3', caption: 'Before\nhttps://example.org\nAfter', expected: 'AlexBefore\nAfter' },
+  { id: 'p4', caption: 'https://example.org today', expected: 'Alextoday' },
+  { id: 'p5', caption: 'today https://example.org ', expected: 'Alextoday' },
+  { id: 'p6', caption: 'https://example.org and https://example.org', expectedLinkCount: 1 },
+  { id: 'p7', caption: '\nhttps://example.org\nAfter', expected: 'AlexAfter' },
+  { id: 'p8', caption: 'Before\nhttps://example.org\n', expected: 'AlexBefore' },
+  { id: 'p9', caption: 'Before\n\nhttps://example.org\nAfter', expected: 'AlexBefore\n\nAfter' },
+];
+
+for (const scenario of sourceOmissionCases) {
+  test(`source omission preserves ${scenario.id} spacing and punctuation`, async ({ page }) => {
+    await stubFeed(page, { ...base, id: scenario.id, caption: scenario.caption, link_preview: preview({ source_url: 'https://example.org' }) });
+    if (scenario.expected !== undefined) {
+      await expect(page.getByTestId('bender-caption')).toHaveText(scenario.expected);
+    } else {
+      await expect(page.getByRole('link', { name: 'https://example.org' })).toHaveCount(scenario.expectedLinkCount);
+    }
+  });
+}
 
 test('valid preview order is caption, card, media, actions', async ({ page }) => {
   await stubFeed(page, { ...base, media_url: '/uploads/post.jpg', comment_count: 1, caption: 'Before https://example.org', link_preview: preview() });
