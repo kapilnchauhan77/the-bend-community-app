@@ -176,6 +176,36 @@ def test_idempotent_create_returns_full_contacts_to_actual_owner():
     assert response.json()["email"] == "alex@example.com"
 
 
+def test_authenticated_create_without_consent_flags_persists_false():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.deps import get_db
+    from app.api.v1.volunteers import router
+    from app.core.permissions import get_current_tenant, get_current_user, get_current_user_optional
+    owner = SimpleNamespace(id=uuid4())
+    captured = {}
+    class Result:
+        def scalar_one_or_none(self): return None
+    class DB:
+        async def execute(self, _query): return Result()
+        def add(self, row): captured["row"] = row
+        async def flush(self): return None
+        async def refresh(self, _row): return None
+    app = FastAPI()
+    app.include_router(router)
+    async def db_override(): yield DB()
+    app.dependency_overrides[get_db] = db_override
+    app.dependency_overrides[get_current_tenant] = lambda: None
+    app.dependency_overrides[get_current_user_optional] = lambda: owner
+    app.dependency_overrides[get_current_user] = lambda: owner
+    response = TestClient(app).post("/volunteers", json={
+        "name": "Alex", "phone": None, "skills": "Gardening", "available_time": "Weekends",
+    })
+    assert response.status_code == 200
+    assert captured["row"].show_phone is False
+    assert captured["row"].show_email is False
+
+
 def test_admin_update_response_does_not_reveal_private_contacts():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
