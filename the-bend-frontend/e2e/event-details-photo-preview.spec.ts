@@ -52,6 +52,10 @@ test('submitted event cards open an internal details dialog', async ({ page }) =
 
   const dialog = page.getByRole('dialog', { name: submittedEvent.title });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('img', { name: submittedEvent.title })).toHaveAttribute(
+    'src',
+    '/images/the-bend-community-logo-black.png',
+  );
   await expect(dialog.getByText(submittedEvent.description)).toBeVisible();
   await expect(dialog.getByText(submittedEvent.location)).toBeVisible();
   await expect(dialog.getByText('Sat, Oct 17 · 10:00 AM – 3:00 PM')).toBeVisible();
