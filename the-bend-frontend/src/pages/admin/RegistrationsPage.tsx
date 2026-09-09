@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { adminApi } from '@/services/adminApi';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -73,6 +73,10 @@ export default function RegistrationsPage() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [counts, setCounts] = useState<{ pending: number; approved: number; rejected: number }>({ pending: 0, approved: 0, rejected: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const requestId = useRef(0);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // View dialog
@@ -83,16 +87,35 @@ export default function RegistrationsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError, setRejectError] = useState('');
 
-  const fetchRegistrations = useCallback(async (status: RegistrationStatus) => {
-    setLoading(true);
+  const fetchRegistrations = useCallback(async (status: RegistrationStatus, cursor?: string) => {
+    const currentRequest = ++requestId.current;
+    const append = Boolean(cursor);
+    if (append) setLoadingMore(true);
+    else {
+      setLoading(true);
+      setRegistrations([]);
+      setNextCursor(null);
+      setHasMore(false);
+    }
     try {
-      const res = await adminApi.getRegistrations({ status });
-      setRegistrations(res.data?.items ?? res.data?.registrations ?? res.data ?? []);
+      const res = await adminApi.getRegistrations({ status, ...(cursor ? { cursor } : {}) });
+      if (currentRequest !== requestId.current) return;
+      const items = res.data?.items ?? res.data?.registrations ?? res.data ?? [];
+      setRegistrations((previous) => {
+        if (!append) return items;
+        const seen = new Set(previous.map((registration) => registration.id));
+        return [...previous, ...items.filter((registration: Registration) => !seen.has(registration.id))];
+      });
+      setNextCursor(res.data?.next_cursor ?? null);
+      setHasMore(res.data?.has_more === true);
       if (res.data?.counts) setCounts(res.data.counts);
     } catch {
-      setRegistrations([]);
+      if (currentRequest === requestId.current && !append) setRegistrations([]);
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, []);
 
@@ -343,6 +366,18 @@ export default function RegistrationsPage() {
                     </TableBody>
                     </Table>
                   </div>
+                  {hasMore && nextCursor && (
+                    <div className="flex justify-center pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => fetchRegistrations(tab, nextCursor)}
+                        disabled={loadingMore}
+                      >
+                        {loadingMore ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
+                        {loadingMore ? 'Loading...' : 'Load more'}
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </TabsContent>

@@ -74,7 +74,7 @@ class AdminService:
         }
 
     async def get_registrations(self, status: str | None = None, cursor=None, limit=20):
-        query = select(Shop).where(self._tenant_filter(Shop)).order_by(Shop.created_at.desc())
+        query = select(Shop).where(self._tenant_filter(Shop))
         if status == 'pending':
             query = query.where(Shop.status == ShopStatus.PENDING, Shop.rejection_reason.is_(None))
         elif status == 'approved':
@@ -83,9 +83,28 @@ class AdminService:
             query = query.where(Shop.status == ShopStatus.REJECTED)
         elif status:
             query = query.where(Shop.status == status)
-        query = query.limit(limit)
+
+        if cursor:
+            cursor_data = decode_cursor(cursor)
+            try:
+                cursor_time = datetime.fromisoformat(cursor_data["created_at"])
+                cursor_id = UUID(str(cursor_data["id"]))
+            except (KeyError, TypeError, ValueError):
+                pass
+            else:
+                query = query.where(
+                    or_(
+                        Shop.created_at < cursor_time,
+                        and_(Shop.created_at == cursor_time, Shop.id < cursor_id),
+                    )
+                )
+
+        query = query.order_by(Shop.created_at.desc(), Shop.id.desc()).limit(limit + 1)
         result = await self.db.execute(query)
-        shops = result.scalars().all()
+        shops = list(result.scalars().all())
+        has_more = len(shops) > limit
+        if has_more:
+            shops = shops[:limit]
         items = []
         for s in shops:
             admin_result = await self.db.execute(select(User).where(User.id == s.admin_user_id))
@@ -104,7 +123,11 @@ class AdminService:
                 "admin_email": admin.email if admin else None,
                 "rejection_reason": s.rejection_reason,
             })
-        return {"items": items, "next_cursor": None, "has_more": False}
+        next_cursor = None
+        if has_more and shops:
+            last_shop = shops[-1]
+            next_cursor = encode_cursor({"created_at": last_shop.created_at, "id": last_shop.id})
+        return {"items": items, "next_cursor": next_cursor, "has_more": has_more}
 
     async def get_registration_counts(self):
         from sqlalchemy import func
