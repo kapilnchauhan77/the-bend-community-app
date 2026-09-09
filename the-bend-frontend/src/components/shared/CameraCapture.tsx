@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, Video, X, RotateCcw, Check, Upload, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
+import { extractUploadError, MAX_VIDEO_SECONDS, validateVideoFile } from '@/services/uploadApi';
 
-// Maximum recorded video length. Server enforces 10s; we cap a hair below
-// so we never trip the server-side bound on slow clocks.
-const MAX_VIDEO_SECONDS = 9;
 // JPEG quality for still capture — tuned to keep typical 1080p frames
 // well under the 25 MB server cap while preserving readable detail.
 const PHOTO_QUALITY = 0.92;
+const MAX_RECORDING_SECONDS = MAX_VIDEO_SECONDS - 1;
 
 export type CameraResult = {
   url: string;
@@ -35,7 +34,7 @@ type Stage = 'idle' | 'preview' | 'uploading';
 type CaptureMode = 'photo' | 'video';
 
 /**
- * In-app camera modal: live preview, photo + 9 s video capture, fallback file
+ * In-app camera modal: live preview, photo + 59 s video capture, fallback file
  * picker. Releases the underlying MediaStream on close / unmount so the camera
  * indicator turns off even if the user dismisses via the X button mid-record.
  */
@@ -62,7 +61,7 @@ export function CameraCapture({
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamReady, setStreamReady] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0); // 0..MAX_VIDEO_SECONDS (seconds)
+  const [elapsed, setElapsed] = useState(0); // 0..MAX_RECORDING_SECONDS (seconds)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
   const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
   const [capturedType, setCapturedType] = useState<CaptureMode>('photo');
@@ -193,7 +192,8 @@ export function CameraCapture({
     );
   }, [stopStream]);
 
-  // Video capture: MediaRecorder with mime fallback + 9 s auto-stop.
+  // Video capture: MediaRecorder with mime fallback + 59 s auto-stop, leaving
+  // headroom under the server's strict 60-second limit.
   const startRecording = useCallback(() => {
     const stream = streamRef.current;
     if (!stream) return;
@@ -248,7 +248,7 @@ export function CameraCapture({
     recordTimerRef.current = window.setInterval(() => {
       const secs = (Date.now() - recordStartRef.current) / 1000;
       setElapsed(secs);
-      if (secs >= MAX_VIDEO_SECONDS) {
+      if (secs >= MAX_RECORDING_SECONDS) {
         stopRecordingInternal();
       }
     }, 100);
@@ -279,10 +279,18 @@ export function CameraCapture({
 
   // Fallback file picker — when getUserMedia is denied or unsupported, or
   // when the user just prefers to attach an existing photo / clip.
-  const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const isVideo = file.type.startsWith('video/');
+    if (isVideo) {
+      const validationError = await validateVideoFile(file);
+      if (validationError) {
+        setUploadError(validationError);
+        e.target.value = '';
+        return;
+      }
+    }
     const previewUrl = URL.createObjectURL(file);
     setCapturedBlob(file);
     setCapturedPreviewUrl(previewUrl);
@@ -301,10 +309,12 @@ export function CameraCapture({
     try {
       const fd = new FormData();
       const ext =
-        capturedBlob.type === 'video/webm'
+        capturedBlob.type.startsWith('video/webm')
           ? 'webm'
-          : capturedBlob.type === 'video/mp4'
+          : capturedBlob.type.startsWith('video/mp4')
             ? 'mp4'
+            : capturedBlob.type === 'video/quicktime'
+              ? 'mov'
             : 'jpg';
       const filename = (capturedBlob as File).name || `capture.${ext}`;
       fd.append('file', capturedBlob, filename);
@@ -331,10 +341,8 @@ export function CameraCapture({
       onCaptured(result);
       resetCapture();
       onClose();
-    } catch {
-      setUploadError(
-        'Upload failed. Check your connection and try again, or pick a smaller file.'
-      );
+    } catch (error) {
+      setUploadError(extractUploadError(error, 'Upload failed. Check your connection and try again.'));
       setStage('preview');
     }
   }, [capturedBlob, onCaptured, onClose, resetCapture, uploadEndpoint]);
@@ -342,7 +350,7 @@ export function CameraCapture({
   if (!open) return null;
 
   const showToggle = mode === 'both';
-  const ringProgress = Math.min(elapsed / MAX_VIDEO_SECONDS, 1);
+  const ringProgress = Math.min(elapsed / MAX_RECORDING_SECONDS, 1);
   const ringDashOffset = 2 * Math.PI * 32 * (1 - ringProgress);
 
   return (
@@ -421,7 +429,7 @@ export function CameraCapture({
             <div className="relative z-10 px-6 pb-10 pt-6 bg-gradient-to-t from-black/80 to-transparent flex flex-col items-center gap-4">
               {activeMode === 'video' && recording && (
                 <div className="text-sm font-mono font-semibold text-red-400">
-                  {elapsed.toFixed(1)}s / {MAX_VIDEO_SECONDS}s
+              {elapsed.toFixed(1)}s / {MAX_RECORDING_SECONDS}s (60s upload limit)
                 </div>
               )}
 
@@ -527,9 +535,6 @@ export function CameraCapture({
               )}
             </div>
             <div className="px-6 pb-8 pt-5 bg-gradient-to-t from-black/90 to-black/40 flex flex-col gap-3">
-              {uploadError && (
-                <p className="text-xs text-red-300 text-center">{uploadError}</p>
-              )}
               <div className="flex gap-3">
                 <Button
                   variant="outline"
@@ -576,6 +581,12 @@ export function CameraCapture({
               </div>
             </div>
           </div>
+        )}
+
+        {uploadError && (
+          <p role="alert" className="absolute top-14 left-4 right-4 z-20 text-xs text-red-300 text-center">
+            {uploadError}
+          </p>
         )}
 
         {/* Upload spinner overlay */}

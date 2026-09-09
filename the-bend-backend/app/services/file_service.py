@@ -41,7 +41,7 @@ JPEG_QUALITY = 82
 
 # Media upload limits (shared by the unified /upload/media endpoint).
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # 25 MB hard ceiling for any single file
-MAX_VIDEO_DURATION_SECONDS = 60.0     # frontend caps at 60s; allow no extra duration
+MAX_VIDEO_DURATION_SECONDS = 60.0     # library/server policy; recorder uses 59s headroom
 MAX_AUDIO_DURATION_SECONDS = 10.0     # voice notes capped at 9s on the client
 
 ALLOWED_IMAGE_MIME_TYPES = frozenset({
