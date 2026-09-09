@@ -248,7 +248,7 @@ function MiniEventRow({ event, onShowDetails }: { event: CommunityEvent; onShowD
 
 // ─── Day Cell Thumbnail Carousel ──────────────────────────────────────────────
 
-function DayCellCarousel({ events, phase }: { events: CommunityEvent[]; phase: number }) {
+function DayCellCarousel({ events, phase, titleId }: { events: CommunityEvent[]; phase: number; titleId: string }) {
   const [idx, setIdx] = useState(0);
 
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -275,7 +275,7 @@ function DayCellCarousel({ events, phase }: { events: CommunityEvent[]; phase: n
     <div className="absolute inset-0 overflow-hidden">
       <EventThumb key={current.id} event={current} className="absolute inset-0 h-full w-full" />
       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/55 to-transparent" />
-      <span className="absolute inset-x-1 bottom-1 z-10 pr-1 text-[9px] font-medium leading-tight text-white line-clamp-2 drop-shadow-sm">
+      <span id={titleId} className="absolute inset-x-1 bottom-1 z-10 pr-1 text-[9px] font-medium leading-tight text-white line-clamp-2 drop-shadow-sm">
         {current.title}
       </span>
       {events.length > 1 && (
@@ -354,9 +354,8 @@ function CalendarView({ events, onShowDetails }: { events: CommunityEvent[]; onS
 
             const showCarousel = inMonth && dayEvents.length > 0;
             const dayLabel = date.toLocaleDateString();
-            const accessibleLabel = dayEvents.length > 0
-              ? `${dayEvents[0].title}, ${dayLabel}${dayEvents.length > 1 ? `, ${dayEvents.length} events` : ''}`
-              : dayLabel;
+            const accessibleLabel = `${dayLabel}${dayEvents.length > 0 ? `, ${dayEvents.length} events` : ''}`;
+            const titleDescriptionId = `calendar-day-title-${year}-${month}-${idx}`;
 
             return (
               <button
@@ -368,9 +367,10 @@ function CalendarView({ events, onShowDetails }: { events: CommunityEvent[]; onS
                   isSelected ? 'bg-[hsl(160,25%,95%)]' : '',
                 ].join(' ')}
                 aria-label={accessibleLabel}
+                aria-describedby={showCarousel ? titleDescriptionId : undefined}
               >
                 {showCarousel && (
-                  <DayCellCarousel events={dayEvents} phase={idx} />
+                  <DayCellCarousel events={dayEvents} phase={idx} titleId={titleDescriptionId} />
                 )}
 
                 <span

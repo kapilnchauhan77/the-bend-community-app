@@ -16,10 +16,10 @@ interface EventThumbProps {
  */
 export function EventThumb({ event, className = '', imageClassName = 'object-cover' }: EventThumbProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
-  const src = resolveAssetUrl(event.image_url);
-  const showSource = Boolean(src) && failedSource !== src;
+  const src = resolveAssetUrl(event.image_url) ?? null;
+  const showSource = src !== null && failedSource !== src;
 
-  if (showSource) {
+  if (src !== null && showSource) {
     return (
       <div className={`relative w-full overflow-hidden bg-[hsl(35,15%,92%)] ${className}`}>
         <img
