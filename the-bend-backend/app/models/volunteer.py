@@ -15,6 +15,8 @@ class Volunteer(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255))
+    show_phone: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    show_email: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     skills: Mapped[str] = mapped_column(Text, nullable=False)
     about_me: Mapped[str | None] = mapped_column(Text, nullable=True)
     available_time: Mapped[str] = mapped_column(String(255), nullable=False)

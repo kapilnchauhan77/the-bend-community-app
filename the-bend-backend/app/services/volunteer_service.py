@@ -15,6 +15,8 @@ class VolunteerService:
             "name": data.name,
             "phone": data.phone,
             "email": data.email,
+            "show_phone": data.show_phone,
+            "show_email": data.show_email,
             "skills": data.skills,
             "about_me": data.about_me,
             "available_time": data.available_time,

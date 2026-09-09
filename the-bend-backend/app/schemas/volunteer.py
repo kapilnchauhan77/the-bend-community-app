@@ -5,6 +5,8 @@ class VolunteerCreate(BaseModel):
     name: str
     phone: str | None = None
     email: str | None = None
+    show_phone: bool = False
+    show_email: bool = False
     skills: str
     available_time: str
     photo_url: str | None = None
@@ -28,6 +30,15 @@ class VolunteerCreate(BaseModel):
             raise ValueError("Field cannot be empty")
         return v.strip()
 
+    @field_validator("email")
+    @classmethod
+    def email_not_empty(cls, v):
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
+
     @field_validator("about_me")
     @classmethod
     def trim_about_me(cls, v):
@@ -45,6 +56,8 @@ class VolunteerResponse(BaseModel):
     name: str
     phone: str | None = None
     email: str | None = None
+    show_phone: bool = False
+    show_email: bool = False
     skills: str
     available_time: str
     photo_url: str | None = None
@@ -72,6 +85,8 @@ class VolunteerUpdate(BaseModel):
     name: str | None = None
     phone: str | None = None
     email: str | None = None
+    show_phone: bool | None = None
+    show_email: bool | None = None
     skills: str | None = None
     available_time: str | None = None
     photo_url: str | None = None
@@ -93,6 +108,13 @@ class VolunteerUpdate(BaseModel):
             return v
         v = v.strip()
         return v or None
+
+    @field_validator("show_phone", "show_email")
+    @classmethod
+    def consent_not_null(cls, v):
+        if v is None:
+            raise ValueError("Consent fields cannot be null")
+        return v
 
     @field_validator("about_me")
     @classmethod
