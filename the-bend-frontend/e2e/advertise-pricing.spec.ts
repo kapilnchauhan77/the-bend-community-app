@@ -92,7 +92,7 @@ test('advertising selection includes the non-checkout Max option', async ({ page
   expect(postRequests).toEqual([]);
 });
 
-test('Max card stays readable and contained in app dark mode on mobile', async ({ page }) => {
+test('Max card stays readable and contained in app dark mode on mobile', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
   await stubPricingApi(page);
@@ -122,7 +122,7 @@ test('Max card stays readable and contained in app dark mode on mobile', async (
 
   await link.focus();
   await expect(link).toHaveCSS('outline-style', 'solid');
-  await page.screenshot({ path: '/Users/kapil/Desktop/projects/the_bend_community_app/.worktrees/september10-jira-release/.superpowers/sdd/2026-09-10-max-make-with-bend/max-card-dark-mobile.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('max-card-dark-mobile.png'), fullPage: true });
 });
 
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {
