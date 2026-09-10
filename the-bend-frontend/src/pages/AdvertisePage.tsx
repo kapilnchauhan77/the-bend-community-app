@@ -291,16 +291,16 @@ export default function AdvertisePage() {
         {step === 'select' && (
           <section className="mb-14">
             <div
-              className="rounded border-2 p-6"
-              style={{ borderColor: BRONZE, background: 'linear-gradient(135deg, hsl(40,20%,98%), hsl(35,15%,94%))' }}
+              className="rounded border-2 bg-white p-6"
+              style={{ borderColor: BRONZE }}
             >
               <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: BRONZE }}>
                 Permanent custom solution
               </p>
-              <h3 className="font-serif text-xl font-bold mb-2" style={{ color: 'hsl(160, 25%, 24%)' }}>
+              <h3 className="font-serif text-gray-900 text-xl font-bold mb-2">
                 Max
               </h3>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: 'hsl(35, 10%, 40%)' }}>
+              <p className="text-gray-700 text-sm leading-relaxed mb-4">
                 Work with the creators of The Bend on a scoped custom solution. Ongoing services such as hosting, maintenance, support, and third-party fees are quoted separately.
               </p>
               <div className="flex items-center justify-between gap-4">
@@ -309,7 +309,7 @@ export default function AdvertisePage() {
                 </span>
                 <Link
                   to="/make-with-bend"
-                  className="px-4 py-2 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90"
+                  className="px-4 py-2 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
                   style={{ background: BRONZE }}
                 >
                   Make with BEND

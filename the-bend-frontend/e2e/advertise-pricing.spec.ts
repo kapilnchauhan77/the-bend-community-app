@@ -92,6 +92,39 @@ test('advertising selection includes the non-checkout Max option', async ({ page
   expect(postRequests).toEqual([]);
 });
 
+test('Max card stays readable and contained in app dark mode on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  const heading = page.getByRole('heading', { name: 'Max', exact: true });
+  const card = heading.locator('..');
+  const link = page.getByRole('link', { name: 'Make with BEND', exact: true });
+  await expect(heading).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  const contrastRatio = await card.evaluate((element) => {
+    const parseRgb = (value: string) => value.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+    const relativeLuminance = (value: string) => {
+      const [red, green, blue] = parseRgb(value).map((channel) => channel / 255);
+      return [red, green, blue].map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+        .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    };
+    const background = getComputedStyle(element).backgroundColor;
+    const text = getComputedStyle(element.querySelector('p.text-gray-700') as HTMLElement).color;
+    const backgroundLuminance = relativeLuminance(background);
+    const textLuminance = relativeLuminance(text);
+    return (Math.max(backgroundLuminance, textLuminance) + 0.05) / (Math.min(backgroundLuminance, textLuminance) + 0.05);
+  });
+  expect(contrastRatio).toBeGreaterThanOrEqual(4.5);
+
+  await link.focus();
+  await expect(link).toHaveCSS('outline-style', 'solid');
+  await page.screenshot({ path: '/Users/kapil/Desktop/projects/the_bend_community_app/.worktrees/september10-jira-release/.superpowers/sdd/2026-09-10-max-make-with-bend/max-card-dark-mobile.png', fullPage: true });
+});
+
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {
   await stubPricingApi(page);
   await page.goto('/advertise');
