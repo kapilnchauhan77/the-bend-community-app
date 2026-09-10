@@ -271,7 +271,7 @@ export default function AdvertisePage() {
                 <p className="text-sm">No pricing options available at this time. Please check back soon.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div data-pricing-grid className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {pricingGroups.map((group) => {
                   const selectedId = selectedPricingByPlacement[group.placement];
                   const selected = group.plans.find((plan) => plan.id === selectedId)
@@ -339,14 +339,16 @@ export default function AdvertisePage() {
               className="advertise-max-card rounded border-2 bg-white p-6"
               style={{ borderColor: BRONZE }}
             >
-              <h3 className="font-serif text-gray-900 text-xl font-bold mb-2">
-                Max · Build with BEND
-              </h3>
-              <p data-advertise-max-body className="text-gray-700 text-sm leading-relaxed mb-4" style={{ color: 'hsl(30, 10%, 35%)' }}>
-                Turn your business idea into a working product with the team behind The Bend. From reservation systems to custom apps, we’ll help you build it.
-              </p>
-              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                <div>
+              <div className="flex flex-col md:flex-row gap-6">
+                <div data-max-copy className="flex-1">
+                  <h3 className="font-serif text-gray-900 text-xl font-bold mb-2">
+                    Max · Build with BEND
+                  </h3>
+                  <p data-advertise-max-body className="text-gray-700 text-sm leading-relaxed" style={{ color: 'hsl(30, 10%, 35%)' }}>
+                    Turn your business idea into a working product with the team behind The Bend. From reservation systems to custom apps, we’ll help you build it.
+                  </p>
+                </div>
+                <div data-max-pricing className="flex flex-col items-start md:items-end flex-shrink-0">
                   <span className="font-serif text-2xl font-bold" style={{ color: 'hsl(35, 55%, 28%)' }}>
                     Custom pricing
                   </span>
@@ -354,7 +356,6 @@ export default function AdvertisePage() {
                   <p className="text-gray-700 text-xs mt-1" style={{ color: 'hsl(30, 10%, 35%)' }}>
                     Hosting, support, and third-party costs are quoted separately.
                   </p>
-                </div>
                 <Link
                   to="/make-with-bend"
                   data-advertise-max-cta
@@ -363,6 +364,7 @@ export default function AdvertisePage() {
                 >
                   Make with BEND
                 </Link>
+                </div>
               </div>
             </div>
           </section>

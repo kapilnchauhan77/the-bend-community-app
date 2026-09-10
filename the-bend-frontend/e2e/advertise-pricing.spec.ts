@@ -210,6 +210,9 @@ test('placement cards meet responsive layout, control size, and light/dark contr
     await page.goto('/advertise');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const cards = page.locator('[data-pricing-card]');
+    const pricingGrid = page.locator('[data-pricing-grid]');
+    const tracks = await pricingGrid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+    expect(tracks).toBe(viewport.width === 1280 ? 2 : 1);
     const widths = await cards.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().width));
     if (viewport.width === 1280) expect(widths.every((width) => width > 400)).toBe(true);
     else expect(widths.every((width) => width <= 320)).toBe(true);
@@ -230,6 +233,31 @@ test('placement cards meet responsive layout, control size, and light/dark contr
   expect(await contrast(darkCard.locator('[data-pricing-price]'))).toBeGreaterThanOrEqual(4.5);
   expect(await contrast(darkCard.getByRole('combobox'))).toBeGreaterThanOrEqual(4.5);
   expect(await contrast(darkCard.getByRole('button', { name: 'Select', exact: true }))).toBeGreaterThanOrEqual(4.5);
+});
+
+test('Max card uses a responsive copy and pricing split', async ({ page }) => {
+  await stubPricingApi(page);
+  const card = page.locator('[data-advertise-max-card]');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/advertise');
+  const desktop = await card.evaluate((element) => {
+    const copy = element.querySelector('[data-max-copy]')!.getBoundingClientRect();
+    const pricing = element.querySelector('[data-max-pricing]')!.getBoundingClientRect();
+    return { sameRow: Math.abs(copy.top - pricing.top) < 40 };
+  });
+  expect(desktop.sameRow).toBe(true);
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto('/advertise');
+  const mobile = await card.evaluate((element) => {
+    const cardBox = element.getBoundingClientRect();
+    const copy = element.querySelector('[data-max-copy]')!.getBoundingClientRect();
+    const pricing = element.querySelector('[data-max-pricing]')!.getBoundingClientRect();
+    const cta = element.querySelector('[data-advertise-max-cta]')!.getBoundingClientRect();
+    return { stacked: pricing.top >= copy.bottom, ctaHeight: cta.height, contained: cta.left >= cardBox.left && cta.right <= cardBox.right && cta.top >= cardBox.top && cta.bottom <= cardBox.bottom };
+  });
+  expect(mobile.stacked).toBe(true);
+  expect(mobile.ctaHeight).toBeGreaterThanOrEqual(44);
+  expect(mobile.contained).toBe(true);
 });
 
 test('checkout submits the selected pricing record ID', async ({ page }) => {
