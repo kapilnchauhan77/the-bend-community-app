@@ -132,3 +132,17 @@ for (const [name, osScheme, appScheme, expectedColor] of [
     await expect(page.getByRole('heading', { name: 'What we can build', exact: true })).toHaveCSS('color', expectedColor);
   });
 }
+
+test('theme toggle updates app dark mode and restores light mode', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('theme', 'light'));
+  await page.goto('/make-with-bend');
+  const heading = page.getByRole('heading', { name: 'What we can build', exact: true });
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false);
+  await expect(heading).toHaveCSS('color', 'rgb(46, 77, 66)');
+  await page.getByRole('button', { name: 'Toggle dark mode' }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
+  await expect(heading).toHaveCSS('color', 'rgb(229, 226, 220)');
+  await page.getByRole('button', { name: 'Toggle dark mode' }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false);
+  await expect(heading).toHaveCSS('color', 'rgb(46, 77, 66)');
+});
