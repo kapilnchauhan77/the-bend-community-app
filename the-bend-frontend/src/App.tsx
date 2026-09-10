@@ -43,6 +43,7 @@ import ReportedPostsPage from '@/pages/admin/ReportedPostsPage';
 import BusinessProfilePage from '@/pages/BusinessProfilePage';
 import DirectoryPage from '@/pages/DirectoryPage';
 import AdvertisePage from '@/pages/AdvertisePage';
+import MakeWithBendPage from '@/pages/MakeWithBendPage';
 import GuidelinesViewPage from '@/pages/GuidelinesViewPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import TenantsListPage from '@/pages/super-admin/TenantsListPage';
@@ -82,6 +83,7 @@ function App() {
         <Route path="/events" element={<EventsPage />} />
         <Route path="/bender" element={<BenderPage />} />
         <Route path="/advertise" element={<AdvertisePage />} />
+        <Route path="/make-with-bend" element={<MakeWithBendPage />} />
         <Route path="/advertise/success" element={<AdvertisePage />} />
         <Route path="/guidelines" element={<GuidelinesViewPage />} />
         <Route path="/business/:shopId" element={<BusinessProfilePage />} />
