@@ -293,29 +293,31 @@ export default function AdvertisePage() {
                         {selected.name}
                       </h3>
                       {(placementDescriptions[group.placement] || selected.description) && (
-                        <p data-pricing-description className="text-xs leading-relaxed mb-3" style={{ color: 'hsl(35, 10%, 50%)' }}>
+                        <p data-pricing-description className="text-xs leading-relaxed mb-3" style={{ color: 'hsl(35, 10%, 35%)' }}>
                           {placementDescriptions[group.placement] || selected.description}
                         </p>
                       )}
                       <div className="mt-auto">
-                        <label className="block text-xs font-medium mb-2" htmlFor={`duration-${group.placement}`}>Duration</label>
+                        <span className="sr-only" id={`duration-accessible-${group.placement}`}>{selected.name} duration</span>
+                        <label className="block text-xs font-medium mb-2" id={`duration-label-${group.placement}`} htmlFor={`duration-${group.placement}`}>Duration</label>
                         <select
                           id={`duration-${group.placement}`}
+                          aria-labelledby={`duration-accessible-${group.placement}`}
                           value={selected.id}
                           onChange={(event) => setSelectedPricingByPlacement((previous) => ({ ...previous, [group.placement]: event.target.value }))}
-                          className="w-full min-h-[44px] border rounded px-3 text-sm mb-4 bg-white"
+                          className="w-full min-h-[44px] border rounded px-3 text-sm mb-4 bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                           style={{ borderColor: CARD_BORDER }}
                         >
                           {group.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.duration_days} days</option>)}
                         </select>
                         <div className="flex items-center justify-between">
-                          <span data-pricing-price className="font-serif text-2xl font-bold" style={{ color: BRONZE }}>
+                          <span data-pricing-price aria-live="polite" className="font-serif text-2xl font-bold" style={{ color: 'hsl(35, 55%, 28%)' }}>
                             {formatPrice(selected.price_cents)}
                           </span>
                           <button
                             onClick={() => handleSelectPlan(selected)}
                             className="px-4 py-2 min-h-[44px] text-sm font-semibold text-white rounded transition-opacity hover:opacity-90"
-                            style={{ background: BRONZE }}
+                            style={{ background: 'hsl(35, 55%, 28%)' }}
                           >
                             Select
                           </button>
@@ -337,26 +339,26 @@ export default function AdvertisePage() {
               className="advertise-max-card rounded border-2 bg-white p-6"
               style={{ borderColor: BRONZE }}
             >
-              <p data-advertise-max-accent className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'hsl(35, 55%, 28%)' }}>
-                Permanent custom solution
-              </p>
               <h3 className="font-serif text-gray-900 text-xl font-bold mb-2">
                 Max · Build with BEND
               </h3>
               <p data-advertise-max-body className="text-gray-700 text-sm leading-relaxed mb-4" style={{ color: 'hsl(30, 10%, 35%)' }}>
                 Turn your business idea into a working product with the team behind The Bend. From reservation systems to custom apps, we’ll help you build it.
               </p>
-              <p className="text-gray-700 text-sm leading-relaxed mb-4" style={{ color: 'hsl(30, 10%, 35%)' }}>
-                Hosting, support, and third-party costs are quoted separately.
-              </p>
-              <div className="flex items-center justify-between gap-4">
-                <span className="font-serif text-2xl font-bold" style={{ color: 'hsl(35, 55%, 28%)' }}>
-                  Custom pricing
-                </span>
+              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                  <span className="font-serif text-2xl font-bold" style={{ color: 'hsl(35, 55%, 28%)' }}>
+                    Custom pricing
+                  </span>
+                  <p data-advertise-max-accent className="text-xs mt-1" style={{ color: 'hsl(35, 55%, 28%)' }}>Permanent custom solution.</p>
+                  <p className="text-gray-700 text-xs mt-1" style={{ color: 'hsl(30, 10%, 35%)' }}>
+                    Hosting, support, and third-party costs are quoted separately.
+                  </p>
+                </div>
                 <Link
                   to="/make-with-bend"
                   data-advertise-max-cta
-                  className="px-4 py-2 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+                  className="px-4 py-3 min-h-[44px] text-sm font-semibold text-white rounded transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
                   style={{ background: 'hsl(35, 55%, 28%)' }}
                 >
                   Make with BEND
