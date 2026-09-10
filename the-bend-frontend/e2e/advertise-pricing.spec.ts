@@ -59,13 +59,13 @@ test('Westmoreland sponsor packages display whole-dollar prices without cents', 
   await stubPricingApi(page);
   await page.goto('/advertise');
 
-  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(12);
+  await expect(page.locator('[data-pricing-card]')).toHaveCount(4);
+  await expect(page.getByRole('combobox')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(4);
+  await expect(page.getByText('Placement:', { exact: true })).toHaveCount(0);
   await expect(page.getByText('$100', { exact: true })).toBeVisible();
-  await expect(page.getByText('$180', { exact: true })).toBeVisible();
-  await expect(page.getByText('$240', { exact: true })).toBeVisible();
-  await expect(page.getByText('$108', { exact: true })).toBeVisible();
-  await expect(page.getByText('$144', { exact: true })).toHaveCount(3);
-  await expect(page.getByText('$192', { exact: true })).toHaveCount(2);
+  await expect(page.locator('[data-pricing-card="homepage"] option')).toHaveText(['30 days', '60 days', '90 days']);
+  await expect(page.locator('[data-pricing-card="footer"] option')).toHaveText(['30 days', '60 days', '90 days']);
   await expect(page.getByText(/\$\d+\.00/)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Select', exact: true }).first().click();
@@ -81,10 +81,12 @@ test('advertising selection includes the non-checkout Max option', async ({ page
   await stubPricingApi(page);
   await page.goto('/advertise');
 
-  await expect(page.getByRole('heading', { name: 'Max', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Max · Build with BEND', exact: true })).toBeVisible();
+  await expect(page.getByText('Turn your business idea into a working product with the team behind The Bend. From reservation systems to custom apps, we’ll help you build it.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Hosting, support, and third-party costs are quoted separately.', { exact: true })).toBeVisible();
   await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Make with BEND', exact: true })).toHaveAttribute('href', '/make-with-bend');
-  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(12);
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(4);
   await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: 'Make with BEND', exact: true }).click();
@@ -98,7 +100,7 @@ test('Max card stays readable and contained in app dark mode on mobile', async (
   await stubPricingApi(page);
   await page.goto('/advertise');
 
-  const heading = page.getByRole('heading', { name: 'Max', exact: true });
+  const heading = page.getByRole('heading', { name: 'Max · Build with BEND', exact: true });
   const card = heading.locator('..');
   const link = page.getByRole('link', { name: 'Make with BEND', exact: true });
   await expect(heading).toBeVisible();
@@ -160,6 +162,71 @@ test('Max card light-mode text and CTA colors meet WCAG AA contrast', async ({ p
   expect(values.accent).toBeGreaterThanOrEqual(4.5);
   expect(values.body).toBeGreaterThanOrEqual(4.5);
   expect(values.cta).toBeGreaterThanOrEqual(4.5);
+});
+
+test('placement cards default to 30 days and display each placement record', async ({ page }) => {
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  const expected = [
+    ['homepage', 'Homepage Feature', 'Feature your business on the community homepage.', '$100'],
+    ['footer', 'Footer Partners', 'Show your business in the partner strip on every page.', '$60'],
+    ['events', 'Events Page', 'Reach people exploring local events.', '$80'],
+    ['browse', 'Browse Page', 'Reach people browsing community listings.', '$80'],
+  ] as const;
+  for (const [placement, title, description, price] of expected) {
+    const card = page.locator(`[data-pricing-card="${placement}"]`);
+    await expect(card).toHaveCount(1);
+    await expect(card.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    await expect(card.getByText(description, { exact: true })).toBeVisible();
+    await expect(card.getByText(price, { exact: true })).toBeVisible();
+    await expect(card.getByRole('combobox')).toHaveValue(`plan-${expected.indexOf(expected.find((row) => row[0] === placement)!) * 3 + 1}`);
+  }
+
+  const homepage = page.locator('[data-pricing-card="homepage"]');
+  await homepage.getByRole('combobox').selectOption('plan-3');
+  await expect(homepage.getByText('$240', { exact: true })).toBeVisible();
+  await expect(homepage.getByText('Feature your business on the community homepage.', { exact: true })).toBeVisible();
+  await expect(homepage.getByRole('combobox')).toHaveValue('plan-3');
+});
+
+test('checkout submits the selected pricing record ID', async ({ page }) => {
+  await stubPricingApi(page);
+  let checkoutBody: Record<string, unknown> | undefined;
+  await page.route('**/api/v1/advertising/checkout', async (route) => {
+    checkoutBody = JSON.parse(route.request().postData() || '{}') as Record<string, unknown>;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: {} }) });
+  });
+  await page.goto('/advertise');
+  const card = page.locator('[data-pricing-card="events"]');
+  await card.getByRole('combobox').selectOption('plan-9');
+  await card.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByPlaceholder('Jane Smith').fill('Jane Smith');
+  await page.getByPlaceholder('jane@example.com').fill('jane@example.com');
+  await page.getByPlaceholder('My Business Name').fill('Jane Business');
+  await page.getByRole('button', { name: 'Proceed to Payment', exact: true }).click();
+  await expect.poll(() => checkoutBody).toMatchObject({ pricing_id: 'plan-9', name: 'Jane Business' });
+});
+
+test('placement without a 30-day record defaults to its earliest duration', async ({ page }) => {
+  await page.route('**/api/v1/tenant/current', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend — Westmoreland', primary_color: 'hsl(160,25%,24%)' }) });
+  });
+  await page.route('**/api/v1/advertising/pricing', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [
+      { id: 'homepage-60', name: 'Homepage Feature', description: '60-day homepage sponsorship', placement: 'homepage', duration_days: 60, price_cents: 18000 },
+      { id: 'homepage-90', name: 'Homepage Feature', description: '90-day homepage sponsorship', placement: 'homepage', duration_days: 90, price_cents: 24000 },
+    ] }) });
+  });
+  await page.route('**/api/v1/**', async (route) => {
+    if (route.request().url().includes('/tenant/current') || route.request().url().includes('/advertising/pricing')) return route.fallback();
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
+  });
+  await page.goto('/advertise');
+  const card = page.locator('[data-pricing-card]');
+  await expect(card.getByRole('combobox')).toHaveValue('homepage-60');
+  await expect(card.getByRole('combobox').locator('option')).toHaveText(['60 days', '90 days']);
+  await expect(card.getByText('$180', { exact: true })).toBeVisible();
 });
 
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {

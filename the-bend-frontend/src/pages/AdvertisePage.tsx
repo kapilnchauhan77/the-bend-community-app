@@ -11,6 +11,30 @@ const CARD_BORDER = 'hsl(35, 18%, 84%)';
 const CARD_BG = 'hsl(40, 20%, 98%)';
 const SELECTED_BORDER = 'hsl(35, 45%, 42%)';
 
+type PlacementPricingGroup = { placement: string; plans: AdPricing[] };
+
+function groupPricingByPlacement(items: AdPricing[]): PlacementPricingGroup[] {
+  const groups: PlacementPricingGroup[] = [];
+  const byPlacement = new Map<string, PlacementPricingGroup>();
+  for (const item of items) {
+    let group = byPlacement.get(item.placement);
+    if (!group) {
+      group = { placement: item.placement, plans: [] };
+      byPlacement.set(item.placement, group);
+      groups.push(group);
+    }
+    group.plans.push(item);
+  }
+  return groups.map((group) => ({ ...group, plans: [...group.plans].sort((a, b) => a.duration_days - b.duration_days) }));
+}
+
+const placementDescriptions: Record<string, string> = {
+  homepage: 'Feature your business on the community homepage.',
+  footer: 'Show your business in the partner strip on every page.',
+  events: 'Reach people exploring local events.',
+  browse: 'Reach people browsing community listings.',
+};
+
 function formatPrice(cents: number): string {
   const dollars = cents / 100;
   return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
@@ -21,6 +45,7 @@ export default function AdvertisePage() {
   const sessionId = searchParams.get('session_id');
 
   const [pricing, setPricing] = useState<AdPricing[]>([]);
+  const [selectedPricingByPlacement, setSelectedPricingByPlacement] = useState<Record<string, string>>({});
   const [selectedPlan, setSelectedPlan] = useState<AdPricing | null>(null);
   const [formData, setFormData] = useState({
     contact_name: '',
@@ -72,6 +97,8 @@ export default function AdvertisePage() {
     setStep('details');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  const pricingGroups = groupPricingByPlacement(pricing);
 
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -142,6 +169,10 @@ export default function AdvertisePage() {
   return (
     <PageLayout>
       <style>{`
+        html.dark .advertise-pricing-card { background: hsl(25, 10%, 12%) !important; }
+        html.dark .advertise-pricing-card [data-pricing-title] { color: hsl(40, 15%, 88%) !important; }
+        html.dark .advertise-pricing-card [data-pricing-description] { color: hsl(40, 12%, 72%) !important; }
+        html.dark .advertise-pricing-card [data-pricing-price] { color: hsl(35, 55%, 60%) !important; }
         html.dark .advertise-max-card [data-advertise-max-accent] { color: hsl(35, 55%, 60%) !important; }
         html.dark .advertise-max-card [data-advertise-max-body] { color: hsl(40, 12%, 72%) !important; }
         html.dark .advertise-max-card [data-advertise-max-cta] { background: hsl(35, 55%, 28%) !important; }
@@ -240,44 +271,50 @@ export default function AdvertisePage() {
                 <p className="text-sm">No pricing options available at this time. Please check back soon.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {pricing.map((plan) => {
-                  const isSelected = selectedPlan?.id === plan.id;
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {pricingGroups.map((group) => {
+                  const selectedId = selectedPricingByPlacement[group.placement];
+                  const selected = group.plans.find((plan) => plan.id === selectedId)
+                    ?? group.plans.find((plan) => plan.duration_days === 30)
+                    ?? group.plans[0];
+                  if (!selected) return null;
                   return (
                     <div
-                      key={plan.id}
-                      className="rounded border p-6 flex flex-col transition-all duration-150"
+                      key={group.placement}
+                      data-pricing-card={group.placement}
+                      className="advertise-pricing-card rounded border p-6 flex flex-col transition-all duration-150"
                       style={{
-                        borderColor: isSelected ? SELECTED_BORDER : CARD_BORDER,
-                        borderWidth: isSelected ? '2px' : '1px',
+                        borderColor: CARD_BORDER,
+                        borderWidth: '1px',
                         background: 'white',
-                        boxShadow: isSelected ? `0 0 0 1px ${SELECTED_BORDER}20` : undefined,
                       }}
                     >
-                      <h3 className="font-serif text-lg font-bold mb-1" style={{ color: 'hsl(160, 25%, 24%)' }}>
-                        {plan.name}
+                      <h3 data-pricing-title className="font-serif text-lg font-bold mb-1" style={{ color: 'hsl(160, 25%, 24%)' }}>
+                        {selected.name}
                       </h3>
-                      {plan.description && (
-                        <p className="text-xs leading-relaxed mb-3" style={{ color: 'hsl(35, 10%, 50%)' }}>
-                          {plan.description}
+                      {(placementDescriptions[group.placement] || selected.description) && (
+                        <p data-pricing-description className="text-xs leading-relaxed mb-3" style={{ color: 'hsl(35, 10%, 50%)' }}>
+                          {placementDescriptions[group.placement] || selected.description}
                         </p>
                       )}
                       <div className="mt-auto">
-                        <div className="flex items-center gap-2 mb-2 text-xs" style={{ color: 'hsl(35, 10%, 55%)' }}>
-                          <span className="uppercase tracking-wide font-medium">Placement:</span>
-                          <span>{plan.placement}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mb-4 text-xs" style={{ color: 'hsl(35, 10%, 55%)' }}>
-                          <span className="uppercase tracking-wide font-medium">Duration:</span>
-                          <span>{plan.duration_days} day{plan.duration_days !== 1 ? 's' : ''}</span>
-                        </div>
+                        <label className="block text-xs font-medium mb-2" htmlFor={`duration-${group.placement}`}>Duration</label>
+                        <select
+                          id={`duration-${group.placement}`}
+                          value={selected.id}
+                          onChange={(event) => setSelectedPricingByPlacement((previous) => ({ ...previous, [group.placement]: event.target.value }))}
+                          className="w-full min-h-[44px] border rounded px-3 text-sm mb-4 bg-white"
+                          style={{ borderColor: CARD_BORDER }}
+                        >
+                          {group.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.duration_days} days</option>)}
+                        </select>
                         <div className="flex items-center justify-between">
-                          <span className="font-serif text-2xl font-bold" style={{ color: BRONZE }}>
-                            {formatPrice(plan.price_cents)}
+                          <span data-pricing-price className="font-serif text-2xl font-bold" style={{ color: BRONZE }}>
+                            {formatPrice(selected.price_cents)}
                           </span>
                           <button
-                            onClick={() => handleSelectPlan(plan)}
-                            className="px-4 py-2 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90"
+                            onClick={() => handleSelectPlan(selected)}
+                            className="px-4 py-2 min-h-[44px] text-sm font-semibold text-white rounded transition-opacity hover:opacity-90"
                             style={{ background: BRONZE }}
                           >
                             Select
@@ -304,10 +341,13 @@ export default function AdvertisePage() {
                 Permanent custom solution
               </p>
               <h3 className="font-serif text-gray-900 text-xl font-bold mb-2">
-                Max
+                Max · Build with BEND
               </h3>
               <p data-advertise-max-body className="text-gray-700 text-sm leading-relaxed mb-4" style={{ color: 'hsl(30, 10%, 35%)' }}>
-                Work with the creators of The Bend on a scoped custom solution. Ongoing services such as hosting, maintenance, support, and third-party fees are quoted separately.
+                Turn your business idea into a working product with the team behind The Bend. From reservation systems to custom apps, we’ll help you build it.
+              </p>
+              <p className="text-gray-700 text-sm leading-relaxed mb-4" style={{ color: 'hsl(30, 10%, 35%)' }}>
+                Hosting, support, and third-party costs are quoted separately.
               </p>
               <div className="flex items-center justify-between gap-4">
                 <span className="font-serif text-2xl font-bold" style={{ color: 'hsl(35, 55%, 28%)' }}>
