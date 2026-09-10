@@ -52,7 +52,7 @@
 
 - [ ] **Step 1: Write the failing public-page tests**
 
-Create `e2e/make-with-bend.spec.ts`. Stub only `/api/v1/tenant/current` with the complete public tenant shape used by `PageLayout`; let unexpected Bend API calls fail the test. Add separate tests so a slow viewport does not consume a combined whole-test timeout.
+Create `e2e/make-with-bend.spec.ts`. Stub `/api/v1/tenant/current` with the complete public tenant shape used by `PageLayout` and the existing public footer-sponsor GET with an empty `items` response. Let any other Bend API request fail the test, and separately assert that Max triggers no inquiry or checkout POST. Add separate tests so a slow viewport does not consume a combined whole-test timeout. Preserve the complete existing `PageLayout`, including its navbar, footer, bottom navigation, install banner, and sponsor banner.
 
 The first test must navigate directly to `/make-with-bend` and assert:
 

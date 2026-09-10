@@ -1,6 +1,6 @@
 # Max: Make with BEND
 
-Design for BEND-5. User approved the offering and confirmed the Gmail recipients on September 10, 2026. Written design review is pending. No implementation or deployment is claimed.
+Design for BEND-5. User approved the offering, confirmed the Gmail recipients, approved this written design, and authorized implementation on September 10, 2026. No deployment is claimed.
 
 ## Agreed offer
 

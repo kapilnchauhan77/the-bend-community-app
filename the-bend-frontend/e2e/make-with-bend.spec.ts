@@ -13,13 +13,15 @@ const tenant = {
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/**', (route) => {
-    if (new URL(route.request().url()).pathname === '/api/v1/tenant/current') {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === 'GET' && pathname === '/api/v1/tenant/current') {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify(tenant) });
     }
-    if (new URL(route.request().url()).pathname === '/api/v1/sponsors') {
+    if (request.method() === 'GET' && pathname === '/api/v1/sponsors') {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
     }
-    throw new Error(`Unexpected Bend API request: ${route.request().method()} ${route.request().url()}`);
+    throw new Error(`Unexpected Bend API request: ${request.method()} ${request.url()}`);
   });
 });
 
