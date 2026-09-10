@@ -1,5 +1,5 @@
 import { PageLayout } from '@/components/layout/PageLayout';
-import { buildMaxGmailComposeUrl, buildMaxMailtoUrl, maxPortfolioProjects, maxProcessSteps, maxServiceExamples } from '@/data/maxOffering';
+import { buildMaxGmailComposeUrl, buildMaxMailtoUrl, maxPortfolioGroups, maxPortfolioProjects, maxProcessSteps, maxServiceExamples } from '@/data/maxOffering';
 
 const BRONZE = 'hsl(35, 45%, 42%)';
 const BORDER = 'hsl(35, 18%, 84%)';
@@ -48,12 +48,16 @@ export default function MakeWithBendPage() {
         <section aria-labelledby="work-heading" className="mb-20">
           <h2 id="work-heading" className="max-heading mb-8 text-3xl font-bold text-[hsl(160,25%,24%)]">Selected work</h2>
           <div className="space-y-10">
-            {(['Community and hospitality', 'Platforms and applied AI'] as const).map((group) => <div key={group} data-portfolio-group><h3 className="max-heading mb-5 text-xl font-bold text-[hsl(160,25%,24%)]">{group}</h3><div className="grid gap-8 md:grid-cols-2">{maxPortfolioProjects.filter((project) => project.group === group).map((project) => (
+            {maxPortfolioGroups.map((group) => {
+              const projects = maxPortfolioProjects.filter((project) => project.groupId === group.id);
+              if (projects.length === 0) return null;
+              return <div key={group.id} data-portfolio-group><h3 className="max-heading mb-5 text-xl font-bold text-[hsl(160,25%,24%)]">{group.label}</h3><div className="grid gap-8 md:grid-cols-2">{projects.map((project) => (
               <article key={project.slug} className="overflow-hidden rounded border bg-[hsl(40,20%,98%)]" style={{ borderColor: BORDER }}>
                 <div className="bg-[hsl(35,15%,94%)] p-2"><img src={project.image.src} alt={project.image.alt} width={project.image.width} height={project.image.height} loading="lazy" decoding="async" className="aspect-video h-auto w-full object-contain" /></div>
-                <div className="p-5"><h3 className="max-heading text-xl font-bold text-[hsl(160,25%,24%)]">{project.name}</h3><p className="mt-2 text-sm leading-relaxed text-[hsl(30,10%,40%)]">{project.contribution}</p><a data-max-accent href={project.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs font-semibold uppercase tracking-wide underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4" style={{ color: 'var(--max-accent)' }}>View public page</a></div>
+                <div className="p-5"><h4 className="max-heading text-xl font-bold text-[hsl(160,25%,24%)]">{project.name}</h4><p className="mt-2 text-sm leading-relaxed text-[hsl(30,10%,40%)]">{project.contribution}</p><a data-max-accent href={project.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs font-semibold uppercase tracking-wide underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4" style={{ color: 'var(--max-accent)' }}>View public page</a></div>
               </article>
-            ))}</div></div>)}
+            ))}</div></div>;
+            })}
           </div>
         </section>
 

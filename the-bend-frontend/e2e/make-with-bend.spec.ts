@@ -53,24 +53,37 @@ test('renders the offering and approved portfolio', async ({ page }) => {
   await expect(page.getByText(/hosting, maintenance, support, third-party/i)).toBeVisible();
   await expect(page.getByText(/work with the creators of The Bend/i)).toBeVisible();
 
+  const expectedGroups = [
+    ['Community and learning', ['The Bend', 'Law study platform']],
+    ['Restaurants and hospitality', ['Authentica', 'Aroma', 'RecipeOps', 'Restaurant SOP Operations', 'Taco Mexicana', 'The Inn at Montross']],
+    ['Business tools and AI', ['Provoke', 'Clario', 'Procys Identity Verification', 'Inperio AMIE']],
+    ['Healthcare', ['Arogya Indoor Care AI']],
+  ] as const;
   const groups = page.locator('[data-portfolio-group]');
-  await expect(groups).toHaveCount(2);
-  await expect(groups.nth(0)).toContainText('Community and hospitality');
-  await expect(groups.nth(0)).toContainText('The Bend');
-  await expect(groups.nth(0)).toContainText('Authentica');
-  await expect(groups.nth(0)).toContainText('Aroma');
-  await expect(groups.nth(1)).toContainText('Platforms and applied AI');
-  await expect(groups.nth(1)).toContainText('Provoke');
-  await expect(groups.nth(1)).toContainText('Law study platform');
+  await expect(groups).toHaveCount(expectedGroups.length);
+  await expect(groups.locator('h3')).toHaveText(expectedGroups.map(([label]) => label));
+  for (const [index, [label, projects]] of expectedGroups.entries()) {
+    await expect(groups.nth(index)).toContainText(label);
+    await expect(groups.nth(index).locator('h4')).toHaveText(projects);
+  }
 
   const publishedProjects = [
-    ['The Bend', '/images/max-portfolio/bend-community.jpg'],
-    ['Provoke', '/images/max-portfolio/provoke-space.jpg'],
-    ['Authentica', '/images/max-portfolio/authentica.jpg'],
-    ['Aroma', '/images/max-portfolio/aroma.jpg'],
-    ['Law study platform', '/images/max-portfolio/acil-law.jpg'],
+    ['The Bend', '/images/max-portfolio/bend-community.jpg', 'https://bend.community/'],
+    ['Provoke', '/images/max-portfolio/provoke-space.jpg', 'https://www.provoke.space/'],
+    ['Authentica', '/images/max-portfolio/authentica.jpg', 'https://authentica-1jc.pages.dev/'],
+    ['Aroma', '/images/max-portfolio/aroma.jpg', 'https://aroma-7iy.pages.dev/'],
+    ['Law study platform', '/images/max-portfolio/acil-law.jpg', 'https://study.provoke.space/'],
+    ['RecipeOps', '/images/max-portfolio/recipeops.jpg', 'https://recipeops-kitchen-kapil.netlify.app/'],
+    ['Restaurant SOP Operations', '/images/max-portfolio/restaurant-sop.jpg', 'https://restaurant-sop-operations.netlify.app/'],
+    ['Clario', '/images/max-portfolio/clario.jpg', 'https://forensic.34-9-214-75.nip.io/'],
+    ['Arogya Indoor Care AI', '/images/max-portfolio/arogya-indoor-care.jpg', 'https://aurora-ehr.duckdns.org/'],
+    ['Procys Identity Verification', '/images/max-portfolio/procys-iv.jpg', 'https://identity-verification.op-dev.net/'],
+    ['Inperio AMIE', '/images/max-portfolio/inperio-amie.jpg', 'https://ai.inperio.app/'],
+    ['Taco Mexicana', '/images/max-portfolio/taco-mexicana.jpg', 'https://taco-mexicana.vercel.app/'],
+    ['The Inn at Montross', '/images/max-portfolio/inn-at-montross.jpg', 'https://innapp-three.vercel.app/'],
   ] as const;
-  for (const [name, src] of publishedProjects) {
+  await expect(page.locator('[data-portfolio-group] h4')).toHaveCount(publishedProjects.length);
+  for (const [name, src, href] of publishedProjects) {
     await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
     const image = page.locator(`img[src="${src}"]`);
     await image.scrollIntoViewIfNeeded();
@@ -79,8 +92,9 @@ test('renders the offering and approved portfolio', async ({ page }) => {
     await expect(image).toHaveAttribute('height', '720');
     await expect(image).toHaveAttribute('alt', /.+/);
     await expect.poll(() => image.evaluate((el) => [el.naturalWidth, el.naturalHeight])).toEqual([1280, 720]);
+    await expect(page.getByRole('heading', { name, exact: true }).locator('..').getByRole('link', { name: /View public page|Visit website/ })).toHaveAttribute('href', href);
   }
-  for (const name of ['Taco Mexicana', 'Procys Identity Verification', 'Inperio AMIE', 'Arogya Health']) {
+  for (const name of ['Arogya Health', 'Unlisted project', 'Private dashboard']) {
     await expect(page.getByRole('heading', { name, exact: true })).toHaveCount(0);
   }
 });
