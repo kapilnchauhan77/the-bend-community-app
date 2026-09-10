@@ -5,6 +5,7 @@ export interface MaxServiceExample {
 }
 
 export interface MaxPortfolioProject {
+  group: 'Community and hospitality' | 'Platforms and applied AI';
   slug: string;
   name: string;
   contribution: string;
@@ -52,11 +53,11 @@ export const maxServiceExamples: readonly MaxServiceExample[] = [
 ];
 
 export const maxPortfolioProjects: readonly MaxPortfolioProject[] = [
-  { slug: 'the-bend', name: 'The Bend', contribution: 'Community platform for local businesses, listings, events, and community participation.', image: { src: '/images/max-portfolio/bend-community.jpg', alt: 'The Bend community platform home page', width: 1280, height: 720 }, sourceUrl: 'https://bend.community/' },
-  { slug: 'provoke', name: 'Provoke', contribution: 'AI workspace bringing conversations and productivity tools together.', image: { src: '/images/max-portfolio/provoke-space.jpg', alt: 'Provoke AI workspace home page', width: 1280, height: 720 }, sourceUrl: 'https://www.provoke.space/' },
-  { slug: 'authentica', name: 'Authentica', contribution: 'Restaurant website with menus, food photography, location information, and contact links.', image: { src: '/images/max-portfolio/authentica.jpg', alt: 'Authentica restaurant website home page', width: 1280, height: 720 }, sourceUrl: 'https://authentica-1jc.pages.dev/' },
-  { slug: 'aroma', name: 'Aroma', contribution: 'Restaurant website with a browsable menu, food gallery, and ordering and reservation contact links.', image: { src: '/images/max-portfolio/aroma.jpg', alt: 'Aroma restaurant website home page', width: 1280, height: 720 }, sourceUrl: 'https://aroma-7iy.pages.dev/' },
-  { slug: 'law-study-platform', name: 'Law study platform', contribution: 'AI-assisted judiciary exam preparation with faculty-reviewed material and source-backed answers.', image: { src: '/images/max-portfolio/acil-law.jpg', alt: 'Law study platform home page', width: 1280, height: 720 }, sourceUrl: 'https://study.provoke.space/' },
+  { group: 'Community and hospitality', slug: 'the-bend', name: 'The Bend', contribution: 'Community platform for local businesses, listings, events, and community participation.', image: { src: '/images/max-portfolio/bend-community.jpg', alt: 'The Bend community platform home page', width: 1280, height: 720 }, sourceUrl: 'https://bend.community/' },
+  { group: 'Platforms and applied AI', slug: 'provoke', name: 'Provoke', contribution: 'AI workspace bringing conversations and productivity tools together.', image: { src: '/images/max-portfolio/provoke-space.jpg', alt: 'Provoke AI workspace home page', width: 1280, height: 720 }, sourceUrl: 'https://www.provoke.space/' },
+  { group: 'Community and hospitality', slug: 'authentica', name: 'Authentica', contribution: 'Restaurant website with menus, food photography, location information, and contact links.', image: { src: '/images/max-portfolio/authentica.jpg', alt: 'Authentica restaurant website home page', width: 1280, height: 720 }, sourceUrl: 'https://authentica-1jc.pages.dev/' },
+  { group: 'Community and hospitality', slug: 'aroma', name: 'Aroma', contribution: 'Restaurant website with a browsable menu, food gallery, and ordering and reservation contact links.', image: { src: '/images/max-portfolio/aroma.jpg', alt: 'Aroma restaurant website home page', width: 1280, height: 720 }, sourceUrl: 'https://aroma-7iy.pages.dev/' },
+  { group: 'Platforms and applied AI', slug: 'law-study-platform', name: 'Law study platform', contribution: 'AI-assisted judiciary exam preparation with faculty-reviewed material and source-backed answers.', image: { src: '/images/max-portfolio/acil-law.jpg', alt: 'Law study platform home page', width: 1280, height: 720 }, sourceUrl: 'https://study.provoke.space/' },
 ];
 
 export const maxProcessSteps: readonly MaxProcessStep[] = [

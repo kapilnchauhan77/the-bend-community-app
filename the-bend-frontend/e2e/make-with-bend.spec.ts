@@ -38,7 +38,11 @@ test('renders the offering and approved portfolio', async ({ page }) => {
   await page.goto('/make-with-bend');
   await expect(page.getByRole('heading', { name: 'Make with BEND', exact: true })).toBeVisible();
   await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible();
+  const offerExplanation = page.getByRole('heading', { name: 'A lasting product, quoted separately', exact: true });
+  await expect(offerExplanation).toBeVisible();
   await expect(page.getByRole('heading', { name: 'What we can build', exact: true })).toBeVisible();
+  const sectionHeadings = page.locator('main h2');
+  await expect(sectionHeadings).toHaveText(['A lasting product, quoted separately', 'What we can build', 'Selected work', 'How it works', 'Have an idea?']);
 
   for (const name of [
     'Restaurant reservations', 'Marina and park live cameras', 'Service price calculators',
@@ -46,8 +50,18 @@ test('renders the offering and approved portfolio', async ({ page }) => {
   ]) await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
 
   await expect(page.getByText(/does not expire like an ad placement/i)).toBeVisible();
-  await expect(page.getByText(/hosting, maintenance, support, and third-party/i)).toBeVisible();
+  await expect(page.getByText(/hosting, maintenance, support, third-party/i)).toBeVisible();
   await expect(page.getByText(/work with the creators of The Bend/i)).toBeVisible();
+
+  const groups = page.locator('[data-portfolio-group]');
+  await expect(groups).toHaveCount(2);
+  await expect(groups.nth(0)).toContainText('Community and hospitality');
+  await expect(groups.nth(0)).toContainText('The Bend');
+  await expect(groups.nth(0)).toContainText('Authentica');
+  await expect(groups.nth(0)).toContainText('Aroma');
+  await expect(groups.nth(1)).toContainText('Platforms and applied AI');
+  await expect(groups.nth(1)).toContainText('Provoke');
+  await expect(groups.nth(1)).toContainText('Law study platform');
 
   const publishedProjects = [
     ['The Bend', '/images/max-portfolio/bend-community.jpg'],
@@ -145,4 +159,32 @@ test('theme toggle updates app dark mode and restores light mode', async ({ page
   await page.getByRole('button', { name: 'Toggle dark mode' }).click();
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false);
   await expect(heading).toHaveCSS('color', 'rgb(46, 77, 66)');
+});
+
+test('new light-mode text and CTA colors meet WCAG AA contrast', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('theme', 'light'));
+  await page.goto('/make-with-bend');
+  const ratios = await page.evaluate(() => {
+    const relativeLuminance = (value: string) => {
+      const [r, g, b] = value.match(/\d+(?:\.\d+)?/g)!.map(Number).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (foreground: string, background: string) => {
+      const foregroundLuminance = relativeLuminance(foreground);
+      const backgroundLuminance = relativeLuminance(background);
+      return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+    };
+    const css = (selector: string) => getComputedStyle(document.querySelector(selector)!).color;
+    const background = (selector: string) => getComputedStyle(document.querySelector(selector)!).backgroundColor;
+    return {
+      pageAccent: contrast(css('[data-max-accent]'), 'rgb(255, 255, 255)'),
+      dependency: contrast(css('[data-max-dependency]'), 'rgb(251, 250, 248)'),
+      offerBody: contrast(css('[data-max-offer-body]'), 'rgb(255, 255, 255)'),
+      cta: contrast(css('[data-max-cta]'), background('[data-max-cta]')),
+    };
+  });
+  expect(ratios.pageAccent).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.dependency).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.offerBody).toBeGreaterThanOrEqual(4.5);
+  expect(ratios.cta).toBeGreaterThanOrEqual(4.5);
 });

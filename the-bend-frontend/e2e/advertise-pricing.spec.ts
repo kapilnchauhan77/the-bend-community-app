@@ -120,9 +120,46 @@ test('Max card stays readable and contained in app dark mode on mobile', async (
   });
   expect(contrastRatio).toBeGreaterThanOrEqual(4.5);
 
+  const ctaContrastRatio = await link.evaluate((element) => {
+    const parseRgb = (value: string) => value.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+    const luminance = (value: string) => parseRgb(value).slice(0, 3).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    const foreground = luminance(getComputedStyle(element).color);
+    const background = luminance(getComputedStyle(element).backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  expect(ctaContrastRatio).toBeGreaterThanOrEqual(4.5);
+
   await link.focus();
   await expect(link).toHaveCSS('outline-style', 'solid');
   await page.screenshot({ path: testInfo.outputPath('max-card-dark-mobile.png'), fullPage: true });
+});
+
+test('Max card light-mode text and CTA colors meet WCAG AA contrast', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('theme', 'light'));
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+  const values = await page.locator('[data-advertise-max-card]').evaluate((card) => {
+    const relativeLuminance = (value: string) => {
+      const [r, g, b] = value.match(/\d+(?:\.\d+)?/g)!.map(Number).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (foreground: string, background: string) => {
+      const a = relativeLuminance(foreground);
+      const b = relativeLuminance(background);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    const accent = card.querySelector('[data-advertise-max-accent]')!;
+    const body = card.querySelector('[data-advertise-max-body]')!;
+    const cta = card.querySelector('[data-advertise-max-cta]')!;
+    return {
+      accent: contrast(getComputedStyle(accent).color, getComputedStyle(card).backgroundColor),
+      body: contrast(getComputedStyle(body).color, getComputedStyle(card).backgroundColor),
+      cta: contrast(getComputedStyle(cta).color, getComputedStyle(cta).backgroundColor),
+    };
+  });
+  expect(values.accent).toBeGreaterThanOrEqual(4.5);
+  expect(values.body).toBeGreaterThanOrEqual(4.5);
+  expect(values.cta).toBeGreaterThanOrEqual(4.5);
 });
 
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {
