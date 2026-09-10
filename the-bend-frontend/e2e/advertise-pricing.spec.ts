@@ -2,18 +2,18 @@ import { expect, test, type Page } from '@playwright/test';
 
 
 const planMatrix = [
-  ['homepage', 'Homepage Feature', 30, 10000],
-  ['homepage', 'Homepage Feature', 60, 18000],
-  ['homepage', 'Homepage Feature', 90, 24000],
-  ['footer', 'Footer Partners', 30, 6000],
-  ['footer', 'Footer Partners', 60, 10800],
-  ['footer', 'Footer Partners', 90, 14400],
-  ['events', 'Events Page', 30, 8000],
-  ['events', 'Events Page', 60, 14400],
-  ['events', 'Events Page', 90, 19200],
-  ['browse', 'Browse Page', 30, 8000],
-  ['browse', 'Browse Page', 60, 14400],
-  ['browse', 'Browse Page', 90, 19200],
+  ['homepage', 'Homepage Feature', 30, 10000, 'plan-1'],
+  ['homepage', 'Homepage Feature', 60, 18000, 'plan-2'],
+  ['homepage', 'Homepage Feature', 90, 24000, 'plan-3'],
+  ['footer', 'Footer Partners', 30, 6000, 'plan-4'],
+  ['footer', 'Footer Partners', 60, 10800, 'plan-5'],
+  ['footer', 'Footer Partners', 90, 14400, 'plan-6'],
+  ['events', 'Events Page', 30, 8000, 'plan-7'],
+  ['events', 'Events Page', 60, 14400, 'plan-8'],
+  ['events', 'Events Page', 90, 19200, 'plan-9'],
+  ['browse', 'Browse Page', 30, 8000, 'plan-10'],
+  ['browse', 'Browse Page', 60, 14400, 'plan-11'],
+  ['browse', 'Browse Page', 90, 19200, 'plan-12'],
 ] as const;
 
 
@@ -35,8 +35,8 @@ async function stubPricingApi(page: Page) {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          items: planMatrix.map(([placement, name, durationDays, priceCents], index) => ({
-            id: `plan-${index + 1}`,
+          items: planMatrix.map(([placement, name, durationDays, priceCents, id]) => ({
+            id,
             name,
             description: `${durationDays}-day ${placement} sponsorship`,
             placement,
@@ -59,13 +59,13 @@ test('Westmoreland sponsor packages display whole-dollar prices without cents', 
   await stubPricingApi(page);
   await page.goto('/advertise');
 
-  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(12);
+  await expect(page.locator('[data-pricing-card]')).toHaveCount(4);
+  await expect(page.getByRole('combobox')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(4);
+  await expect(page.getByText('Placement:', { exact: true })).toHaveCount(0);
   await expect(page.getByText('$100', { exact: true })).toBeVisible();
-  await expect(page.getByText('$180', { exact: true })).toBeVisible();
-  await expect(page.getByText('$240', { exact: true })).toBeVisible();
-  await expect(page.getByText('$108', { exact: true })).toBeVisible();
-  await expect(page.getByText('$144', { exact: true })).toHaveCount(3);
-  await expect(page.getByText('$192', { exact: true })).toHaveCount(2);
+  await expect(page.locator('[data-pricing-card="homepage"] option')).toHaveText(['30 days', '60 days', '90 days']);
+  await expect(page.locator('[data-pricing-card="footer"] option')).toHaveText(['30 days', '60 days', '90 days']);
   await expect(page.getByText(/\$\d+\.00/)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Select', exact: true }).first().click();
@@ -81,10 +81,12 @@ test('advertising selection includes the non-checkout Max option', async ({ page
   await stubPricingApi(page);
   await page.goto('/advertise');
 
-  await expect(page.getByRole('heading', { name: 'Max', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Max · Build with BEND', exact: true })).toBeVisible();
+  await expect(page.getByText('Turn your business idea into a working product with the team behind The Bend. From reservation systems to custom apps, we’ll help you build it.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Hosting, support, and third-party costs are quoted separately.', { exact: true })).toBeVisible();
   await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Make with BEND', exact: true })).toHaveAttribute('href', '/make-with-bend');
-  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(12);
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(4);
   await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: 'Make with BEND', exact: true }).click();
@@ -98,7 +100,7 @@ test('Max card stays readable and contained in app dark mode on mobile', async (
   await stubPricingApi(page);
   await page.goto('/advertise');
 
-  const heading = page.getByRole('heading', { name: 'Max', exact: true });
+  const heading = page.getByRole('heading', { name: 'Max · Build with BEND', exact: true });
   const card = heading.locator('..');
   const link = page.getByRole('link', { name: 'Make with BEND', exact: true });
   await expect(heading).toBeVisible();
@@ -160,6 +162,141 @@ test('Max card light-mode text and CTA colors meet WCAG AA contrast', async ({ p
   expect(values.accent).toBeGreaterThanOrEqual(4.5);
   expect(values.body).toBeGreaterThanOrEqual(4.5);
   expect(values.cta).toBeGreaterThanOrEqual(4.5);
+});
+
+test('placement cards default to 30 days and display each placement record', async ({ page }) => {
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  const expected = [
+    ['homepage', 'Homepage Feature', 'Feature your business on the community homepage.', '$100', 'plan-1'],
+    ['footer', 'Footer Partners', 'Show your business in the partner strip on every page.', '$60', 'plan-4'],
+    ['events', 'Events Page', 'Reach people exploring local events.', '$80', 'plan-7'],
+    ['browse', 'Browse Page', 'Reach people browsing community listings.', '$80', 'plan-10'],
+  ] as const;
+  for (const [placement, title, description, price, planId] of expected) {
+    const card = page.locator(`[data-pricing-card="${placement}"]`);
+    await expect(card).toHaveCount(1);
+    await expect(card.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    await expect(card.getByText(description, { exact: true })).toBeVisible();
+    await expect(card.getByText(price, { exact: true })).toBeVisible();
+    await expect(card.getByRole('combobox')).toHaveValue(planId);
+    await expect(card.getByRole('combobox')).toHaveAccessibleName(`${title} duration`);
+    await card.getByRole('combobox').focus();
+    await expect(card.getByRole('combobox')).toHaveCSS('outline-style', 'solid');
+    await expect(card.locator('[data-pricing-price]')).toHaveAttribute('aria-live', 'polite');
+  }
+
+  const homepage = page.locator('[data-pricing-card="homepage"]');
+  await homepage.getByRole('combobox').selectOption('plan-3');
+  await expect(homepage.getByText('$240', { exact: true })).toBeVisible();
+  await expect(homepage.getByText('Feature your business on the community homepage.', { exact: true })).toBeVisible();
+  await expect(homepage.getByRole('combobox')).toHaveValue('plan-3');
+  await expect(homepage.getByRole('combobox')).toHaveAccessibleName('Homepage Feature duration');
+});
+
+test('placement cards meet responsive layout, control size, and light/dark contrast contracts', async ({ page }) => {
+  await stubPricingApi(page);
+  const contrast = async (locator: ReturnType<Page['locator']>) => locator.evaluate((element) => {
+    const rgb = getComputedStyle(element).color.match(/\d+(?:\.\d+)?/g)!.map(Number).map((channel) => channel / 255);
+    const style = getComputedStyle(element);
+    const backgroundColor = style.backgroundColor === 'rgba(0, 0, 0, 0)' ? getComputedStyle(element.closest('[data-pricing-card]') || element).backgroundColor : style.backgroundColor;
+    const bg = backgroundColor.match(/\d+(?:\.\d+)?/g)!.map(Number).map((channel) => channel / 255);
+    const lum = (values: number[]) => values.map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    return (Math.max(lum(rgb), lum(bg)) + 0.05) / (Math.min(lum(rgb), lum(bg)) + 0.05);
+  });
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 320, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/advertise');
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const cards = page.locator('[data-pricing-card]');
+    const pricingGrid = page.locator('[data-pricing-grid]');
+    const tracks = await pricingGrid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+    expect(tracks).toBe(viewport.width === 1280 ? 2 : 1);
+    const widths = await cards.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().width));
+    if (viewport.width === 1280) expect(widths.every((width) => width > 400)).toBe(true);
+    else expect(widths.every((width) => width <= 320)).toBe(true);
+    for (const card of await cards.all()) {
+      await expect(card.getByRole('combobox')).toHaveCSS('min-height', '44px');
+      await expect(card.getByRole('button', { name: 'Select', exact: true })).toHaveCSS('min-height', '44px');
+      expect(await contrast(card.locator('[data-pricing-description]'))).toBeGreaterThanOrEqual(4.5);
+      expect(await contrast(card.locator('[data-pricing-price]'))).toBeGreaterThanOrEqual(4.5);
+      expect(await contrast(card.getByRole('combobox'))).toBeGreaterThanOrEqual(4.5);
+      expect(await contrast(card.getByRole('button', { name: 'Select', exact: true }))).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+  await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto('/advertise');
+  const darkCard = page.locator('[data-pricing-card]').first();
+  expect(await contrast(darkCard.locator('[data-pricing-description]'))).toBeGreaterThanOrEqual(4.5);
+  expect(await contrast(darkCard.locator('[data-pricing-price]'))).toBeGreaterThanOrEqual(4.5);
+  expect(await contrast(darkCard.getByRole('combobox'))).toBeGreaterThanOrEqual(4.5);
+  expect(await contrast(darkCard.getByRole('button', { name: 'Select', exact: true }))).toBeGreaterThanOrEqual(4.5);
+});
+
+test('Max card uses a responsive copy and pricing split', async ({ page }) => {
+  await stubPricingApi(page);
+  const card = page.locator('[data-advertise-max-card]');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/advertise');
+  const desktop = await card.evaluate((element) => {
+    const copy = element.querySelector('[data-max-copy]')!.getBoundingClientRect();
+    const pricing = element.querySelector('[data-max-pricing]')!.getBoundingClientRect();
+    return { sameRow: Math.abs(copy.top - pricing.top) < 40 };
+  });
+  expect(desktop.sameRow).toBe(true);
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto('/advertise');
+  const mobile = await card.evaluate((element) => {
+    const cardBox = element.getBoundingClientRect();
+    const copy = element.querySelector('[data-max-copy]')!.getBoundingClientRect();
+    const pricing = element.querySelector('[data-max-pricing]')!.getBoundingClientRect();
+    const cta = element.querySelector('[data-advertise-max-cta]')!.getBoundingClientRect();
+    return { stacked: pricing.top >= copy.bottom, ctaHeight: cta.height, contained: cta.left >= cardBox.left && cta.right <= cardBox.right && cta.top >= cardBox.top && cta.bottom <= cardBox.bottom };
+  });
+  expect(mobile.stacked).toBe(true);
+  expect(mobile.ctaHeight).toBeGreaterThanOrEqual(44);
+  expect(mobile.contained).toBe(true);
+});
+
+test('checkout submits the selected pricing record ID', async ({ page }) => {
+  await stubPricingApi(page);
+  let checkoutBody: Record<string, unknown> | undefined;
+  await page.route('**/api/v1/advertising/checkout', async (route) => {
+    checkoutBody = JSON.parse(route.request().postData() || '{}') as Record<string, unknown>;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: {} }) });
+  });
+  await page.goto('/advertise');
+  const card = page.locator('[data-pricing-card="events"]');
+  await card.getByRole('combobox').selectOption('plan-9');
+  await card.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByPlaceholder('Jane Smith').fill('Jane Smith');
+  await page.getByPlaceholder('jane@example.com').fill('jane@example.com');
+  await page.getByPlaceholder('My Business Name').fill('Jane Business');
+  await page.getByRole('button', { name: 'Proceed to Payment', exact: true }).click();
+  await expect.poll(() => checkoutBody).toMatchObject({ pricing_id: 'plan-9', name: 'Jane Business' });
+});
+
+test('placement without a 30-day record defaults to its earliest duration', async ({ page }) => {
+  await page.route('**/api/v1/tenant/current', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ slug: 'westmoreland', display_name: 'The Bend — Westmoreland', primary_color: 'hsl(160,25%,24%)' }) });
+  });
+  await page.route('**/api/v1/advertising/pricing', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [
+      { id: 'homepage-60', name: 'Homepage Feature', description: '60-day homepage sponsorship', placement: 'homepage', duration_days: 60, price_cents: 18000 },
+      { id: 'homepage-90', name: 'Homepage Feature', description: '90-day homepage sponsorship', placement: 'homepage', duration_days: 90, price_cents: 24000 },
+    ] }) });
+  });
+  await page.route('**/api/v1/**', async (route) => {
+    if (route.request().url().includes('/tenant/current') || route.request().url().includes('/advertising/pricing')) return route.fallback();
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
+  });
+  await page.goto('/advertise');
+  const card = page.locator('[data-pricing-card]');
+  await expect(card.getByRole('combobox')).toHaveValue('homepage-60');
+  await expect(card.getByRole('combobox').locator('option')).toHaveText(['60 days', '90 days']);
+  await expect(card.getByText('$180', { exact: true })).toBeVisible();
 });
 
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {
