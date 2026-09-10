@@ -73,6 +73,95 @@ test('Westmoreland sponsor packages display whole-dollar prices without cents', 
   await expect(page.getByText('$100.00', { exact: true })).toHaveCount(0);
 });
 
+test('advertising selection includes the non-checkout Max option', async ({ page }) => {
+  const postRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST') postRequests.push(request.url());
+  });
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  await expect(page.getByRole('heading', { name: 'Max', exact: true })).toBeVisible();
+  await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Make with BEND', exact: true })).toHaveAttribute('href', '/make-with-bend');
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(12);
+  await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Make with BEND', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Make with BEND', exact: true })).toBeVisible();
+  expect(postRequests).toEqual([]);
+});
+
+test('Max card stays readable and contained in app dark mode on mobile', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  const heading = page.getByRole('heading', { name: 'Max', exact: true });
+  const card = heading.locator('..');
+  const link = page.getByRole('link', { name: 'Make with BEND', exact: true });
+  await expect(heading).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  const contrastRatio = await card.evaluate((element) => {
+    const parseRgb = (value: string) => value.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+    const relativeLuminance = (value: string) => {
+      const [red, green, blue] = parseRgb(value).map((channel) => channel / 255);
+      return [red, green, blue].map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+        .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    };
+    const background = getComputedStyle(element).backgroundColor;
+    const text = getComputedStyle(element.querySelector('p.text-gray-700') as HTMLElement).color;
+    const backgroundLuminance = relativeLuminance(background);
+    const textLuminance = relativeLuminance(text);
+    return (Math.max(backgroundLuminance, textLuminance) + 0.05) / (Math.min(backgroundLuminance, textLuminance) + 0.05);
+  });
+  expect(contrastRatio).toBeGreaterThanOrEqual(4.5);
+
+  const ctaContrastRatio = await link.evaluate((element) => {
+    const parseRgb = (value: string) => value.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+    const luminance = (value: string) => parseRgb(value).slice(0, 3).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    const foreground = luminance(getComputedStyle(element).color);
+    const background = luminance(getComputedStyle(element).backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  expect(ctaContrastRatio).toBeGreaterThanOrEqual(4.5);
+
+  await link.focus();
+  await expect(link).toHaveCSS('outline-style', 'solid');
+  await page.screenshot({ path: testInfo.outputPath('max-card-dark-mobile.png'), fullPage: true });
+});
+
+test('Max card light-mode text and CTA colors meet WCAG AA contrast', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('theme', 'light'));
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+  const values = await page.locator('[data-advertise-max-card]').evaluate((card) => {
+    const relativeLuminance = (value: string) => {
+      const [r, g, b] = value.match(/\d+(?:\.\d+)?/g)!.map(Number).map((channel) => channel / 255).map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (foreground: string, background: string) => {
+      const a = relativeLuminance(foreground);
+      const b = relativeLuminance(background);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    const accent = card.querySelector('[data-advertise-max-accent]')!;
+    const body = card.querySelector('[data-advertise-max-body]')!;
+    const cta = card.querySelector('[data-advertise-max-cta]')!;
+    return {
+      accent: contrast(getComputedStyle(accent).color, getComputedStyle(card).backgroundColor),
+      body: contrast(getComputedStyle(body).color, getComputedStyle(card).backgroundColor),
+      cta: contrast(getComputedStyle(cta).color, getComputedStyle(cta).backgroundColor),
+    };
+  });
+  expect(values.accent).toBeGreaterThanOrEqual(4.5);
+  expect(values.body).toBeGreaterThanOrEqual(4.5);
+  expect(values.cta).toBeGreaterThanOrEqual(4.5);
+});
+
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {
   await stubPricingApi(page);
   await page.goto('/advertise');

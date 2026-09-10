@@ -141,6 +141,11 @@ export default function AdvertisePage() {
 
   return (
     <PageLayout>
+      <style>{`
+        html.dark .advertise-max-card [data-advertise-max-accent] { color: hsl(35, 55%, 60%) !important; }
+        html.dark .advertise-max-card [data-advertise-max-body] { color: hsl(40, 12%, 72%) !important; }
+        html.dark .advertise-max-card [data-advertise-max-cta] { background: hsl(35, 55%, 28%) !important; }
+      `}</style>
       {/* Header */}
       <div style={{ background: HEADER_BG }} className="py-10 px-4">
         <div className="max-w-5xl mx-auto">
@@ -284,6 +289,40 @@ export default function AdvertisePage() {
                 })}
               </div>
             )}
+          </section>
+        )}
+
+        {/* Max: Custom digital product solution */}
+        {step === 'select' && (
+          <section className="mb-14">
+            <div
+              data-advertise-max-card
+              className="advertise-max-card rounded border-2 bg-white p-6"
+              style={{ borderColor: BRONZE }}
+            >
+              <p data-advertise-max-accent className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'hsl(35, 55%, 28%)' }}>
+                Permanent custom solution
+              </p>
+              <h3 className="font-serif text-gray-900 text-xl font-bold mb-2">
+                Max
+              </h3>
+              <p data-advertise-max-body className="text-gray-700 text-sm leading-relaxed mb-4" style={{ color: 'hsl(30, 10%, 35%)' }}>
+                Work with the creators of The Bend on a scoped custom solution. Ongoing services such as hosting, maintenance, support, and third-party fees are quoted separately.
+              </p>
+              <div className="flex items-center justify-between gap-4">
+                <span className="font-serif text-2xl font-bold" style={{ color: 'hsl(35, 55%, 28%)' }}>
+                  Custom pricing
+                </span>
+                <Link
+                  to="/make-with-bend"
+                  data-advertise-max-cta
+                  className="px-4 py-2 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+                  style={{ background: 'hsl(35, 55%, 28%)' }}
+                >
+                  Make with BEND
+                </Link>
+              </div>
+            </div>
           </section>
         )}
 
