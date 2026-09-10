@@ -287,6 +287,38 @@ export default function AdvertisePage() {
           </section>
         )}
 
+        {/* Max: Custom digital product solution */}
+        {step === 'select' && (
+          <section className="mb-14">
+            <div
+              className="rounded border-2 p-6"
+              style={{ borderColor: BRONZE, background: 'linear-gradient(135deg, hsl(40,20%,98%), hsl(35,15%,94%))' }}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: BRONZE }}>
+                Permanent custom solution
+              </p>
+              <h3 className="font-serif text-xl font-bold mb-2" style={{ color: 'hsl(160, 25%, 24%)' }}>
+                Max
+              </h3>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: 'hsl(35, 10%, 40%)' }}>
+                Work with the creators of The Bend on a scoped custom solution. Ongoing services such as hosting, maintenance, support, and third-party fees are quoted separately.
+              </p>
+              <div className="flex items-center justify-between gap-4">
+                <span className="font-serif text-2xl font-bold" style={{ color: BRONZE }}>
+                  Custom pricing
+                </span>
+                <Link
+                  to="/make-with-bend"
+                  className="px-4 py-2 text-sm font-semibold text-white rounded transition-opacity hover:opacity-90"
+                  style={{ background: BRONZE }}
+                >
+                  Make with BEND
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Premium: Automatic Website Events Linker */}
         {step === 'select' && (
           <section className="mb-14">

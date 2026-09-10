@@ -73,6 +73,25 @@ test('Westmoreland sponsor packages display whole-dollar prices without cents', 
   await expect(page.getByText('$100.00', { exact: true })).toHaveCount(0);
 });
 
+test('advertising selection includes the non-checkout Max option', async ({ page }) => {
+  const postRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST') postRequests.push(request.url());
+  });
+  await stubPricingApi(page);
+  await page.goto('/advertise');
+
+  await expect(page.getByRole('heading', { name: 'Max', exact: true })).toBeVisible();
+  await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Make with BEND', exact: true })).toHaveAttribute('href', '/make-with-bend');
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(12);
+  await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Make with BEND', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Make with BEND', exact: true })).toBeVisible();
+  expect(postRequests).toEqual([]);
+});
+
 test('advertising example features ProLine instead of Provoke', async ({ page }) => {
   await stubPricingApi(page);
   await page.goto('/advertise');
