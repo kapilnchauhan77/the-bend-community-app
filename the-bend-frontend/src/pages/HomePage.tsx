@@ -168,16 +168,15 @@ export default function HomePage() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 w-full">
           <div className="home-hero-content grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 lg:gap-14 items-start">
           <div className="max-w-2xl">
-            <div className="hidden md:block w-12 h-[2px] mb-4" style={{ backgroundColor: BRONZE }} />
             <p className="text-base md:text-xl text-[hsl(40,15%,75%)] mb-4 max-w-md leading-relaxed">
               {tenant.tagline || 'Find opportunity within your neighborhood'}
             </p>
+            <img src="/images/the-bend-community-logo-white.png" alt="The Bend Community" className="w-40 md:w-52 h-auto mb-6" />
             {tenant.about_text && (
             <p className="hidden md:block text-sm text-[hsl(40,15%,60%)] mb-8 max-w-lg leading-relaxed italic font-serif">
               {tenant.about_text}
             </p>
             )}
-            <img src="/images/the-bend-community-logo-white.png" alt="The Bend Community" className="w-40 md:w-52 h-auto mb-6" />
             <form onSubmit={handleSearch} className="flex max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />

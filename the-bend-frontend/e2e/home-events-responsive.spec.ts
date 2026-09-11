@@ -25,6 +25,7 @@ async function stubHomeApi(page: Page, upcomingEvents = [upcomingEvent]) {
           slug: 'westmoreland',
           display_name: 'The Bend — Westmoreland',
           tagline: 'Find opportunity within your neighborhood',
+          about_text: 'An unexpected bend in the road can cause businesses and community members to work and live inefficiently. The Bend exists to support the many bends in Westmoreland County roads that have flipped the script, and serve as community hubs and places of opportunity.',
           primary_color: 'hsl(160,25%,24%)',
           footer_text: 'Preserving community, one connection at a time',
         }),
@@ -59,6 +60,31 @@ async function stubHomeApi(page: Page, upcomingEvents = [upcomingEvent]) {
     });
   });
 }
+
+test('hero description follows the logo without overlapping search on desktop and stays hidden on mobile', async ({ page }) => {
+  await stubHomeApi(page);
+  await page.setViewportSize({ width: 1297, height: 987 });
+  await page.goto('/');
+  const hero = page.locator('.home-hero-content > div').first();
+  const logo = hero.getByRole('img', { name: 'The Bend Community' });
+  const description = hero.getByText(/An unexpected bend in the road/);
+  const search = hero.getByRole('textbox');
+  await expect(description).toBeVisible();
+  await expect(logo).toBeVisible();
+  const logoBox = (await logo.boundingBox())!;
+  const descriptionBox = (await description.boundingBox())!;
+  const searchBox = (await search.boundingBox())!;
+  expect(descriptionBox.y).toBeGreaterThanOrEqual(logoBox.y + logoBox.height);
+  expect(searchBox.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height);
+  await page.screenshot({ path: 'output/playwright/hero-description-desktop.png' });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(description).toBeHidden();
+  await expect(logo).toBeVisible();
+  await expect(search).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'output/playwright/hero-description-mobile.png' });
+});
 
 test('home statistics shows individuals in a responsive four-item grid', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
