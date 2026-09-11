@@ -159,15 +159,15 @@ export default function HomePage() {
   return (
     <PageLayout>
       {/* Hero — Museum entrance feel */}
-      <section className="relative min-h-[280px] md:min-h-[460px] flex items-center overflow-hidden pb-14 pt-8 md:pb-16 md:pt-0">
+      <section className="relative min-h-[280px] md:min-h-[460px] flex items-center overflow-hidden pb-14 pt-8 md:pb-16">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${tenant.hero_image_url || '/images/the-bend-hero.jpg'}')` }} />
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, hsl(30,12%,12%,0.88), hsl(30,12%,12%,0.6))' }} />
         {/* Subtle grain overlay */}
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")" }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 w-full">
-          <div className="home-hero-content grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 lg:gap-14 items-start">
-          <div className="max-w-2xl">
+          <div className="home-hero-content grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 lg:gap-14 items-stretch">
+          <div className="max-w-2xl md:flex md:flex-col">
             <img src="/images/the-bend-community-logo-white.png" alt="The Bend Community" className="w-40 md:w-52 h-auto mb-6" />
             <p className="text-base md:text-xl text-[hsl(40,15%,75%)] mb-4 max-w-md leading-relaxed">
               {tenant.tagline || 'Find opportunity within your neighborhood'}
@@ -177,7 +177,7 @@ export default function HomePage() {
               {tenant.about_text}
             </p>
             )}
-            <form onSubmit={handleSearch} className="flex max-w-md">
+            <form onSubmit={handleSearch} className="flex max-w-md md:mt-auto">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[hsl(30,10%,50%)]" />
                 <Input
@@ -196,7 +196,7 @@ export default function HomePage() {
               </button>
             </form>
           </div>
-            <div data-testid="desktop-service-grid" className="hidden md:grid desktop-service-grid grid-cols-3 gap-3 mt-10">
+            <div data-testid="desktop-service-grid" className="hidden md:grid desktop-service-grid grid-cols-3 gap-3">
               {mobileServices.map(({ icon: Icon, label, desc, href }) => (
                 <Link
                   key={label}

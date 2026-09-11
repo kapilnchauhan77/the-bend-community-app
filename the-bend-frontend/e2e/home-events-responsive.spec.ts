@@ -76,6 +76,8 @@ test('hero description follows the logo without overlapping search on desktop an
   const taglineBox = (await tagline.boundingBox())!;
   const descriptionBox = (await description.boundingBox())!;
   const searchBox = (await search.boundingBox())!;
+  const navbarBox = (await page.getByRole('banner').boundingBox())!;
+  expect(logoBox.y - (navbarBox.y + navbarBox.height)).toBeGreaterThanOrEqual(32);
   expect(taglineBox.y).toBeGreaterThanOrEqual(logoBox.y + logoBox.height);
   expect(descriptionBox.y).toBeGreaterThanOrEqual(taglineBox.y + taglineBox.height);
   expect(searchBox.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height);
@@ -87,11 +89,36 @@ test('hero description follows the logo without overlapping search on desktop an
   await expect(search).toBeVisible();
   const mobileLogoBox = (await logo.boundingBox())!;
   const mobileTaglineBox = (await tagline.boundingBox())!;
+  const mobileNavbarBox = (await page.getByRole('banner').boundingBox())!;
+  expect(mobileLogoBox.y - (mobileNavbarBox.y + mobileNavbarBox.height)).toBeGreaterThanOrEqual(32);
   expect(mobileTaglineBox.y).toBeGreaterThanOrEqual(mobileLogoBox.y + mobileLogoBox.height);
   expect((await search.boundingBox())!.y).toBeGreaterThanOrEqual(mobileTaglineBox.y + mobileTaglineBox.height);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'output/playwright/hero-description-mobile.png' });
 });
+
+for (const width of [768, 1024, 1297, 1920]) {
+  test(`hero content aligns with the top and bottom of the service grid at ${width}px`, async ({ page }) => {
+    await stubHomeApi(page);
+    await page.setViewportSize({ width, height: 987 });
+    await page.goto('/');
+    const hero = page.locator('.home-hero-content > div').first();
+    const logo = hero.getByRole('img', { name: 'The Bend Community' });
+    const menu = page.getByTestId('desktop-service-grid');
+    await expect(hero.getByText(/An unexpected bend in the road/)).toBeVisible();
+    await expect(menu).toBeVisible();
+    const logoBox = (await logo.boundingBox())!;
+    const menuBox = (await menu.boundingBox())!;
+    const searchBox = (await hero.getByRole('textbox').boundingBox())!;
+    expect(Math.abs(logoBox.y - menuBox.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(searchBox.y + searchBox.height - menuBox.y - menuBox.height)).toBeLessThanOrEqual(1);
+    for (const box of [logoBox, menuBox, searchBox]) {
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    expect(searchBox.x + searchBox.width).toBeLessThanOrEqual(menuBox.x);
+  });
+}
 
 test('home statistics shows individuals in a responsive four-item grid', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
