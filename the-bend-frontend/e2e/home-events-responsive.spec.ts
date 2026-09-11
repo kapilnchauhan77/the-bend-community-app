@@ -67,14 +67,17 @@ test('hero description follows the logo without overlapping search on desktop an
   await page.goto('/');
   const hero = page.locator('.home-hero-content > div').first();
   const logo = hero.getByRole('img', { name: 'The Bend Community' });
+  const tagline = hero.getByText('Find opportunity within your neighborhood', { exact: true });
   const description = hero.getByText(/An unexpected bend in the road/);
   const search = hero.getByRole('textbox');
   await expect(description).toBeVisible();
   await expect(logo).toBeVisible();
   const logoBox = (await logo.boundingBox())!;
+  const taglineBox = (await tagline.boundingBox())!;
   const descriptionBox = (await description.boundingBox())!;
   const searchBox = (await search.boundingBox())!;
-  expect(descriptionBox.y).toBeGreaterThanOrEqual(logoBox.y + logoBox.height);
+  expect(taglineBox.y).toBeGreaterThanOrEqual(logoBox.y + logoBox.height);
+  expect(descriptionBox.y).toBeGreaterThanOrEqual(taglineBox.y + taglineBox.height);
   expect(searchBox.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height);
   await page.screenshot({ path: 'output/playwright/hero-description-desktop.png' });
 
@@ -82,6 +85,10 @@ test('hero description follows the logo without overlapping search on desktop an
   await expect(description).toBeHidden();
   await expect(logo).toBeVisible();
   await expect(search).toBeVisible();
+  const mobileLogoBox = (await logo.boundingBox())!;
+  const mobileTaglineBox = (await tagline.boundingBox())!;
+  expect(mobileTaglineBox.y).toBeGreaterThanOrEqual(mobileLogoBox.y + mobileLogoBox.height);
+  expect((await search.boundingBox())!.y).toBeGreaterThanOrEqual(mobileTaglineBox.y + mobileTaglineBox.height);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'output/playwright/hero-description-mobile.png' });
 });
