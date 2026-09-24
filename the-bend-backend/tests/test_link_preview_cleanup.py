@@ -137,7 +137,7 @@ async def test_deletes_old_unreferenced_and_preserves_recent_and_referenced(tmp_
 
 @pytest.mark.asyncio
 async def test_stats_keep_database_and_redis_reference_counts_separate(tmp_path):
-    now = datetime(2026, 8, 21, tzinfo=UTC)
+    now = datetime.now(UTC)
     old = write_file(tmp_path, "0" * 64)
     recent = write_file(tmp_path, "1" * 64, age_minutes=10)
     os.utime(recent, ((now - timedelta(minutes=10)).timestamp(),) * 2)
