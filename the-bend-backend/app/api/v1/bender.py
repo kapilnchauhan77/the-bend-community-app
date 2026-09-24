@@ -15,6 +15,7 @@ from app.core.exceptions import AppException, RateLimitError
 from app.core.rate_limit import check_rate_limit, get_redis
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.shop import Shop
 from app.schemas.bender import (
     BenderCommentCreate,
     BenderCommentHeartResponse,
@@ -160,16 +161,11 @@ async def create_post(
     current_user: User = Depends(get_current_user),
 ):
     post = await service.create_post(data, current_user)
+    shop = await service.db.get(Shop, current_user.shop_id) if current_user.shop_id else None
     # Build response with the same author block the feed uses.
     return BenderPostResponse(
         id=str(post.id),
-        author=service._author_block(
-            current_user,
-            # current_user.shop is lazy-loaded; safe to access since deps
-            # already fetched the user. If shop_id is set but the relation
-            # isn't loaded, fall back to a name-less stub.
-            getattr(current_user, "shop", None) if current_user.shop_id else None,
-        ),
+        author=service._author_block(current_user, shop),
         caption=post.caption,
         media_url=post.media_url,
         media_thumbnail_url=post.media_thumbnail_url,
