@@ -5,6 +5,7 @@ export const registerSchema = z
     user_type: z.enum(['business', 'individual']).default('business'),
     shop_name: z.string().max(150).optional().or(z.literal('')),
     business_type: z.string().optional().or(z.literal('')),
+    description: z.string().max(1000, 'Business description must be 1,000 characters or fewer').optional().or(z.literal('')),
     owner_name: z.string().min(1, 'Name is required').max(100),
     email: z.string().email('Invalid email address'),
     phone: z.string().max(20).optional().or(z.literal('')),

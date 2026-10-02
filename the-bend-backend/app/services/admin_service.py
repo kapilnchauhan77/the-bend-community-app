@@ -115,6 +115,7 @@ class AdminService:
             items.append({
                 "id": str(s.id), "name": s.name, "business_type": s.business_type,
                 "status": display_status, "address": s.address,
+                "description": s.description,
                 "contact_phone": s.contact_phone, "phone": s.contact_phone,
                 "whatsapp": s.whatsapp,
                 "created_at": str(s.created_at),
@@ -247,6 +248,7 @@ class AdminService:
                 "admin_name": admin.name if admin else None,
                 "admin_email": admin.email if admin else None,
                 "address": s.address,
+                "description": s.description,
                 "contact_phone": s.contact_phone,
                 "listing_count": count_result.scalar_one(),
             })

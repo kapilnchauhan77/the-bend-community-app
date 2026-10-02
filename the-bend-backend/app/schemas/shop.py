@@ -8,6 +8,7 @@ class ShopResponse(BaseModel):
     name: str
     business_type: str
     address: str | None = None
+    description: str | None = Field(None, max_length=1000)
     latitude: float | None = None
     longitude: float | None = None
     contact_phone: str
@@ -32,6 +33,7 @@ class ShopUpdateRequest(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=150)
     business_type: str | None = Field(None, min_length=1, max_length=50)
     address: str | None = None
+    description: str | None = Field(None, max_length=1000)
     contact_phone: str | None = None
     whatsapp: str | None = None
     latitude: float | None = Field(None, ge=-90, le=90)

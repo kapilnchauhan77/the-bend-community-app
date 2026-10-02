@@ -15,6 +15,7 @@ class RegisterRequest(BaseModel):
     whatsapp: str | None = None
     password: str = Field(..., min_length=8)
     address: str | None = None
+    description: str | None = Field(None, max_length=1000)
     guidelines_accepted: bool
     user_type: Literal["business", "individual"] = "business"
 

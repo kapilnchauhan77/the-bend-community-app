@@ -176,6 +176,7 @@ async def get_shop(
     return {
         "id": str(shop.id), "name": shop.name, "business_type": shop.business_type,
         "address": shop.address,
+        "description": shop.description,
         "latitude": shop.latitude,
         "longitude": shop.longitude,
         "contact_phone": mask_phone(shop.contact_phone, is_authed),

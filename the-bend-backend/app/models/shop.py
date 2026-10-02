@@ -26,6 +26,7 @@ class Shop(Base):
     admin_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"))
     rejection_reason: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     guidelines_accepted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     guidelines_accepted_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
