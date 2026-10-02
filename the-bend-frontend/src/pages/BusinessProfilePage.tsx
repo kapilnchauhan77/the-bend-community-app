@@ -294,24 +294,24 @@ export default function BusinessProfilePage() {
 
               <div className="space-y-1.5 text-sm text-[hsl(30,10%,45%)]">
                 {shopData.address && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <MapPin className="w-4 h-4 flex-shrink-0 text-[hsl(35,45%,42%)]" />
-                    <span>{shopData.address}</span>
+                    <span className="min-w-0 break-words">{shopData.address}</span>
                   </div>
                 )}
                 {shopData.contact_phone && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <Phone className="w-4 h-4 flex-shrink-0 text-[hsl(35,45%,42%)]" />
                     <a
                       href={`tel:${shopData.contact_phone}`}
-                      className="hover:text-[hsl(35,45%,35%)] transition-colors"
+                      className="min-w-0 break-all hover:text-[hsl(35,45%,35%)] transition-colors"
                     >
                       {shopData.contact_phone}
                     </a>
                   </div>
                 )}
                 {shopData.whatsapp && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <MessageCircle className="w-4 h-4 flex-shrink-0 text-[hsl(35,45%,42%)]" />
                     <a
                       href={`https://wa.me/${shopData.whatsapp.replace(/\D/g, '')}`}
@@ -326,6 +326,23 @@ export default function BusinessProfilePage() {
               </div>
             </div>
           </div>
+
+          {shopData.description?.trim() && (
+            <section
+              aria-labelledby="business-about-heading"
+              className="mt-5 border-t border-[hsl(35,18%,88%)] pt-5"
+            >
+              <h2
+                id="business-about-heading"
+                className="font-serif text-lg font-bold text-[hsl(30,15%,18%)]"
+              >
+                About {shopData.name}
+              </h2>
+              <p className="mt-2 max-w-[68ch] whitespace-pre-wrap break-words text-sm leading-7 text-[hsl(30,10%,40%)] sm:text-[15px]">
+                {shopData.description}
+              </p>
+            </section>
+          )}
 
           {endorseError && !showEndorseForm && (
             <p role="alert" className="mt-4 text-sm text-red-700">
@@ -373,7 +390,7 @@ export default function BusinessProfilePage() {
           )}
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-[hsl(35,18%,88%)]">
+          <div className="mt-5 grid grid-cols-1 gap-3 border-t border-[hsl(35,18%,88%)] pt-5 sm:grid-cols-3 sm:gap-4">
             <div className="flex items-center gap-2 text-sm text-[hsl(30,10%,45%)]">
               <Calendar className="w-4 h-4 text-[hsl(35,45%,42%)]" />
               <span>

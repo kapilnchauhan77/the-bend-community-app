@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -39,11 +40,13 @@ export default function RegisterPage() {
     handleSubmit,
     control,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { guidelines_accepted: false, user_type: 'business' },
+    defaultValues: { guidelines_accepted: false, user_type: 'business', description: '' },
   });
+  const descriptionLength = watch('description')?.length ?? 0;
 
   const onSubmit = async (data: RegisterFormData) => {
     setSubmitError(null);
@@ -63,6 +66,7 @@ export default function RegisterPage() {
           user_type: 'business',
           shop_name: data.shop_name || undefined,
           business_type: data.business_type || undefined,
+          description: data.description?.trim() || undefined,
           owner_name: data.owner_name,
           email: data.email,
           phone: data.phone || undefined,
@@ -296,6 +300,29 @@ export default function RegisterPage() {
                         )}
                       />
                       <FieldError message={errors.business_type?.message} />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="description" className="text-xs font-semibold uppercase tracking-wider text-[hsl(30,10%,40%)]">
+                        About your business{' '}
+                        <span className="font-normal normal-case tracking-normal text-[hsl(30,10%,55%)]">(optional)</span>
+                      </Label>
+                      <Textarea
+                        id="description"
+                        rows={5}
+                        maxLength={1000}
+                        placeholder="Tell neighbors what you offer, who you serve, and what makes your business special."
+                        aria-describedby="registration-description-help"
+                        {...register('description')}
+                        className={`min-h-32 resize-y border-[hsl(35,18%,84%)] bg-white leading-relaxed ${errors.description ? 'border-red-400' : ''}`}
+                      />
+                      <div id="registration-description-help" className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-[11px] text-[hsl(30,10%,55%)]">
+                        <span className="max-w-[46ch]">A short introduction shown on your public business profile.</span>
+                        <span className="ml-auto tabular-nums" aria-live="polite">
+                          {descriptionLength.toLocaleString('en-US')}/1,000 characters
+                        </span>
+                      </div>
+                      <FieldError message={errors.description?.message} />
                     </div>
 
                     <div className="space-y-1.5">

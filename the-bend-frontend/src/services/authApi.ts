@@ -6,6 +6,7 @@ export const authApi = {
     user_type?: 'business' | 'individual';
     shop_name?: string;
     business_type?: string;
+    description?: string;
     owner_name: string;
     email: string;
     phone?: string;

@@ -38,7 +38,12 @@ class ShopService:
             data.get("latitude") is not None and data.get("longitude") is not None
         )
 
-        update_data = {k: v for k, v in data.items() if v is not None}
+        # Most nullable request values keep the existing partial-update behavior:
+        # `None` means "leave unchanged". Description is deliberately clearable,
+        # so preserve an explicitly supplied null from model_dump(exclude_unset=True).
+        update_data = {
+            k: v for k, v in data.items() if v is not None or k == "description"
+        }
 
         # Coordinate precedence:
         #   1. Manual pin present  -> use lat/lng verbatim, skip geocoding.

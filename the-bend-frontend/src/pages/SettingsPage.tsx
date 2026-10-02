@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -517,6 +518,7 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
   // Editable text fields.
   const [name, setName] = useState('');
   const [businessType, setBusinessType] = useState('');
+  const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
@@ -544,6 +546,7 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
         if (cancelled) return;
         setName(s.name ?? '');
         setBusinessType(s.business_type ?? '');
+        setDescription(s.description ?? '');
         setAddress(s.address ?? '');
         setContactPhone(s.contact_phone ?? '');
         setWhatsapp(s.whatsapp ?? '');
@@ -587,6 +590,7 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
       const payload: Record<string, unknown> = {
         name,
         business_type: businessType,
+        description: description.trim() || null,
         address,
         contact_phone: contactPhone,
         whatsapp,
@@ -608,6 +612,7 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
       const s = data as Shop;
       setName(s.name ?? '');
       setBusinessType(s.business_type ?? '');
+      setDescription(s.description ?? '');
       setAddress(s.address ?? '');
       setContactPhone(s.contact_phone ?? '');
       setWhatsapp(s.whatsapp ?? '');
@@ -682,6 +687,33 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
         </Select>
       </div>
 
+      {/* Business description */}
+      <div className="space-y-1.5">
+        <Label htmlFor="biz-description" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          About your business{' '}
+          <span className="font-normal normal-case tracking-normal text-gray-400">(optional)</span>
+        </Label>
+        <Textarea
+          id="biz-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={5}
+          maxLength={1000}
+          placeholder="Tell neighbors what you offer, who you serve, and what makes your business special."
+          aria-describedby="business-description-help"
+          className="min-h-32 resize-y leading-relaxed"
+        />
+        <div
+          id="business-description-help"
+          className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-[11px] text-gray-400"
+        >
+          <span className="max-w-[46ch]">Shown in full on your public business profile.</span>
+          <span className="ml-auto tabular-nums" aria-live="polite">
+            {description.length.toLocaleString('en-US')}/1,000 characters
+          </span>
+        </div>
+      </div>
+
       {/* Address */}
       <div className="space-y-1.5">
         <Label htmlFor="biz-address" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -739,7 +771,7 @@ function BusinessInfoEditor({ shopId }: { shopId: string }) {
             variant="outline"
             size="sm"
             onClick={handleResetPin}
-            className="h-7 text-[11px] font-semibold"
+            className="min-h-11 sm:min-h-7 text-[11px] font-semibold"
             style={{ borderColor: PRIMARY, color: PRIMARY }}
           >
             Reset pin to address

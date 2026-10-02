@@ -87,6 +87,7 @@ class AuthService:
             "name": data.shop_name,
             "business_type": data.business_type,
             "address": data.address,
+            "description": data.description,
             "contact_phone": data.phone,
             "whatsapp": data.whatsapp,
             "status": ShopStatus.PENDING,

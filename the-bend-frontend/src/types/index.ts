@@ -22,6 +22,7 @@ export interface Shop {
   id: string;
   name: string;
   business_type: string;
+  description?: string | null;
   address?: string;
   latitude?: number | null;
   longitude?: number | null;
