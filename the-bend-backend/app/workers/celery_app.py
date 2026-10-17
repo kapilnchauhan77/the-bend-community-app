@@ -27,14 +27,6 @@ celery_app.conf.update(
             "task": "app.workers.scheduled_tasks.auto_expire_listings",
             "schedule": crontab(minute=30),  # Every hour at :30
         },
-        "auto-expire-old-listings": {
-            "task": "app.workers.scheduled_tasks.auto_expire_old_listings",
-            "schedule": crontab(hour=0, minute=0),  # Daily midnight
-        },
-        "cleanup-read-notifications": {
-            "task": "app.workers.scheduled_tasks.cleanup_read_notifications",
-            "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Weekly Sunday 3 AM
-        },
         "cleanup-link-preview-images": {
             "task": "app.workers.scheduled_tasks.cleanup_link_preview_images",
             "schedule": crontab(hour=4, minute=0),

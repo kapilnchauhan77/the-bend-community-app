@@ -88,12 +88,25 @@ async def test_active_browse_returns_only_unexpired_rows_and_preserves_status(mo
         engine.dispose()
 
 
-def test_celery_registers_expiry_tasks_and_keeps_expiry_date_schedules():
+def test_celery_registers_manual_tasks_and_only_schedules_approved_jobs():
     celery_app.loader.import_default_modules()
-    assert "app.workers.scheduled_tasks.check_expiring_listings" in celery_app.tasks
-    assert "app.workers.scheduled_tasks.auto_expire_listings" in celery_app.tasks
-    assert "check-expiring-listings" in celery_app.conf.beat_schedule
-    assert "auto-expire-listings" in celery_app.conf.beat_schedule
+    registered_tasks = set(celery_app.tasks)
+    assert {
+        "app.workers.scheduled_tasks.check_expiring_listings",
+        "app.workers.scheduled_tasks.auto_expire_listings",
+        "app.workers.scheduled_tasks.auto_expire_old_listings",
+        "app.workers.scheduled_tasks.cleanup_read_notifications",
+        "app.workers.scheduled_tasks.cleanup_link_preview_images",
+    } <= registered_tasks
+
+    assert {
+        name: entry["task"]
+        for name, entry in celery_app.conf.beat_schedule.items()
+    } == {
+        "check-expiring-listings": "app.workers.scheduled_tasks.check_expiring_listings",
+        "auto-expire-listings": "app.workers.scheduled_tasks.auto_expire_listings",
+        "cleanup-link-preview-images": "app.workers.scheduled_tasks.cleanup_link_preview_images",
+    }
 
 
 @pytest.mark.asyncio
