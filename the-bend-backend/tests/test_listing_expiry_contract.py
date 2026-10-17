@@ -88,12 +88,25 @@ async def test_active_browse_returns_only_unexpired_rows_and_preserves_status(mo
         engine.dispose()
 
 
-def test_celery_registers_expiry_tasks_and_keeps_expiry_date_schedules():
+def test_celery_registers_manual_tasks_and_only_schedules_approved_jobs():
     celery_app.loader.import_default_modules()
-    assert "app.workers.scheduled_tasks.check_expiring_listings" in celery_app.tasks
-    assert "app.workers.scheduled_tasks.auto_expire_listings" in celery_app.tasks
-    assert "check-expiring-listings" in celery_app.conf.beat_schedule
-    assert "auto-expire-listings" in celery_app.conf.beat_schedule
+    registered_tasks = set(celery_app.tasks)
+    assert {
+        "app.workers.scheduled_tasks.check_expiring_listings",
+        "app.workers.scheduled_tasks.auto_expire_listings",
+        "app.workers.scheduled_tasks.auto_expire_old_listings",
+        "app.workers.scheduled_tasks.cleanup_read_notifications",
+        "app.workers.scheduled_tasks.cleanup_link_preview_images",
+    } <= registered_tasks
+
+    assert {
+        name: entry["task"]
+        for name, entry in celery_app.conf.beat_schedule.items()
+    } == {
+        "check-expiring-listings": "app.workers.scheduled_tasks.check_expiring_listings",
+        "auto-expire-listings": "app.workers.scheduled_tasks.auto_expire_listings",
+        "cleanup-link-preview-images": "app.workers.scheduled_tasks.cleanup_link_preview_images",
+    }
 
 
 @pytest.mark.asyncio
@@ -116,48 +129,85 @@ async def test_check_expiring_query_excludes_already_expired(monkeypatch):
     assert "listings.expiry_date <=" in sql
 
 
-def test_scheduled_runner_disposes_database_pool_after_each_loop(monkeypatch):
+def test_expiry_runner_uses_and_disposes_a_separate_engine_per_loop(monkeypatch):
     import asyncio
     from app.workers import scheduled_tasks
 
     operation_loops = []
-    dispose_loops = []
+    engines = []
 
-    async def operation():
+    async def operation(_session_factory):
         operation_loops.append(asyncio.get_running_loop())
 
     class _Engine:
+        def __init__(self, *args, **kwargs):
+            self.kwargs = kwargs
+            engines.append(self)
+
         async def dispose(self):
-            dispose_loops.append(asyncio.get_running_loop())
+            self.dispose_loop = asyncio.get_running_loop()
 
-    monkeypatch.setattr("app.database.engine", _Engine())
-    scheduled_tasks._run_scheduled(operation)
-    scheduled_tasks._run_scheduled(operation)
+    monkeypatch.setattr("sqlalchemy.ext.asyncio.create_async_engine", _Engine)
+    monkeypatch.setattr("sqlalchemy.ext.asyncio.async_sessionmaker", lambda *args, **kwargs: None)
+    monkeypatch.setattr(scheduled_tasks, "get_settings", lambda: type("Settings", (), {"DATABASE_URL": "sqlite+aiosqlite://"})())
+    scheduled_tasks._run_expiry_task(operation)
+    scheduled_tasks._run_expiry_task(operation)
 
-    assert len(operation_loops) == len(dispose_loops) == 2
+    assert len(operation_loops) == len(engines) == 2
     assert operation_loops[0] is not operation_loops[1]
-    assert operation_loops[0] is dispose_loops[0]
-    assert operation_loops[1] is dispose_loops[1]
+    assert engines[0] is not engines[1]
+    from sqlalchemy.pool import NullPool
+    assert engines[0].kwargs["poolclass"] is NullPool
+    assert engines[1].kwargs["poolclass"] is NullPool
+    assert engines[0].dispose_loop is operation_loops[0]
+    assert engines[1].dispose_loop is operation_loops[1]
 
 
-def test_scheduled_runner_disposes_database_pool_when_task_fails(monkeypatch):
+def test_expiry_runner_disposes_engine_when_task_fails(monkeypatch):
     import asyncio
     from app.workers import scheduled_tasks
 
     operation_loop = []
-    dispose_loop = []
+    engine = None
     failure = RuntimeError("task failed")
 
-    async def operation():
+    async def operation(_session_factory):
         operation_loop.append(asyncio.get_running_loop())
         raise failure
 
     class _Engine:
         async def dispose(self):
-            dispose_loop.append(asyncio.get_running_loop())
+            engine.dispose_loop = asyncio.get_running_loop()
 
-    monkeypatch.setattr("app.database.engine", _Engine())
+    engine = _Engine()
+    monkeypatch.setattr("sqlalchemy.ext.asyncio.create_async_engine", lambda *args, **kwargs: engine)
+    monkeypatch.setattr("sqlalchemy.ext.asyncio.async_sessionmaker", lambda *args, **kwargs: None)
+    monkeypatch.setattr(scheduled_tasks, "get_settings", lambda: type("Settings", (), {"DATABASE_URL": "sqlite+aiosqlite://"})())
     with pytest.raises(RuntimeError, match="task failed"):
-        scheduled_tasks._run_scheduled(operation)
+        scheduled_tasks._run_expiry_task(operation)
 
-    assert operation_loop[0] is dispose_loop[0]
+    assert operation_loop[0] is engine.dispose_loop
+
+
+def test_unrelated_scheduled_wrappers_do_not_use_expiry_runner(monkeypatch):
+    from app.workers import scheduled_tasks
+
+    called = []
+    def fail_if_called(_):
+        called.append(True)
+        raise AssertionError("unrelated task used the expiry runner")
+
+    monkeypatch.setattr(scheduled_tasks, "_run_expiry_task", fail_if_called)
+
+    async def noop():
+        return None
+
+    for wrapper, target in (
+        (scheduled_tasks.auto_expire_old_listings, "_expire_old"),
+        (scheduled_tasks.cleanup_read_notifications, "_cleanup_notifications"),
+        (scheduled_tasks.cleanup_link_preview_images, "_cleanup_link_preview_images"),
+    ):
+        monkeypatch.setattr(scheduled_tasks, target, noop)
+        wrapper()
+
+    assert called == []

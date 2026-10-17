@@ -11,33 +11,39 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _run_scheduled(async_callable):
-    """Run one Celery task in a loop and dispose the DB pool before it closes."""
+def _run_expiry_task(async_callable):
+    """Run an expiry task with a loop-local, non-pooled database engine."""
     import asyncio
-    from app.database import engine
 
-    async def run_and_dispose():
-        try:
-            return await async_callable()
-        finally:
-            await engine.dispose()
+    return asyncio.run(_run_expiry_task_async(async_callable))
 
-    return asyncio.run(run_and_dispose())
+
+async def _run_expiry_task_async(async_callable):
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        return await async_callable(session_factory)
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task
 def check_expiring_listings():
     """Find listings with expiry_date within 24 hours. Runs every hour."""
-    _run_scheduled(_check_expiring)
+    return _run_expiry_task(_check_expiring)
 
 
-async def _check_expiring():
-    from app.database import async_session
+async def _check_expiring(session_factory=None):
+    if session_factory is None:
+        from app.database import async_session as session_factory
     from app.models.listing import Listing
     from app.models.enums import ListingStatus, UrgencyLevel
     from sqlalchemy import select, update
 
-    async with async_session() as session:
+    async with session_factory() as session:
         now = datetime.utcnow()
         threshold = now + timedelta(hours=24)
         result = await session.execute(
@@ -60,16 +66,17 @@ async def _check_expiring():
 @celery_app.task
 def auto_expire_listings():
     """Expire listings past their expiry_date. Runs every hour."""
-    _run_scheduled(_auto_expire)
+    return _run_expiry_task(_auto_expire)
 
 
-async def _auto_expire():
-    from app.database import async_session
+async def _auto_expire(session_factory=None):
+    if session_factory is None:
+        from app.database import async_session as session_factory
     from app.models.listing import Listing
     from app.models.enums import ListingStatus
     from sqlalchemy import update
 
-    async with async_session() as session:
+    async with session_factory() as session:
         now = datetime.utcnow()
         result = await session.execute(
             update(Listing).where(
@@ -85,7 +92,8 @@ async def _auto_expire():
 @celery_app.task
 def auto_expire_old_listings():
     """Expire active listings older than 7 days with no activity. Runs daily."""
-    _run_scheduled(_expire_old)
+    import asyncio
+    asyncio.run(_expire_old())
 
 
 async def _expire_old():
@@ -110,13 +118,15 @@ async def _expire_old():
 @celery_app.task
 def cleanup_read_notifications():
     """Delete read notifications older than 30 days. Runs weekly."""
-    _run_scheduled(_cleanup_notifications)
+    import asyncio
+    asyncio.run(_cleanup_notifications())
 
 
 @celery_app.task
 def cleanup_link_preview_images():
     """Remove old link-preview images with no database or Redis references."""
-    _run_scheduled(_cleanup_link_preview_images)
+    import asyncio
+    asyncio.run(_cleanup_link_preview_images())
 
 
 async def _cleanup_link_preview_images():
