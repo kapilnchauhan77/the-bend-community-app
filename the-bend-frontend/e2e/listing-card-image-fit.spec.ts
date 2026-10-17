@@ -59,6 +59,12 @@ const listingCardsFixture = [
   },
 ];
 
+const listingDetailFixture = {
+  ...listingCardsFixture[0],
+  viewer_has_interest: false,
+  viewer_has_saved: false,
+};
+
 async function stubBrowseApi(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
     const requestUrl = new URL(route.request().url());
@@ -100,6 +106,33 @@ async function stubBrowseApi(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({ items: [] }),
     });
+  });
+}
+
+async function stubListingDetailApi(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const requestUrl = new URL(route.request().url());
+
+    if (requestUrl.pathname === '/api/v1/tenant/current') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          slug: 'westmoreland',
+          display_name: 'The Bend — Westmoreland',
+          tagline: 'Find opportunity within your neighborhood',
+          primary_color: 'hsl(160,25%,24%)',
+          footer_text: 'Preserving community, one connection at a time',
+        }),
+      });
+      return;
+    }
+
+    if (requestUrl.pathname === '/api/v1/listings/listing-portrait') {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(listingDetailFixture) });
+      return;
+    }
+
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [] }) });
   });
 }
 
@@ -153,4 +186,55 @@ test('video listing posters stay object-cover with play overlay', async ({ page 
   const videoImage = videoCard.getByRole('img', { name: videoListingTitle });
   await expect(videoImage).toHaveCSS('object-fit', 'cover');
   await expect(videoCard.locator('[class*="aspect-[16/9]"] .rounded-full').first()).toBeVisible();
+});
+
+test('listing detail keeps portrait stills contained and restores focus after enlargement', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await stubListingDetailApi(page);
+  await page.goto('/listing/listing-portrait');
+
+  const imageControl = page.getByRole('button', { name: `Enlarge image for ${portraitListingTitle}` });
+  await expect(imageControl).toBeVisible();
+  await expect(imageControl.locator('img')).toHaveCSS('object-fit', 'contain');
+
+  await imageControl.click();
+  const dialog = page.getByRole('dialog', { name: `Enlarged image for ${portraitListingTitle}` });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('img', { name: portraitListingTitle })).toHaveCSS('object-fit', 'contain');
+  const closeButton = dialog.getByRole('button', { name: 'Close' });
+  await expect(closeButton).toHaveCSS('width', '40px');
+  await expect(closeButton).toHaveCSS('height', '40px');
+  const closeStyles = await closeButton.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      backgroundColor: styles.backgroundColor,
+      borderRadius: styles.borderRadius,
+      color: styles.color,
+    };
+  });
+  expect(parseFloat(closeStyles.borderRadius)).toBeGreaterThan(1000);
+  expect(closeStyles.backgroundColor).toContain('0.7');
+  expect(closeStyles.color).toBe('rgb(255, 255, 255)');
+
+  await page.setViewportSize({ width: 667, height: 320 });
+  const [dialogBounds, imageBounds, closeBounds] = await Promise.all([
+    dialog.boundingBox(),
+    dialog.getByRole('img', { name: portraitListingTitle }).boundingBox(),
+    closeButton.boundingBox(),
+  ]);
+  expect(dialogBounds).not.toBeNull();
+  expect(imageBounds).not.toBeNull();
+  expect(closeBounds).not.toBeNull();
+  expect(dialogBounds!.y).toBeGreaterThanOrEqual(0);
+  expect(dialogBounds!.y + dialogBounds!.height).toBeLessThanOrEqual(320);
+  expect(imageBounds!.y).toBeGreaterThanOrEqual(closeBounds!.y + closeBounds!.height);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(imageControl).toBeFocused();
+
+  await imageControl.press('Enter');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(imageControl).toBeFocused();
 });
