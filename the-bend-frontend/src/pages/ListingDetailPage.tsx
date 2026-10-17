@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { CATEGORY_LABELS, resolveAssetUrl } from '@/lib/constants';
 import { timeAgo, parseServerDate, formatPrice, isVideoUrl } from '@/lib/utils';
@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +96,8 @@ export default function ListingDetailPage() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reported, setReported] = useState(false);
   const [posterDiscountCodes, setPosterDiscountCodes] = useState<DiscountCode[]>([]);
+  const [enlargementImage, setEnlargementImage] = useState<string | null>(null);
+  const imageTriggerRef = useRef<HTMLButtonElement>(null);
 
   const isOwner = !!(listing && ((shop && listing.shop && listing.shop.id === shop.id) || (user && listing.posted_by?.id === user.id)));
   const isCommunityAdmin = user?.role === 'community_admin' || user?.role === 'super_admin';
@@ -270,11 +273,19 @@ export default function ListingDetailPage() {
                   );
                 }
                 return (
-                  <img
-                    src={resolveAssetUrl(current.url)}
-                    alt={listing.title}
-                    className="w-full h-full object-cover"
-                  />
+                  <button
+                    type="button"
+                    ref={imageTriggerRef}
+                    onClick={() => setEnlargementImage(current.url)}
+                    className="w-full h-full cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(160,25%,24%)]"
+                    aria-label={`Enlarge image for ${listing.title}`}
+                  >
+                    <img
+                      src={resolveAssetUrl(current.url)}
+                      alt={listing.title}
+                      className="w-full h-full object-contain"
+                    />
+                  </button>
                 );
               })()}
               {images.length > 1 && (
@@ -312,6 +323,31 @@ export default function ListingDetailPage() {
             </div>
           )}
         </div>
+
+        <Dialog
+          open={enlargementImage !== null}
+          onOpenChange={(open) => {
+            if (!open) setEnlargementImage(null);
+          }}
+        >
+          <DialogContent
+            className="max-w-[95vw] w-fit border-0 bg-black/95 p-2 pt-12 text-white [&>button]:right-2 [&>button]:top-2 [&>button]:inline-flex [&>button]:h-10 [&>button]:w-10 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full [&>button]:bg-black/70 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-black/85"
+            aria-describedby={undefined}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              imageTriggerRef.current?.focus();
+            }}
+          >
+            <DialogTitle className="sr-only">Enlarged image for {listing.title}</DialogTitle>
+            {enlargementImage && (
+              <img
+                src={resolveAssetUrl(enlargementImage)}
+                alt={listing.title}
+                className="max-h-[calc(90dvh_-_3.5rem)] max-w-[90vw] object-contain"
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Header section */}
         <div className="mb-5">

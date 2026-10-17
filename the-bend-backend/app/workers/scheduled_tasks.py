@@ -11,11 +11,24 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
+def _run_scheduled(async_callable):
+    """Run one Celery task in a loop and dispose the DB pool before it closes."""
+    import asyncio
+    from app.database import engine
+
+    async def run_and_dispose():
+        try:
+            return await async_callable()
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run_and_dispose())
+
+
 @celery_app.task
 def check_expiring_listings():
     """Find listings with expiry_date within 24 hours. Runs every hour."""
-    import asyncio
-    asyncio.run(_check_expiring())
+    _run_scheduled(_check_expiring)
 
 
 async def _check_expiring():
@@ -25,11 +38,13 @@ async def _check_expiring():
     from sqlalchemy import select, update
 
     async with async_session() as session:
-        threshold = datetime.utcnow() + timedelta(hours=24)
+        now = datetime.utcnow()
+        threshold = now + timedelta(hours=24)
         result = await session.execute(
             select(Listing).where(
                 Listing.status == ListingStatus.ACTIVE,
                 Listing.expiry_date.isnot(None),
+                Listing.expiry_date > now,
                 Listing.expiry_date <= threshold,
                 Listing.urgency == UrgencyLevel.NORMAL,
             )
@@ -45,8 +60,7 @@ async def _check_expiring():
 @celery_app.task
 def auto_expire_listings():
     """Expire listings past their expiry_date. Runs every hour."""
-    import asyncio
-    asyncio.run(_auto_expire())
+    _run_scheduled(_auto_expire)
 
 
 async def _auto_expire():
@@ -71,8 +85,7 @@ async def _auto_expire():
 @celery_app.task
 def auto_expire_old_listings():
     """Expire active listings older than 7 days with no activity. Runs daily."""
-    import asyncio
-    asyncio.run(_expire_old())
+    _run_scheduled(_expire_old)
 
 
 async def _expire_old():
@@ -97,16 +110,13 @@ async def _expire_old():
 @celery_app.task
 def cleanup_read_notifications():
     """Delete read notifications older than 30 days. Runs weekly."""
-    import asyncio
-    asyncio.run(_cleanup_notifications())
+    _run_scheduled(_cleanup_notifications)
 
 
 @celery_app.task
 def cleanup_link_preview_images():
     """Remove old link-preview images with no database or Redis references."""
-    import asyncio
-
-    asyncio.run(_cleanup_link_preview_images())
+    _run_scheduled(_cleanup_link_preview_images)
 
 
 async def _cleanup_link_preview_images():

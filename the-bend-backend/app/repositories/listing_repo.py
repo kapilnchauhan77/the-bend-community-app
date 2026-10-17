@@ -45,6 +45,11 @@ class ListingRepository(BaseRepository[Listing]):
             .where(Listing.status == status_filter)
         )
 
+        if status_filter == ListingStatus.ACTIVE:
+            query = query.where(
+                or_(Listing.expiry_date.is_(None), Listing.expiry_date > datetime.utcnow())
+            )
+
         if tenant_id:
             query = query.where(Listing.tenant_id == tenant_id)
 
